@@ -12,8 +12,9 @@ import { Interactions, type Answer, type AnswerGuard } from './interactions.js';
 import { SessionIndex } from './session.js';
 import { EventHub, type EventScope } from './events.js';
 import { killGroup } from './process.js';
+import { ProcessGroupContainment, type Containment, type CleanupUnit } from './containment.js';
 import { Refusal, type Binding, type Create, type Prompt, type Worker, type Receipt, type Hello, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
-type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null };
+type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null; unit?: CleanupUnit; create?: Create; intentBindings?: Record<string, Binding> };
 type Pending = { kind: 'follow_up' | 'child'; request: FollowUp | ChildLaunch; guard: () => void };
 type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; exited?: boolean; rebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout>; inventoryReady?: () => void };
 export type HostFactory = (create: Create, sessionDir: string, context?: HostContext) => SessionHost;
@@ -32,7 +33,7 @@ export class Supervisor {
   readonly authority = new AsyncLocalStorage<AnswerGuard>();
   readonly callerGrant = new AsyncLocalStorage<Grant>();
   private dispatchGuard(): void { this.authority.getStore()?.(); }
-  constructor(readonly stateDir: string, readonly journal: Journal, readonly piVersion: string, readonly factory: HostFactory) {
+  constructor(readonly stateDir: string, readonly journal: Journal, readonly piVersion: string, readonly factory: HostFactory, readonly containment: Containment = new ProcessGroupContainment()) {
     this.grants = new GrantStore(stateDir); this.grants.registerOwner();
     this.id = (journal.records.find(r => r.kind === 'supervisor')?.value.supervisor_id as string | undefined) ?? randomUUID();
     journal.append('supervisor', { supervisor_id: this.id, supervisor_epoch: this.epoch });
@@ -73,7 +74,9 @@ export class Supervisor {
         }
       }
       for (const receipt of this.receipts.all.values()) if (receipt.worker_id === w.worker_id && ['sessions.prompt', 'sessions.follow_up', 'sessions.rebind', 'children.launch', 'interactions.answer_if_current', 'interactions.release'].includes(receipt.operation) && receipt.state === 'outcome_unknown' && !resolved.has(receipt.command_id)) this.fence(live, receipt.command_id);
-      if (live.pid !== null) {
+      if (live.unit) {
+        await this.cleanup(live);
+      } else if (live.pid !== null) {
         w.status = 'cleanup_pending'; this.persist(live);
         const gone = await killGroup(live.pid, live.token);
         w.status = gone ? 'stopped' : 'cleanup_pending';
@@ -101,11 +104,20 @@ export class Supervisor {
     return { protocol: { major: 0, minor: 1 }, prototype: true, supervisor_id: this.id, supervisor_epoch: this.epoch, pi_version: this.piVersion,
       capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'host.sdk', 'host.acp', 'interactions.list', 'interactions.answer_if_current', 'interactions.status', 'interaction.select', 'interaction.confirm', 'interaction.input', 'interaction.editor', 'interaction.tool_approval.sdk_acp', 'answer_stage.rpc.2', 'answer_stage.sdk_acp.3', 'gate_stage.sdk_acp.4', 'custom_ui.refused', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt', 'workers.create.typed_child', 'children.report.fd'],
       limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; SDK/ACP test bash gate rechecks grant at release dispatch and child rechecks input digest/policy/expiry; not a production sandbox', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination, cancel/interrupt, resolution and child reports bypass count quota; journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed requires exact agent_settled evidence in the session file or fsynced settlement record, never external-effect completion', tree_navigation: 'SDK/ACP navigateTree supported; RPC refused no_effect. SDK leaf overrides append-order history.', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
-      resource_profile: 'per-worker resources inventories actually registered tools/commands; SDK/ACP also exact loaded extension paths and skills. Project resources require create.project_trusted=true. SDK builtins added explicitly for untyped launches; launch_spec uses explicit resources/tools with no discovered resources/MCP/project context; no MCP connection parity claim', cleanup_profile: 'linux_process_group; no adoption or resume; escaped descendants unproven' };
+      resource_profile: 'per-worker resources inventories actually registered tools/commands; SDK/ACP also exact loaded extension paths and skills. Project resources require create.project_trusted=true. SDK builtins added explicitly for untyped launches; launch_spec uses explicit resources/tools with no discovered resources/MCP/project context; no MCP connection parity claim', cleanup_profile: this.containment.profile };
+  }
+  private async cleanup(live: Live): Promise<boolean> {
+    live.worker.status = 'cleanup_pending'; live.worker.cleanup = 'unresolved';
+    this.persist(live); // fsynced before kill, including startup recovery and stop
+    let gone = false;
+    try { gone = live.unit ? await this.containment.clean(live.unit) : false; } catch { /* remain pending */ }
+    if (gone) { live.pid = null; live.worker.status = 'stopped'; live.worker.cleanup = 'cgroup_empty_removed'; }
+    this.persist(live); // only removal/empty evidence can release the lease
+    return gone;
   }
   private persist(live: Live): void {
     if (live.worker.session_id && live.sessionFile) this.sessionFiles.set(live.worker.session_id, { file: live.sessionFile, worker_id: live.worker.worker_id });
-    this.journal.append('worker', { worker: live.worker, sessionFile: live.sessionFile, pid: live.pid, token: live.token });
+    this.journal.append('worker', { worker: live.worker, sessionFile: live.sessionFile, pid: live.pid, token: live.token, ...(live.unit ? { unit: live.unit } : {}), ...(live.create ? { create: live.create } : {}), ...(live.intentBindings ? { intentBindings: live.intentBindings } : {}) });
     live.hub.publish('worker_changed', { worker: structuredClone(live.worker) }, live.worker.execution?.execution_id ?? null, 'supervisor', true);
   }
   private fence(live: Live, command_id: string, memoryOnly = false): void {
@@ -171,9 +183,9 @@ export class Supervisor {
     report();
     // Never rethrow from a child EventEmitter callback. Cleanup errors leave
     // this worker closed and its environment reserved; other workers stay up.
-    void (live.host ? live.host.stop() : Promise.resolve(false)).then(gone => {
+    void (live.unit ? this.cleanup(live) : live.host ? live.host.stop() : Promise.resolve(false)).then(gone => {
       w.status = gone ? 'failed' : 'cleanup_pending';
-      w.cleanup = gone ? 'process_group_observed_gone; escaped_descendants_unproven' : 'worker_fault; cleanup_unproven';
+      w.cleanup = gone ? live.unit ? 'cgroup_empty_removed' : 'process_group_observed_gone; escaped_descendants_unproven' : 'worker_fault; cleanup_unproven';
       if (gone) live.pid = null;
       report();
     }).catch(() => { report(); });
@@ -299,12 +311,12 @@ export class Supervisor {
       if (c.launch_spec) w.launch_spec = structuredClone(c.launch_spec);
       if (this.callerGrant.getStore()) w.grant_source_id = this.callerGrant.getStore()!.grant_id;
       if (c.parent) { w.parent = structuredClone(c.parent); w.parent_worker_id = c.parent.worker_id; w.parent_launch_command_id = c.command_id; }
-      const live: Live = { worker: w, sessionFile: null, pid: null, token: null, index: new SessionIndex(null), hub: this.events.scoped(worker_id), completedMessages: 0 };
+      const live: Live = { worker: w, sessionFile: null, pid: null, token: null, unit: this.containment.reserve(worker_epoch), create: { ...c, cwd }, index: new SessionIndex(null), hub: this.events.scoped(worker_id), completedMessages: 0 };
       this.workers.set(worker_id, live);
       this.persist(live);
       this.receipts.dispatch(c.command_id, { worker_id });
       const dir = join(this.stateDir, 'sessions', worker_id); mkdirSync(dir, { recursive: true, mode: 0o700 });
-      const host = this.factory({ ...c, cwd }, dir, { worker_id, launch_command_id: c.command_id, parent: c.parent, launch_spec: c.launch_spec }); live.host = host;
+      const host = this.factory({ ...c, cwd }, dir, { worker_id, launch_command_id: c.command_id, parent: c.parent, launch_spec: c.launch_spec, containment: this.containment, unit: live.unit }); live.host = host;
       live.pid = host.pid ?? null; live.token = host.token; this.persist(live);
       host.on('event', event => this.guarded(live, () => this.onEvent(live, event)));
       host.on('exit', () => this.guarded(live, () => this.onExit(live)));
@@ -322,12 +334,12 @@ export class Supervisor {
           const timer = setTimeout(() => { live.inventoryReady = undefined; reject(new Error('rpc_audit_inventory_required')); }, 30000); timer.unref();
           live.inventoryReady = () => { clearTimeout(timer); live.inventoryReady = undefined; resolve(); };
         });
-        w.status = 'ready'; w.cleanup = 'live_process_group'; this.persist(live);
+        w.status = 'ready'; w.cleanup = live.unit ? 'live_cgroup' : 'live_process_group'; this.persist(live);
         return { state: 'delivered', stage: 'forwarded', effect: 'observed', worker_id, result: { worker_id, worker_epoch, session_id: w.session_id, binding_revision: 1 }, history_lag: w.history.lag };
       } catch (error) {
-        const gone = await host.stop(); w.status = gone ? 'failed' : 'cleanup_pending';
+        const gone = live.unit ? await this.cleanup(live) : await host.stop(); w.status = gone ? 'failed' : 'cleanup_pending';
         this.clearInteractions(live);
-        w.cleanup = gone ? 'process_group_observed_gone; escaped_descendants_unproven' : 'unresolved';
+        w.cleanup = gone ? live.unit ? 'cgroup_empty_removed' : 'process_group_observed_gone; escaped_descendants_unproven' : 'unresolved';
         if (gone) live.pid = null;
         this.persist(live); throw error;
       }
@@ -577,18 +589,20 @@ export class Supervisor {
     return this.receipts.run(b.command_id, 'workers.stop', { ...b, worker_id: id }, async () => {
       this.dispatchGuard();
       this.receipts.dispatch(b.command_id, { worker_id: id });
-      const gone = live.host ? await live.host.stop() : live.pid !== null ? await killGroup(live.pid, live.token) : live.worker.status !== 'cleanup_pending';
+      live.worker.status = 'cleanup_pending'; this.persist(live);
+      const gone = live.unit ? await this.cleanup(live) : live.host ? await live.host.stop() : live.pid !== null ? await killGroup(live.pid, live.token) : live.worker.cleanup === 'not_started';
       live.worker.status = gone ? 'stopped' : 'cleanup_pending';
-      live.worker.cleanup = gone ? 'process_group_observed_gone; escaped_descendants_unproven' : 'unresolved';
+      live.worker.cleanup = gone ? live.unit ? 'cgroup_empty_removed' : 'process_group_observed_gone; escaped_descendants_unproven' : 'unresolved';
       if (gone) live.pid = null;
       this.persist(live);
-      return { state: gone ? 'delivered' : 'outcome_unknown', stage: gone ? 'termination_observed' : 'unknown', effect: gone ? 'observed' : 'unknown', result: { termination: gone ? 'observed_stopped' : 'unknown', profile: 'process_group_only' } };
+      return { state: gone ? 'delivered' : 'outcome_unknown', stage: gone ? 'termination_observed' : 'unknown', effect: gone ? 'observed' : 'unknown', result: { termination: gone ? 'observed_stopped' : 'unknown', profile: live.unit ? 'cgroup_v2' : 'process_group_only' } };
     }, () => { live = this.require(id); this.binding(live, b); });
   }
   async shutdown(): Promise<void> {
     for (const live of this.workers.values()) {
       this.clearInteractions(live);
-      if (live.host) { await live.host.stop(); }
+      if (live.unit) await this.cleanup(live);
+      else if (live.host) { await live.host.stop(); }
     }
   }
 }
