@@ -207,8 +207,7 @@ test('M1: sandbox mounts make Git pointers, HEAD, config, hooks and alternates r
       const mounts = fdMounts(launch.args), c = join(r.repo, '.git');
       for (const ro of [join(r.wt, '.git'), join(r.admin, 'gitdir'), join(r.admin, 'commondir'), join(r.admin, 'HEAD'), join(c, 'config'), join(c, 'refs'), join(c, 'objects', 'info')]) assert.ok(mounts.includes('ro ' + ro), ro);
       for (const rw of [r.wt, r.admin, join(c, 'objects'), join(c, 'refs', 'heads', 'a0-child')]) assert.ok(mounts.includes('rw ' + rw), rw);
-      assert.equal(launch.args.filter(a => a === '--bind' || a === '--ro-bind').every((_, i, all) => all.length >= 0), true);
-      assert.ok(!launch.args.some((a, i) => (a === '--bind') && launch.args[i + 1]!.startsWith(r.base)), 'no path-based writable bind into the sandbox-writable tree');
+      assert.ok(!launch.args.some((a, i) => (a === '--bind' || a === '--ro-bind') && launch.args[i + 1]!.startsWith(r.base)), 'no path-based bind into the sandbox-writable tree');
       assert.equal(launch.fds.length, mounts.length);
       assert.equal(launch.gitPin?.kind, 'linked');
     } finally { launch.close(); }
