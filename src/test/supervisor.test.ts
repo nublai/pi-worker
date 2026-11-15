@@ -20,6 +20,7 @@ class FakeHost extends EventEmitter implements SessionHost {
     this.prompts++; this.emit('event', { type: 'agent_start' });
     return { type: 'response', id: 'test', success: true, data: { disposition: 'started' } };
   }
+  async cancelUI(): Promise<void> {}
   async stop(): Promise<boolean> { this.emit('exit'); return true; }
 }
 function setup() {

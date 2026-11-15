@@ -10,7 +10,7 @@ import { EventHub } from './events.js';
 import { killGroup } from './process.js';
 import { Refusal, type Binding, type Create, type Prompt, type Worker, type Receipt, type Hello } from './types.js';
 type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null };
-type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventHub; completedMessages: number; faulted?: boolean };
+type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventHub; completedMessages: number; faulted?: boolean; startupDialog?: boolean; interactionTimers?: Map<string, NodeJS.Timeout> };
 export type HostFactory = (create: Create, sessionDir: string) => SessionHost;
 export class Supervisor {
   readonly epoch = randomUUID();
@@ -72,6 +72,7 @@ export class Supervisor {
     live.hub.publish('worker_changed', { worker: structuredClone(live.worker) }, live.worker.execution?.execution_id ?? null, 'supervisor', true);
   }
   private fence(live: Live, command_id: string): void {
+    const before = JSON.stringify([live.worker.fence, live.worker.execution, live.worker.foreground]);
     const prior = live.worker.fence;
     if (!prior) live.worker.fence = { command_id, fence_generation: 1, uncertain_command_ids: [command_id] };
     else if (!(prior.uncertain_command_ids ?? [prior.command_id]).includes(command_id)) {
@@ -81,7 +82,7 @@ export class Supervisor {
     }
     if (live.worker.execution?.command_id === command_id) live.worker.execution.state = 'outcome_unknown';
     live.worker.foreground = 'unknown';
-    this.persist(live); // Fence before any unknown reply.
+    if (JSON.stringify([live.worker.fence, live.worker.execution, live.worker.foreground]) !== before) this.persist(live); // Fence before any unknown reply.
   }
   require(id: string): Live { const live = this.workers.get(id); if (!live) throw new Refusal('unknown_worker'); return live; }
   get(id: string): Worker {
@@ -111,7 +112,7 @@ export class Supervisor {
     if (live.faulted) return;
     live.faulted = true;
     const w = live.worker;
-    w.pending_interactions = [];
+    this.clearInteractions(live);
     w.status = 'cleanup_pending'; w.cleanup = 'worker_fault; cleanup_unproven';
     w.foreground = 'unknown';
     const cause = this.journal.failed ? 'journal_failure' : error instanceof Refusal && error.message === 'pi_header_identity_changed' ? error.message : 'worker_event_failure';
@@ -134,10 +135,36 @@ export class Supervisor {
       report();
     }).catch(() => { report(); });
   }
+  private clearInteractions(live: Live): void {
+    for (const timer of live.interactionTimers?.values() ?? []) clearTimeout(timer);
+    live.interactionTimers?.clear(); live.worker.pending_interactions = [];
+  }
+  private closeInteraction(live: Live, id: string, reason: string): void {
+    const timer = live.interactionTimers?.get(id); if (timer) clearTimeout(timer);
+    live.interactionTimers?.delete(id);
+    const pending = live.worker.pending_interactions;
+    live.worker.pending_interactions = pending.filter(x => x.native_id !== id);
+    if (pending.length === live.worker.pending_interactions.length) return;
+    this.persist(live);
+    live.hub.publish('interaction_closed', { native_id: id, reason, resolver_consumed: 'unproven' }, null, 'supervisor');
+  }
   private onEvent(live: Live, event: PiRecord): void {
     const w = live.worker;
     if (event.type === 'extension_ui_request' && ['select', 'confirm', 'input', 'editor'].includes(String(event.method))) {
-      w.pending_interactions.push({ native_id: String(event.id), kind: String(event.method) });
+      const id = String(event.id);
+      if (w.pending_interactions.length >= 32 || w.pending_interactions.some(x => x.native_id === id)) throw new Error('unsupported interaction capacity or duplicate');
+      if (w.status === 'starting') live.startupDialog = true;
+      w.pending_interactions.push({ native_id: id, kind: String(event.method) });
+      this.persist(live);
+      const ttl = typeof event.timeout === 'number' && event.timeout > 0 ? Math.min(event.timeout, 30000) : 30000;
+      const timer = setTimeout(() => this.guarded(live, () => this.closeInteraction(live, id, 'expired')), ttl); timer.unref();
+      (live.interactionTimers ??= new Map()).set(id, timer);
+      // Until slice 2 can answer, cancel every unsupported blocking dialog. Only
+      // forwarding is observed; do not claim the native resolver consumed it.
+      void live.host!.cancelUI(id).then(() => this.guarded(live, () => this.closeInteraction(live, id, 'cancel_forwarded'))).catch(error => this.fault(live, error));
+    }
+    if (event.type === 'tool_execution_end' || event.type === 'agent_settled') {
+      if (w.pending_interactions.length) { this.clearInteractions(live); this.persist(live); }
     }
     if (event.type === 'message_end') live.completedMessages++;
     if (event.type === 'agent_start') {
@@ -157,6 +184,7 @@ export class Supervisor {
       this.receipts.unknown(id); this.fence(live, id);
     }
     // A leader exit is not proof its process group has terminated.
+    this.clearInteractions(live);
     live.worker.status = 'cleanup_pending';
     live.worker.cleanup = 'leader_exit_only';
     this.persist(live);
@@ -182,11 +210,13 @@ export class Supervisor {
         if (!state.success || typeof state.data?.sessionId !== 'string' || typeof state.data.sessionFile !== 'string') throw new Error('pi initialization did not return a session identity');
         w.session_id = state.data.sessionId; live.sessionFile = state.data.sessionFile; live.index.file = live.sessionFile;
         this.refresh(live);
-        if (w.pending_interactions.length) throw new Error('startup blocked by unsupported interaction');
+        if (live.startupDialog) throw new Error('startup blocked by unsupported interaction');
         w.status = 'ready'; w.cleanup = 'live_process_group'; this.persist(live);
         return { state: 'delivered', stage: 'forwarded', effect: 'observed', worker_id, result: { worker_id, worker_epoch, session_id: w.session_id, binding_revision: 1 }, history_lag: w.history.lag };
       } catch (error) {
         const gone = await host.stop(); w.status = gone ? 'failed' : 'cleanup_pending';
+        this.clearInteractions(live);
+        w.cleanup = gone ? 'process_group_observed_gone; escaped_descendants_unproven' : 'unresolved';
         if (gone) live.pid = null;
         this.persist(live); throw error;
       }

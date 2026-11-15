@@ -9,6 +9,10 @@ process.stdin.on('data', chunk => {
     const line = pending.slice(0, nl); pending = pending.slice(nl + 1);
     let c; try { c = JSON.parse(line); } catch { continue; }
     if (c.type === 'never_reply') continue;
+    if (c.type === 'extension_ui_response') {
+      process.stdout.write(JSON.stringify({ type: 'ui_cancel_seen', native_id: c.id, cancelled: c.cancelled }) + '\n');
+      continue; // One-way UI response: never emit a correlated RPC reply.
+    }
     const reply = JSON.stringify({ type: 'response', id: c.id, success: true, data: { value: 'one\u2028two\u2029😀', disposition: 'started' } }) + '\r\n';
     const b = Buffer.from(reply);
     const i = b.indexOf(Buffer.from('😀')) + 1;

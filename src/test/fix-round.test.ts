@@ -13,9 +13,11 @@ import type { Binding, Worker, Receipt } from '../types.js';
 class Host extends EventEmitter implements SessionHost {
   pid = undefined; token = null; prompts = 0; stops = 0; stopOk = true;
   beforePrompt = () => {}; failure: Error | null = null;
+  cancellations: string[] = []; holdCancellation = false; badState = false;
+  async cancelUI(id: string): Promise<void> { this.cancellations.push(id); if (this.holdCancellation) await new Promise<void>(() => {}); }
   constructor(readonly file: string, readonly sessionId: string) { super(); }
   async request(c: PiRecord): Promise<PiResponse> {
-    if (c.type === 'get_state') return { type: 'response', id: 'x', success: true, data: { sessionId: this.sessionId, sessionFile: this.file } };
+    if (c.type === 'get_state') return { type: 'response', id: 'x', success: !this.badState, data: { sessionId: this.sessionId, sessionFile: this.file } };
     this.beforePrompt(); this.prompts++;
     if (this.failure) throw this.failure;
     this.emit('event', { type: 'agent_start' });
@@ -23,14 +25,14 @@ class Host extends EventEmitter implements SessionHost {
   }
   async stop() { this.stops++; this.emit('exit'); return this.stopOk; }
 }
-function fixture() {
+function fixture(initHost?: (host: Host) => void) {
   mkdirSync('/tmp/a0', { recursive: true });
   const dir = mkdtempSync('/tmp/a0/fix-test-'), journal = new Journal(join(dir, 'journal'));
   const hosts: Host[] = [];
   const supervisor = new Supervisor(dir, journal, '1.5.2', () => {
     const sid = `session-${hosts.length}`, file = join(dir, `${sid}.jsonl`);
     writeFileSync(file, JSON.stringify({ type: 'session', id: sid, version: 3 }) + '\n');
-    const host = new Host(file, sid); hosts.push(host); return host;
+    const host = new Host(file, sid); initHost?.(host); hosts.push(host); return host;
   });
   async function create() {
     const cwd = join(dir, `cwd-${hosts.length}`); mkdirSync(cwd);
@@ -121,6 +123,7 @@ for (const failure of ['journal', 'header']) test(`${failure} failure in a Pi ev
     await new Promise<void>(r => setImmediate(r));
     assert.ok(f.hosts[0]!.stops > 0); assert.equal(f.hosts[1]!.stops, 0);
     assert.equal(f.supervisor.get(w.worker_id).status, 'failed');
+    assert.equal(f.supervisor.get(w.worker_id).fence?.command_id, 'active');
     assert.equal(f.supervisor.list().find(x => x.worker_id === healthy.worker_id)?.status, 'ready');
     assert.equal(f.supervisor.hello().protocol.major, 0);
     if (failure === 'journal') await assert.rejects(f.supervisor.prompt(healthy.worker_id, { ...binding(healthy, 'blocked'), message: 'no' }), /journal_failed/);
@@ -138,6 +141,55 @@ test('validation refusals consume no durable storage, ordinary capacity never bl
     await assert.rejects(f.supervisor.prompt(w.worker_id, { ...binding(w, 'full'), message: 'no' }), /receipt_capacity/);
     assert.equal((await f.supervisor.stop(w.worker_id, binding(w, 'stop'))).state, 'delivered');
   } finally { f.cleanup(); }
+});
+test('failed create preserves the same group-only cleanup and cwd reservation as stop (m-1)', async () => {
+  const f = fixture(h => { h.badState = true; }); try {
+    const cwd = join(f.dir, 'failed-cwd'); mkdirSync(cwd);
+    const c = { command_id: 'failed-create', cwd, provider: 'p', model: 'm', thinking: 'off' as const };
+    assert.equal((await f.supervisor.create(c)).state, 'outcome_unknown');
+    const w = f.supervisor.list()[0]!;
+    assert.equal(w.status, 'failed'); assert.match(w.cleanup, /escaped_descendants_unproven/);
+    await assert.rejects(f.supervisor.create({ ...c, command_id: 'replacement' }), /exclusive_environment_already_bound/);
+    assert.equal(f.hosts.length, 1);
+  } finally { f.cleanup(); }
+});
+test('unsupported UI dialogs auto-cancel without resolver-consumed claims (m-2)', async () => {
+  const f = fixture(); try {
+    const w = await f.create(), h = f.hosts[0]!;
+    for (const [i, method] of ['select', 'confirm', 'input', 'editor'].entries()) h.emit('event', { type: 'extension_ui_request', id: `q-${i}`, method });
+    assert.equal(f.supervisor.get(w.worker_id).pending_interactions.length, 4);
+    await new Promise<void>(r => setImmediate(r));
+    assert.deepEqual(h.cancellations, ['q-0', 'q-1', 'q-2', 'q-3']);
+    assert.deepEqual(f.supervisor.get(w.worker_id).pending_interactions, []);
+  } finally { f.cleanup(); }
+});
+for (const end of ['tool_execution_end', 'agent_settled', 'expiry']) test(`pending unsupported interactions close on ${end} (m-2)`, async () => {
+  const f = fixture(h => { h.holdCancellation = true; }); try {
+    const w = await f.create(), h = f.hosts[0]!;
+    h.emit('event', { type: 'extension_ui_request', id: 'q', method: 'input', timeout: end === 'expiry' ? 5 : 30000 });
+    assert.equal(f.supervisor.get(w.worker_id).pending_interactions.length, 1);
+    if (end === 'expiry') await new Promise<void>(r => setTimeout(r, 20));
+    else h.emit('event', { type: end });
+    assert.deepEqual(f.supervisor.get(w.worker_id).pending_interactions, []);
+  } finally { f.cleanup(); }
+});
+test('pending unsupported dialogs are bounded and cancellation failure faults closed (m-2)', async () => {
+  const f = fixture(h => { h.holdCancellation = true; }); try {
+    const w = await f.create(), h = f.hosts[0]!;
+    for (let i = 0; i < 33; i++) h.emit('event', { type: 'extension_ui_request', id: `q-${i}`, method: 'select' });
+    await new Promise<void>(r => setImmediate(r));
+    assert.equal(f.supervisor.get(w.worker_id).status, 'failed');
+    assert.deepEqual(f.supervisor.get(w.worker_id).pending_interactions, []);
+    assert.equal(h.cancellations.length, 32);
+  } finally { f.cleanup(); }
+  const g = fixture(); try {
+    const w = await g.create(), h = g.hosts[0]!;
+    h.cancelUI = async () => { throw new Error('stdin failure'); };
+    h.emit('event', { type: 'extension_ui_request', id: 'q', method: 'confirm' });
+    await new Promise<void>(r => setImmediate(r));
+    assert.equal(g.supervisor.get(w.worker_id).status, 'failed');
+    assert.deepEqual(g.supervisor.get(w.worker_id).pending_interactions, []);
+  } finally { g.cleanup(); }
 });
 test('socket directory rejects symlink, public mode and foreign ownership before listening (M5)', async () => {
   const f = fixture(); try {

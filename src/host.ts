@@ -12,6 +12,7 @@ export interface SessionHost {
   readonly pid: number | undefined;
   readonly token: string | null;
   request(command: PiRecord): Promise<PiResponse>;
+  cancelUI(nativeId: string): Promise<void>;
   on(event: 'event', listener: (record: PiRecord) => void): this;
   on(event: 'exit', listener: () => void): this;
   stop(): Promise<boolean>;
@@ -71,6 +72,13 @@ export class RpcHost extends EventEmitter implements SessionHost {
         const waiter = this.pending.get(id);
         if (waiter) { this.pending.delete(id); clearTimeout(timer); reject(error); }
       });
+    });
+  }
+  cancelUI(nativeId: string): Promise<void> {
+    if (this.exited) return Promise.reject(new Error('pi not running'));
+    // UI responses are one-way protocol messages, NOT correlated RPC requests.
+    return new Promise((resolve, reject) => {
+      this.child.stdin.write(JSON.stringify({ type: 'extension_ui_response', id: nativeId, cancelled: true }) + '\n', error => error ? reject(error) : resolve());
     });
   }
   async stop(): Promise<boolean> { return this.pid ? killGroup(this.pid, this.token) : this.exited; }

@@ -15,6 +15,16 @@ test('RPC host keeps LF framing across Unicode separators and split UTF8; drains
     assert.deepEqual(events, ['agent_end', 'agent_settled']);
   } finally { assert.equal(await host.stop(), true); }
 });
+test('unsupported UI cancellation uses the native ID and no RPC response waiter', async () => {
+  const host = new RpcHost(executable, process.cwd(), '/tmp/a0-test-unused', 'fixture', 'fixture', 'off', 50);
+  try {
+    const event = once(host, 'event');
+    await host.cancelUI('native-dialog');
+    const [seen] = await event;
+    assert.deepEqual(seen, { type: 'ui_cancel_seen', native_id: 'native-dialog', cancelled: true });
+    assert.equal((await host.request({ type: 'get_state' })).success, true);
+  } finally { await host.stop(); }
+});
 test('RPC timeout is an error, never a resend; process exit rejects pending requests', async () => {
   const host = new RpcHost(executable, process.cwd(), '/tmp/a0-test-unused', 'fixture', 'fixture', 'off', 50);
   try {
