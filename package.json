@@ -5,7 +5,7 @@
   "type": "module",
   "description": "THROWAWAY A0 evidence, not a production worker",
   "engines": {
-    "node": ">=22"
+    "node": ">=26.12.1"
   },
   "bin": {
     "a0": "dist/cli.js"
@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@agentclientprotocol/sdk": "2.7.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.6.6",
     "openapi-typescript": "^7.10.0",
     "typescript": "^5.9.0"
   },
