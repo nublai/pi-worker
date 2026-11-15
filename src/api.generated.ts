@@ -136,6 +136,7 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Transport epoch in worker_epoch is independent of the worker binding epoch and changes on every supervisor start. */
         Cursor: {
             worker_epoch: string;
             seq: number;
@@ -177,6 +178,7 @@ export interface components {
         Fence: {
             command_id: string;
             fence_generation: number;
+            uncertain_command_ids?: string[];
         };
         Worker: {
             worker_id: string;
@@ -207,9 +209,9 @@ export interface components {
             operation: "workers.create" | "sessions.prompt" | "workers.stop";
             request_hash: string;
             /** @enum {unknown} */
-            state: "intent" | "accepted" | "delivered" | "rejected" | "outcome_unknown";
+            state: "intent" | "intent_recovered" | "accepted" | "delivered" | "rejected" | "outcome_unknown";
             /** @enum {unknown} */
-            stage: "reserved" | "dispatch_recorded" | "forwarded" | "termination_observed" | "refused" | "unknown";
+            stage: "reserved" | "recovery_pending" | "dispatch_recorded" | "forwarded" | "termination_observed" | "refused" | "unknown";
             /** @enum {unknown} */
             effect: "no_effect" | "unknown" | "observed";
             /** @constant */

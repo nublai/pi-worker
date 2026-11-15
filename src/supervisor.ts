@@ -39,14 +39,14 @@ export class Supervisor {
       if (active) {
         const id = w.execution!.command_id;
         const receipt = this.receipts.all.get(id);
-        if (receipt?.effect === 'no_effect' && receipt.state === 'rejected') {
+        if (receipt?.effect === 'no_effect' && (receipt.state === 'intent_recovered' || receipt.state === 'rejected')) {
           w.execution!.state = 'settled'; w.execution!.disposition = 'no_effect_before_dispatch'; w.foreground = 'idle';
         } else {
           if (receipt) this.receipts.unknown(id);
           this.fence(live, id);
         }
       }
-      for (const receipt of this.receipts.all.values()) if (receipt.worker_id === w.worker_id && receipt.state === 'outcome_unknown') this.fence(live, receipt.command_id);
+      for (const receipt of this.receipts.all.values()) if (receipt.worker_id === w.worker_id && receipt.operation === 'sessions.prompt' && receipt.state === 'outcome_unknown') this.fence(live, receipt.command_id);
       if (live.pid !== null) {
         w.status = 'cleanup_pending'; this.persist(live);
         const gone = await killGroup(live.pid, live.token);
@@ -71,7 +71,13 @@ export class Supervisor {
     this.journal.append('worker', { worker: live.worker, sessionFile: live.sessionFile, pid: live.pid, token: live.token });
   }
   private fence(live: Live, command_id: string): void {
-    if (live.worker.fence?.command_id !== command_id) live.worker.fence = { command_id, fence_generation: (live.worker.fence?.fence_generation ?? 0) + 1 };
+    const prior = live.worker.fence;
+    if (!prior) live.worker.fence = { command_id, fence_generation: 1, uncertain_command_ids: [command_id] };
+    else if (!(prior.uncertain_command_ids ?? [prior.command_id]).includes(command_id)) {
+      // Preserve every uncertainty. Recovery of the same item never changes generation.
+      prior.uncertain_command_ids = [...(prior.uncertain_command_ids ?? [prior.command_id]), command_id];
+      prior.fence_generation++;
+    }
     if (live.worker.execution?.command_id === command_id) live.worker.execution.state = 'outcome_unknown';
     live.worker.foreground = 'unknown';
     this.persist(live); // Fence before any unknown reply.

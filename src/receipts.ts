@@ -25,6 +25,8 @@ export class ReceiptStore {
     }
   }
   put(receipt: Receipt): Receipt {
+    const prior = this.all.get(receipt.command_id);
+    if (prior && ['delivered', 'rejected', 'outcome_unknown'].includes(prior.state)) throw new Error('receipt is final');
     if (Buffer.byteLength(JSON.stringify(receipt)) > this.maxResultBytes) throw new Error('receipt exceeds reserved bound');
     this.journal.append('receipt', receipt);
     this.all.set(receipt.command_id, receipt);
@@ -37,11 +39,15 @@ export class ReceiptStore {
   }
   recover(): void {
     for (const r of this.all.values()) {
-      if (r.state === 'intent') this.update(r.command_id, { state: 'rejected', stage: 'refused', effect: 'no_effect', error: 'restart before dispatch; owner must resolve, never auto-replayed' });
+      if (r.state === 'intent') this.update(r.command_id, { state: 'intent_recovered', stage: 'recovery_pending', effect: 'no_effect', error: 'restart before dispatch; eligible once after owner resolution, never auto-replayed' });
       else if (r.state === 'accepted') this.unknown(r.command_id);
     }
   }
-  unknown(id: string): Receipt { return this.update(id, { state: 'outcome_unknown', stage: 'unknown', effect: 'unknown' }); }
+  unknown(id: string): Receipt {
+    const prior = this.all.get(id);
+    if (!prior) throw new Error('receipt missing');
+    return prior.state === 'accepted' ? this.update(id, { state: 'outcome_unknown', stage: 'unknown', effect: 'unknown' }) : prior;
+  }
   run(command_id: string, operation: Receipt['operation'], request: Record<string, unknown>, effect: (receipt: Receipt) => Promise<Partial<Receipt>>): Promise<Receipt> {
     const hash = requestHash({ ...request, operation });
     const prior = this.all.get(command_id);
@@ -69,6 +75,7 @@ export class ReceiptStore {
     return result;
   }
   dispatch(command_id: string, patch: Partial<Receipt> = {}): Receipt {
+    if (this.all.get(command_id)?.state !== 'intent') throw new Error('dispatch requires fresh intent; recovered intent needs owner resolution');
     return this.update(command_id, { ...patch, state: 'accepted', stage: 'dispatch_recorded', effect: 'unknown' });
   }
 }

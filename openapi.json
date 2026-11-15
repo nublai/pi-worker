@@ -578,6 +578,7 @@
   "components": {
     "schemas": {
       "Cursor": {
+        "description": "Transport epoch in worker_epoch is independent of the worker binding epoch and changes on every supervisor start.",
         "type": "object",
         "properties": {
           "worker_epoch": {
@@ -747,6 +748,10 @@
           },
           "fence_generation": {
             "type": "integer"
+          },
+          "uncertain_command_ids": {
+            "type": "array",
+            "items": { "type": "string" }
           }
         },
         "required": [
@@ -899,6 +904,7 @@
           "state": {
             "enum": [
               "intent",
+              "intent_recovered",
               "accepted",
               "delivered",
               "rejected",
@@ -908,6 +914,7 @@
           "stage": {
             "enum": [
               "reserved",
+              "recovery_pending",
               "dispatch_recorded",
               "forwarded",
               "termination_observed",

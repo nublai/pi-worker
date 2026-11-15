@@ -47,6 +47,11 @@ test('recovery separates undispatched intent from dispatch; neither is replayed'
     f.store.put({ ...base, command_id: 'sent', state: 'accepted' });
     const recovered = new ReceiptStore(f.journal); recovered.recover();
     assert.equal(recovered.all.get('intent')?.effect, 'no_effect');
+    assert.equal(recovered.all.get('intent')?.state, 'intent_recovered');
+    const before = readFileSync(f.journal.file);
+    recovered.recover(); assert.deepEqual(readFileSync(f.journal.file), before);
+    assert.throws(() => recovered.dispatch('intent'), /owner resolution/);
+    assert.throws(() => recovered.update('sent', { state: 'delivered' }), /receipt is final/);
     assert.equal(recovered.all.get('sent')?.state, 'outcome_unknown');
     assert.equal(recovered.all.get('sent')?.effect, 'unknown');
   } finally { f.cleanup(); }

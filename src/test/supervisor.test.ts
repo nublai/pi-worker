@@ -86,28 +86,44 @@ test('crash after admission while running: journal unknown/fence, no prompt repl
   const f = setup(); try {
     const created = await f.supervisor.create(create(f.cwd)); const id = created.worker_id!, w = f.supervisor.get(id);
     const p = { ...asBinding(w, 'active'), message: 'do not duplicate' };
-    await f.supervisor.prompt(id, p); assert.equal(f.host.prompts, 1);
+    const delivered = await f.supervisor.prompt(id, p); assert.equal(f.host.prompts, 1);
     const reopened = new Journal(f.journal.file);
     const recovered = new Supervisor(f.dir, reopened, '1.5.2', () => { throw new Error('MUST NOT replay'); });
     await recovered.recover();
-    assert.equal(recovered.receipts.all.get('active')?.state, 'outcome_unknown');
+    assert.deepEqual(recovered.receipts.all.get('active'), delivered);
     assert.equal(recovered.get(id).fence?.command_id, 'active');
     assert.equal(recovered.get(id).execution?.state, 'outcome_unknown');
     const refused = await recovered.prompt(id, { ...p, command_id: 'new' }); assert.equal(refused.state, 'rejected'); assert.equal(refused.effect, 'no_effect'); assert.equal(refused.uncertain_command_id, 'active');
-    const again = await recovered.prompt(id, p); assert.equal(again.state, 'outcome_unknown'); assert.equal(f.host.prompts, 1);
+    const again = await recovered.prompt(id, p); assert.deepEqual(again, delivered);
+    const fence = recovered.get(id).fence;
     reopened.close();
+    for (let restart = 0; restart < 2; restart++) {
+      const log = new Journal(f.journal.file);
+      const next = new Supervisor(f.dir, log, '1.5.2', () => { throw new Error('MUST NOT replay'); });
+      await next.recover();
+      assert.deepEqual(next.get(id).fence, fence);
+      assert.deepEqual(next.receipts.all.get('active'), delivered);
+      log.close();
+    }
   } finally { f.cleanup(); }
 });
 test('execution reservation cut before dispatch stays no_effect on recovery', async () => {
   const f = setup(); try {
     const created = await f.supervisor.create(create(f.cwd)); const id = created.worker_id!, w = f.supervisor.get(id);
+    const append = f.journal.append.bind(f.journal);
+    const cut = join(f.dir, 'cut-journal');
+    f.journal.append = (kind, value) => {
+      // Snapshot a real append boundary: reserved execution, just BEFORE dispatch.
+      if (kind === 'receipt' && value.command_id === 'reserved' && value.state === 'accepted') writeFileSync(cut, readFileSync(f.journal.file));
+      append(kind, value);
+    };
     await f.supervisor.prompt(id, { ...asBinding(w, 'reserved'), message: 'fixture' });
-    // Persist the exact recovery fixture: worker execution reserved, receipt still intent.
-    f.supervisor.receipts.update('reserved', { state: 'intent', stage: 'reserved', effect: 'no_effect' });
-    const reopened = new Journal(f.journal.file);
+    const reopened = new Journal(cut);
     const recovered = new Supervisor(f.dir, reopened, '1.5.2', () => { throw new Error('no launch'); });
     await recovered.recover();
     assert.equal(recovered.receipts.all.get('reserved')?.effect, 'no_effect');
+    assert.equal(recovered.receipts.all.get('reserved')?.state, 'intent_recovered');
+    assert.throws(() => recovered.receipts.dispatch('reserved'), /owner resolution/);
     assert.equal(recovered.get(id).fence, null);
     assert.equal(recovered.get(id).execution?.disposition, 'no_effect_before_dispatch');
     reopened.close();
