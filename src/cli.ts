@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** THROWAWAY a0 CLI. command_id is explicit on every write. */
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { GrantStore } from './grants.js';
 import { Client } from './client.js';
 import type { Binding, Cursor, Snapshot } from './types.js';
 const args = process.argv.slice(2), flags = new Map<string, string>(), positional: string[] = [];
@@ -21,12 +22,18 @@ async function binding(id: string): Promise<Binding> {
 }
 try {
   const [cmd, id] = positional;
-  if (cmd === 'hello') print(await client.call('hello'));
+  if (cmd === 'grant-register') print({ grant_file: new GrantStore(flags.get('state-dir') ?? dirname(client.socketPath)).register(required('caller'), { worker_ids: (flags.get('workers') ?? '').split(',').filter(Boolean), cwd_roots: (flags.get('cwd-roots') ?? '').split(',').filter(Boolean) }, required('methods').split(',')) });
+  else if (cmd === 'grant-revoke') { new GrantStore(flags.get('state-dir') ?? dirname(client.socketPath)).revoke(id ?? required('grant-id')); print({ revoked: true }); }
+  else if (cmd === 'hello') print(await client.call('hello'));
   else if (cmd === 'list') print(await client.call('workers.list'));
   else if (cmd === 'receipt') print(await client.call('receipts.get', { id: id ?? required('command-id') }));
   else if (cmd === 'create') print(await client.call('workers.create', { body: { command_id: required('command-id'), cwd: required('cwd'), provider: required('provider'), model: required('model'), thinking: required('thinking') as 'off' } }));
   else if (id && cmd === 'get') print(await client.call('workers.get', { id }));
   else if (id && cmd === 'prompt') print(await client.call('sessions.prompt', { id, body: { ...await binding(id), message: required('message') } }));
+  else if (id && (cmd === 'new' || cmd === 'rebind')) print(await client.call('sessions.rebind', { id, body: { ...await binding(id), action: cmd === 'new' ? 'new' : required('action') as 'new' | 'fork' | 'resume' | 'navigate', ...(flags.has('target-session-id') ? { target_session_id: required('target-session-id') } : {}), ...(flags.has('entry-id') ? { entry_id: required('entry-id') } : {}), ...(flags.has('source-leaf-id') ? { source_leaf_id: required('source-leaf-id') === 'null' ? null : required('source-leaf-id') } : {}) } }));
+  else if (id && cmd === 'resolve') print(await client.call('sessions.resolve_unknown', { id, body: { ...await binding(id), disposition: required('disposition') as 'keep' | 'abandon' | 'observed', fence_generation: Number(required('fence-generation')), ...(flags.has('uncertain-command-id') ? { uncertain_command_id: required('uncertain-command-id') } : {}), ...(flags.has('execution-id') ? { execution_id: required('execution-id') } : {}) } }));
+  else if (id && cmd === 'follow-up') print(await client.call('sessions.follow_up', { id, body: { ...await binding(id), execution_id: required('execution-id'), message: required('message') } }));
+  else if (id && (cmd === 'cancel' || cmd === 'interrupt')) print(await client.call(cmd === 'cancel' ? 'executions.cancel' : 'executions.interrupt', { id, body: { ...await binding(id), ...(flags.has('execution-id') ? { execution_id: required('execution-id') } : {}) } }));
   else if (id && cmd === 'stop') print(await client.call('workers.stop', { id, body: await binding(id) }));
   else if (id && cmd === 'history') {
     const query: Record<string, string> = {};
@@ -35,7 +42,7 @@ try {
   } else if (id && cmd === 'watch') {
     const since: Cursor | undefined = flags.has('seq') ? { worker_epoch: required('worker-epoch'), seq: Number(required('seq')) } : undefined;
     let count = 0;
-    await client.watch(id, frame => {
+    await client.watch(id === '*' ? null : id, frame => {
       print(frame); count++;
       if (flags.has('max-events') && count >= Number(required('max-events'))) return false;
       if (flags.has('until-settled') && (frame.type === 'agent_settled' || (frame.type === 'snapshot' && (frame as Snapshot).worker?.execution?.state === 'settled'))) return false;

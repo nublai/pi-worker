@@ -4,6 +4,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Journal } from './journal.js';
+import { GrantStore } from './grants.js';
 import { ReceiptStore } from './receipts.js';
 import { RpcHost, type SessionHost, type PiRecord } from './host.js';
 import { SessionIndex } from './session.js';
@@ -18,6 +19,7 @@ export class Supervisor {
   readonly epoch = randomUUID();
   readonly events = new EventHub(this.epoch);
   readonly receipts: ReceiptStore;
+  readonly grants: GrantStore;
   readonly workers = new Map<string, Live>();
   readonly id: string;
   private sessionFiles = new Map<string, { file: string; worker_id: string }>();
@@ -26,6 +28,7 @@ export class Supervisor {
   readonly authority = new AsyncLocalStorage<() => void>();
   private dispatchGuard(): void { this.authority.getStore()?.(); }
   constructor(readonly stateDir: string, readonly journal: Journal, readonly piVersion: string, readonly factory: HostFactory) {
+    this.grants = new GrantStore(stateDir); this.grants.registerOwner();
     this.id = (journal.records.find(r => r.kind === 'supervisor')?.value.supervisor_id as string | undefined) ?? randomUUID();
     journal.append('supervisor', { supervisor_id: this.id, supervisor_epoch: this.epoch });
     this.receipts = new ReceiptStore(journal);
@@ -79,7 +82,7 @@ export class Supervisor {
   hello(): Hello {
     return { protocol: { major: 0, minor: 1 }, prototype: true, supervisor_id: this.id, supervisor_epoch: this.epoch, pi_version: this.piVersion,
       capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt'],
-      limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'not implemented', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination bypasses count quota, journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed proves exact input evidence, never external-effect completion', tree_navigation: 'Pi 1.5.2 RPC has get_tree but no navigate command; refused no_effect', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
+      limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; no privileged-tool-release gate in slice 2', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination bypasses count quota, journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed proves exact input evidence, never external-effect completion', tree_navigation: 'Pi 1.5.2 RPC has get_tree but no navigate command; refused no_effect', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
       resource_profile: 'normal CLI discovery; exact loaded extension/tool inventory unverified', cleanup_profile: 'linux_process_group; no adoption or resume; escaped descendants unproven' };
   }
   private persist(live: Live): void {

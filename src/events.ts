@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Cursor, Snapshot, Worker, WorkerEvent } from './types.js';
 export type Frame = Snapshot | WorkerEvent;
-type Options = { workerIds?: string[]; types?: string[]; overflowResync?: boolean; onOverflow?: () => void };
+type Options = { acceptWorker?: (id: string) => boolean; workerIds?: string[]; types?: string[]; overflowResync?: boolean; onOverflow?: () => void };
 type Subscriber = { send: (frame: Frame) => unknown; queued: WorkerEvent[]; bytes: number; blocked: boolean; attaching: boolean; closed: boolean; options: Options };
 export class EventHub {
   private seq = 0;
@@ -15,6 +15,7 @@ export class EventHub {
     const bytes = Buffer.byteLength(JSON.stringify(data));
     const event: WorkerEvent = { type, cursor: { worker_epoch: this.epoch, seq: ++this.seq }, event_id: randomUUID(), producer, execution_id, ...(worker_id ? { worker_id } : {}), evidence: durable ? 'supervisor_journal_fsynced' : 'observed_memory', data: bytes > 16 * 1024 ? { stub: true, bytes } : data };
     for (const sub of this.subscribers) {
+      if (sub.options.acceptWorker && (!worker_id || !sub.options.acceptWorker(worker_id))) continue;
       if (sub.options.workerIds && (!worker_id || !sub.options.workerIds.includes(worker_id))) continue;
       if (sub.options.types && !sub.options.types.includes(type)) continue;
       if (sub.attaching || sub.blocked) {

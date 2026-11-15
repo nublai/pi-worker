@@ -30,7 +30,7 @@ test('client failure before connect is no_effect; after write is unknown, one at
     const body = { ...bind(w, 'request'), message: 'do not replay' };
     await assert.rejects(new Client(socket).call('sessions.prompt', { id: w.worker_id, body }), (e: unknown) => e instanceof ClientFailure && e.phase === 'before_write' && e.effect === 'no_effect');
     let attempts = 0; let data = '';
-    const server = netServer(connection => { attempts++; connection.once('data', bytes => { data += bytes.toString(); connection.destroy(); }); });
+    const server = netServer(connection => { attempts++; connection.once('data', bytes => { data += bytes.toString().replace(/^Authorization:.*$/mi, 'Authorization: [redacted]'); connection.destroy(); }); });
     await new Promise<void>(resolve => server.listen(socket, resolve));
     try { await assert.rejects(new Client(socket).call('sessions.prompt', { id: w.worker_id, body }), (e: unknown) => e instanceof ClientFailure && e.phase === 'after_write' && e.effect === 'unknown'); }
     finally { await new Promise<void>(r => server.close(() => r())); }

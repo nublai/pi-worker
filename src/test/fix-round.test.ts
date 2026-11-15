@@ -39,7 +39,8 @@ function fixture(initHost?: (host: Host) => void) {
     const r = await supervisor.create({ command_id: `create-${hosts.length}`, cwd, provider: 'p', model: 'm', thinking: 'off' });
     assert.equal(r.state, 'delivered'); return supervisor.get(r.worker_id!);
   }
-  return { dir, journal, supervisor, hosts, create, cleanup() { journal.close(); rmSync(dir, { recursive: true }); } };
+  const headers = { Authorization: `Bearer ${(JSON.parse(readFileSync(join(dir, 'grants', 'owner.json'), 'utf8')) as { token: string }).token}` };
+  return { dir, journal, supervisor, hosts, headers, create, cleanup() { journal.close(); rmSync(dir, { recursive: true }); } };
 }
 const binding = (w: Worker, command_id: string): Binding => ({ command_id, worker_epoch: w.worker_epoch, session_id: w.session_id!, binding_revision: w.binding_revision });
 function latestWorker(file: string, id: string): Worker {
@@ -66,7 +67,7 @@ for (const failure of ['pi prompt response timeout', 'stdin write failed']) test
     const w = await f.create(); f.hosts[0]!.failure = new Error(failure);
     const r = await new Promise<Receipt>((resolve, reject) => {
       const data = JSON.stringify({ ...binding(w, 'uncertain'), message: 'hello' });
-      const req = request({ socketPath: join(f.dir, 'socket'), method: 'POST', path: `/v0/workers/${w.worker_id}/prompt`, headers: { 'Content-Type': 'application/json' } }, res => {
+      const req = request({ socketPath: join(f.dir, 'socket'), method: 'POST', path: `/v0/workers/${w.worker_id}/prompt`, headers: { ...f.headers, 'Content-Type': 'application/json' } }, res => {
         try {
           // Inspect disk as headers arrive, before the HTTP result promise resolves.
           const persisted = latestWorker(f.journal.file, w.worker_id);
@@ -258,7 +259,7 @@ test('B2 SSE ends a slow subscriber with explicit overflow after bounded queue (
     let response!: import('node:http').ServerResponse;
     server.on('request', (_req, res) => { response = res; });
     await new Promise<void>((resolve, reject) => {
-      connection = request({ socketPath: join(f.dir, 'socket'), path: `/v0/events?worker_id=${w.worker_id}` }, res => {
+      connection = request({ socketPath: join(f.dir, 'socket'), path: `/v0/events?worker_id=${w.worker_id}`, headers: f.headers }, res => {
         res.once('data', () => { res.pause(); resolve(); }); res.on('error', () => {});
       }); connection.on('error', reject); connection.end();
     });
