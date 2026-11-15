@@ -92,6 +92,8 @@ try {
     if (restart < 2) await stopSupervisor('SIGKILL');
   }
   assert.equal(new Set(summary.restarts.map(r => r.cursor.worker_epoch)).size, 3);
+  writeFileSync(join(root, 'recovery-summary.json'), JSON.stringify(summary, null, 2) + '\n');
+  console.log('DELIVERED_RECEIPT_IDENTICAL_AND_FENCE_GENERATION_1_AFTER_RECOVERY_AND_TWO_MORE_RESTARTS');
   await assert.rejects(client.call('sessions.prompt', { id: w.worker_id, body: { ...p.body, command_id: 'fenced-new', message: 'Must not run' } }), /session_fenced/);
   const recoveredWatch = watcher(w, 'recovered-stop-watch'); await recoveredWatch.snapshot;
   await client.call('workers.stop', { id: w.worker_id, body: binding(w, 'stop-recovered') }); await recoveredWatch.stream; recoveredWatch.save();
@@ -114,11 +116,14 @@ try {
   assert.ok(liveWatch.frames.some(x => x.type === 'worker_changed' && x.worker.status === 'stopped'));
   summary.watchers = [{ label: 'connected-fence-stop-watch', fence_event: true, stop_event: true }, { label: 'recovered-stop-watch', stop_event: true }];
   await delay(Math.max(0, Math.max(began, liveBegan) + 32000 - Date.now()));
-  verifyStarted(p); assert.equal(existsSync(p.endFile), false); verifyStarted(livePrompt); assert.equal(existsSync(livePrompt.endFile), false);
+  verifyStarted(p); assert.equal(existsSync(p.endFile), false); verifyStarted(livePrompt);
+  // Direct SIGKILL of Pi need not terminate detached tool groups. Stop reports
+  // process-group-only, never that an external effect was undone or prevented.
+  const detachedToolFinished = existsSync(livePrompt.endFile);
   const history = await client.call('history.page', { id: w.worker_id, query: { limit: '100' } });
   const prompts = history.entries.filter(e => e.type === 'message' && e.message?.role === 'user' && e.message.content?.some(x => x.type === 'text' && x.text === p.body.message));
   assert.equal(prompts.length, 1);
-  summary.effects = { main_start_count: 1, main_prompt_in_history: prompts.length, main_finished_absent: true, live_start_count: 1, live_finished_absent: true };
+  summary.effects = { main_start_count: 1, main_prompt_in_history: prompts.length, main_finished_absent: true, live_start_count: 1, live_finished_present: detachedToolFinished, escaped_descendants: 'unproven; a detached tool may finish after Pi group termination' };
   writeFileSync(join(root, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');
   console.log('LIVE_FIX_ROUND_PASS', JSON.stringify({ root, receipts_identical: true, fences: summary.restarts.map(x => x.fence), watchers: summary.watchers, effects: summary.effects }));
 } finally {
