@@ -56,8 +56,15 @@ export class Interactions {
   invalidate(workerId: string, reason: string): void {
     for (const l of this.live.values()) if (l.record.worker_id === workerId) {
       if (l.record.status === 'pending') this.close(l, reason);
-      else { clearTimeout(l.timer); this.live.delete(l.record.interaction_id); }
+      else { l.record.status = reason; clearTimeout(l.timer); this.save(l.record); this.live.delete(l.record.interaction_id); this.notify(l); }
     }
+  }
+  async cancelAll(workerId: string, host: SessionHost, legacy: { native_id: string }[]): Promise<void> {
+    // Pending summaries deliberately omit accepted answers and consumed approvals.
+    // Those still own native resolvers/gates and must be cancelled before a move.
+    const ids = new Set([...legacy.map(r => r.native_id), ...[...this.live.values()].filter(l => l.record.worker_id === workerId).map(l => l.record.native_id)]);
+    this.invalidate(workerId, 'interrupted');
+    for (const id of ids) await host.cancelUI(id);
   }
   resolverClosed(workerId: string, nativeId: string, outcome: string): void {
     const l = [...this.live.values()].find(l => l.record.worker_id === workerId && l.record.native_id === nativeId);
@@ -93,7 +100,17 @@ export class Interactions {
       if (this.now() >= l.record.deadline) throw new Refusal('interaction_deadline_passed');
       this.receipts.dispatch(a.command_id, { answer_stage: 1 });
       if (!l.host.answerUI) throw new Error('host_answer_unsupported');
+      const fenceGeneration = worker.fence_generation ?? 0;
       const response = await l.host.answerUI(l.record.native_id, a, l.options);
+      let current = worker.worker_epoch === a.worker_epoch && worker.session_id === a.session_id && worker.binding_revision === a.binding_revision && (worker.fence_generation ?? 0) === fenceGeneration && this.live.get(a.interaction_id) === l;
+      try { writable(); } catch { current = false; } // Includes an in-progress rebind/fence.
+      if (!current) {
+        l.record.status = 'interrupted'; l.record.outcome = 'binding_changed'; this.save(l.record);
+        this.live.delete(a.interaction_id); this.notify(l);
+        // A negative exact-resolver ack proves no effect. Consumed (or RPC's
+        // unproven forwarding) cannot become either no_effect or stale stage 3.
+        throw new Refusal('answer_binding_changed', response.stage === 3 && response.consumed === false ? 'no_effect' : 'unknown');
+      }
       if (response.stage === 3 && !response.consumed) {
         l.record.status = 'resolver_refused'; l.record.answer_stage = 2; l.record.outcome = response.outcome; this.save(l.record); this.notify(l);
         return { state: 'delivered', stage: 'forwarded', answer_stage: 2, effect: 'observed', result: { interaction_id: a.interaction_id, answer_id: a.answer_id, resolver_consumed: false, outcome: response.outcome } };
@@ -125,7 +142,14 @@ export class Interactions {
   }
   async gate(worker: Worker, event: PiRecord, writable: () => void): Promise<void> {
     const l = [...this.live.values()].find(l => l.record.worker_id === worker.worker_id && l.record.approval?.gate_token === event.gate_token);
-    if (!l || l.record.kind !== 'tool_approval' || !l.guard) throw new Error('unknown_gate');
+    if (!l) {
+      // A queued gate_check may arrive after rebind cancelled its live owner.
+      // The child has already denied the gate; do not turn this into a fault.
+      const cancelled = [...this.records.values()].some(r => r.worker_id === worker.worker_id && r.kind === 'tool_approval' && r.approval?.gate_token === event.gate_token && r.status === 'interrupted');
+      if (cancelled) return;
+      throw new Error('unknown_gate');
+    }
+    if (l.record.kind !== 'tool_approval' || !l.guard) throw new Error('unknown_gate');
     const command_id = l.record.answer_id! + ':release';
     const r = await this.receipts.run(command_id, 'interactions.release', { command_id, worker_id: worker.worker_id, interaction_id: l.record.interaction_id }, async () => {
       let allowed = true;

@@ -52,6 +52,13 @@ const ui = new Proxy(uiMethods, { get: (target, key) => key in target ? target[k
 type Gate = { digest: string; policy_revision: string; expiry: number; gate_token: string; operation: string; resource: string; environment: string; offered_scope: string };
 type ReleaseGrant = { state_dir: string; grant_id: string; actor: string; worker_id: string; cwd: string };
 const gates = new Map<string, { binding: Gate; proof?: ReleaseGrant; resolve: (allowed: boolean) => void; acknowledge?: (data: Record<string, unknown>) => void }>();
+let bindingGeneration = 0;
+function cancelAll(): void {
+  bindingGeneration++;
+  resolvers.abortAll();
+  for (const gate of gates.values()) { gate.resolve(false); gate.acknowledge?.({ released: false }); }
+  gates.clear();
+}
 function policy(): { revision: string; expiry: number; releaseDelayMs?: number } {
   try { const p = JSON.parse(readFileSync(join(process.cwd(), '.a0-gate-policy'), 'utf8')); if (typeof p.revision !== 'string' || !Number.isSafeInteger(p.expiry)) throw new Error('invalid_policy'); return p; }
   catch { throw new Error('gate_policy_unavailable'); }
@@ -62,8 +69,9 @@ const gateExtension: ExtensionFactory = pi => {
     if (!existsSync(join(process.cwd(), '.a0-gate-policy'))) return; // Opt-in specimen, not a sandbox.
     let p; try { p = policy(); } catch { return { block: true, reason: 'invalid_gate_policy' }; }
     const binding: Gate = { digest: requestHash(event.input), policy_revision: p.revision, expiry: p.expiry, gate_token: randomUUID(), operation: 'bash', resource: process.cwd(), environment: process.cwd(), offered_scope: 'once' };
+    const generation = bindingGeneration;
     const allowed = await resolvers.ask('tool_approval', { title: 'A0 typed bash approval', approval: binding }, { timeout: Math.min(30000, p.expiry - Date.now()) });
-    if (!allowed) return { block: true, reason: 'approval_not_allowed' };
+    if (!allowed || generation !== bindingGeneration) return { block: true, reason: 'approval_not_allowed' };
     const released = await new Promise<boolean>(resolve => {
       const timer = setTimeout(() => { gates.delete(binding.gate_token); resolve(false); }, 10000); timer.unref();
       gates.set(binding.gate_token, { binding, resolve: value => { clearTimeout(timer); resolve(value); } });
@@ -104,9 +112,9 @@ async function bind(session: AgentSession): Promise<void> {
     emit(event as unknown as PiRecord);
     if (event.type === 'entry_appended' || event.type === 'agent_settled') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
   });
-  await session.bindExtensions({ uiContext: ui, mode: 'rpc', abortHandler: () => { resolvers.abortAll(); void session.abort(); }, onError: error => emit({ type: 'extension_error', path: error.extensionPath, event: error.event, error: error.error }), shutdownHandler: () => { void shutdown(); } });
+  await session.bindExtensions({ uiContext: ui, mode: 'rpc', abortHandler: () => { cancelAll(); void session.abort(); }, onError: error => emit({ type: 'extension_error', path: error.extensionPath, event: error.event, error: error.error }), shutdownHandler: () => { void shutdown(); } });
 }
-const ready = runtimePromise.then(async runtime => { runtime.setBeforeSessionInvalidate(() => resolvers.abortAll()); runtime.setRebindSession(bind); await bind(runtime.session); return runtime; });
+const ready = runtimePromise.then(async runtime => { runtime.setBeforeSessionInvalidate(cancelAll); runtime.setRebindSession(bind); await bind(runtime.session); return runtime; });
 // Drain commands concurrently: startup bind and prompt may be waiting on a dialog.
 async function command(c: PiRecord, reply: (data: Record<string, unknown>) => void): Promise<void> {
   if (c.type === 'answer_ui') { reply(resolvers.answer(String(c.nativeId), c.answer as UIAnswer)); return; }
@@ -117,7 +125,7 @@ async function command(c: PiRecord, reply: (data: Record<string, unknown>) => vo
     const valid = c.allowed === true && p && gate.binding.policy_revision === p.revision && gate.binding.expiry === p.expiry && Date.now() < p.expiry && c.digest === gate.binding.digest;
     gate.proof = c.release_grant as ReleaseGrant | undefined; gate.acknowledge = reply; gate.resolve(Boolean(valid)); return;
   }
-  if (c.type === 'abort') { resolvers.abortAll(); for (const gate of gates.values()) gate.resolve(false); gates.clear(); }
+  if (c.type === 'abort') cancelAll();
   const runtime = await ready, session = runtime.session;
   switch (c.type) {
     case 'get_state': reply({ sessionId: session.sessionId, sessionFile: session.sessionFile, leafId: session.sessionManager.getLeafId() }); break;
@@ -128,7 +136,7 @@ async function command(c: PiRecord, reply: (data: Record<string, unknown>) => vo
     case 'prompt': await session.prompt(String(c.message), { preflightResult: disposition => reply({ disposition }) }); break;
     case 'abort': await session.abort(); reply({}); break;
     case 'clear_queue': session.clearQueue(); reply({}); break;
-    case 'navigate': reply(await session.navigateTree(String(c.entryId), { summarize: false })); break;
+    case 'navigate': cancelAll(); reply(await session.navigateTree(String(c.entryId), { summarize: false })); break;
     case 'new_session': reply(await runtime.newSession()); break;
     case 'switch_session': reply(await runtime.switchSession(String(c.sessionPath))); break;
     case 'fork': reply(await runtime.fork(String(c.entryId))); break;
@@ -180,6 +188,6 @@ process.stdin.on('data', (chunk: Buffer) => {
   if (Buffer.byteLength(buffer) > 4 * 1024 * 1024) { void shutdown(); return; }
   for (;;) { const n = buffer.indexOf('\n'); if (n < 0) break; const line = buffer.slice(0, n); buffer = buffer.slice(n + 1); try { void handle(JSON.parse(line)); } catch { /* malformed record refused without data echo */ } }
 });
-async function shutdown(): Promise<void> { resolvers.abortAll(); for (const gate of gates.values()) gate.resolve(false); gates.clear(); try { await (await runtimePromise).dispose(); } finally { process.exit(0); } }
+async function shutdown(): Promise<void> { cancelAll(); try { await (await runtimePromise).dispose(); } finally { process.exit(0); } }
 process.stdin.on('end', () => { void shutdown(); }); process.once('SIGTERM', () => { void shutdown(); });
 ready.catch(() => { console.error('sdk_initialization_failed'); process.exit(1); });

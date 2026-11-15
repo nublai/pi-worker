@@ -389,7 +389,7 @@ export class Supervisor {
       live.rebinding = true;
       try {
         this.dispatchGuard(); this.receipts.dispatch(b.command_id, { worker_id: id });
-        for (const interaction of w.pending_interactions) await live.host!.cancelUI(interaction.native_id);
+        await this.interactions.cancelAll(id, live.host!, w.pending_interactions);
         this.clearInteractions(live);
         this.dispatchGuard();
         const response = await live.host!.request(b.action === 'new' ? { type: 'new_session' } : b.action === 'resume' ? { type: 'switch_session', sessionPath: target! } : b.action === 'navigate' ? { type: 'navigate', entryId: b.entry_id! } : { type: 'fork', entryId: b.entry_id! });
@@ -502,7 +502,7 @@ export class Supervisor {
     return this.receipts.run(b.command_id, interrupt ? 'executions.interrupt' : 'executions.cancel', { ...b, worker_id: id }, async () => {
       this.dispatchGuard(); this.receipts.dispatch(b.command_id, { worker_id: id });
       this.dropPending(live, interrupt ? 'interrupt' : 'cancel');
-      for (const q of live.worker.pending_interactions) if (live.host) await live.host.cancelUI(q.native_id);
+      if (live.host) await this.interactions.cancelAll(id, live.host, live.worker.pending_interactions);
       this.clearInteractions(live);
       if (!live.host) return { state: 'delivered', stage: 'requested', effect: 'observed', result: { disposition: 'unknown', requested: true, profile: 'no_live_host' } };
       await live.host.request({ type: 'clear_queue' }); // abort alone may continue Pi-owned queued input
