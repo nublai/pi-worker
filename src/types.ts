@@ -11,8 +11,14 @@ export type Create = components['schemas']['Create'];
 export type Prompt = components['schemas']['Prompt'];
 export type Binding = components['schemas']['Binding'];
 export type Hello = components['schemas']['Hello'];
+export type Resolve = components['schemas']['Resolve'];
+export type Rebind = components['schemas']['Rebind'];
+export type FollowUp = components['schemas']['FollowUp'];
+export type Control = components['schemas']['Control'];
+export type ChildLaunch = components['schemas']['ChildLaunch'];
+export type Report = components['schemas']['Report'];
 export const SIZE_LIMITS = { rawLineBytes: 4 * 1024 * 1024, historyPageBytes: 256 * 1024 };
 export const jsonBytes = (value: unknown): number => Buffer.byteLength(JSON.stringify(value));
 export class Refusal extends Error {
-  constructor(message: string, readonly effect: 'no_effect' | 'unknown' = 'no_effect', readonly uncertain_command_id?: string) { super(message); }
+  constructor(message: string, readonly effect: 'no_effect' | 'unknown' = 'no_effect', readonly uncertain_command_id?: string, readonly details: Record<string, unknown> = {}) { super(message); }
 }

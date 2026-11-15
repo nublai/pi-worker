@@ -29,7 +29,7 @@ export class EventHub {
     const sub: Subscriber = { send, attaching: true, queued: [] };
     this.subscribers.add(sub);
     try {
-      send({ type: 'snapshot', worker, cursor, history: worker.history, resync_reason });
+      send({ type: 'snapshot', workers: [worker], worker, cursor, history: worker.history, resync_reason });
       // Reentrant sends (e.g. tests/embedded router) cannot overtake the snapshot.
       while (sub.queued.length) send(sub.queued.shift()!);
       sub.attaching = false;

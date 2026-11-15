@@ -4,15 +4,21 @@
 import { createServer, type ServerResponse, type IncomingMessage, type Server } from 'node:http';
 import { readFileSync, lstatSync, chmodSync, unlinkSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { Refusal, type Binding, type Create, type Prompt, type Cursor } from './types.js';
+import { Refusal, type Binding, type Create, type Prompt, type Cursor, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
 import { Supervisor } from './supervisor.js';
 function loadSpec(): { components: { schemas: Record<string, Schema> } } {
   try { return JSON.parse(readFileSync(new URL('../openapi.json', import.meta.url), 'utf8')) as { components: { schemas: Record<string, Schema> } }; }
   catch (cause) { throw new Error('cannot load checked-in OpenAPI spec; refusing startup', { cause }); }
 }
 const spec = loadSpec();
-type Schema = { type?: string; properties?: Record<string, Schema>; required?: string[]; additionalProperties?: boolean; enum?: unknown[]; minimum?: number; maximum?: number };
+type Schema = { $ref?: string; anyOf?: Schema[]; const?: unknown; type?: string; items?: Schema; properties?: Record<string, Schema>; required?: string[]; additionalProperties?: boolean; enum?: unknown[]; minimum?: number; maximum?: number };
 function validate(schema: Schema, value: unknown): boolean {
+  if (schema.$ref) return validate(spec.components.schemas[schema.$ref.split('/').at(-1)!]!, value);
+  if (schema.anyOf) return schema.anyOf.some(s => validate(s, value));
+  if ('const' in schema && schema.const !== value) return false;
+  if (schema.type === 'null') return value === null;
+  if (schema.type === 'boolean') return typeof value === 'boolean';
+  if (schema.type === 'array') return Array.isArray(value) && value.every(v => !schema.items || validate(schema.items, v));
   if (schema.enum && !schema.enum.includes(value)) return false;
   if (schema.type === 'string') return typeof value === 'string' && value.length > 0 && value.length <= 128 * 1024;
   if (schema.type === 'integer') return Number.isSafeInteger(value) && Number(value) >= (schema.minimum ?? -Infinity) && Number(value) <= (schema.maximum ?? Infinity);
@@ -25,7 +31,7 @@ function validate(schema: Schema, value: unknown): boolean {
   }
   return true;
 }
-async function body(req: IncomingMessage, name: 'Create' | 'Prompt' | 'Binding'): Promise<Record<string, unknown>> {
+async function body(req: IncomingMessage, name: 'Create' | 'Prompt' | 'Binding' | 'Resolve' | 'Rebind' | 'FollowUp' | 'Control' | 'ChildLaunch' | 'Report'): Promise<Record<string, unknown>> {
   if (req.headers['content-type']?.split(';')[0] !== 'application/json') throw new Refusal('content_type_must_be_json');
   let bytes = 0; const chunks: Buffer[] = [];
   for await (const chunk of req) {
@@ -67,7 +73,7 @@ export function router(supervisor: Supervisor): Server {
       }
       if (req.method === 'GET' && parts[0] === 'v0' && parts[1] === 'receipts' && parts.length === 3) {
         const receipt = supervisor.receipts.all.get(parts[2]!);
-        if (!receipt) throw new Refusal('unknown_command_id_is_not_proof_of_no_effect');
+        if (!receipt) throw new Refusal('unknown_command_id_is_not_proof_of_no_effect', 'unknown');
         return json(res, receipt);
       }
       if (parts[0] !== 'v0' || parts[1] !== 'workers' || !parts[2]) throw new Refusal('unsupported_method');
@@ -76,6 +82,12 @@ export function router(supervisor: Supervisor): Server {
       if (parts.length !== 4) throw new Refusal('unsupported_method');
       if (parts[3] === 'prompt' && req.method === 'POST') return json(res, await supervisor.prompt(id, await body(req, 'Prompt') as Prompt));
       if (parts[3] === 'stop' && req.method === 'POST') return json(res, await supervisor.stop(id, await body(req, 'Binding') as Binding));
+      if (parts[3] === 'resolve_unknown' && req.method === 'POST') return json(res, await supervisor.resolveUnknown(id, await body(req, 'Resolve') as Resolve));
+      if (parts[3] === 'rebind' && req.method === 'POST') return json(res, await supervisor.rebind(id, await body(req, 'Rebind') as Rebind));
+      if (parts[3] === 'follow_up' && req.method === 'POST') return json(res, await supervisor.followUp(id, await body(req, 'FollowUp') as FollowUp));
+      if (parts[3] === 'children' && req.method === 'POST') return json(res, await supervisor.launchChild(id, await body(req, 'ChildLaunch') as ChildLaunch));
+      if (parts[3] === 'report' && req.method === 'POST') return json(res, await supervisor.report(id, await body(req, 'Report') as Report));
+      if (['cancel', 'interrupt'].includes(parts[3]!) && req.method === 'POST') return json(res, await supervisor.control(id, await body(req, 'Control') as Control, parts[3] === 'interrupt'));
       if (parts[3] === 'history' && req.method === 'GET') {
         const limit = Number(url.searchParams.get('limit') ?? 50);
         if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Refusal('invalid_history_limit');
@@ -99,11 +111,12 @@ export function router(supervisor: Supervisor): Server {
         res.once('close', detach);
         return; // Disconnect never cancels the worker.
       }
+      if (req.method !== 'GET' && live.worker.fence) throw new Refusal('session_fenced', 'no_effect', live.worker.fence.command_id);
       throw new Refusal('unsupported_method');
     })().catch(error => {
       if (res.headersSent) { res.destroy(); return; }
       const refusal = error instanceof Refusal ? error : new Refusal('internal_error_reconcile_before_retry', 'unknown');
-      json(res, { error: refusal.message, effect: refusal.effect, ...(refusal.uncertain_command_id ? { uncertain_command_id: refusal.uncertain_command_id } : {}) }, refusal.effect === 'unknown' ? 500 : 409);
+      json(res, { error: refusal.message, effect: refusal.effect, ...(refusal.uncertain_command_id ? { uncertain_command_id: refusal.uncertain_command_id } : {}), ...refusal.details }, refusal.effect === 'unknown' ? 500 : 409);
     });
   });
 }

@@ -42,8 +42,8 @@ test('SSE attach barrier: snapshot is first, no duplicate or missing event under
     assert.deepEqual(frames.map(x => x.type), ['snapshot', 'during', 'after']);
     assert.deepEqual(frames.map(x => x.cursor.seq), [1, 2, 3]);
     const snapshot = frames[0] as Snapshot;
-    assert.equal(snapshot.history.evidence, 'pi_session_file');
-    assert.equal(snapshot.worker.session_id, 'native-header');
+    assert.equal(snapshot.history!.evidence, 'pi_session_file');
+    assert.equal(snapshot.worker!.session_id, 'native-header');
     const reattached: (Snapshot | WorkerEvent)[] = [];
     hub.attach(() => w, snapshot.cursor, frame => reattached.push(frame))();
     assert.equal((reattached[0] as Snapshot).resync_reason, 'evicted'); assert.equal(reattached.length, 1);
@@ -150,7 +150,12 @@ test('supervisor projects admission, settlement, fence and stop to an already co
     assert.ok(workers.some(x => x.execution?.state === 'settled'));
     assert.ok(workers.some(x => x.fence?.command_id === 'crash'));
     assert.ok(workers.some(x => x.status === 'stopped'));
-    assert.ok(changes.every(x => x.producer === 'supervisor' && x.evidence === 'supervisor_journal_fsynced'));
+    assert.ok(changes.every(x => x.producer === 'supervisor'));
+    const durable = changes.filter(x => x.evidence === 'supervisor_journal_fsynced').map(x => x.data.worker as Worker);
+    assert.ok(durable.some(x => x.execution?.state === 'admitted'));
+    assert.ok(durable.some(x => x.execution?.state === 'settled'));
+    assert.ok(durable.some(x => x.fence?.command_id === 'crash'));
+    assert.ok(durable.some(x => x.status === 'stopped'));
   } finally { f.cleanup(); }
 });
 test('transport epoch changes across supervisor restart even when new seq catches the old cursor', async () => {
@@ -167,7 +172,7 @@ test('transport epoch changes across supervisor restart even when new seq catche
         const fresh = frame as Snapshot;
         assert.equal(fresh.resync_reason, 'epoch');
         assert.notEqual(fresh.cursor.worker_epoch, old.cursor.worker_epoch);
-        assert.equal(fresh.worker.worker_epoch, old.worker.worker_epoch);
+        assert.equal(fresh.worker!.worker_epoch, old.worker!.worker_epoch);
       })();
     } finally { log.close(); }
   } finally { f.cleanup(); }

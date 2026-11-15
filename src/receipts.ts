@@ -39,9 +39,17 @@ export class ReceiptStore {
   }
   recover(): void {
     for (const r of this.all.values()) {
-      if (r.state === 'intent') this.update(r.command_id, { state: 'intent_recovered', stage: 'recovery_pending', effect: 'no_effect', error: 'restart before dispatch; eligible once after owner resolution, never auto-replayed' });
+      if (r.state === 'intent' || r.state === 'queued') this.update(r.command_id, { state: 'intent_recovered', stage: 'recovery_pending', effect: 'no_effect', error: 'restart before dispatch; eligible once after owner resolution, never auto-replayed' });
       else if (r.state === 'accepted') this.unknown(r.command_id);
     }
+  }
+  resolveIntent(id: string, disposition: 'keep' | 'abandon' | 'observed'): Receipt {
+    const r = this.all.get(id);
+    if (!r || !['intent_recovered', 'queued', 'intent_ready'].includes(r.state)) throw new Refusal('not_a_recovered_or_queued_intent');
+    if (disposition === 'observed') throw new Refusal('undispatched_intent_has_no_execution_evidence');
+    return this.update(id, disposition === 'keep'
+      ? { state: 'intent_ready', stage: 'recovery_pending', effect: 'no_effect', error: 'owner resolved; exact request may dispatch once, never auto-replayed' }
+      : { state: 'rejected', stage: 'refused', effect: 'no_effect', disposition: 'abandoned_without_dispatch' });
   }
   unknown(id: string): Receipt {
     const prior = this.all.get(id);
@@ -54,19 +62,19 @@ export class ReceiptStore {
     const prior = this.all.get(command_id);
     if (pending || prior) {
       if ((pending?.operation ?? prior!.operation) !== operation || (pending?.hash ?? prior!.request_hash) !== hash) throw new Refusal('command_id_conflict');
-      return pending?.promise ?? Promise.resolve(prior!);
+      if (pending || prior!.state !== 'intent_ready') return pending?.promise ?? Promise.resolve(prior!);
     }
     const result = Promise.resolve().then(async () => {
       // Validate and reserve atomically with the synchronous pre-dispatch part of
       // effect(). Refusals here have no durable receipt and consume no capacity.
       validate();
-      if (this.journal.failed) throw new Refusal('journal_failed', 'unknown');
+      if (this.journal.failed) throw new Refusal('journal_failed', 'no_effect');
       const ordinary = [...this.all.values()].filter(r => r.operation !== 'workers.stop').length;
       // Termination bypasses the ordinary receipt quota. Its storage remains
       // bounded by the advertised journal byte limit, not by validation traffic.
       if (operation !== 'workers.stop' && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');
       if (!this.journal.reserve(command_id, this.maxResultBytes + 1024)) throw new Refusal('journal_result_capacity');
-      const intent = this.put({ command_id, operation, request_hash: hash, state: 'intent', stage: 'reserved', effect: 'no_effect', evidence: 'supervisor_journal_fsynced', created_at: new Date().toISOString() });
+      const intent = this.put({ command_id, operation, request_hash: hash, ...(typeof request.worker_id === 'string' ? { worker_id: request.worker_id } : {}), state: 'intent', stage: 'reserved', effect: 'no_effect', evidence: 'supervisor_journal_fsynced', created_at: prior?.created_at ?? new Date().toISOString() });
       try {
         const patch = await effect(intent);
         const current = this.all.get(command_id)!;
@@ -85,7 +93,7 @@ export class ReceiptStore {
     return result;
   }
   dispatch(command_id: string, patch: Partial<Receipt> = {}): Receipt {
-    if (this.all.get(command_id)?.state !== 'intent') throw new Error('dispatch requires fresh intent; recovered intent needs owner resolution');
+    if (!['intent', 'intent_ready'].includes(this.all.get(command_id)?.state ?? '')) throw new Error('dispatch requires fresh intent; recovered intent needs owner resolution');
     return this.update(command_id, { ...patch, state: 'accepted', stage: 'dispatch_recorded', effect: 'unknown' });
   }
 }

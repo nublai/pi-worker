@@ -146,6 +146,24 @@ export class SessionIndex {
     if (MESSAGE_TYPES.has(type)) this.messages += 1;
   }
 
+  hasEntry(id: string): boolean { this.refresh(); return this.byId.has(id); }
+
+  /** Exact nubl attribution only; never infer an execution from user/model text. */
+  hasExecution(executionId: string, commandId: string): boolean {
+    this.refresh();
+    if (!this.file) return false;
+    const fd = openSync(this.file, 'r');
+    try {
+      for (const meta of this.byId.values()) {
+        if (meta.oversize || meta.length > SIZE_LIMITS.historyPageBytes) continue;
+        const entry = this.read(fd, meta);
+        const data = entry.data as Record<string, unknown> | undefined;
+        if (entry.type === 'custom' && entry.customType === 'a0_execution' && data?.execution_id === executionId && data.command_id === commandId) return true;
+      }
+      return false;
+    } finally { closeSync(fd); }
+  }
+
   /** The visible path from the root to `watermark`, oldest first. */
   private path(watermark: string): Indexed[] | null {
     if (!this.byId.has(watermark)) return null;

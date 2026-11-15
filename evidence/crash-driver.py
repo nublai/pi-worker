@@ -4,6 +4,7 @@ os.environ['A0_SOCKET']='/tmp/a0/state/worker.sock'
 os.chdir('/tmp/a0/repo')
 w='51aaf702-e108-4fa9-8492-f0bf95dbf43c'
 watch=subprocess.Popen(['node','dist/cli.js','watch',w],stdout=subprocess.PIPE,text=True)
+assert watch.stdout is not None  # stdout=PIPE; narrow for static analysis.
 first=json.loads(watch.stdout.readline()); assert first['type']=='snapshot'
 message='Do not delegate. Use bash to execute exactly this command and wait for it: node -e \'require("fs").appendFileSync("/tmp/a0/workspace-final/crash-start.txt","ONCE\\n");console.log("CRASH_BLOCK_STARTED");setTimeout(()=>{require("fs").writeFileSync("/tmp/a0/workspace-final/crash-finished.txt","DONE\\n")},120000)\'. Set the tool timeout to 180 seconds. After it finishes, reply CRASH_TURN_DONE.'
 open('/tmp/a0/final-crash-message.txt','w').write(message)

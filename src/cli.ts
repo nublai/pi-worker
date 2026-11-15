@@ -38,7 +38,7 @@ try {
     await client.watch(id, frame => {
       print(frame); count++;
       if (flags.has('max-events') && count >= Number(required('max-events'))) return false;
-      if (flags.has('until-settled') && (frame.type === 'agent_settled' || (frame.type === 'snapshot' && (frame as Snapshot).worker.execution?.state === 'settled'))) return false;
+      if (flags.has('until-settled') && (frame.type === 'agent_settled' || (frame.type === 'snapshot' && (frame as Snapshot).worker?.execution?.state === 'settled'))) return false;
       return true;
     }, since);
   } else throw new Error('Usage: a0 [--socket PATH] hello | create --command-id ID --cwd DIR --provider P --model M --thinking off | list | get WORKER | prompt WORKER --command-id ID --message TEXT | watch WORKER [--until-settled|--max-events N] [--worker-epoch E --seq N] | history WORKER [--limit N --watermark ID --after ID] | stop WORKER --command-id ID | receipt COMMAND');

@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "THROWAWAY nubl A0 slice 1 B2",
-    "version": "0.1.0",
-    "description": "Private Unix socket HTTP only. OS owner access, no grants/peer UID API in this slice. Unsupported methods fail explicitly. Not production, not contract freeze."
+    "title": "THROWAWAY nubl A0 slice 2 B2",
+    "version": "0.2.0",
+    "description": "Throwaway only. Unix socket, owned modes and per-caller bearer grants. Same-user code can read grants. No hidden retries."
   },
   "servers": [
     {
@@ -16,6 +16,16 @@
         "operationId": "hello",
         "parameters": [],
         "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Hello"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Refusal; never implies cancel",
             "content": {
@@ -42,16 +52,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Hello"
                 }
               }
             }
@@ -64,6 +64,16 @@
         "operationId": "workers.create",
         "parameters": [],
         "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Refusal; never implies cancel",
             "content": {
@@ -90,16 +100,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Receipt"
                 }
               }
             }
@@ -120,6 +120,19 @@
         "operationId": "workers.list",
         "parameters": [],
         "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Worker"
+                  }
+                }
+              }
+            }
+          },
           "400": {
             "description": "Refusal; never implies cancel",
             "content": {
@@ -146,19 +159,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Worker"
-                  }
                 }
               }
             }
@@ -180,6 +180,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Worker"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Refusal; never implies cancel",
             "content": {
@@ -206,16 +216,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Worker"
                 }
               }
             }
@@ -237,6 +237,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Refusal; never implies cancel",
             "content": {
@@ -263,16 +273,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Receipt"
                 }
               }
             }
@@ -304,6 +304,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Refusal; never implies cancel",
             "content": {
@@ -330,16 +340,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Receipt"
                 }
               }
             }
@@ -353,86 +353,6 @@
                 "$ref": "#/components/schemas/Binding"
               }
             }
-          }
-        }
-      }
-    },
-    "/v0/workers/{worker_id}/events": {
-      "get": {
-        "operationId": "events.subscribe",
-        "parameters": [
-          {
-            "name": "worker_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "worker_epoch",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "seq",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 0
-            }
-          }
-        ],
-        "responses": {
-          "400": {
-            "description": "Refusal; never implies cancel",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict or fence",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unknown; reconcile, never retry blindly",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "SSE: snapshot (complete state + barrier + history marker), then only events strictly after barrier. Every reconnect receives a new snapshot; old events are not replayed. SSE id is JSON Cursor. On overflow connection closes; reconnect resets controls.",
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "x-sse-schemas": [
-              {
-                "$ref": "#/components/schemas/Snapshot"
-              },
-              {
-                "$ref": "#/components/schemas/Event"
-              }
-            ]
           }
         }
       }
@@ -474,6 +394,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryPage"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Refusal; never implies cancel",
             "content": {
@@ -500,16 +430,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HistoryPage"
                 }
               }
             }
@@ -531,6 +451,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Refusal; never implies cancel",
             "content": {
@@ -560,7 +490,119 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v0/events": {
+      "get": {
+        "operationId": "events.subscribe",
+        "parameters": [
+          {
+            "name": "worker_epoch",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           },
+          {
+            "name": "seq",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "worker_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resync",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "overflow"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Supervisor-wide SSE with filters. Bounded subscriber queue; final overflow frame then close. Fresh authoritative snapshot required on every reconnect.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "x-sse-schemas": [
+              {
+                "$ref": "#/components/schemas/Snapshot"
+              },
+              {
+                "$ref": "#/components/schemas/Event"
+              }
+            ]
+          },
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}/resolve_unknown": {
+      "post": {
+        "operationId": "sessions.resolve_unknown",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
           "200": {
             "description": "Success",
             "content": {
@@ -568,6 +610,448 @@
                 "schema": {
                   "$ref": "#/components/schemas/Receipt"
                 }
+              }
+            }
+          },
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Resolve"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}/rebind": {
+      "post": {
+        "operationId": "sessions.rebind",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Rebind"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}/follow_up": {
+      "post": {
+        "operationId": "sessions.follow_up",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FollowUp"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}/children": {
+      "post": {
+        "operationId": "children.launch",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChildLaunch"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}/report": {
+      "post": {
+        "operationId": "children.report",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Report"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}/cancel": {
+      "post": {
+        "operationId": "executions.cancel",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Control"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}/interrupt": {
+      "post": {
+        "operationId": "executions.interrupt",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Control"
               }
             }
           }
@@ -751,7 +1235,9 @@
           },
           "uncertain_command_ids": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -864,6 +1350,70 @@
               ],
               "additionalProperties": false
             }
+          },
+          "queued": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "command_id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "follow_up",
+                    "child"
+                  ]
+                },
+                "state": {
+                  "enum": [
+                    "queued",
+                    "paused",
+                    "dropped",
+                    "recovered",
+                    "dispatched"
+                  ]
+                }
+              },
+              "required": [
+                "command_id",
+                "kind",
+                "state"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "fence_generation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resolutions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "command_id": {
+                  "type": "string"
+                },
+                "disposition": {
+                  "enum": [
+                    "keep",
+                    "abandon",
+                    "observed"
+                  ]
+                },
+                "fence_generation": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "command_id",
+                "disposition",
+                "fence_generation"
+              ],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
@@ -895,7 +1445,14 @@
             "enum": [
               "workers.create",
               "sessions.prompt",
-              "workers.stop"
+              "workers.stop",
+              "sessions.resolve_unknown",
+              "sessions.rebind",
+              "sessions.follow_up",
+              "children.launch",
+              "children.report",
+              "executions.cancel",
+              "executions.interrupt"
             ]
           },
           "request_hash": {
@@ -908,7 +1465,9 @@
               "accepted",
               "delivered",
               "rejected",
-              "outcome_unknown"
+              "outcome_unknown",
+              "queued",
+              "intent_ready"
             ]
           },
           "stage": {
@@ -919,7 +1478,9 @@
               "forwarded",
               "termination_observed",
               "refused",
-              "unknown"
+              "unknown",
+              "resolved",
+              "requested"
             ]
           },
           "effect": {
@@ -944,7 +1505,8 @@
           "admission": {
             "enum": [
               "accepted",
-              "rejected"
+              "rejected",
+              "queued"
             ]
           },
           "disposition": {
@@ -1139,18 +1701,25 @@
               "gap",
               "epoch",
               "ahead",
-              "evicted"
+              "evicted",
+              "overflow"
             ]
+          },
+          "workers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Worker"
+            }
           }
         },
         "required": [
           "type",
-          "worker",
+          "workers",
           "cursor",
-          "history",
           "resync_reason"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Supervisor snapshot. worker/history only on a single-worker filter (legacy convenience); workers is authoritative. Fresh snapshot on every attach; no event replay."
       },
       "Event": {
         "type": "object",
@@ -1189,6 +1758,9 @@
           "data": {
             "type": "object",
             "additionalProperties": true
+          },
+          "worker_id": {
+            "type": "string"
           }
         },
         "required": [
@@ -1216,6 +1788,15 @@
           },
           "uncertain_command_id": {
             "type": "string"
+          },
+          "holder_worker_id": {
+            "type": "string"
+          },
+          "expected_binding_revision": {
+            "type": "integer"
+          },
+          "received_binding_revision": {
+            "type": "integer"
           }
         },
         "required": [
@@ -1223,7 +1804,239 @@
           "effect"
         ],
         "additionalProperties": false
+      },
+      "Resolve": {
+        "type": "object",
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "worker_epoch": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "uncertain_command_id": {
+            "type": "string"
+          },
+          "execution_id": {
+            "type": "string"
+          },
+          "fence_generation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "disposition": {
+            "enum": [
+              "keep",
+              "abandon",
+              "observed"
+            ]
+          }
+        },
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "fence_generation",
+          "disposition"
+        ],
+        "additionalProperties": false
+      },
+      "Rebind": {
+        "type": "object",
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "worker_epoch": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "action": {
+            "enum": [
+              "new",
+              "fork",
+              "resume",
+              "navigate"
+            ]
+          },
+          "target_session_id": {
+            "type": "string"
+          },
+          "source_leaf_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entry_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "FollowUp": {
+        "type": "object",
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "worker_epoch": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "message": {
+            "type": "string"
+          },
+          "execution_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "message",
+          "execution_id"
+        ],
+        "additionalProperties": false
+      },
+      "Control": {
+        "type": "object",
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "worker_epoch": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "execution_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision"
+        ],
+        "additionalProperties": false
+      },
+      "ChildLaunch": {
+        "type": "object",
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "worker_epoch": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "execution_id": {
+            "type": "string"
+          },
+          "launch": {
+            "$ref": "#/components/schemas/Create"
+          }
+        },
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "execution_id",
+          "launch"
+        ],
+        "additionalProperties": false
+      },
+      "Report": {
+        "type": "object",
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "worker_epoch": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "result_digest": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "task_id",
+          "result_digest"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "bearerGrant": {
+        "type": "http",
+        "scheme": "bearer"
       }
     }
-  }
+  },
+  "security": [
+    {
+      "bearerGrant": []
+    }
+  ]
 }
