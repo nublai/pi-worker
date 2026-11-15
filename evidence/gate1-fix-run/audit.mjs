@@ -5,6 +5,9 @@ import {execFileSync} from 'node:child_process';
 import {parseJournal} from '/tmp/a0g1b/runtime/dist/journal.js';
 import {artifactSubject} from '/tmp/a0g1b/runtime/dist/artifact.js';
 import {safeGit} from '/tmp/a0g1b/runtime/dist/git-safe.js';
+import {openPinned} from '/tmp/a0g1b/runtime/dist/pinned-fs.js';
+import {closeSync,statSync} from 'node:fs';
+const pin_cwd_retained=cwd=>statSync(cwd).isDirectory();
 const R=process.env.A0_G1_RUN??'/tmp/a0g1b/run',root=R+'/workspace';
 function parse(s){try{return JSON.parse(s);}catch(cause){throw new Error('Invalid private audit JSON; contents withheld',{cause});}}
 const load=n=>parse(readFileSync(R+'/'+n,'utf8'));
@@ -27,14 +30,18 @@ const deliveries=native.filter(e=>e.type==='custom_message'&&e.customType==='sub
 const deliveryCounts={};for(const d of deliveries)deliveryCounts[d.id+':'+d.kind]=(deliveryCounts[d.id+':'+d.kind]??0)+1;
 for(const d of Object.values(deliveryCounts))assert.equal(d,1);
 assert.equal(deliveries.filter(d=>d.kind==='result').length,2);assert.equal(deliveries.filter(d=>d.kind==='termination').length,2);
-const stanzas=git(root,'worktree','list','--porcelain').split('\n\n');
+// safeGit runs on a private snapshot without the worktrees/ admin tree, so
+// `git worktree list` cannot see linked worktrees there. Git reports a worktree
+// locked iff <admin>/locked exists: check that file by O_NOFOLLOW descriptor
+// walk from the launch-time pin's admin dir (no Git process, nothing executed).
+const lockedByPin=pin=>{assert.equal(pin.kind,'linked');assert.ok(pin.git_dir.startsWith(root+'/.git/worktrees/'));try{closeSync(openPinned(pin.git_dir+'/locked','file'));return true;}catch{return false;}};
 const workers=[parent,...children].map(v=>{
   const w=v.worker, es=entries(v.sessionFile),tools=calls(es),types={};for(const c of tools)types[c.name]=(types[c.name]??0)+1;
   assert.equal(es[0].id,w.session_id);assert.equal(w.launch_spec.environment.filesystem,'bwrap');assert.equal(w.host,'sdk');assert.equal(w.status,'stopped');assert.equal(w.cleanup,'cgroup_empty_removed');assert.equal(existsSync(v.unit.root+'/'+v.unit.name),false);assert.equal(existsSync(w.cwd+'/.a0-terminal-calls'),false);
   const deniedReads=tools.filter(c=>c.name==='read'&&/(grants\/|models-store\.json|auth\.json)/.test(c.arguments?.path??''));assert.equal(deniedReads.length,0);
   const out={worker_id:w.worker_id,worker_epoch:w.worker_epoch,parent_worker_id:w.parent_worker_id,session_id:w.session_id,host:w.host,filesystem:w.launch_spec.environment.filesystem,status:w.status,cleanup:w.cleanup,domain:v.unit.name,domain_removed:true,tool_counts:types,grant_source_id:w.grant_source_id,grant_methods:w.launch_spec.grant_methods,credential_read_tools:deniedReads.length,terminal_trap_present:false};
   if(w.parent_worker_id){
-    const stanza=stanzas.find(x=>x.startsWith('worktree '+w.cwd+'\n'));assert.ok(stanza&&/^locked(?: |$)/m.test(stanza));assert.equal(git(w.cwd,'status','--porcelain'),'');assert.equal(git(w.cwd,'rev-list','--count',load('job.json').base+'..HEAD'),'1');
+    assert.equal(lockedByPin(w.git_pin),true,'child worktree locked');assert.equal(pin_cwd_retained(w.cwd),true);assert.equal(git(w.cwd,'status','--porcelain'),'');assert.equal(git(w.cwd,'rev-list','--count',load('job.json').base+'..HEAD'),'1');
     const reported=records.filter(r=>r.kind==='receipt'&&r.value.operation==='children.report'&&r.value.worker_id===w.worker_id&&r.value.state==='delivered'&&r.value.result?.kind==='result');assert.equal(reported.length,1);
     out.git={cwd:w.cwd,branch:git(w.cwd,'branch','--show-current'),subject:artifactSubject(w.cwd,'HEAD',load('job.json').base,pins.get(w.cwd)),clean:true,locked:true,retained:true};out.fd_result_reports=reported.length;
     for(const verb of ['status','add','commit'])assert.ok(tools.some(c=>c.name==='bash'&&new RegExp('git[^\\n]*'+verb).test(c.arguments.command)),'real child Git '+verb);

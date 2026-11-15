@@ -1,0 +1,21 @@
+/** Owner check that the parent integrated the children's exact commits (patch-id equality) and edited no job file itself. */
+import assert from 'node:assert/strict';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {parseJournal} from '/tmp/a0g1b/runtime/dist/journal.js';
+import {safeGit} from '/tmp/a0g1b/runtime/dist/git-safe.js';
+const R='/tmp/a0g1b/run',root=R+'/workspace',pin=JSON.parse(readFileSync(R+'/workspace-pin.json','utf8')),job=JSON.parse(readFileSync(R+'/job.json','utf8'));
+const g=(...a)=>safeGit(root,pin,a);
+const pid=c=>g('show','--format=','--no-ext-diff','--no-textconv',c).length&&g('show','--format=%an|%s',c).split('\n')[0];
+const parentCommits=g('rev-list','--reverse',job.base+'..job/gate1').split('\n');
+const childCommits=['refs/heads/g1-note/task','refs/heads/g1-check/task'].map(r=>({ref:r,commit:g('rev-parse',r),files:g('diff','--name-only',job.base,r).split('\n')}));
+const diffOf=c=>g('diff','--no-ext-diff','--no-textconv',c+'^',c);
+const matches=parentCommits.map(c=>({commit:c,author_subject:pid(c),same_diff_as:childCommits.find(x=>diffOf(x.commit)===diffOf(c))?.ref??null}));
+for(const m of matches)assert.ok(m.same_diff_as,'parent commit not an exact child change');
+assert.equal(parentCommits.length,2);
+const native=readFileSync(parseJournal(readFileSync(R+'/state/journal.jsonl')).records.filter(r=>r.kind==='worker').map(r=>r.value).filter(v=>!v.worker.parent_worker_id).at(-1).sessionFile,'utf8').trim().split('\n').map(l=>JSON.parse(l));
+const calls=native.flatMap(e=>e.message?.role==='assistant'&&Array.isArray(e.message.content)?e.message.content.filter(c=>c.type==='toolCall'):[]);
+const parentEdits=calls.filter(c=>['edit','write'].includes(c.name)).map(c=>c.arguments?.path??null);
+const parentGitCommitCalls=calls.filter(c=>c.name==='bash'&&/git[^\n]*\bcommit\b/.test(String(c.arguments?.command))).length;
+const out={producer:'gate1-fix-integration-check',parent_commits:matches,child_commits:childCommits,parent_edit_or_write_paths:parentEdits,parent_bash_git_commit_calls:parentGitCommitCalls};
+assert.deepEqual(parentEdits,[],'parent edited files itself');
+writeFileSync(R+'/integration-check.json',JSON.stringify(out,null,2)+'\n');console.log(JSON.stringify(out));

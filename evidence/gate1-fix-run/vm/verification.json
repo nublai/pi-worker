@@ -1,0 +1,264 @@
+{
+  "schema": "a0-verification-evidence-v2",
+  "job_id": "gate1-owner-git-snapshot-note",
+  "producer": {
+    "name": "gate1-owner-deterministic-verifier",
+    "kind": "fresh-checkout runner; exact README bytes and Git state inspected independently of agent text",
+    "model_family": null
+  },
+  "subject": {
+    "commit_id": "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6",
+    "tree_id": "8876bd099d0fa7ec2831142f59a1c57f1dab3390",
+    "base_id": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+    "diff_digest": {
+      "advisory": true,
+      "git_version": "git version 2.43.0",
+      "algorithm": "sha256",
+      "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+      "value": "35eb959fdba872f1389548f1298e0d08ae67fd89c287e69f8fdd48d0c7e632d0"
+    }
+  },
+  "checks": [
+    {
+      "producer": "gate1-owner-fresh-checkout-command-runner",
+      "subject": {
+        "commit_id": "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6",
+        "tree_id": "8876bd099d0fa7ec2831142f59a1c57f1dab3390",
+        "base_id": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "35eb959fdba872f1389548f1298e0d08ae67fd89c287e69f8fdd48d0c7e632d0"
+        }
+      },
+      "command": [
+        "git",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "-c",
+        "core.attributesFile=/dev/null",
+        "-c",
+        "diff.ignoreSubmodules=all",
+        "-c",
+        "submodule.recurse=false",
+        "-c",
+        "protocol.allow=never",
+        "-c",
+        "protocol.file.allow=always",
+        "clone",
+        "--no-local",
+        "/tmp/a0g1b/run/workspace",
+        "/tmp/a0g1b/verify/head"
+      ],
+      "cwd": "/tmp/a0g1b/verify",
+      "started_at": "2026-11-15T22:25:18.392Z",
+      "duration_seconds": 0.108,
+      "exit_code": 0,
+      "signal": null,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0g1b/out/clone.log",
+        "sha256": "266f27e1914337725670e99817f2623d6f0f23a5b4e8b3c0d758458230e28bfb"
+      },
+      "counts": {}
+    },
+    {
+      "producer": "gate1-owner-fresh-checkout-command-runner",
+      "subject": {
+        "commit_id": "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6",
+        "tree_id": "8876bd099d0fa7ec2831142f59a1c57f1dab3390",
+        "base_id": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "35eb959fdba872f1389548f1298e0d08ae67fd89c287e69f8fdd48d0c7e632d0"
+        }
+      },
+      "command": [
+        "git",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "-c",
+        "core.attributesFile=/dev/null",
+        "-c",
+        "diff.ignoreSubmodules=all",
+        "-c",
+        "submodule.recurse=false",
+        "-c",
+        "protocol.allow=never",
+        "checkout",
+        "--detach",
+        "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6"
+      ],
+      "cwd": "/tmp/a0g1b/verify/head",
+      "started_at": "2026-11-15T22:25:18.501Z",
+      "duration_seconds": 0.017,
+      "exit_code": 0,
+      "signal": null,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0g1b/out/checkout.log",
+        "sha256": "ea14049e7677a9ec280c03141f89fb7137ffd889695e17c6467b44f32adacd9e"
+      },
+      "counts": {}
+    },
+    {
+      "producer": "gate1-owner-fresh-checkout-command-runner",
+      "subject": {
+        "commit_id": "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6",
+        "tree_id": "8876bd099d0fa7ec2831142f59a1c57f1dab3390",
+        "base_id": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "35eb959fdba872f1389548f1298e0d08ae67fd89c287e69f8fdd48d0c7e632d0"
+        }
+      },
+      "command": [
+        "npm",
+        "ci",
+        "--ignore-scripts"
+      ],
+      "cwd": "/tmp/a0g1b/verify/head",
+      "started_at": "2026-11-15T22:25:18.518Z",
+      "duration_seconds": 2.95,
+      "exit_code": 0,
+      "signal": null,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0g1b/out/npm-ci.log",
+        "sha256": "8c68e13c0e67cc6a7c758fbedf08bbb4a805332d387b4821b3f23bf4cb772af6"
+      },
+      "counts": {}
+    },
+    {
+      "producer": "gate1-owner-fresh-checkout-command-runner",
+      "subject": {
+        "commit_id": "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6",
+        "tree_id": "8876bd099d0fa7ec2831142f59a1c57f1dab3390",
+        "base_id": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "35eb959fdba872f1389548f1298e0d08ae67fd89c287e69f8fdd48d0c7e632d0"
+        }
+      },
+      "command": [
+        "npm",
+        "test"
+      ],
+      "cwd": "/tmp/a0g1b/verify/head",
+      "started_at": "2026-11-15T22:25:21.468Z",
+      "duration_seconds": 177.867,
+      "exit_code": 0,
+      "signal": null,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0g1b/out/npm-test.log",
+        "sha256": "2e7dd9e294a58c8391517449b2807d6a7b917578a1807ef6ed46dd46e3120703"
+      },
+      "counts": {
+        "tests": 245,
+        "pass": 231,
+        "fail": 0,
+        "skipped": 14
+      }
+    },
+    {
+      "producer": "gate1-owner-fresh-checkout-command-runner",
+      "subject": {
+        "commit_id": "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6",
+        "tree_id": "8876bd099d0fa7ec2831142f59a1c57f1dab3390",
+        "base_id": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "35eb959fdba872f1389548f1298e0d08ae67fd89c287e69f8fdd48d0c7e632d0"
+        }
+      },
+      "command": [
+        "npm",
+        "run",
+        "check:generated"
+      ],
+      "cwd": "/tmp/a0g1b/verify/head",
+      "started_at": "2026-11-15T22:28:19.335Z",
+      "duration_seconds": 0.638,
+      "exit_code": 0,
+      "signal": null,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0g1b/out/generated.log",
+        "sha256": "1c4bb7e4eac950647d6e97c581decb76e04f12ecb04c438939181631b22ae12c"
+      },
+      "counts": {}
+    },
+    {
+      "producer": "gate1-owner-fresh-checkout-command-runner",
+      "subject": {
+        "commit_id": "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6",
+        "tree_id": "8876bd099d0fa7ec2831142f59a1c57f1dab3390",
+        "base_id": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "35eb959fdba872f1389548f1298e0d08ae67fd89c287e69f8fdd48d0c7e632d0"
+        }
+      },
+      "command": [
+        "systemd-run",
+        "--user",
+        "--unit=a0-g1b-artifact-kernel",
+        "--wait",
+        "--pipe",
+        "--collect",
+        "--service-type=exec",
+        "--property=Delegate=yes",
+        "--setenv=PATH=/home/exedev/.local/node26/bin:/home/exedev/.local/bin:/usr/bin:/bin",
+        "--setenv=A0_G1_REPO=/tmp/a0g1b/verify/head",
+        "--setenv=TMPDIR=/tmp/a0g1b/tmp",
+        "--setenv=npm_config_cache=/tmp/a0g1b/npm-cache",
+        "/bin/bash",
+        "/tmp/a0g1b/kernel.sh"
+      ],
+      "cwd": "/tmp/a0g1b/verify/head",
+      "started_at": "2026-11-15T22:28:19.973Z",
+      "duration_seconds": 194.94,
+      "exit_code": 0,
+      "signal": null,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0g1b/out/npm-test-kernel.log",
+        "sha256": "43a6150959fad19bf8e0c944e2426903874fd2609137749f21e3804ead094aa6"
+      },
+      "counts": {
+        "tests": 245,
+        "pass": 245,
+        "fail": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "result": "verified",
+  "limitations": [
+    "No PR/push/merge; same-family check author is not independent-provider review.",
+    "Model-authored checker inspected, not executed by owner; parent execution separately audited.",
+    "Process/SIGKILL and bwrap Linux evidence, not physical power-loss, network confinement, or hostile same-UID proof."
+  ]
+}

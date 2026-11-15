@@ -1,0 +1,13 @@
+{
+  "clock": "2026-11-15T22:31:42.337Z",
+  "known_private_values_compared_in_memory": true,
+  "no_private_value_or_credential_hash_logged": true,
+  "export_files": 16,
+  "artifact_blobs": 2,
+  "credential_pattern_scan": true,
+  "pass": true,
+  "limitations": [
+    "exact-value and pattern scans are not a proof against transformed or unknown secrets",
+    "no raw profile, model-store, grant or transcript exported"
+  ]
+}

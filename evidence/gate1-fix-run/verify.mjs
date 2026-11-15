@@ -26,7 +26,8 @@ function run(name,command,cwd,extra={}){
   const counts={};for(const key of ['tests','pass','fail','skipped']){const m=text.match(new RegExp('(?:#|ℹ) '+key+' (\\d+)'));if(m)counts[key]=Number(m[1]);}
   const row={producer:'gate1-owner-fresh-checkout-command-runner',subject,command,cwd,started_at:start.toISOString(),duration_seconds:(Date.now()-start.getTime())/1000,exit_code:p.status,signal:p.signal,pass:p.status===0,log:{path:log,sha256:createHash('sha256').update(text).digest('hex')},counts};checks.push(row);if(!row.pass)throw new Error(name+' failed; private log retained');
 }
-checkGitPin(R+'/workspace',pins.get(R+'/workspace'));run('clone',['git',...SAFE_GIT_CONFIG,'clone','--no-local',R+'/workspace',V+'/head'],V);pins.set(V+'/head',readGitPin(V+'/head'));
+checkGitPin(R+'/workspace',pins.get(R+'/workspace'));// SAFE_GIT_CONFIG sets protocol.allow=never; re-allow only the local file transport for this one clone.
+run('clone',['git',...SAFE_GIT_CONFIG,'-c','protocol.file.allow=always','clone','--no-local',R+'/workspace',V+'/head'],V);pins.set(V+'/head',readGitPin(V+'/head'));
 checkGitPin(V+'/head',pins.get(V+'/head'));run('checkout',['git',...SAFE_GIT_CONFIG,'checkout','--detach',subject.commit_id],V+'/head');
 run('npm-ci',['npm','ci','--ignore-scripts'],V+'/head');
 run('npm-test',['npm','test'],V+'/head');

@@ -1,0 +1,7 @@
+From /tmp/a0g1b/runtime.bundle
+ * branch            a0/gate1-rerun -> FETCH_HEAD
+HEAD is now at 24e1de2 harness: gate1 fix-round VM rerun (gate1-rerun harness, /tmp/a0g1b scratch, a0-g1b-* units)
+Cloning into '/tmp/a0g1b/run/workspace'...
+warning: remote HEAD refers to nonexistent ref, unable to checkout
+Switched to a new branch 'job/gate1'
+Running as unit: a0-g1b-supervisor.service; invocation ID: 3d9f5941bc54487baac057c614bc09b6

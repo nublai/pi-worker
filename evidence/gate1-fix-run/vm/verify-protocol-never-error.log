@@ -1,0 +1,12 @@
+file:///tmp/a0g1b/verify.mjs:27
+  const row={producer:'gate1-owner-fresh-checkout-command-runner',subject,command,cwd,started_at:start.toISOString(),duration_seconds:(Date.now()-start.getTime())/1000,exit_code:p.status,signal:p.signal,pass:p.status===0,log:{path:log,sha256:createHash('sha256').update(text).digest('hex')},counts};checks.push(row);if(!row.pass)throw new Error(name+' failed; private log retained');
+                                                                                                                                                                                                                                                                                                                                               ^
+
+Error: clone failed; private log retained
+    at run (file:///tmp/a0g1b/verify.mjs:27:336)
+    at file:///tmp/a0g1b/verify.mjs:29:54
+    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)
+    at async node:internal/modules/esm/loader:650:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:105:5)
+
+Node.js v26.13.0
