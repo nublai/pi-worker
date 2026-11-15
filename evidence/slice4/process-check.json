@@ -1,0 +1,103 @@
+{
+  "runs": [
+    {
+      "root": "/tmp/a0s4/live-9rXNgg",
+      "processes": [
+        {
+          "pid": 19248,
+          "state": "absent"
+        }
+      ],
+      "no_live_recorded_pi": true
+    },
+    {
+      "root": "/tmp/a0s4/live-7WmRPW",
+      "processes": [
+        {
+          "pid": 19374,
+          "state": "absent"
+        },
+        {
+          "pid": 19401,
+          "state": "absent"
+        },
+        {
+          "pid": 19402,
+          "state": "absent"
+        },
+        {
+          "pid": 19442,
+          "state": "absent"
+        }
+      ],
+      "no_live_recorded_pi": true
+    },
+    {
+      "root": "/tmp/a0s4/live-fsnI9H",
+      "processes": [
+        {
+          "pid": 19793,
+          "state": "absent"
+        },
+        {
+          "pid": 19822,
+          "state": "absent"
+        },
+        {
+          "pid": 19828,
+          "state": "absent"
+        },
+        {
+          "pid": 19866,
+          "state": "absent"
+        }
+      ],
+      "no_live_recorded_pi": true
+    },
+    {
+      "root": "/tmp/a0s4/live-g6iENm",
+      "processes": [
+        {
+          "pid": 30490,
+          "state": "absent"
+        },
+        {
+          "pid": 32127,
+          "state": "absent"
+        },
+        {
+          "pid": 32128,
+          "state": "absent"
+        },
+        {
+          "pid": 32173,
+          "state": "absent"
+        }
+      ],
+      "no_live_recorded_pi": true
+    },
+    {
+      "root": "/tmp/a0s4/live-lO2fBm",
+      "processes": [
+        {
+          "pid": 37613,
+          "state": "absent"
+        },
+        {
+          "pid": 37787,
+          "state": "absent"
+        },
+        {
+          "pid": 37793,
+          "state": "absent"
+        },
+        {
+          "pid": 37973,
+          "state": "absent"
+        }
+      ],
+      "no_live_recorded_pi": true
+    }
+  ],
+  "scope": "Only recorded Pi leaders; no escaped-descendant containment claim"
+}
