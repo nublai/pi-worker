@@ -152,9 +152,12 @@ export class Interactions {
     if (l.record.kind !== 'tool_approval' || !l.guard) throw new Error('unknown_gate');
     const command_id = l.record.answer_id! + ':release';
     const r = await this.receipts.run(command_id, 'interactions.release', { command_id, worker_id: worker.worker_id, interaction_id: l.record.interaction_id }, async () => {
+      // A fenced/in-progress binding may cancel, but must not dispatch a release,
+      // even an explicit denial. The child's own timeout/cancellation fails shut.
+      writable();
       let allowed = true;
       try {
-        writable(); l.guard!();
+        l.guard!();
         if (l.record.status !== 'consumed' || l.record.outcome !== 'answered' || l.record.binding_revision !== worker.binding_revision || l.record.worker_epoch !== worker.worker_epoch || l.record.session_id !== worker.session_id) throw new Refusal('approval_not_current');
         const b = l.record.approval!;
         if (['digest', 'policy_revision', 'expiry', 'operation', 'resource', 'environment', 'offered_scope'].some(k => b[k] !== event[k]) || this.now() >= Number(b.expiry)) throw new Refusal('approval_binding_invalid');

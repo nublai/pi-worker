@@ -146,7 +146,11 @@ for (const mutation of ['none', 'grant', 'policy', 'expiry', 'digest', 'binding'
     f.hosts[0]!.request = async c => c.type === 'gate_release' ? { type: 'response', id: 'r', success: true, data: { released: c.allowed === true } } : original(c);
     await f.supervisor.interactions.gate(f.supervisor.require(w.worker_id).worker, event, () => { if (f.supervisor.require(w.worker_id).worker.fence) throw new Error('fenced'); });
     const release = f.supervisor.receipts.all.get('approve:release')!;
-    assert.equal(release.answer_stage, mutation === 'none' ? 4 : 3); assert.equal(release.result?.released, mutation === 'none');
+    if (mutation === 'fence') {
+      assert.equal(release.state, 'rejected'); assert.equal(release.effect, 'no_effect');
+      assert.equal(f.hosts[0]!.commands.some(c => c.type === 'gate_release'), false, 'fenced release must not reach child');
+      assert.equal(f.journal.records.some(r => r.kind === 'receipt' && r.value.command_id === 'approve:release' && r.value.state === 'accepted'), false, 'fenced release must not dispatch');
+    } else { assert.equal(release.answer_stage, mutation === 'none' ? 4 : 3); assert.equal(release.result?.released, mutation === 'none'); }
   } finally { f.cleanup(); }
 });
 test('deadline validation refuses at the boundary before the timeout callback can run', async () => {
