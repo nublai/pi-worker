@@ -2,7 +2,7 @@
  * Every component is opened with O_NOFOLLOW from an already-open parent
  * descriptor, so a concurrent rename or symlink swap cannot redirect a later
  * component or the final object. Callers own and close returned descriptors. */
-import { constants, openSync, closeSync, fstatSync, readSync, writeSync, mkdirSync, readdirSync, readlinkSync, symlinkSync, unlinkSync, rmdirSync } from 'node:fs';
+import { constants, openSync, closeSync, fstatSync, futimesSync, readSync, writeSync, mkdirSync, readdirSync, readlinkSync, symlinkSync, unlinkSync, rmdirSync } from 'node:fs';
 import { isAbsolute, normalize } from 'node:path';
 import { Refusal } from './types.js';
 
@@ -139,8 +139,9 @@ export function removeTreeAt(parent: number, name: string, depth = 0): void {
   try { for (const entry of readdirSync(fdPath(fd))) removeTreeAt(fd, entry, depth + 1); } finally { closeSync(fd); }
   rmdirSync(fdPath(parent, name));
 }
-/** Write the remaining bytes of open file `fd` to a new entry `name` in `dest`. */
-function writeFdAt(fd: number, dest: number, name: string, mode: number, budget: { bytes: number }): void {
+/** Write the remaining bytes of open file `fd` to a new entry `name` in `dest`.
+ * With `mtime` (whole seconds), the new file's atime and mtime are set to it. */
+function writeFdAt(fd: number, dest: number, name: string, mode: number, budget: { bytes: number }, mtime?: number): void {
   const out = openSync(fdPath(dest, name), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, mode);
   try {
     const buf = Buffer.alloc(64 * 1024);
@@ -149,12 +150,18 @@ function writeFdAt(fd: number, dest: number, name: string, mode: number, budget:
       budget.bytes += n; if (budget.bytes > 256 * 1024 * 1024) throw new Refusal('profile_copy_too_large');
       let off = 0; while (off < n) off += writeSync(out, buf, off, n - off);
     }
+    if (mtime !== undefined) futimesSync(out, mtime, mtime);
   } finally { closeSync(out); }
 }
 /** Copy the regular file `names` below `source` to `name` in `dest` through one
- * O_NOFOLLOW descriptor. Returns false when the final entry is absent. */
-export function copyFileAt(source: number, names: string[], dest: number, name: string, budget = { entries: 0, bytes: 0 }): boolean {
+ * O_NOFOLLOW descriptor. Returns false when the final entry is absent. With
+ * `keepMtime`, the copy gets the source's mtime from that descriptor, rounded
+ * DOWN to whole seconds (never later than the original). */
+export function copyFileAt(source: number, names: string[], dest: number, name: string, budget = { entries: 0, bytes: 0 }, keepMtime = false): boolean {
   let fd: number;
   try { fd = openUnder(source, names, 'file'); } catch (error) { if (isMissing(error)) return false; throw error; }
-  try { writeFdAt(fd, dest, name, 0o600, budget); return true; } finally { closeSync(fd); }
+  try {
+    const mtime = keepMtime ? Number(fstatSync(fd, { bigint: true }).mtimeNs / 1_000_000_000n) : undefined;
+    writeFdAt(fd, dest, name, 0o600, budget, mtime); return true;
+  } finally { closeSync(fd); }
 }
