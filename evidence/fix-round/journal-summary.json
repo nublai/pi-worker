@@ -1,0 +1,25 @@
+{
+  "receipt_states": [
+    "intent",
+    "accepted",
+    "delivered"
+  ],
+  "delivered_unchanged": true,
+  "distinct_fences": [
+    {
+      "command_id": "fix-crash",
+      "fence_generation": 1,
+      "uncertain_command_ids": [
+        "fix-crash"
+      ]
+    }
+  ],
+  "execution_states": [
+    "admitted",
+    "started",
+    "outcome_unknown"
+  ],
+  "final_status": "stopped",
+  "cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+  "supervisor_lock_absent": true
+}

@@ -1,0 +1,5 @@
+INITIAL {"supervisor_epoch":"913c5fcd-3ec6-4cc5-bb7a-4f133539829d","root":"/tmp/a0/fix-live-jwSBaU"}
+SUPERVISOR_SIGKILL_AFTER_ACTUAL_PARTIAL_OUTPUT_AND_ONCE_FILE
+DELIVERED_RECEIPT_IDENTICAL_AND_FENCE_GENERATION_1_AFTER_RECOVERY_AND_TWO_MORE_RESTARTS
+LIVE_FIX_ROUND_PASS {"root":"/tmp/a0/fix-live-jwSBaU","receipts_identical":true,"fences":[{"command_id":"fix-crash","fence_generation":1,"uncertain_command_ids":["fix-crash"]},{"command_id":"fix-crash","fence_generation":1,"uncertain_command_ids":["fix-crash"]},{"command_id":"fix-crash","fence_generation":1,"uncertain_command_ids":["fix-crash"]}],"watchers":[{"label":"connected-fence-stop-watch","fence_event":true,"stop_event":true},{"label":"recovered-stop-watch","stop_event":true}],"effects":{"main_start_count":1,"main_prompt_in_history":1,"main_finished_absent":true,"live_start_count":1,"live_finished_present":true,"escaped_descendants":"unproven; a detached tool may finish after Pi group termination"}}
+ALL_DRIVER_SUPERVISORS_STOPPED

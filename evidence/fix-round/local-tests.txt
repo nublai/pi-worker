@@ -1,0 +1,48 @@
+
+> @nublai/pi-worker-a0@0.0.0-throwaway test
+> npm run build && node --test dist/test/*.test.js
+
+
+> @nublai/pi-worker-a0@0.0.0-throwaway build
+> tsc -p tsconfig.json
+
+✔ supervisor dispatch marker with execution ID is fsynced before the host receives prompt (M2) (10.732489ms)
+✔ HTTP pi prompt response timeout: unknown and durable fence before response headers (M1, M6) (9.374572ms)
+✔ HTTP stdin write failed: unknown and durable fence before response headers (M1, M6) (2.098496ms)
+✔ Pi exit fences an admitted run durably without rewriting delivered admission (M9) (1.113459ms)
+✔ unknown stop never replaces the prompt fence; two restarts preserve fence and delivered receipt (1.945509ms)
+✔ journal failure in a Pi event faults only that worker and keeps inventory readable (1.620128ms)
+✔ header failure in a Pi event faults only that worker and keeps inventory readable (2.674606ms)
+✔ validation refusals consume no durable storage, ordinary capacity never blocks termination (86.435536ms)
+✔ failed create preserves the same group-only cleanup and cwd reservation as stop (m-1) (1.070467ms)
+✔ unsupported UI dialogs auto-cancel without resolver-consumed claims (m-2) (3.842617ms)
+✔ pending unsupported interactions close on tool_execution_end (m-2) (0.813426ms)
+✔ pending unsupported interactions close on agent_settled (m-2) (0.640241ms)
+✔ pending unsupported interactions close on expiry (m-2) (21.699707ms)
+✔ pending unsupported dialogs are bounded and cancellation failure faults closed (m-2) (1.938215ms)
+✔ socket directory rejects symlink, public mode and foreign ownership before listening (M5) (0.764323ms)
+✔ B2 SSE closes a slow subscriber when the response queue exceeds 1 MiB (M4) (9.102331ms)
+✔ RPC host keeps LF framing across Unicode separators and split UTF8; drains events independently (31.801313ms)
+✔ unsupported UI cancellation uses the native ID and no RPC response waiter (19.533514ms)
+✔ RPC timeout is an error, never a resend; process exit rejects pending requests (81.972536ms)
+✔ canonical idempotency ignores transport id, not operation content (4.898907ms)
+✔ intent and dispatch are durable before effect; duplicate attempts dispatch once (1.349792ms)
+✔ refusal versus uncertain timeout, plus no eviction at capacity (1.151629ms)
+✔ recovery separates undispatched intent from dispatch; neither is replayed (0.60283ms)
+✔ journal admission reserves full result room and never begins an effect without it (0.233718ms)
+✔ journal truncates a torn final record, rejects complete corruption or sequence gaps (0.413966ms)
+✔ SSE attach barrier: snapshot is first, no duplicate or missing event under reentrant emission (8.429819ms)
+✔ public HTTP/CLI client: identity, duplicate, stale binding, admission distinct from settlement, history, detach, stop (16.915735ms)
+✔ crash after admission while running: journal unknown/fence, no prompt replay, rejected future write (1.935419ms)
+✔ execution reservation cut before dispatch stays no_effect on recovery (0.998352ms)
+✔ supervisor projects admission, settlement, fence and stop to an already connected watcher (1.12535ms)
+✔ transport epoch changes across supervisor restart even when new seq catches the old cursor (0.771647ms)
+✔ history pages pin a branch watermark and ignore partial final JSONL (0.496712ms)
+ℹ tests 32
+ℹ suites 0
+ℹ pass 32
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 210.452887

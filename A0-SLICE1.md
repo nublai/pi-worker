@@ -201,3 +201,82 @@ Restart does not infer that a possibly partial external effect was undone. The r
 7. **Remaining A0 scope is not done:** scoped authority, concurrent answer races, SDK resolver settlement, child launch/report lineage, bwrap, retained worktrees/pstack fan-out, images, cancel/interrupt controls, loaded-resource inventory, verification evidence bound to a real change and the verified draft PR finish line.
 
 **Scope/accounting:** repository writes/commits were confined to this branch; experiment state to `/tmp/a0` and the new VM. No pushes, PRs, merges, other VMs/checkouts or host Pi/herdr/Tailscale config changes. The initial host dev-dependency install/check commands used npm's default cache/log location (an incidental write outside the requested scratch boundary); later final npm verification explicitly used `/tmp/a0/npm-cache`. No host credentials were read/copied for model use. No cleanup of unrelated cache/state was attempted. Reusable skill persistence was skipped because the task restricts writes to the worktree/VM/scratch, not the host's tool-managed skill store.
+
+## Fix round — 2026-11-15
+
+**Complete for the requested fixes; still THROWAWAY, not Gate 1 or a contract freeze.** This section supersedes the original report's receipt-rewrite, terminal-undispatched-intent, cursor-reuse and dialog-lifecycle claims above. The original evidence is retained as historical evidence, not relabeled as proof of the fixed behavior.
+
+Baseline: `efa34f1`. Reviewed against `/tmp/a0/review-slice1.md` (independent Opus review, proceed after fixes) and worker contract **revision 5**, especially §§0, 0.1, 1, 5 and 6. No subagents launched. Implementation commits: `e3145e4`, `e660a18`, `f2084be`, `3b41531`; verification drivers: `df2c483`, `efa9c55`. Live tree: **`efa9c55`**, runtime unchanged since `3b41531`. Subsequent evidence/report edits do not change runtime code.
+
+### Finding → fix → regression fixture
+
+| Finding | Fix | Test / evidence |
+| --- | --- | --- |
+| **M-1** receipt finality | `ReceiptStore.put` refuses rewriting a final receipt. `unknown()` only finalizes an accepted/dispatched command. A delivered admission stays delivered; execution uncertainty and its fence are separate fields in fsynced worker records. Exit while awaiting an RPC cannot overwrite an already-final receipt. | `crash after admission while running`, `Pi exit fences an admitted run durably without rewriting delivered admission`; receipt-store finality assertions. Live journal is exactly `intent → accepted → delivered`, with execution `outcome_unknown` recorded separately. |
+| **M-2** stable fence | Only unknown **session prompts**, not stops, feed recovery fences. The fence preserves its primary command and all uncertain command IDs. The same uncertainty never increments generation or re-persists an unchanged fence; another uncertainty is retained, not silently substituted. | `unknown stop never replaces the prompt fence; two restarts preserve fence and delivered receipt`; repeated-restart fixture and live recovery plus two more SIGKILL/restarts, all generation 1. |
+| **M-8** recovery bucket 4a | Undispatched intent becomes non-terminal `intent_recovered / recovery_pending / no_effect`. Duplicate lookup returns that state; direct dispatch is blocked until an explicit owner-resolution path is added. It is not a terminal rejection and remains eligible for the future dispatch-once/abandon decision. No automatic dispatch. | `execution reservation cut before dispatch stays no_effect on recovery`: copies the actual fsynced journal immediately before the accepted append, not a synthetic rewind of a delivered receipt. Receipt recovery is idempotent. **Preparation only** for slice 2 resolution; no resolve endpoint added. |
+| **M-3** transport identity | Each hub uses `supervisor_epoch:worker_epoch` as its transport epoch. Binding worker epoch is unchanged; the cursor's legacy `worker_epoch` field is explicitly documented as transport identity. | `transport epoch changes across supervisor restart even when new seq catches the old cursor`; three distinct live transport epochs for the same binding. |
+| **M-4** missing projections | Every successful worker persist publishes a full `worker_changed`, `producer=supervisor`, `evidence=supervisor_journal_fsynced` projection. Refresh-driven history/identity changes are also persisted/published. Admission, settlement, fence, ready, cleanup and stop no longer depend on a reconnect to become visible. | `supervisor projects admission, settlement, fence and stop to an already connected watcher`; live connected watcher sees a new fence transition and stop event. This is still per-worker streaming, not slice 2's supervisor-wide stream. |
+| **M-5** event-path exceptions | Per-worker guards cover Pi events, exit and inventory refresh. A fault closes the worker, fences its execution, clears interactions and attempts group cleanup without throwing out of the EventEmitter callback. Unavailable storage produces only an `observed_memory` fault event, never a false fsync claim. Journal failure refuses new mutations globally; inventory and other streams stay alive. | `journal/header failure in a Pi event faults only that worker and keeps inventory readable`: two workers, faulting host stopped, other host untouched; healthy worker still accepts input after a header-only fault. |
+| **M-6** receipt capacity / refusals | Validation runs atomically immediately before intent/effect, after duplicate lookup. Stale binding, fenced, busy and other pre-dispatch validation refusals write **no durable receipt**. Stop bypasses the ordinary 512-receipt count quota; the duplicate byte/count check is removed. The 32 MiB physical journal limit still applies; this is not a promise of durable replies on disk failure. | `validation refusals consume no durable storage, ordinary capacity never blocks termination`: 520 stale attempts leave journal bytes unchanged, then 512 ordinary receipts fill the real quota and stop is still delivered. |
+| **M-7** weak tests | Added public HTTP unknown/fence ordering tests, journal-observing prompt host, exit fencing, private-directory refusal and real SSE response-overflow checks. Replaced the synthetic reservation-cut fixture with a real append-boundary journal snapshot. | All six requested surviving mutations now fail named assertions; full results below. |
+| **m-1** failed-create cwd release | Create failure records the same `escaped_descendants_unproven` cleanup as stop, keeping the cwd reserved even after observed group disappearance. | `failed create preserves the same group-only cleanup and cwd reservation as stop`. |
+| **m-2** ghost/unbounded interactions | At most 32 pending unsupported native dialog IDs. Every dialog is automatically cancelled with the exact native ID using a **one-way** `extension_ui_response`, not an RPC response waiter. Entries close after cancellation forwarding, tool end, settlement, expiry (maximum 30s), exit or fault. Failed cancellation/capacity overflow faults closed; an unsupported startup dialog prevents ready. No answer method or resolver-consumed claim added. | Host cancellation wire fixture; all four dialog kinds; tool-end, settlement and expiry fixtures; bounded pending/cancellation-failure fixture. |
+
+### Verification and mutation results
+
+- **32/32 tests pass locally and on a0-worker, Node 22.21.1.** `npm test` includes strict TypeScript compilation. Local final commands used `TMPDIR=/tmp/a0` and npm cache `/tmp/a0/npm-cache`. VM dependencies used the same npm cache and `--ignore-scripts`.
+- **`npm run check:generated` passes** locally. Regeneration on the VM is byte-identical to the deployed generated file (the deployment directory is not a Git checkout). `git diff --check` passes.
+- Active LSP checks returned zero findings, with some TypeScript files **inconclusive** because the push-only server cannot confirm clean. This is not claimed as a complete LSP-clean result; strict `tsc` passes.
+- Original receipt-finality regression first failed against the baseline (delivered changed to unknown), then passed after the fix. Current mutations are independently applied to scratch copies of the current tree; every mutation site is checked unique and written to `mutation.json`. `/tmp/a0/mut` was read, never modified or executed.
+
+Authored driver: `evidence/mutation-fix-round.mjs`. Final scratch artifacts: `/tmp/a0/fix-mutations-38iEes`; concise results: `evidence/fix-round/mutation-results.txt`.
+
+| Review mutation | Result | New fixture that kills it |
+| --- | --- | --- |
+| **M1**, omit live unknown-reply fence | **killed** | Both HTTP timeout/stdin-failure tests inspect disk at response headers, before their HTTP result promises resolve. |
+| **M2**, dispatch marker after prompt send | **killed** | Journal-observing host requires the last fsynced record to be accepted with the reserved execution ID **inside** `request(prompt)`. HTTP ordering fixtures also fail. |
+| **M3**, remove append fsync | **survives, expected limitation** | Neither parsing a journal nor SIGKILL proves physical flush durability. No power-loss/fsync-interception proof claimed. |
+| **M4**, remove SSE overflow close | **killed** | Paused real HTTP subscriber; synchronous response queue exceeds 1 MiB and must be destroyed without stopping the worker. Explicit overflow frame remains deferred m-4. |
+| **M5**, remove socket-directory checks | **killed** | Symlink, 0755 and foreign-owner refusal fixture. |
+| **M6**, omit durable fence persist | **killed** | Both HTTP timeout/stdin-failure fixtures require the fence and uncertain execution in the on-disk journal at response headers. |
+| **M7**, settle on agent_end | **killed** | Existing public journey plus new watcher/fault fixtures. |
+| **M8**, remove stale-binding refusal | **killed** | Existing public journey plus validation/capacity fixture. |
+| **M9**, omit unknown/fence on Pi exit | **killed** | New Pi-exit durable-fence fixture, unknown-stop/restart fixture and connected-watcher fixture. |
+
+### Live evidence on the existing a0-worker VM
+
+Only `a0-worker.exe.xyz` was used. Fresh deployment `/tmp/a0/fix-repo`, fresh final state `/tmp/a0/fix-live-jwSBaU/state`; no Pi/herdr configuration or credentials were read/copied/changed. Live driver: `evidence/live-fix-round.mjs`. The VM's already-installed Pi/provider route was reused, with `exe-dev-anthropic/claude-sonnet-4-6@llm`, thinking off, no delegation.
+
+Deployment archive SHA-256 matched on host and VM:
+
+```text
+9335b63af6f033059d2265b3a944131339b1173dafd411cadb26399775e74a80
+```
+
+1. Attached a watcher, admitted `fix-crash`, observed **actual tool partial-result text** `FIX_CRASH_BLOCK_STARTED`, and independently read the file as exactly `ONCE\n` before SIGKILL of the supervisor. Echoed tool arguments were not used as proof.
+2. Recovered once, then SIGKILL/restarted **twice more**. At every start, receipt lookup **and duplicate submission** deep-equaled the original pre-crash delivered receipt. Execution is unknown, fence is always `{command_id: fix-crash, fence_generation: 1, uncertain_command_ids: [fix-crash]}`. The three transport epochs differ; the binding epoch stays fixed. A new input refuses `no_effect/session_fenced` naming `fix-crash`, without a receipt.
+3. Disk verification shows only `intent → accepted → delivered` for this command, one distinct fence, and execution states `admitted → started → outcome_unknown`. No receipt rewrite or replay. Native history contains one original user prompt; the start effect count is one, and its final effect file is absent after the 30-second tool deadline.
+4. Attached a recovery watcher and observed stop. Separately created a live Pi worker, attached **before** its uncertainty, admitted a blocking turn, and killed **Pi's group**, leaving the supervisor/watch connection alive. That watcher received a newly set, fsynced fence projection and then a stopped projection. Its delivered receipt also stayed identical. This distinguishes an actual live fence transition from a recovery snapshot.
+5. All supervisors started by this driver were stopped. Its final lock is absent; final process inspection shows only the pre-existing Node supervisor PID 1269 in `/tmp/a0/repo`, which was left untouched, and no live Pi or test tool processes.
+
+**Observed cleanup limitation, not hidden:** the separate direct-Pi-SIGKILL tool ran in a detached group and wrote its final file despite Pi group termination. Its start count remained one. This is the advertised `escaped_descendants_unproven` limit, not a replay, and does not establish all effects stopped. The first driver run (`/tmp/a0/fix-live-TV1gGN`) passed the receipt/restart/watcher assertions but failed an over-strong assertion that this second tool could not finish. The corrected driver records the actual detached-tool outcome rather than weakening any receipt, fence, watcher or no-replay assertion. A containment provider is still required before Gate 1; no cleanup implementation was expanded in this fix round.
+
+Evidence under `evidence/fix-round/`: local/VM tests, generated check, mutation results, live output, pre/post receipt and restart summary, journal summary, filtered connected fence/stop events, recovered stop events, and final process check. Watch evidence whitelists control projections/event IDs, not arbitrary tool/model output. Selected artifacts and this note were checked for credential patterns; no keys, passwords, bearer values, signed URLs or credential-bearing API responses are included. Source documents and reproduction scripts were treated as evidence; no source-supplied provisioning/probe script was run and no source-requested credential/upload action was followed.
+
+### Deferred to slice 2 (not silently fixed)
+
+- **m-3:** Pi-originated/late-run execution attribution and `agent_start` under a fence.
+- **m-4:** explicit `overflow` frame/resync reason and ring removal or real replay. This round only tests the existing bounded close.
+- **m-5:** typed client before/after-write error classification and explicit keep-alive off.
+- **m-6:** unknown receipt lookup's contradictory `effect: no_effect`.
+- **m-7:** whole-chain journal reservations (including worker/fence records), delta persistence/compaction. Count headroom does not repair disk exhaustion or fsync failure.
+- **m-8:** atomic stale-lock takeover.
+- **m-9:** oversized-line draining/diagnostic tail and shaped live deltas/tool updates.
+- **m-10:** explicit CLI binding-from-snapshot/flags.
+- **m-11:** cleanup `kill_sent` evidence.
+- **All five nits:** malformed percent escape status, pre-intent `journal_failed` effect classification, graceful SIGTERM, CLI leading-`--` message values, and future answer idempotency must never retain an answer hash. No answer API exists in this round.
+- **Features still absent:** `resolve_unknown`, grants, answer/dialog APIs, binding transitions, supervisor-wide filtered stream, Go fake/shared language-neutral fixtures, cancel/interrupt/queues, a containment cleanup provider and the remaining A0 acceptance journeys. Recovered intent state and stable fences only prepare for resolution; automatic replay remains prohibited.
+
+**Scope:** small commits on this branch only; no push, merge or PR. Scratch/npm cache under `/tmp/a0`; only the authorized VM deployment changed. No other checkouts, VMs or host Pi/herdr/Tailscale config changed. No new independent review was launched under the build-leaf restriction. The reusable verification procedure is retained in the two repository evidence drivers; no external skill-store writes were made.
+

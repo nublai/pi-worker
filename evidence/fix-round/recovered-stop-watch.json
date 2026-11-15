@@ -1,0 +1,82 @@
+[
+  {
+    "type": "snapshot",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:cdb7e714-7852-493d-a5c1-1bf277549704",
+      "seq": 1
+    },
+    "worker": {
+      "worker_id": "99aa8d02-e7a5-442a-8b8f-4606dbe734b9",
+      "worker_epoch": "cdb7e714-7852-493d-a5c1-1bf277549704",
+      "supervisor_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2",
+      "session_id": "01a1ddbd-ae8f-723d-903f-b0e1b5df7b2d",
+      "session_identity_evidence": "pi_session_file",
+      "binding_revision": 1,
+      "leaf_id": "dc506552",
+      "cwd": "/tmp/a0/fix-live-jwSBaU/crash-main",
+      "status": "stopped",
+      "foreground": "unknown",
+      "execution": {
+        "execution_id": "98a875e4-4db7-4294-b5ac-8396cd0cd945",
+        "command_id": "fix-crash",
+        "state": "outcome_unknown",
+        "disposition": "started"
+      },
+      "fence": {
+        "command_id": "fix-crash",
+        "fence_generation": 1,
+        "uncertain_command_ids": [
+          "fix-crash"
+        ]
+      },
+      "history": {
+        "last_entry_id": "dc506552",
+        "lag": true,
+        "evidence": "pi_session_file"
+      },
+      "cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "pending_interactions": []
+    }
+  },
+  {
+    "type": "worker_changed",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:cdb7e714-7852-493d-a5c1-1bf277549704",
+      "seq": 2
+    },
+    "producer": "supervisor",
+    "evidence": "supervisor_journal_fsynced",
+    "worker": {
+      "worker_id": "99aa8d02-e7a5-442a-8b8f-4606dbe734b9",
+      "worker_epoch": "cdb7e714-7852-493d-a5c1-1bf277549704",
+      "supervisor_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2",
+      "session_id": "01a1ddbd-ae8f-723d-903f-b0e1b5df7b2d",
+      "session_identity_evidence": "pi_session_file",
+      "binding_revision": 1,
+      "leaf_id": "dc506552",
+      "cwd": "/tmp/a0/fix-live-jwSBaU/crash-main",
+      "status": "stopped",
+      "foreground": "unknown",
+      "execution": {
+        "execution_id": "98a875e4-4db7-4294-b5ac-8396cd0cd945",
+        "command_id": "fix-crash",
+        "state": "outcome_unknown",
+        "disposition": "started"
+      },
+      "fence": {
+        "command_id": "fix-crash",
+        "fence_generation": 1,
+        "uncertain_command_ids": [
+          "fix-crash"
+        ]
+      },
+      "history": {
+        "last_entry_id": "dc506552",
+        "lag": true,
+        "evidence": "pi_session_file"
+      },
+      "cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "pending_interactions": []
+    }
+  }
+]

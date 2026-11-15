@@ -1,0 +1,119 @@
+{
+  "root": "/tmp/a0/fix-live-jwSBaU",
+  "receipts": [
+    {
+      "command_id": "fix-crash",
+      "operation": "sessions.prompt",
+      "request_hash": "1281477bd2c17b996ed3a0f4e9736865942d5b078c880cc72cf462af3ca13c42",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-15T05:45:59.062Z",
+      "worker_id": "99aa8d02-e7a5-442a-8b8f-4606dbe734b9",
+      "execution_id": "98a875e4-4db7-4294-b5ac-8396cd0cd945",
+      "admission": "accepted",
+      "disposition": "started",
+      "history_lag": true
+    },
+    {
+      "command_id": "fix-crash",
+      "operation": "sessions.prompt",
+      "request_hash": "1281477bd2c17b996ed3a0f4e9736865942d5b078c880cc72cf462af3ca13c42",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-15T05:45:59.062Z",
+      "worker_id": "99aa8d02-e7a5-442a-8b8f-4606dbe734b9",
+      "execution_id": "98a875e4-4db7-4294-b5ac-8396cd0cd945",
+      "admission": "accepted",
+      "disposition": "started",
+      "history_lag": true
+    },
+    {
+      "command_id": "fix-crash",
+      "operation": "sessions.prompt",
+      "request_hash": "1281477bd2c17b996ed3a0f4e9736865942d5b078c880cc72cf462af3ca13c42",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-15T05:45:59.062Z",
+      "worker_id": "99aa8d02-e7a5-442a-8b8f-4606dbe734b9",
+      "execution_id": "98a875e4-4db7-4294-b5ac-8396cd0cd945",
+      "admission": "accepted",
+      "disposition": "started",
+      "history_lag": true
+    }
+  ],
+  "restarts": [
+    {
+      "restart": 0,
+      "supervisor_epoch": "b3b9526d-c0c2-4e4b-a3c2-03a1eaea3075",
+      "fence": {
+        "command_id": "fix-crash",
+        "fence_generation": 1,
+        "uncertain_command_ids": [
+          "fix-crash"
+        ]
+      },
+      "cursor": {
+        "worker_epoch": "b3b9526d-c0c2-4e4b-a3c2-03a1eaea3075:cdb7e714-7852-493d-a5c1-1bf277549704",
+        "seq": 4
+      },
+      "receipt_identical": true
+    },
+    {
+      "restart": 1,
+      "supervisor_epoch": "1d78ff60-8dae-4b6e-b453-96b4f109ea5e",
+      "fence": {
+        "command_id": "fix-crash",
+        "fence_generation": 1,
+        "uncertain_command_ids": [
+          "fix-crash"
+        ]
+      },
+      "cursor": {
+        "worker_epoch": "1d78ff60-8dae-4b6e-b453-96b4f109ea5e:cdb7e714-7852-493d-a5c1-1bf277549704",
+        "seq": 1
+      },
+      "receipt_identical": true
+    },
+    {
+      "restart": 2,
+      "supervisor_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2",
+      "fence": {
+        "command_id": "fix-crash",
+        "fence_generation": 1,
+        "uncertain_command_ids": [
+          "fix-crash"
+        ]
+      },
+      "cursor": {
+        "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:cdb7e714-7852-493d-a5c1-1bf277549704",
+        "seq": 1
+      },
+      "receipt_identical": true
+    }
+  ],
+  "watchers": [
+    {
+      "label": "connected-fence-stop-watch",
+      "fence_event": true,
+      "stop_event": true
+    },
+    {
+      "label": "recovered-stop-watch",
+      "stop_event": true
+    }
+  ],
+  "effects": {
+    "main_start_count": 1,
+    "main_prompt_in_history": 1,
+    "main_finished_absent": true,
+    "live_start_count": 1,
+    "live_finished_present": true,
+    "escaped_descendants": "unproven; a detached tool may finish after Pi group termination"
+  }
+}

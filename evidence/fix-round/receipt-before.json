@@ -1,0 +1,15 @@
+{
+  "command_id": "fix-crash",
+  "operation": "sessions.prompt",
+  "request_hash": "1281477bd2c17b996ed3a0f4e9736865942d5b078c880cc72cf462af3ca13c42",
+  "state": "delivered",
+  "stage": "forwarded",
+  "effect": "observed",
+  "evidence": "supervisor_journal_fsynced",
+  "created_at": "2026-11-15T05:45:59.062Z",
+  "worker_id": "99aa8d02-e7a5-442a-8b8f-4606dbe734b9",
+  "execution_id": "98a875e4-4db7-4294-b5ac-8396cd0cd945",
+  "admission": "accepted",
+  "disposition": "started",
+  "history_lag": true
+}

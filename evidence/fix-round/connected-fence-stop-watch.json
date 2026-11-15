@@ -1,0 +1,547 @@
+[
+  {
+    "type": "snapshot",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 4
+    },
+    "worker": {
+      "worker_id": "6402cdec-130d-47f0-b68b-eb54ba21bcf7",
+      "worker_epoch": "94a1682b-e13c-4f88-b33c-f7557410c989",
+      "supervisor_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2",
+      "session_id": "01a1ddbd-c067-739c-abd0-2e060b655e61",
+      "session_identity_evidence": "pi_rpc_header_id",
+      "binding_revision": 1,
+      "leaf_id": null,
+      "cwd": "/tmp/a0/fix-live-jwSBaU/pi-exit",
+      "status": "ready",
+      "foreground": "idle",
+      "execution": null,
+      "fence": null,
+      "history": {
+        "last_entry_id": null,
+        "lag": false,
+        "evidence": "pi_session_file"
+      },
+      "cleanup": "live_process_group",
+      "pending_interactions": []
+    }
+  },
+  {
+    "type": "worker_changed",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 5
+    },
+    "producer": "supervisor",
+    "evidence": "supervisor_journal_fsynced",
+    "worker": {
+      "worker_id": "6402cdec-130d-47f0-b68b-eb54ba21bcf7",
+      "worker_epoch": "94a1682b-e13c-4f88-b33c-f7557410c989",
+      "supervisor_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2",
+      "session_id": "01a1ddbd-c067-739c-abd0-2e060b655e61",
+      "session_identity_evidence": "pi_rpc_header_id",
+      "binding_revision": 1,
+      "leaf_id": null,
+      "cwd": "/tmp/a0/fix-live-jwSBaU/pi-exit",
+      "status": "ready",
+      "foreground": "running",
+      "execution": {
+        "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667",
+        "command_id": "fix-pi-exit",
+        "state": "admitted"
+      },
+      "fence": null,
+      "history": {
+        "last_entry_id": null,
+        "lag": false,
+        "evidence": "pi_session_file"
+      },
+      "cleanup": "live_process_group",
+      "pending_interactions": []
+    }
+  },
+  {
+    "type": "worker_changed",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 6
+    },
+    "producer": "supervisor",
+    "evidence": "supervisor_journal_fsynced",
+    "worker": {
+      "worker_id": "6402cdec-130d-47f0-b68b-eb54ba21bcf7",
+      "worker_epoch": "94a1682b-e13c-4f88-b33c-f7557410c989",
+      "supervisor_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2",
+      "session_id": "01a1ddbd-c067-739c-abd0-2e060b655e61",
+      "session_identity_evidence": "pi_rpc_header_id",
+      "binding_revision": 1,
+      "leaf_id": null,
+      "cwd": "/tmp/a0/fix-live-jwSBaU/pi-exit",
+      "status": "ready",
+      "foreground": "running",
+      "execution": {
+        "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667",
+        "command_id": "fix-pi-exit",
+        "state": "started"
+      },
+      "fence": null,
+      "history": {
+        "last_entry_id": null,
+        "lag": false,
+        "evidence": "pi_session_file"
+      },
+      "cleanup": "live_process_group",
+      "pending_interactions": []
+    }
+  },
+  {
+    "type": "agent_start",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 7
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "turn_start",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 8
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_start",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 9
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_end",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 10
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_start",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 11
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_end",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 12
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "worker_changed",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 13
+    },
+    "producer": "supervisor",
+    "evidence": "supervisor_journal_fsynced",
+    "worker": {
+      "worker_id": "6402cdec-130d-47f0-b68b-eb54ba21bcf7",
+      "worker_epoch": "94a1682b-e13c-4f88-b33c-f7557410c989",
+      "supervisor_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2",
+      "session_id": "01a1ddbd-c067-739c-abd0-2e060b655e61",
+      "session_identity_evidence": "pi_session_file",
+      "binding_revision": 1,
+      "leaf_id": "13e0eaf6",
+      "cwd": "/tmp/a0/fix-live-jwSBaU/pi-exit",
+      "status": "ready",
+      "foreground": "running",
+      "execution": {
+        "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667",
+        "command_id": "fix-pi-exit",
+        "state": "started",
+        "disposition": "started"
+      },
+      "fence": null,
+      "history": {
+        "last_entry_id": "13e0eaf6",
+        "lag": true,
+        "evidence": "pi_session_file"
+      },
+      "cleanup": "live_process_group",
+      "pending_interactions": []
+    }
+  },
+  {
+    "type": "worker_changed",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 14
+    },
+    "producer": "supervisor",
+    "evidence": "supervisor_journal_fsynced",
+    "worker": {
+      "worker_id": "6402cdec-130d-47f0-b68b-eb54ba21bcf7",
+      "worker_epoch": "94a1682b-e13c-4f88-b33c-f7557410c989",
+      "supervisor_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2",
+      "session_id": "01a1ddbd-c067-739c-abd0-2e060b655e61",
+      "session_identity_evidence": "pi_session_file",
+      "binding_revision": 1,
+      "leaf_id": "13e0eaf6",
+      "cwd": "/tmp/a0/fix-live-jwSBaU/pi-exit",
+      "status": "ready",
+      "foreground": "running",
+      "execution": {
+        "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667",
+        "command_id": "fix-pi-exit",
+        "state": "started",
+        "disposition": "started"
+      },
+      "fence": null,
+      "history": {
+        "last_entry_id": "13e0eaf6",
+        "lag": true,
+        "evidence": "pi_session_file"
+      },
+      "cleanup": "live_process_group",
+      "pending_interactions": []
+    }
+  },
+  {
+    "type": "message_start",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 15
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 16
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 17
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 18
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 19
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 20
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 21
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 22
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 23
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 24
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 25
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 26
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 27
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 28
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 29
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 30
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 31
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 32
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 33
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 34
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 35
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "message_end",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 36
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "tool_execution_start",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 37
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "tool_execution_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 38
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "tool_execution_update",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 39
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "worker_changed",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 40
+    },
+    "producer": "supervisor",
+    "evidence": "supervisor_journal_fsynced",
+    "worker": {
+      "worker_id": "6402cdec-130d-47f0-b68b-eb54ba21bcf7",
+      "worker_epoch": "94a1682b-e13c-4f88-b33c-f7557410c989",
+      "supervisor_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2",
+      "session_id": "01a1ddbd-c067-739c-abd0-2e060b655e61",
+      "session_identity_evidence": "pi_session_file",
+      "binding_revision": 1,
+      "leaf_id": "13e0eaf6",
+      "cwd": "/tmp/a0/fix-live-jwSBaU/pi-exit",
+      "status": "ready",
+      "foreground": "unknown",
+      "execution": {
+        "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667",
+        "command_id": "fix-pi-exit",
+        "state": "outcome_unknown",
+        "disposition": "started"
+      },
+      "fence": {
+        "command_id": "fix-pi-exit",
+        "fence_generation": 1,
+        "uncertain_command_ids": [
+          "fix-pi-exit"
+        ]
+      },
+      "history": {
+        "last_entry_id": "13e0eaf6",
+        "lag": true,
+        "evidence": "pi_session_file"
+      },
+      "cleanup": "live_process_group",
+      "pending_interactions": []
+    }
+  },
+  {
+    "type": "worker_changed",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 41
+    },
+    "producer": "supervisor",
+    "evidence": "supervisor_journal_fsynced",
+    "worker": {
+      "worker_id": "6402cdec-130d-47f0-b68b-eb54ba21bcf7",
+      "worker_epoch": "94a1682b-e13c-4f88-b33c-f7557410c989",
+      "supervisor_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2",
+      "session_id": "01a1ddbd-c067-739c-abd0-2e060b655e61",
+      "session_identity_evidence": "pi_session_file",
+      "binding_revision": 1,
+      "leaf_id": "13e0eaf6",
+      "cwd": "/tmp/a0/fix-live-jwSBaU/pi-exit",
+      "status": "cleanup_pending",
+      "foreground": "unknown",
+      "execution": {
+        "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667",
+        "command_id": "fix-pi-exit",
+        "state": "outcome_unknown",
+        "disposition": "started"
+      },
+      "fence": {
+        "command_id": "fix-pi-exit",
+        "fence_generation": 1,
+        "uncertain_command_ids": [
+          "fix-pi-exit"
+        ]
+      },
+      "history": {
+        "last_entry_id": "13e0eaf6",
+        "lag": true,
+        "evidence": "pi_session_file"
+      },
+      "cleanup": "leader_exit_only",
+      "pending_interactions": []
+    }
+  },
+  {
+    "type": "worker_exit",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 42
+    },
+    "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667"
+  },
+  {
+    "type": "worker_changed",
+    "cursor": {
+      "worker_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2:94a1682b-e13c-4f88-b33c-f7557410c989",
+      "seq": 43
+    },
+    "producer": "supervisor",
+    "evidence": "supervisor_journal_fsynced",
+    "worker": {
+      "worker_id": "6402cdec-130d-47f0-b68b-eb54ba21bcf7",
+      "worker_epoch": "94a1682b-e13c-4f88-b33c-f7557410c989",
+      "supervisor_epoch": "347b27d0-5b44-49ce-9374-8a91aef2d1b2",
+      "session_id": "01a1ddbd-c067-739c-abd0-2e060b655e61",
+      "session_identity_evidence": "pi_session_file",
+      "binding_revision": 1,
+      "leaf_id": "13e0eaf6",
+      "cwd": "/tmp/a0/fix-live-jwSBaU/pi-exit",
+      "status": "stopped",
+      "foreground": "unknown",
+      "execution": {
+        "execution_id": "08c1eb05-c072-478f-8641-c03d0872f667",
+        "command_id": "fix-pi-exit",
+        "state": "outcome_unknown",
+        "disposition": "started"
+      },
+      "fence": {
+        "command_id": "fix-pi-exit",
+        "fence_generation": 1,
+        "uncertain_command_ids": [
+          "fix-pi-exit"
+        ]
+      },
+      "history": {
+        "last_entry_id": "13e0eaf6",
+        "lag": true,
+        "evidence": "pi_session_file"
+      },
+      "cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "pending_interactions": []
+    }
+  }
+]

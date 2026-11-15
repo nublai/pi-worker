@@ -29,7 +29,7 @@ for (const [id, file, before, after] of [['baseline', '', '', ''], ...mutations]
     writeFileSync(path, content.replace(before, after));
     writeFileSync(join(dir, 'mutation.json'), JSON.stringify({ id, file, before, after }, null, 2) + '\n');
   }
-  const run = spawnSync('npm', ['test', '--cache', '/tmp/a0/npm-cache'], { cwd: dir, env: { ...process.env, NO_COLOR: '1' }, encoding: 'utf8', timeout: 60000 });
+  const run = spawnSync('npm', ['test', '--cache', '/tmp/a0/npm-cache'], { cwd: dir, env: { ...process.env, TMPDIR: '/tmp/a0', NO_COLOR: '1' }, encoding: 'utf8', timeout: 60000 });
   const output = (run.stdout ?? '') + (run.stderr ?? ''); writeFileSync(join(dir, 'result.txt'), output);
   const failures = [...new Set(output.split('\n').filter(line => /^(?:✖|not ok)/.test(line)))];
   const result = { id, result: run.error ? 'runner_error' : run.status === 0 ? (id === 'baseline' ? 'pass' : 'survives') : 'killed', status: run.status, failures };
