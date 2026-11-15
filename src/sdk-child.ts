@@ -2,7 +2,7 @@
  * A0 ACP profile: ACP v1 initialize/new/prompt/cancel/update/permission, negotiated
  * _pi extensions for lossless dialogs, early admission, exact resolver acks and tree. */
 import { StringDecoder } from 'node:string_decoder';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
@@ -59,7 +59,8 @@ function policy(): { revision: string; expiry: number; releaseDelayMs?: number }
 const gateExtension: ExtensionFactory = pi => {
   pi.on('tool_call', async (event) => {
     if (event.toolName !== 'bash') return;
-    let p; try { p = policy(); } catch { return; } // Opt-in test extension, not a security sandbox.
+    if (!existsSync(join(process.cwd(), '.a0-gate-policy'))) return; // Opt-in specimen, not a sandbox.
+    let p; try { p = policy(); } catch { return { block: true, reason: 'invalid_gate_policy' }; }
     const binding: Gate = { digest: requestHash(event.input), policy_revision: p.revision, expiry: p.expiry, gate_token: randomUUID(), operation: 'bash', resource: process.cwd(), environment: process.cwd(), offered_scope: 'once' };
     const allowed = await resolvers.ask('tool_approval', { title: 'A0 typed bash approval', approval: binding }, { timeout: Math.min(30000, p.expiry - Date.now()) });
     if (!allowed) return { block: true, reason: 'approval_not_allowed' };

@@ -8,8 +8,8 @@ import { Refusal, type Worker, type Receipt } from './types.js';
 import type { DialogKind, UIAnswer } from './resolvers.js';
 export type AnswerGuard = (() => void) & { actor?: string; grant_id?: string; grant_state_dir?: string };
 export type Answer = { command_id: string; answer_id: string; worker_epoch: string; session_id: string; binding_revision: number; interaction_id: string; revision: number; kind: DialogKind } & UIAnswer;
-export type Interaction = { interaction_id: string; native_id: string; worker_id: string; worker_epoch: string; session_id: string | null; binding_revision: number; revision: number; kind: DialogKind; deadline: number; status: string; answer_id?: string; answer_command_id?: string; actor?: string; grant_id?: string; answer_stage?: number; outcome?: string; resolver_outcome?: string; approval?: Record<string, unknown>; release_command_id?: string };
-type Live = { record: Interaction; payload: Record<string, unknown>; options?: string[]; timer?: NodeJS.Timeout; guard?: AnswerGuard; host: SessionHost; worker: Worker; acceptedValue?: string };
+export type Interaction = { interaction_id: string; native_id: string; worker_id: string; worker_epoch: string; session_id: string | null; binding_revision: number; revision: number; kind: DialogKind; source: 'pi.extension_ui' | 'pi.tool_gate'; evidence: 'supervisor_journal_fsynced'; deadline: number; status: string; answer_id?: string; answer_command_id?: string; actor?: string; grant_id?: string; answer_stage?: number; outcome?: string; resolver_outcome?: string; approval?: Record<string, unknown>; release_command_id?: string };
+type Live = { record: Interaction; payload: Record<string, unknown>; options?: string[]; timer?: NodeJS.Timeout; guard?: AnswerGuard; host: SessionHost; worker: Worker };
 export class Interactions {
   readonly records = new Map<string, Interaction>();
   private live = new Map<string, Live>();
@@ -24,8 +24,8 @@ export class Interactions {
   }
   private save(r: Interaction): void { this.journal.append('interaction', r); this.records.set(r.interaction_id, r); }
   private notify(l: Live): void { this.changed(l.record.worker_id); }
-  list(workerId: string): Record<string, unknown>[] {
-    return [...this.live.values()].filter(l => l.record.worker_id === workerId && l.record.status === 'pending').map(l => ({ ...structuredClone(l.record), ...structuredClone(l.payload) }));
+  list(workerId: string): (Interaction & Record<string, unknown>)[] {
+    return [...this.live.values()].filter(l => l.record.worker_id === workerId && l.record.status === 'pending').map(l => ({ ...structuredClone(l.record), ...structuredClone(l.payload), payload_evidence: 'observed_memory' }));
   }
   status(workerId: string, id: string): Interaction {
     const r = this.records.get(id); if (!r || r.worker_id !== workerId) throw new Refusal('unknown_interaction'); return structuredClone(r);
@@ -35,7 +35,7 @@ export class Interactions {
     if ([...this.live.values()].some(l => l.record.worker_id === worker.worker_id && l.record.native_id === event.id)) throw new Error('duplicate_native_interaction');
     const deadline = typeof event.deadline === 'number' ? event.deadline : this.now() + (typeof event.timeout === 'number' && event.timeout > 0 ? Math.min(event.timeout, 30000) : 30000);
     const kind = String(event.method) as DialogKind;
-    const record: Interaction = { interaction_id: randomUUID(), native_id: String(event.id), worker_id: worker.worker_id, worker_epoch: worker.worker_epoch, session_id: worker.session_id, binding_revision: worker.binding_revision, revision: 1, kind, deadline, status: 'pending', ...(kind === 'tool_approval' ? { approval: event.approval as Record<string, unknown> } : {}) };
+    const record: Interaction = { interaction_id: randomUUID(), native_id: String(event.id), worker_id: worker.worker_id, worker_epoch: worker.worker_epoch, session_id: worker.session_id, binding_revision: worker.binding_revision, revision: 1, kind, source: kind === 'tool_approval' ? 'pi.tool_gate' : 'pi.extension_ui', evidence: 'supervisor_journal_fsynced', deadline, status: 'pending', ...(kind === 'tool_approval' ? { approval: event.approval as Record<string, unknown> } : {}) };
     const options = kind === 'select' ? event.options as string[] : undefined;
     const payload = Object.fromEntries(['title', 'message', 'placeholder', 'prefill'].filter(k => event[k] !== undefined).map(k => [k, event[k]]));
     if (options) payload.options = options.map((label, i) => ({ option_id: String(i), label }));
@@ -43,10 +43,10 @@ export class Interactions {
     this.save(record); this.notify(l);
     l.timer = setTimeout(() => { try { this.close(l, 'timeout', true); } catch { try { this.fence(worker.worker_id, 'interaction-timeout-' + record.interaction_id); } catch { /* Storage failure cannot throw from a timer. */ } } }, Math.max(1, deadline - this.now())); l.timer.unref();
   }
-  summaries(workerId: string): { native_id: string; kind: string }[] { return [...this.live.values()].filter(l => l.record.worker_id === workerId && l.record.status === 'pending').map(l => ({ native_id: l.record.native_id, kind: l.record.kind })); }
+  summaries(workerId: string): Interaction[] { return [...this.live.values()].filter(l => l.record.worker_id === workerId && l.record.status === 'pending').map(l => structuredClone(l.record)); }
   private close(l: Live, reason: string, cancel = false): void {
     if (l.record.status !== 'pending') return;
-    l.record.status = reason; clearTimeout(l.timer); this.save(l.record); this.live.delete(l.record.interaction_id); this.notify(l);
+    l.record.status = reason; l.record.outcome = reason; clearTimeout(l.timer); this.save(l.record); this.live.delete(l.record.interaction_id); this.notify(l);
     if (cancel) {
       // Write-ahead cancellation marker. No consumption claim is made from a flush.
       this.journal.append('interaction_effect', { interaction_id: l.record.interaction_id, worker_id: l.record.worker_id, operation: 'cancel', reason });
@@ -95,7 +95,7 @@ export class Interactions {
       if (!l.host.answerUI) throw new Error('host_answer_unsupported');
       const response = await l.host.answerUI(l.record.native_id, a, l.options);
       if (response.stage === 3 && !response.consumed) {
-        l.record.status = 'resolver_refused'; l.record.outcome = response.outcome; this.save(l.record); this.notify(l);
+        l.record.status = 'resolver_refused'; l.record.answer_stage = 2; l.record.outcome = response.outcome; this.save(l.record); this.notify(l);
         return { state: 'delivered', stage: 'forwarded', answer_stage: 2, effect: 'observed', result: { interaction_id: a.interaction_id, answer_id: a.answer_id, resolver_consumed: false, outcome: response.outcome } };
       }
       l.record.status = response.stage === 3 ? 'consumed' : 'forwarded'; l.record.answer_stage = response.stage;

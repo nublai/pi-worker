@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /** THROWAWAY a0 CLI. command_id is explicit on every write. */
 import { resolve, dirname } from 'node:path';
+import { readFileSync } from 'node:fs';
+import type { Answer } from './interactions.js';
 import { GrantStore } from './grants.js';
 import { Client } from './client.js';
 import type { Binding, Cursor, Snapshot } from './types.js';
@@ -27,7 +29,15 @@ try {
   else if (cmd === 'hello') print(await client.call('hello'));
   else if (cmd === 'list') print(await client.call('workers.list'));
   else if (cmd === 'receipt') print(await client.call('receipts.get', { id: id ?? required('command-id') }));
-  else if (cmd === 'create') print(await client.call('workers.create', { body: { command_id: required('command-id'), cwd: required('cwd'), provider: required('provider'), model: required('model'), thinking: required('thinking') as 'off' } }));
+  else if (cmd === 'create') print(await client.call('workers.create', { body: { command_id: required('command-id'), cwd: required('cwd'), provider: required('provider'), model: required('model'), thinking: required('thinking') as 'off', host: (flags.get('host') ?? 'rpc') as 'rpc' | 'sdk' | 'acp', project_trusted: flags.get('project-trusted') === 'true' } }));
+  else if (id && cmd === 'interactions') print(await client.call('interactions.list', { id }));
+  else if (id && cmd === 'interaction-status') print(await client.call('interactions.status', { id, query: { interaction_id: required('interaction-id') } }));
+  else if (id && cmd === 'answer') {
+    // Complete captured binding from a private JSON file; never replace it with
+    // today's binding, and never echo private answer data on failure.
+    let body: Answer; try { body = JSON.parse(readFileSync(required('answer-file'), 'utf8')) as Answer; } catch { throw new Error('invalid_answer_file'); }
+    print(await client.call('interactions.answer_if_current', { id, body }));
+  }
   else if (id && cmd === 'get') print(await client.call('workers.get', { id }));
   else if (id && cmd === 'prompt') print(await client.call('sessions.prompt', { id, body: { ...await binding(id), message: required('message') } }));
   else if (id && (cmd === 'new' || cmd === 'rebind')) print(await client.call('sessions.rebind', { id, body: { ...await binding(id), action: cmd === 'new' ? 'new' : required('action') as 'new' | 'fork' | 'resume' | 'navigate', ...(flags.has('target-session-id') ? { target_session_id: required('target-session-id') } : {}), ...(flags.has('entry-id') ? { entry_id: required('entry-id') } : {}), ...(flags.has('source-leaf-id') ? { source_leaf_id: required('source-leaf-id') === 'null' ? null : required('source-leaf-id') } : {}) } }));
@@ -48,5 +58,5 @@ try {
       if (flags.has('until-settled') && (frame.type === 'agent_settled' || (frame.type === 'snapshot' && (frame as Snapshot).worker?.execution?.state === 'settled'))) return false;
       return true;
     }, since);
-  } else throw new Error('Usage: a0 [--socket PATH] hello | create --command-id ID --cwd DIR --provider P --model M --thinking off | list | get WORKER | prompt WORKER --command-id ID --message TEXT | watch WORKER [--until-settled|--max-events N] [--worker-epoch E --seq N] | history WORKER [--limit N --watermark ID --after ID] | stop WORKER --command-id ID | receipt COMMAND');
+  } else throw new Error('Usage: a0 [--socket PATH] hello | create --command-id ID --cwd DIR --provider P --model M --thinking off [--host rpc|sdk|acp --project-trusted] | interactions WORKER | interaction-status WORKER --interaction-id ID | answer WORKER --answer-file PATH | list | get WORKER | prompt WORKER --command-id ID --message TEXT | watch WORKER [--until-settled|--max-events N] [--worker-epoch E --seq N] | history WORKER [--limit N --watermark ID --after ID] | stop WORKER --command-id ID | receipt COMMAND');
 } catch (error) { console.error(error instanceof Error ? error.message : error); process.exitCode = 1; }

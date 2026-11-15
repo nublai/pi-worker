@@ -97,8 +97,21 @@ try {
     assert.equal(w.foreground, 'idle');
     const nav = await client.call('sessions.rebind', { id: w.worker_id, body: { ...bind(w, host + '-navigate'), action: 'navigate', entry_id: target.id, source_leaf_id: w.leaf_id } }).catch(error => { if (host !== 'rpc') throw error; return { state: 'rejected', effect: error.effect, error: error.message }; });
     if (host === 'rpc') assert.equal(nav.effect, 'no_effect');
-    else { assert.equal(nav.state, 'delivered', JSON.stringify(nav)); const moved = s.get(w.worker_id); assert.equal(moved.binding_revision, w.binding_revision + 1); assert.equal(s.interactions.list(w.worker_id).length, 0); row.navigation = { receipt: nav.state, revision: moved.binding_revision, leaf: moved.leaf_id, native_leaf: (await s.require(w.worker_id).host.request({ type: 'get_state' })).data.leafId, stale_interaction: s.interactions.status(w.worker_id, pre.interaction_id).status }; assert.equal(row.navigation.leaf, row.navigation.native_leaf); }
-    if (host === 'rpc') row.navigation = { receipt: nav.state, effect: nav.effect, error: nav.error };
+    else { assert.equal(nav.state, 'delivered', JSON.stringify(nav)); const moved = s.get(w.worker_id); assert.equal(moved.binding_revision, w.binding_revision + 1); assert.equal(s.interactions.list(w.worker_id).length, 0); row.navigation = { receipt: nav.state, revision: moved.binding_revision, leaf: moved.leaf_id, native_leaf: (await s.require(w.worker_id).host.request({ type: 'get_state' })).data.leafId, stale_interaction: s.interactions.status(w.worker_id, pre.interaction_id).status }; assert.equal(row.navigation.leaf, row.navigation.native_leaf);
+      await assert.rejects(answer(w, pre, host + '-stale-navigate-answer', { value: 'stale' }), /stale_binding/); row.navigation.stale_answer_refusal = 'stale_binding'; }
+    if (host === 'rpc') { row.navigation = { receipt: nav.state, effect: nav.effect, error: nav.error }; await answer(w, pre, host + '-close-idle', { outcome: 'cancel' }); }
+    // Real resolver consumes, but its transport result is deliberately lost before supervisor observation.
+    w = s.get(w.worker_id);
+    const droppingPrompt = client.call('sessions.prompt', { id: w.worker_id, body: { ...bind(w, host + '-dropped-prompt'), message: 'a0:dialog:input:dropped' } });
+    const di = await wait(() => s.interactions.list(w.worker_id)[0], 'dropped ack dialog');
+    const nativeHost = s.require(w.worker_id).host, originalAnswer = nativeHost.answerUI.bind(nativeHost);
+    nativeHost.answerUI = async (...args) => { await originalAnswer(...args); throw new Error('A0_injected_lost_resolver_ack'); };
+    const dr = await answer(w, di, host + '-dropped-answer', { value: 'synthetic dropped answer' });
+    assert.equal(dr.state, 'outcome_unknown'); assert.ok(s.get(w.worker_id).fence);
+    await wait(() => results(cwd).some(r => r.kind === 'input:dropped'), 'native consumed despite dropped ack');
+    assert.deepEqual(await answer(w, di, host + '-dropped-answer', { value: 'synthetic dropped answer' }), dr);
+    assert.equal(results(cwd).filter(r => r.kind === 'input:dropped').length, 1); await droppingPrompt;
+    row.dropped_ack = { receipt: dr.state, answer_stage: dr.answer_stage, fenced: true, native_effect_count: 1, no_replay: true };
     await client.call('workers.stop', { id: w.worker_id, body: bind(s.get(w.worker_id), host + '-stop') });
     // Startup binding is exposed before hook; RPC can't drain stdin until bind completes.
     const startupCwd = setup(host + '-startup', true);
@@ -112,7 +125,7 @@ try {
     console.log(JSON.stringify({ completed: host, dialogs: row.dialogs.length, startup: row.startup, navigation: row.navigation }));
   }
   // Typed gate is an SDK-owned test extension; ordinary selectors never grant it.
-  for (const host of ['sdk', 'acp']) for (const mode of ['allow', 'revoked', 'policy_changed', 'expired']) {
+  for (const host of ['sdk', 'acp']) for (const mode of ['allow', 'revoked', 'revoked_at_child', 'policy_changed', 'expired']) {
     const cwd = setup('gate-' + host + '-' + mode); const policy = { revision: 'p1', expiry: Date.now() + 60000, releaseDelayMs: 700 }; writeFileSync(join(cwd, '.a0-gate-policy'), JSON.stringify(policy));
     const r = await client.call('workers.create', { body: { command_id: host + '-gate-' + mode, cwd, host, project_trusted: true, provider: 'exe-dev-anthropic', model: 'claude-sonnet-4-6@llm', thinking: 'off' } }); assert.equal(r.state, 'delivered', JSON.stringify(r)); const w = s.get(r.worker_id);
     const grant = s.grants.register('bridge', { worker_ids: [w.worker_id], cwd_roots: [] }, ['interactions.answer_if_current'], 'gate-' + host + '-' + mode); const controller = new Client(socket, grant);
@@ -120,6 +133,12 @@ try {
     const i = await wait(async () => (await client.call('interactions.list', { id: w.worker_id }))[0], 'tool approval'); assert.equal(i.kind, 'tool_approval'); assert.equal(existsSync(join(cwd, 'gate-proof.txt')), false);
     const command_id = host + '-gate-answer-' + mode; const ar = await controller.call('interactions.answer_if_current', { id: w.worker_id, body: { ...bind(w, command_id), answer_id: command_id, interaction_id: i.interaction_id, revision: i.revision, kind: i.kind, outcome: 'answer', value: true } }); assert.equal(ar.answer_stage, 3);
     if (mode === 'revoked') s.grants.revoke('gate-' + host + '-' + mode);
+    if (mode === 'revoked_at_child') {
+      // Revoke after the supervisor's release check, just before delivery to the
+      // gate: only the child's final GrantStore check can block this cut.
+      const h = s.require(w.worker_id).host, request = h.request.bind(h);
+      h.request = async command => { if (command.type === 'gate_release') { assert.equal(command.allowed, true); s.grants.revoke('gate-' + host + '-' + mode); } return request(command); };
+    }
     if (mode === 'policy_changed') writeFileSync(join(cwd, '.a0-gate-policy'), JSON.stringify({ ...policy, revision: 'p2' }));
     if (mode === 'expired') writeFileSync(join(cwd, '.a0-gate-policy'), JSON.stringify({ ...policy, expiry: Date.now() - 1 }));
     const release = await wait(() => { const x = s.receipts.all.get(command_id + ':release'); return x?.state === 'delivered' && x; }, 'gate result');

@@ -25,6 +25,15 @@ test('unsupported UI cancellation uses the native ID and no RPC response waiter'
     assert.equal((await host.request({ type: 'get_state' })).success, true);
   } finally { await host.stop(); }
 });
+test('RPC answers honestly stop at stage 2 even without any native resolver acknowledgement', async () => {
+  const host = new RpcHost(executable, process.cwd(), '/tmp/a0s3-unused', 'fixture', 'fixture', 'off', 1000);
+  try {
+    const event = once(host, 'event');
+    const receipt = await host.answerUI('native-confirm', { outcome: 'answer', value: false });
+    assert.deepEqual(receipt, { stage: 2 });
+    assert.equal((await event)[0].native_id, 'native-confirm');
+  } finally { await host.stop(); }
+});
 test('RPC timeout is an error, never a resend; process exit rejects pending requests', async () => {
   const host = new RpcHost(executable, process.cwd(), '/tmp/a0-test-unused', 'fixture', 'fixture', 'off', 50);
   try {

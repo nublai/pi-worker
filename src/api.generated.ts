@@ -323,7 +323,42 @@ export interface components {
             option_id?: string;
         };
         Interaction: {
-            [key: string]: unknown;
+            interaction_id: string;
+            native_id: string;
+            worker_id: string;
+            worker_epoch: string;
+            session_id: string | null;
+            binding_revision: number;
+            revision: number;
+            /** @enum {unknown} */
+            kind: "select" | "confirm" | "input" | "editor" | "tool_approval";
+            deadline: number;
+            status: string;
+            /** @enum {unknown} */
+            source: "pi.extension_ui" | "pi.tool_gate";
+            /** @constant */
+            evidence: "supervisor_journal_fsynced";
+            /** @constant */
+            payload_evidence?: "observed_memory";
+            answer_id?: string;
+            answer_command_id?: string;
+            answer_stage?: number;
+            actor?: string;
+            grant_id?: string;
+            outcome?: string;
+            resolver_outcome?: string;
+            release_command_id?: string;
+            title?: string;
+            message?: string;
+            placeholder?: string;
+            prefill?: string;
+            options?: {
+                option_id: string;
+                label: string;
+            }[];
+            approval?: {
+                [key: string]: unknown;
+            };
         };
         Interactions: components["schemas"]["Interaction"][];
         Binding: {
@@ -380,10 +415,10 @@ export interface components {
             fence: components["schemas"]["Fence"] | null;
             history: components["schemas"]["HistoryMarker"];
             cleanup: string;
-            pending_interactions: {
+            pending_interactions: (components["schemas"]["Interaction"] | {
                 native_id: string;
                 kind: string;
-            }[];
+            })[];
             queued?: {
                 command_id: string;
                 /** @enum {unknown} */
@@ -587,7 +622,9 @@ export interface operations {
     };
     "interactions.status": {
         parameters: {
-            query?: never;
+            query: {
+                interaction_id: string;
+            };
             header?: never;
             path: {
                 id: string;

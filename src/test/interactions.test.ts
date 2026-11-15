@@ -8,10 +8,12 @@ import { fixture, bind } from './helpers.js';
 import { Resolvers, type UIAnswer } from '../resolvers.js';
 import { Supervisor } from '../supervisor.js';
 import { Journal } from '../journal.js';
-import type { Answer } from '../interactions.js';
+import { Interactions, type Answer } from '../interactions.js';
+import { requestHash } from '../receipts.js';
 import type { PiRecord } from '../host.js';
 import { Client } from '../client.js';
 import { router, listenPrivate } from '../server.js';
+import type { Snapshot } from '../types.js';
 function setup(stage: 2 | 3 = 3) {
   const f = fixture(); const forwarded: { id: string; answer: UIAnswer }[] = [];
   const attach = () => {
@@ -26,6 +28,7 @@ for (const stage of [2, 3] as const) test(`first valid answer wins, honest stage
   const f = setup(stage); try {
     const w = await f.create(); f.attach(); const i = f.open('select', 'choice', { options: ['same', 'same'] });
     await assert.rejects(f.supervisor.answer(w.worker_id, f.answer(i, 'bad', { value: undefined, option_id: '2' })), /invalid_option/);
+    await assert.rejects(f.supervisor.answer(w.worker_id, f.answer(i, 'leading-zero', { value: undefined, option_id: '01' })), /invalid_option/);
     const a = f.answer(i, 'one', { value: undefined, option_id: '1' });
     const races = await Promise.allSettled([f.supervisor.answer(w.worker_id, a), f.supervisor.answer(w.worker_id, f.answer(i, 'two', { value: undefined, option_id: '0' }))]);
     assert.equal(races.filter(r => r.status === 'fulfilled').length, 1); assert.equal(f.forwarded.length, 1);
@@ -41,7 +44,10 @@ test('concurrent exact command with conflicting value refuses; private value and
     const w = await f.create(); f.attach(); const i = f.open(); const a = f.answer(i);
     const first = f.supervisor.answer(w.worker_id, a);
     await assert.rejects(f.supervisor.answer(w.worker_id, { ...a, value: 'DIFFERENT_PRIVATE' }), /answer_id_conflict/);
-    await first; await assert.rejects(f.supervisor.answer(w.worker_id, { ...a, value: 'DIFFERENT_PRIVATE' }), /answer_id_conflict/);
+    const receipt = await first;
+    const { value: _v, option_id: _o, outcome: _outcome, ...metadata } = a;
+    assert.equal(receipt.request_hash, requestHash({ ...metadata, worker_id: w.worker_id, operation: 'interactions.answer_if_current' }), 'answer hashes must depend on metadata only');
+    await assert.rejects(f.supervisor.answer(w.worker_id, { ...a, value: 'DIFFERENT_PRIVATE' }), /answer_id_conflict/);
     const bytes = readFileSync(join(f.dir, 'journal'), 'utf8');
     for (const secret of [String(a.value), 'DIFFERENT_PRIVATE', createHash('sha256').update(JSON.stringify({ outcome: a.outcome, value: a.value })).digest('hex')]) assert.equal(bytes.includes(secret), false);
     assert.equal(bytes.includes('"value":"PRIVATE'), false);
@@ -107,10 +113,18 @@ test('two HTTP clients race through public B2 list/answer/status with method-sco
     const grant = f.supervisor.grants.register('bridge', { worker_ids: [w.worker_id], cwd_roots: [] }, ['interactions.list', 'interactions.answer_if_current', 'interactions.status'], 'bridge');
     const one = new Client(socket, grant), two = new Client(socket, grant); f.open('editor', 'e', { prefill: 'visible prefill' });
     const list = await one.call('interactions.list', { id: w.worker_id }); assert.equal(list[0]!.prefill, 'visible prefill');
-    const a = f.answer(list[0]!); const results = await Promise.allSettled([one.call('interactions.answer_if_current', { id: w.worker_id, body: a }), two.call('interactions.answer_if_current', { id: w.worker_id, body: { ...a, command_id: 'second', answer_id: 'second', value: 'second' } })]);
+    let snapshot: Snapshot | undefined;
+    await new Client(socket).watch(w.worker_id, frame => { if ('workers' in frame) snapshot = frame; return false; });
+    const pending = snapshot!.workers[0]!.pending_interactions[0]!;
+    assert.ok('interaction_id' in pending); assert.equal(pending.interaction_id, list[0]!.interaction_id); assert.equal(pending.prefill, 'visible prefill');
+    assert.equal(readFileSync(join(f.dir, 'journal'), 'utf8').includes('visible prefill'), false, 'snapshot payload must not become durable metadata');
+    const a = f.answer(list[0]!, 'empty-editor', { value: '' }); const results = await Promise.allSettled([one.call('interactions.answer_if_current', { id: w.worker_id, body: a }), two.call('interactions.answer_if_current', { id: w.worker_id, body: { ...a, command_id: 'second', answer_id: 'second', value: 'second' } })]);
     assert.equal(results.filter(r => r.status === 'fulfilled').length, 1); assert.equal(f.forwarded.length, 1);
-    const status = await one.call('interactions.status', { id: w.worker_id, query: { interaction_id: a.interaction_id } }); assert.equal(status.answer_stage, 3);
+    const status = await one.call('interactions.status', { id: w.worker_id, query: { interaction_id: a.interaction_id } }); assert.equal(status.answer_stage, 3); assert.equal(status.actor, 'bridge'); assert.equal(status.grant_id, 'bridge');
+    f.supervisor.grants.checkIdentity('bridge', 'bridge', w);
+    assert.throws(() => f.supervisor.grants.checkIdentity('bridge', 'different-actor', w), /release_grant_no_longer_valid/);
     f.supervisor.grants.revoke('bridge'); await assert.rejects(one.call('interactions.list', { id: w.worker_id }), /grant_revoked/);
+    assert.throws(() => f.supervisor.grants.checkIdentity('bridge', 'bridge', w), /release_grant_no_longer_valid/);
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); f.cleanup(); }
 });
 for (const mutation of ['none', 'grant', 'policy', 'expiry', 'digest', 'binding', 'fence'] as const) test(`typed tool approval separates resolver consumption from gate release: ${mutation}`, async () => {
@@ -133,6 +147,24 @@ for (const mutation of ['none', 'grant', 'policy', 'expiry', 'digest', 'binding'
     await f.supervisor.interactions.gate(f.supervisor.require(w.worker_id).worker, event, () => { if (f.supervisor.require(w.worker_id).worker.fence) throw new Error('fenced'); });
     const release = f.supervisor.receipts.all.get('approve:release')!;
     assert.equal(release.answer_stage, mutation === 'none' ? 4 : 3); assert.equal(release.result?.released, mutation === 'none');
+  } finally { f.cleanup(); }
+});
+test('deadline validation refuses at the boundary before the timeout callback can run', async () => {
+  const f = setup(); try {
+    const w = await f.create(); f.attach(); let now = 0;
+    const controller = new Interactions(f.journal, f.supervisor.receipts, () => {}, () => {}, () => now);
+    controller.open(w, f.hosts[0]!, { type: 'extension_ui_request', id: 'native', method: 'input', deadline: 30000 });
+    const i = controller.list(w.worker_id)[0]!; now = 30000;
+    await assert.rejects(controller.answer(w, f.answer(i), () => {}, () => {}), /deadline_passed/);
+    assert.equal(f.forwarded.length, 0); controller.invalidate(w.worker_id, 'interrupted');
+  } finally { f.cleanup(); }
+});
+test('SDK refusal acknowledgement never claims stage 3 for an expired exact resolver', async () => {
+  const f = setup(); try {
+    const w = await f.create(); f.attach(); const i = f.open();
+    Object.assign(f.hosts[0]!, { answerUI: async () => ({ stage: 3, consumed: false, outcome: 'timeout' }) });
+    const r = await f.supervisor.answer(w.worker_id, f.answer(i)); assert.equal(r.answer_stage, 2);
+    assert.equal(r.result?.resolver_consumed, false); assert.equal(f.supervisor.interactions.status(w.worker_id, String(i.interaction_id)).answer_stage, 2);
   } finally { f.cleanup(); }
 });
 test('a consumed answer with a dropped host acknowledgement is unknown/fenced, never blindly replayed', async () => {

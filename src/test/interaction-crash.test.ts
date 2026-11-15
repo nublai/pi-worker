@@ -29,7 +29,9 @@ function oracle(root: string) {
     if (got.state === 'outcome_unknown' && ['interactions.answer_if_current', 'interactions.release', 'sessions.rebind'].includes(got.operation)) assert.ok(after.workers.find(w => w.worker_id === got.worker_id)?.fence?.uncertain_command_ids?.includes(got.command_id), 'every unknown session write must fence');
   }
   // Independent native effect files, not state->bucket rules, constrain receipts.
+  const seen = new Set<string>();
   for (const e of beforeEffects.trim().split('\n').filter(Boolean).map(line => JSON.parse(line) as Record<string, unknown>)) {
+    const key = `${e.kind}:${e.native_id ?? e.gate_token ?? e.native_result}`; assert.equal(seen.has(key), false, 'no duplicate native effect'); seen.add(key);
     if (e.kind === 'answer') {
       assert.equal(bytes(String(e.native_result)), 'resolver consumed once\n');
       const receipt = receipts.get(String(e.native_id) + '-answer'); assert.ok(receipt); assert.notEqual(receipt.effect, 'no_effect');
@@ -38,17 +40,20 @@ function oracle(root: string) {
       else assert.equal(existsSync(String(e.native_result)), false);
       const receipt = receipts.get(String(e.gate_token) + '-answer:release'); assert.ok(receipt); assert.notEqual(receipt.effect, 'no_effect');
     } else if (e.kind === 'navigate') {
-      assert.equal(bytes(String(e.native_result)), 'entry'); assert.notEqual(receipts.get('navigate')?.effect, 'no_effect');
+      assert.equal(bytes(String(e.native_result)), 'entry'); const r = receipts.get('navigate'); assert.ok(r); assert.notEqual(r.effect, 'no_effect');
     } else {
       // Timeout cancellation has its own write-ahead marker; rebinding cancellation
       // is covered by the enclosing sessions.rebind dispatch marker.
-      assert.ok(pre.some(r => r.kind === 'interaction_effect' && r.value.operation === 'cancel') || receipts.get('navigate')?.effect !== 'no_effect');
+      if (e.native_id === 'timeout') {
+        const i = after.interactions.find(i => i.native_id === 'timeout'); assert.ok(i);
+        assert.ok(pre.some(r => r.kind === 'interaction_effect' && r.value.operation === 'cancel' && r.value.interaction_id === i.interaction_id));
+      } else { assert.equal(e.native_id, 'navigate-dialog'); const r = receipts.get('navigate'); assert.ok(r); assert.notEqual(r.effect, 'no_effect'); }
     }
   }
   assert.equal(bytes(join(root, 'effects.jsonl')), beforeEffects, 'recovery and duplicate lookups never dispatch');
   for (const i of after.interactions) assert.notEqual(i.status, 'pending');
   const second = run('recover', root); assert.equal(second.status, 0, second.stderr);
-  const twice = summary(second.stdout); assert.deepEqual(twice.receipts, after.receipts); assert.deepEqual(twice.workers.map(w => w.fence), after.workers.map(w => w.fence));
+  const twice = summary(second.stdout); assert.deepEqual(twice.interactions, after.interactions); assert.deepEqual(twice.receipts, after.receipts); assert.deepEqual(twice.workers.map(w => w.fence), after.workers.map(w => w.fence));
   assert.equal(bytes(join(root, 'effects.jsonl')), beforeEffects);
 }
 test('new interactions: SIGKILL at every scenario and recovery fsync occurrence, no answer replay, native effect oracle', { timeout: 120000 }, () => {

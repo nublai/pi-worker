@@ -35,7 +35,7 @@ export class Supervisor {
     this.id = (journal.records.find(r => r.kind === 'supervisor')?.value.supervisor_id as string | undefined) ?? randomUUID();
     journal.append('supervisor', { supervisor_id: this.id, supervisor_epoch: this.epoch });
     this.receipts = new ReceiptStore(journal);
-    this.interactions = new Interactions(journal, this.receipts, id => { const live = this.require(id); live.worker.pending_interactions = this.interactions.summaries(id); this.persist(live); }, (id, command) => this.fence(this.require(id), command));
+    this.interactions = new Interactions(journal, this.receipts, id => { const live = this.require(id); live.worker.pending_interactions = this.interactions.summaries(id); this.persist(live); live.hub.publish('interactions_changed', { interactions: this.interactions.list(id) }, live.worker.execution?.execution_id ?? null, 'supervisor'); }, (id, command) => this.fence(this.require(id), command));
     for (const record of journal.records) if (record.kind === 'worker') {
       const persisted = structuredClone(record.value) as Persisted;
       if (persisted.worker.session_id && persisted.sessionFile) this.sessionFiles.set(persisted.worker.session_id, { file: persisted.sessionFile, worker_id: persisted.worker.worker_id });
@@ -123,7 +123,10 @@ export class Supervisor {
   }
   require(id: string): Live { const live = this.workers.get(id); if (!live) throw new Refusal('unknown_worker'); return live; }
   get(id: string): Worker {
-    const live = this.require(id); this.guarded(live, () => this.refresh(live), true); return structuredClone(live.worker);
+    const live = this.require(id); this.guarded(live, () => this.refresh(live), true);
+    const view = structuredClone(live.worker);
+    if (live.host?.answerUI) view.pending_interactions = this.interactions.list(id);
+    return view;
   }
   list(): Worker[] { return [...this.workers.keys()].map(id => this.get(id)); }
   private refresh(live: Live): void {

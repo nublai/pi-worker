@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "THROWAWAY nubl A0 slice 2 B2",
-    "version": "0.2.0",
+    "title": "THROWAWAY nubl A0 slice 3 B2",
+    "version": "0.3.0",
     "description": "Throwaway only. Unix socket, owned modes and per-caller bearer grants. Same-user code can read grants. No hidden retries."
   },
   "servers": [
@@ -42,6 +42,7 @@
       "get": {
         "operationId": "interactions.status",
         "parameters": [
+          { "name": "interaction_id", "in": "query", "required": true, "schema": { "type": "string" } },
           {
             "name": "id",
             "in": "path",
@@ -1269,7 +1270,141 @@
       },
       "Interaction": {
         "type": "object",
-        "additionalProperties": true
+        "properties": {
+          "interaction_id": {
+            "type": "string"
+          },
+          "native_id": {
+            "type": "string"
+          },
+          "worker_id": {
+            "type": "string"
+          },
+          "worker_epoch": {
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "enum": [
+              "select",
+              "confirm",
+              "input",
+              "editor",
+              "tool_approval"
+            ]
+          },
+          "deadline": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "pi.extension_ui",
+              "pi.tool_gate"
+            ]
+          },
+          "evidence": {
+            "const": "supervisor_journal_fsynced"
+          },
+          "payload_evidence": {
+            "const": "observed_memory"
+          },
+          "answer_id": {
+            "type": "string"
+          },
+          "answer_command_id": {
+            "type": "string"
+          },
+          "answer_stage": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "actor": {
+            "type": "string"
+          },
+          "grant_id": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "resolver_outcome": {
+            "type": "string"
+          },
+          "release_command_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "placeholder": {
+            "type": "string"
+          },
+          "prefill": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "option_id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "option_id",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "approval": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "interaction_id",
+          "native_id",
+          "worker_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "revision",
+          "kind",
+          "deadline",
+          "status",
+          "source",
+          "evidence"
+        ],
+        "additionalProperties": false
       },
       "Interactions": {
         "type": "array",
@@ -1514,20 +1649,10 @@
           "pending_interactions": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "native_id": {
-                  "type": "string"
-                },
-                "kind": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "native_id",
-                "kind"
-              ],
-              "additionalProperties": false
+              "anyOf": [
+                { "$ref": "#/components/schemas/Interaction" },
+                { "type": "object", "properties": { "native_id": { "type": "string" }, "kind": { "type": "string" } }, "required": ["native_id", "kind"], "additionalProperties": false }
+              ]
             }
           },
           "queued": {
