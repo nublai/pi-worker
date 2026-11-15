@@ -1,0 +1,27 @@
+✔ dist/test/gate1-parent.test.js (47.640588ms)
+✖ B2: refused launches stage nothing; accepted staging never copies a raced link target (364.260891ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 417.687029
+
+✖ failing tests:
+
+test at dist/test/security-fix.test.js:131:1
+✖ B2: refused launches stage nothing; accepted staging never copies a raced link target (364.260891ms)
+  AssertionError [ERR_ASSERTION]: staging copied a link target (f46, attempt 14)
+      at TestContext.<anonymous> (file:///tmp/a0s7f/rev/wt/dist/test/security-fix.test.js:164:28)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'SECRET-MARKER',
+    expected: 'SECRET-MARKER',
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }

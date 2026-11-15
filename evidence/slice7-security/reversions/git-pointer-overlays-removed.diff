@@ -1,0 +1,25 @@
+diff --git i/src/git-sandbox.ts w/src/git-sandbox.ts
+index 1b7b526..0cdf1dd 100644
+--- i/src/git-sandbox.ts
++++ w/src/git-sandbox.ts
+@@ -105,20 +105,15 @@ export function gitPlan(root: string, rootFd: number, options: { within?: string
+       return { pin, mounts, fds };
+     }
+     const admin = found.admin!, c = pin.common_dir, a = pin.git_dir;
+-    ro(found.dotGit!, join(root, '.git'));
+     mounts.push({ mode: 'bind', fd: admin, dest: a });
+-    ro(open(admin, ['gitdir'], 'file'), join(a, 'gitdir'));
+-    ro(open(admin, ['commondir'], 'file'), join(a, 'commondir'));
+     for (const name of ['config', 'config.worktree']) ro(optional(admin, [name], 'file'), join(a, name));
+     ro(optional(admin, ['hooks'], 'dir'), join(a, 'hooks'));
+-    if (pin.head) ro(open(admin, ['HEAD'], 'file'), join(a, 'HEAD'));
+     for (const name of ['config', 'packed-refs', 'shallow']) ro(optional(common, [name], 'file'), join(c, name));
+     ro(optional(common, ['info', 'exclude'], 'file'), join(c, 'info', 'exclude'));
+     for (const name of ['refs', 'logs']) ro(optional(common, [name], 'dir'), join(c, name));
+     // A commit creates loose objects. This shared writable store is a documented
+     // integrity limit, not Git isolation; alternates stay read-only.
+     mounts.push({ mode: 'bind', fd: open(common, ['objects'], 'dir'), dest: join(c, 'objects') });
+-    ro(open(common, ['objects', 'info'], 'dir', true), join(c, 'objects', 'info'));
+     if (pin.head) {
+       const ref = pin.head.trim().slice(5);
+       // Directory writes are needed for ref.lock + atomic rename. Demand a unique

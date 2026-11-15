@@ -1,0 +1,13 @@
+diff --git i/src/sandbox.ts w/src/sandbox.ts
+index abcbfa6..d8c3eb1 100644
+--- i/src/sandbox.ts
++++ w/src/sandbox.ts
+@@ -73,7 +73,7 @@ export function sandboxLaunch(root: string, command: string, args: string[], par
+     };
+     // --clearenv: the allowlist below is the whole environment, even if a future
+     // spawn path merges the supervisor environment.
+-    const mounts = ['--die-with-parent', '--clearenv', ...Object.entries(env).flatMap(([k, v]) => ['--setenv', k, v]), '--unshare-user', '--unshare-pid', '--unshare-ipc', '--unshare-uts', '--new-session', '--cap-drop', 'ALL', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--tmpfs', '/run'];
++    const mounts = ['--clearenv', ...Object.entries(env).flatMap(([k, v]) => ['--setenv', k, v]), '--unshare-user', '--unshare-pid', '--unshare-ipc', '--unshare-uts', '--new-session', '--cap-drop', 'ALL', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--tmpfs', '/run'];
+     // System and worker runtime paths are owner-controlled, never sandbox-writable.
+     for (const path of ['/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc/ssl', '/etc/resolv.conf', '/etc/hosts', '/etc/nsswitch.conf', ...runtimePaths()]) if (existsSync(path)) mounts.push('--ro-bind', path, path);
+     bind('bind', rootFd, root);

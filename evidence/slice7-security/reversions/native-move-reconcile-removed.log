@@ -1,0 +1,29 @@
+✔ dist/test/gate1-parent.test.js (49.955445ms)
+✖ m4: a native move that never completes reconciles from host state instead of refusing writes forever (313.263033ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 366.125546
+
+✖ failing tests:
+
+test at dist/test/security-fix.test.js:338:1
+✖ m4: a native move that never completes reconciles from host state instead of refusing writes forever (313.263033ms)
+  AssertionError [ERR_ASSERTION]: reconciled as a binding change
+  
+  1 !== 2
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/rev/wt/dist/test/security-fix.test.js:349:16)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

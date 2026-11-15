@@ -1,0 +1,54 @@
+✔ dist/test/gate1-parent.test.js (47.770782ms)
+✖ m1: an exact channel launch retry returns the stored receipt; a refused retry refuses again (never unknown) (19.917777ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 71.716647
+
+✖ failing tests:
+
+test at dist/test/security-fix.test.js:183:1
+✖ m1: an exact channel launch retry returns the stored receipt; a refused retry refuses again (never unknown) (19.917777ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      body: {
+  +     effect: 'no_effect',
+  +     error: 'parent_channel_child_profile_exists'
+  -     command_id: 'retry',
+  -     created_at: '2026-11-15T19:15:53.981Z',
+  -     effect: 'observed',
+  -     evidence: 'supervisor_journal_fsynced',
+  -     history_lag: false,
+  -     operation: 'workers.create',
+  -     request_hash: '115e2a06ceee4fcd0c950da2037eda15ff1ef0d1913fc6f8c911e64ad5e7f36b',
+  -     result: {
+  -       binding_revision: 1,
+  -       session_id: 'session-1',
+  -       worker_epoch: '7d611249-8a84-463d-af21-a51c84ec743c',
+  -       worker_id: 'a709e7ec-5309-46be-b8c1-213ce7373a3e'
+  -     },
+  -     stage: 'forwarded',
+  -     state: 'delivered',
+  -     worker_id: 'a709e7ec-5309-46be-b8c1-213ce7373a3e'
+      },
+  +   status: 409
+  -   status: 200
+    }
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/rev/wt/dist/test/security-fix.test.js:190:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { status: 409, body: { error: 'parent_channel_child_profile_exists', effect: 'no_effect' } },
+    expected: { status: 200, body: { command_id: 'retry', operation: 'workers.create', request_hash: '115e2a06ceee4fcd0c950da2037eda15ff1ef0d1913fc6f8c911e64ad5e7f36b', state: 'delivered', stage: 'forwarded', effect: 'observed', evidence: 'supervisor_journal_fsynced', created_at: '2026-11-15T19:15:53.981Z', worker_id: 'a709e7ec-5309-46be-b8c1-213ce7373a3e', result: [Object], history_lag: false } },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

@@ -1,0 +1,21 @@
+diff --git i/src/server.ts w/src/server.ts
+index d9a855d..a7ad475 100644
+--- i/src/server.ts
++++ w/src/server.ts
+@@ -76,7 +76,7 @@ export function router(supervisor: Supervisor, channel?: ParentChannel): Server
+       // The channel acts with its OWN grant (parent worker + parent root), never
+       // the owner's; revoking the parent's source grant still stops it.
+       if (parent) supervisor.grants.active(parent.grant_source_id ?? 'owner');
+-      const token = channel ? supervisor.grants.active(channel.grantId).token : req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined;
++      const token = channel ? supervisor.grants.active(parent!.grant_source_id ?? 'owner').token : req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined;
+       const caller = supervisor.grants.authenticate(token);
+       const check = (method: string, id?: string, cwd?: string) => {
+         if (channel) supervisor.grants.active(parent!.grant_source_id ?? 'owner');
+@@ -146,7 +146,6 @@ export function router(supervisor: Supervisor, channel?: ParentChannel): Server
+         check('receipts.get');
+         const receipt = supervisor.receipts.all.get(parts[2]!);
+         if (!receipt) throw new Refusal('unknown_command_id_is_not_proof_of_no_effect', 'unknown');
+-        if (channel && !receipt.worker_id) throw new Refusal('parent_channel_scope_denied');
+         const grant = check('receipts.get', receipt.worker_id);
+         if (!receipt.worker_id && !grant.scope.worker_ids.includes('*')) throw new Refusal('grant_scope_unknown_receipt');
+         return json(res, receipt);

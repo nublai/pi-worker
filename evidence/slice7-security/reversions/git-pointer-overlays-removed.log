@@ -1,0 +1,47 @@
+✔ dist/test/gate1-parent.test.js (48.144513ms)
+✖ M1: sandbox mounts make Git pointers, HEAD, config, hooks and alternates read-only; sources are descriptors (15.440679ms)
+✖ kernel M1: child cannot rewrite .git, gitdir, commondir, HEAD or alternates; commit still works (17.714109ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 1
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 82.509207
+
+✖ failing tests:
+
+test at dist/test/security-fix.test.js:272:1
+✖ M1: sandbox mounts make Git pointers, HEAD, config, hooks and alternates read-only; sources are descriptors (15.440679ms)
+  AssertionError [ERR_ASSERTION]: /tmp/a0s7f/tmp/a0sf-git-Gzqiwh/wt/.git
+      at TestContext.<anonymous> (file:///tmp/a0s7f/rev/wt/dist/test/security-fix.test.js:279:24)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at dist/test/security-fix.test.js:435:1
+✖ kernel M1: child cannot rewrite .git, gitdir, commondir, HEAD or alternates; commit still works (17.714109ms)
+  AssertionError [ERR_ASSERTION]: WROTE .git
+  
+  
+  71 !== 0
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/rev/wt/dist/test/security-fix.test.js:447:16)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 71,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

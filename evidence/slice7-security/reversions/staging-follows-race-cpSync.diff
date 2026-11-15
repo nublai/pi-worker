@@ -1,0 +1,28 @@
+diff --git i/src/supervisor.ts w/src/supervisor.ts
+index 95a2cdf..74cda86 100644
+--- i/src/supervisor.ts
++++ w/src/supervisor.ts
+@@ -1,7 +1,7 @@
+ /** THROWAWAY A0 supervisor. pi owns transcript, this process owns control records. */
+ import { randomUUID } from 'node:crypto';
+ import { AsyncLocalStorage } from 'node:async_hooks';
+-import { mkdirSync, realpathSync, statSync, existsSync, writeFileSync, closeSync } from 'node:fs';
++import { cpSync, mkdirSync, realpathSync, statSync, existsSync, writeFileSync, closeSync } from 'node:fs';
+ import { dirname, join, relative } from 'node:path';
+ import type { Server } from 'node:http';
+ import { router, listenPrivate } from './server.js';
+@@ -461,12 +461,8 @@ export class Supervisor {
+       // Stage only after every validation, through descriptors that never follow
+       // a link: a parent swap yields the original file or a verbatim link.
+       if (channelParent && rootFd !== undefined) {
+-        const source = openPinned(join(channelParent.cwd, '.a0-agent'), 'dir');
+-        try {
+-          mkdirSync(fdPath(rootFd, '.a0-agent'), { mode: 0o700 });
+-          const dest = openUnder(rootFd, ['.a0-agent'], 'dir');
+-          try { copyTreeAt(source, dest); } finally { closeSync(dest); }
+-        } finally { closeSync(source); }
++        void openPinned; void copyTreeAt; void fdPath;
++        cpSync(join(channelParent.cwd, '.a0-agent'), join(cwd, '.a0-agent'), { recursive: true, dereference: false, verbatimSymlinks: true, errorOnExist: true, force: false });
+       }
+       const dir = this.sessionDir(live);
+       const context = await this.hostContext(live, c, c.command_id);

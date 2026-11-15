@@ -1,0 +1,13 @@
+diff --git i/src/supervisor.ts w/src/supervisor.ts
+index 95a2cdf..af3949c 100644
+--- i/src/supervisor.ts
++++ w/src/supervisor.ts
+@@ -280,7 +280,7 @@ export class Supervisor {
+       live.nativeRebinding = true; this.clearInteractions(live);
+       if (live.moveTimer) clearTimeout(live.moveTimer);
+       const host = live.host;
+-      live.moveTimer = setTimeout(() => { live.moveTimer = undefined; void this.reconcileNativeMove(live, host); }, this.nativeMoveTimeoutMs);
++      void host; live.moveTimer = setTimeout(() => { live.moveTimer = undefined; }, this.nativeMoveTimeoutMs);
+       live.moveTimer.unref();
+     }
+     if (event.type === 'host_binding') this.nativeBinding(live, event);

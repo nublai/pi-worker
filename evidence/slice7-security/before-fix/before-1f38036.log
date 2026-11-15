@@ -1,0 +1,110 @@
+✖ B1: a symlinked .a0-worktrees (or child entry) cannot hand a child an arbitrary host root (17.095429ms)
+✖ B1: the channel acts with its own root-scoped grant, never the owner grant; worker-less receipts stay hidden (2.5618ms)
+✖ B2: refused launches stage nothing; accepted staging never copies a raced link target (307.22499ms)
+✖ m1: an exact channel launch retry returns the stored receipt; a refused retry refuses again (never unknown) (5.523358ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 0
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 380.595065
+
+✖ failing tests:
+
+test at dist/test/security-before.test.js:51:1
+✖ B1: a symlinked .a0-worktrees (or child entry) cannot hand a child an arbitrary host root (17.095429ms)
+  AssertionError [ERR_ASSERTION]: {"command_id":"via-base","operation":"workers.create","request_hash":"5e92fad362c6d82c5028cef02a7697667dc6c0299bf2373a881550859b96afd8","state":"delivered","stage":"forwarded","effect":"observed","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T19:05:04.497Z","worker_id":"8722c221-7609-454c-8f19-aaaeeffda44c","result":{"worker_id":"8722c221-7609-454c-8f19-aaaeeffda44c","worker_epoch":"dc1d5159-3299-4397-8c77-ede8fa85a9e5","session_id":"session-1","binding_revision":1},"history_lag":false}
+  
+  200 !== 409
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/old/dist/test/security-before.test.js:60:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 409,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/security-before.test.js:79:1
+✖ B1: the channel acts with its own root-scoped grant, never the owner grant; worker-less receipts stay hidden (2.5618ms)
+  Error: ENOENT: no such file or directory, lstat '/tmp/a0s7f/tmp/a0sf-e1cZI3/s/grants/channel-5e9f6ce8-c7f5-4fae-b661-0082edcf4cbf.json'
+      at lstatSync (node:fs:2153:25)
+      at GrantStore.read (file:///tmp/a0s7f/old/dist/grants.js:57:57)
+      at GrantStore.active (file:///tmp/a0s7f/old/dist/grants.js:72:28)
+      at TestContext.<anonymous> (file:///tmp/a0s7f/old/dist/test/security-before.test.js:82:34)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'lstat',
+    path: '/tmp/a0s7f/tmp/a0sf-e1cZI3/s/grants/channel-5e9f6ce8-c7f5-4fae-b661-0082edcf4cbf.json'
+  }
+
+test at dist/test/security-before.test.js:99:1
+✖ B2: refused launches stage nothing; accepted staging never copies a raced link target (307.22499ms)
+  AssertionError [ERR_ASSERTION]: {"error":"internal_error_reconcile_before_retry","effect":"unknown"}
+  + actual - expected
+  
+  + 'internal_error_reconcile_before_retry'
+  - 'child_authority_not_subset'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/old/dist/test/security-before.test.js:117:20)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'internal_error_reconcile_before_retry',
+    expected: 'child_authority_not_subset',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/security-before.test.js:151:1
+✖ m1: an exact channel launch retry returns the stored receipt; a refused retry refuses again (never unknown) (5.523358ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      body: {
+  +     effect: 'unknown',
+  +     error: 'internal_error_reconcile_before_retry'
+  -     command_id: 'retry',
+  -     created_at: '2026-11-15T19:05:04.812Z',
+  -     effect: 'observed',
+  -     evidence: 'supervisor_journal_fsynced',
+  -     history_lag: false,
+  -     operation: 'workers.create',
+  -     request_hash: '9300e7d451f49811f71ac9b70b972bb8813b583b67a5dc6a5a624a2ff5971d52',
+  -     result: {
+  -       binding_revision: 1,
+  -       session_id: 'session-1',
+  -       worker_epoch: 'a831db23-415e-4d04-bd46-c1988acde1c9',
+  -       worker_id: 'c8e59fbb-2ca1-46e1-a746-c392b9c4fdb2'
+  -     },
+  -     stage: 'forwarded',
+  -     state: 'delivered',
+  -     worker_id: 'c8e59fbb-2ca1-46e1-a746-c392b9c4fdb2'
+      },
+  +   status: 500
+  -   status: 200
+    }
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/old/dist/test/security-before.test.js:158:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { status: 500, body: { error: 'internal_error_reconcile_before_retry', effect: 'unknown' } },
+    expected: { status: 200, body: { command_id: 'retry', operation: 'workers.create', request_hash: '9300e7d451f49811f71ac9b70b972bb8813b583b67a5dc6a5a624a2ff5971d52', state: 'delivered', stage: 'forwarded', effect: 'observed', evidence: 'supervisor_journal_fsynced', created_at: '2026-11-15T19:05:04.812Z', worker_id: 'c8e59fbb-2ca1-46e1-a746-c392b9c4fdb2', result: [Object], history_lag: false } },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

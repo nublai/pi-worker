@@ -1,0 +1,381 @@
+{
+  "producer": "slice7-security-isolated-reversion-runner",
+  "subject": {
+    "commit_id": "c8bfbdbfbbce2c257458b60362c7e6752763b66f",
+    "tree_id": "52d1653219cfbb3b1151bdbb5a42706963a9fd34",
+    "base_id": "1f380366ae1130090570530ecbd61aee07f6befc",
+    "diff_digest": {
+      "advisory": true,
+      "git_version": "git version 2.53.0",
+      "algorithm": "sha256",
+      "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+      "value": "944916aa5aa254b3ef8c78c57c076ddcbcdc2c778e6495f2ea8116b94b15e334"
+    }
+  },
+  "reversions": [
+    {
+      "name": "channel-directory-check-removed",
+      "finding": "B1",
+      "compiled": true,
+      "guard_tests": [
+        "B1: a symlinked"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ B1: a symlinked .a0-worktrees (or child entry) cannot hand a child an arbitrary host root (16.883843ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/channel-directory-check-removed.log",
+      "log_sha256": "5bd2f40d06dae483a024f3c8fa8c1713f99656db10cd9aeaeed547fff5d400bf",
+      "diff": "reversions/channel-directory-check-removed.diff"
+    },
+    {
+      "name": "channel-uses-owner-grant",
+      "finding": "B1/m7",
+      "compiled": true,
+      "guard_tests": [
+        "B1: the channel acts"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ B1: the channel acts with its own root-scoped grant, never the owner grant; worker-less receipts stay hidden (19.398134ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/channel-uses-owner-grant.log",
+      "log_sha256": "4f3bb7f1fdcc50645b065a1dddddb170449f15e5ed6ee9419cf3813c86a62db7",
+      "diff": "reversions/channel-uses-owner-grant.diff"
+    },
+    {
+      "name": "staging-follows-race-cpSync",
+      "finding": "B2",
+      "compiled": true,
+      "guard_tests": [
+        "B2: refused launches"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ B2: refused launches stage nothing; accepted staging never copies a raced link target (364.260891ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/staging-follows-race-cpSync.log",
+      "log_sha256": "93a12386a6ca60935be6685e1f58be334f3799d8ee02c96d3b91aad9a560dc53",
+      "diff": "reversions/staging-follows-race-cpSync.diff"
+    },
+    {
+      "name": "staging-before-validation",
+      "finding": "B2",
+      "compiled": true,
+      "guard_tests": [
+        "B2: refused launches",
+        "parent channel staging never dereferences"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ B2: refused launches stage nothing; accepted staging never copies a raced link target (318.899222ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/staging-before-validation.log",
+      "log_sha256": "ce0b170293eaf9be9a34ab37eff0754d512e496302fb75364ebb9568b85f50c8",
+      "diff": "reversions/staging-before-validation.diff"
+    },
+    {
+      "name": "git-pointer-overlays-removed",
+      "finding": "M1",
+      "compiled": true,
+      "guard_tests": [
+        "M1: sandbox mounts",
+        "kernel M1: child cannot"
+      ],
+      "kernel": true,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ M1: sandbox mounts make Git pointers, HEAD, config, hooks and alternates read-only; sources are descriptors (15.440679ms)",
+        "✖ kernel M1: child cannot rewrite .git, gitdir, commondir, HEAD or alternates; commit still works (17.714109ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/git-pointer-overlays-removed.log",
+      "log_sha256": "2cee10bae5bacceb5ab34cb408d408c61736ffebc37ca7779d98156e0fd5c195",
+      "diff": "reversions/git-pointer-overlays-removed.diff"
+    },
+    {
+      "name": "ordinary-checkout-overlays-removed",
+      "finding": "M1",
+      "compiled": true,
+      "guard_tests": [
+        "M1: sandbox mounts",
+        "kernel M1: an ordinary checkout"
+      ],
+      "kernel": true,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ M1: sandbox mounts make Git pointers, HEAD, config, hooks and alternates read-only; sources are descriptors (16.389677ms)",
+        "✖ kernel M1: an ordinary checkout root keeps config/hooks/info/alternates read-only and .git pinned; commits work (18.224986ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/ordinary-checkout-overlays-removed.log",
+      "log_sha256": "a3bc43e0cdf265643358e3bd5ef1d4dea6ff1ca53b3f28dad454c1432202f11f",
+      "diff": "reversions/ordinary-checkout-overlays-removed.diff"
+    },
+    {
+      "name": "owner-pin-compare-removed",
+      "finding": "M1",
+      "compiled": true,
+      "guard_tests": [
+        "M1: a planted core.fsmonitor",
+        "M1: ordinary checkouts refuse"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ M1: a planted core.fsmonitor never runs from the owner checks (pin compare, then safe config) (28.717464ms)",
+        "✖ M1: ordinary checkouts refuse a planted commondir and config includes (14.025047ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/owner-pin-compare-removed.log",
+      "log_sha256": "cbbad60262ed7d33f3076559c11bc2adb97a4e84985acddf16b1b1765083b87d",
+      "diff": "reversions/owner-pin-compare-removed.diff"
+    },
+    {
+      "name": "owner-safe-config-removed",
+      "finding": "M1",
+      "compiled": true,
+      "guard_tests": [
+        "M1: a planted core.fsmonitor"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ M1: a planted core.fsmonitor never runs from the owner checks (pin compare, then safe config) (41.457925ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/owner-safe-config-removed.log",
+      "log_sha256": "b9991fa2153e03ff7e1de793bfac89062477e6f5b7bb687b80382c8a7ffb243d",
+      "diff": "reversions/owner-safe-config-removed.diff"
+    },
+    {
+      "name": "relaunch-pin-ignored",
+      "finding": "m2",
+      "compiled": true,
+      "guard_tests": [
+        "m2: relaunch refuses"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ m2: relaunch refuses a retargeted HEAD instead of mounting a sibling namespace (17.25587ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/relaunch-pin-ignored.log",
+      "log_sha256": "1a43e93e994cc38fbdb6eb4f56e8829926be4e529b465d36778912f5179b3a0c",
+      "diff": "reversions/relaunch-pin-ignored.diff"
+    },
+    {
+      "name": "root-bound-by-path",
+      "finding": "B1",
+      "compiled": true,
+      "guard_tests": [
+        "kernel B1: bwrap binds"
+      ],
+      "kernel": true,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ kernel B1: bwrap binds the exact opened root even if the path is swapped before spawn; no mount fd reaches the sandbox (11.09611ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/root-bound-by-path.log",
+      "log_sha256": "fbcfc44049974ec35ff4edb294c00c9642a29b47f501b93fb0f29b616dc13b03",
+      "diff": "reversions/root-bound-by-path.diff"
+    },
+    {
+      "name": "credential-bind-follows-links",
+      "finding": "minor",
+      "compiled": true,
+      "guard_tests": [
+        "bwrap profile: --die-with-parent"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ bwrap profile: --die-with-parent, --clearenv allowlist, credential links refuse (4.092017ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/credential-bind-follows-links.log",
+      "log_sha256": "f5b60c6c1eca3d4cb981932c24ee1d2743af6f8ab608681228a8aef274f0dbb6",
+      "diff": "reversions/credential-bind-follows-links.diff"
+    },
+    {
+      "name": "die-with-parent-removed",
+      "finding": "minor",
+      "compiled": true,
+      "guard_tests": [
+        "bwrap profile: --die-with-parent",
+        "kernel: --die-with-parent"
+      ],
+      "kernel": true,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ bwrap profile: --die-with-parent, --clearenv allowlist, credential links refuse (3.792215ms)",
+        "✖ kernel: --die-with-parent kills the sandbox when its spawning process dies (2083.185481ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/die-with-parent-removed.log",
+      "log_sha256": "5e28b352697a211ada599d5b11058e20ed3a2c266984b9a026ab2fd6fff1e9af",
+      "diff": "reversions/die-with-parent-removed.diff"
+    },
+    {
+      "name": "clearenv-removed",
+      "finding": "minor",
+      "compiled": true,
+      "guard_tests": [
+        "bwrap profile: --die-with-parent"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ bwrap profile: --die-with-parent, --clearenv allowlist, credential links refuse (3.702346ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/clearenv-removed.log",
+      "log_sha256": "07e782fa32eb2513e52fc78cb5b15e4fdffc82b61dd468e1e487a6f2ae454cda",
+      "diff": "reversions/clearenv-removed.diff"
+    },
+    {
+      "name": "channel-retry-lookup-removed",
+      "finding": "m1",
+      "compiled": true,
+      "guard_tests": [
+        "m1: an exact channel launch retry"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ m1: an exact channel launch retry returns the stored receipt; a refused retry refuses again (never unknown) (19.917777ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/channel-retry-lookup-removed.log",
+      "log_sha256": "45d8d000d5d4cb603c13e7c93671bdddfa658b98bd9992d7e50b7e79a66aa663",
+      "diff": "reversions/channel-retry-lookup-removed.diff"
+    },
+    {
+      "name": "native-move-reconcile-removed",
+      "finding": "m4",
+      "compiled": true,
+      "guard_tests": [
+        "m4: a native move"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ m4: a native move that never completes reconciles from host state instead of refusing writes forever (313.263033ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/native-move-reconcile-removed.log",
+      "log_sha256": "d1e0fbe3acf55f3bc1913e6de55c8ed5be9a225fe74224cf38cbf3e196c0da13",
+      "diff": "reversions/native-move-reconcile-removed.diff"
+    },
+    {
+      "name": "rpc-premove-signal-removed",
+      "finding": "m3",
+      "compiled": true,
+      "guard_tests": [
+        "m3: RPC refuses"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ m3: RPC refuses a stale-binding prompt while a native move is in progress (445.056929ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/rpc-premove-signal-removed.log",
+      "log_sha256": "2dd35b456b22b8f2fecacc94d30421ab997777e21513473b6dff7c7e66341576",
+      "diff": "reversions/rpc-premove-signal-removed.diff"
+    },
+    {
+      "name": "channel-git-containment-removed",
+      "finding": "B1",
+      "compiled": true,
+      "guard_tests": [
+        "B1: a channel child may be a linked worktree"
+      ],
+      "kernel": false,
+      "exit_code": 1,
+      "failed_tests": [
+        "✖ B1: a channel child may be a linked worktree of the parent repo, never of a repo outside the parent root (47.493513ms)"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "reversions/channel-git-containment-removed.log",
+      "log_sha256": "a27cc2c32f394fa6e87a4f7b7d9d8340e525721eff7a97d03b35ac1b1a93842c",
+      "diff": "reversions/channel-git-containment-removed.diff"
+    }
+  ],
+  "killed": 17,
+  "total": 17,
+  "cross_version_before_fix": [
+    {
+      "log": "before-fix/before-1f38036.log",
+      "sha256": "9cb51693b597d053aa6d55690e3b4a650388f6557296c4eb8ae323309cf6f1de",
+      "what": "channel B1 symlink, B1 grant/receipts, B2 refused-copy+race, m1 retry",
+      "runtime": {
+        "commit_id": "1f380366ae1130090570530ecbd61aee07f6befc",
+        "tree_id": "adf46f93e632915359a88fa6dace702ef617f246"
+      },
+      "counts": {
+        "tests": 4,
+        "pass": 0,
+        "fail": 4,
+        "skipped": 0
+      }
+    },
+    {
+      "log": "before-fix/probe-a-before-1f38036.log",
+      "sha256": "8e23b8be019bb3e1bfc7c86099b105f206129113f8c349bc5b9a81a2161df5b5",
+      "what": "real bwrap parent symlink escape (PROBE A)",
+      "runtime": {
+        "commit_id": "1f380366ae1130090570530ecbd61aee07f6befc",
+        "tree_id": "adf46f93e632915359a88fa6dace702ef617f246"
+      },
+      "counts": {
+        "tests": 1,
+        "pass": 0,
+        "fail": 1,
+        "skipped": 0
+      }
+    },
+    {
+      "log": "before-fix/m1-before-1f38036.log",
+      "sha256": "cdf7c626c750d166abf12eed80b9052194700c69190b7d8e668bced0742b6641",
+      "what": "planted core.fsmonitor via commondir vs pre-fix owner check",
+      "runtime": {
+        "commit_id": "1f380366ae1130090570530ecbd61aee07f6befc",
+        "tree_id": "adf46f93e632915359a88fa6dace702ef617f246"
+      },
+      "counts": {
+        "tests": 1,
+        "pass": 0,
+        "fail": 1,
+        "skipped": 0
+      }
+    }
+  ]
+}

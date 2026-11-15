@@ -1,0 +1,12 @@
+diff --git i/src/server.ts w/src/server.ts
+index d9a855d..ba3bcdb 100644
+--- i/src/server.ts
++++ w/src/server.ts
+@@ -131,6 +131,7 @@ export function router(supervisor: Supervisor, channel?: ParentChannel): Server
+             };
+             c.launch_spec.resources = { extensions: c.launch_spec.resources.extensions.map(remap), skills: c.launch_spec.resources.skills.map(remap) };
+             c.host = 'sdk'; c.launch_spec.environment.filesystem = 'bwrap'; c.launch_spec.environment.root = c.cwd;
++            const { cpSync } = await import('node:fs'); cpSync(join(parent!.cwd, '.a0-agent'), join(c.cwd, '.a0-agent.pre'), { recursive: true, dereference: false, verbatimSymlinks: true, errorOnExist: true, force: false });
+             const create = () => supervisor.create(c, { channelParent: channel.workerId });
+             if (supervisor.receipts.all.has(c.command_id)) return json(res, await run('workers.create', create, channel.workerId));
+             supervisor.checkChannelChildRoot(channel.workerId, c.cwd);

@@ -1,0 +1,12 @@
+diff --git i/src/git-sandbox.ts w/src/git-sandbox.ts
+index 1b7b526..25fe9ed 100644
+--- i/src/git-sandbox.ts
++++ w/src/git-sandbox.ts
+@@ -87,7 +87,6 @@ export function gitPinAt(root: string, rootFd: number, within?: string): GitPin
+ export function gitPlan(root: string, rootFd: number, options: { within?: string; expected?: GitPin | null } = {}): { pin: GitPin | null; mounts: GitMount[]; fds: number[] } {
+   const found = inspect(root, rootFd, options.within), fds = found.fds, mounts: GitMount[] = [];
+   try {
+-    assertPin(found.pin, options.expected);
+     const pin = found.pin;
+     if (!pin) return { pin, mounts, fds };
+     const open = (base: number, names: string[], leaf: 'dir' | 'file', create = false) => { const fd = openUnder(base, names, leaf, create); fds.push(fd); return fd; };
