@@ -337,7 +337,7 @@ export interface components {
             operation: "workers.create" | "sessions.prompt" | "workers.stop" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.follow_up" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt";
             request_hash: string;
             /** @enum {unknown} */
-            state: "intent" | "intent_recovered" | "accepted" | "delivered" | "rejected" | "outcome_unknown" | "queued" | "intent_ready";
+            state: "intent" | "intent_recovered" | "accepted" | "delivered" | "rejected" | "outcome_unknown" | "queued" | "queue_ready" | "intent_ready";
             /** @enum {unknown} */
             stage: "reserved" | "recovery_pending" | "dispatch_recorded" | "forwarded" | "termination_observed" | "refused" | "unknown" | "resolved" | "requested";
             /** @enum {unknown} */

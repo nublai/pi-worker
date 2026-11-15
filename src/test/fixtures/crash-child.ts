@@ -1,25 +1,31 @@
 /** THROWAWAY crash harness child: real fsync/SIGKILL, deterministic native-host seam, not live Pi. */
 import assert from 'node:assert/strict';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, isAbsolute } from 'node:path';
 import { Journal } from '../../journal.js';
 import { Supervisor } from '../../supervisor.js';
 import { Host, bind, tick } from '../helpers.js';
 import type { PiRecord, PiResponse } from '../../host.js';
 import type { Binding, Create, Prompt, Rebind, Resolve, Worker } from '../../types.js';
 const [mode, root] = process.argv.slice(2) as [string, string];
-assert.ok(root.startsWith('/tmp/a0s2/'));
+assert.ok(root && isAbsolute(root), 'parent supplies a per-run temporary directory');
 mkdirSync(root, { recursive: true, mode: 0o700 });
 const effects = join(root, 'effects.jsonl'), requests = join(root, 'requests.jsonl');
+let effectCount = 0;
+function effect(value: Record<string, unknown>): void {
+  appendFileSync(effects, JSON.stringify(value) + '\n');
+  if (process.env.A0_CRASH_EFFECT === String(++effectCount)) process.kill(process.pid, 'SIGKILL');
+}
 class EffectHost extends Host {
   gate?: Promise<never>; release?: () => void;
   hold(): void { this.gate = new Promise<never>((_r, reject) => { this.release = () => reject(new Error('dropped_reply')); }); }
   override async request(c: PiRecord): Promise<PiResponse> {
     if (c.type === 'prompt') {
-      appendFileSync(effects, JSON.stringify({ kind: 'prompt', id: c.message }) + '\n');
       appendFileSync(this.file, JSON.stringify({ type: 'message', id: String(c.message), parentId: null, message: { role: 'user', content: [] } }) + '\n');
+      effect({ kind: 'prompt', command_id: c.message, session_file: this.file, entry_id: c.message });
     }
     const result = await super.request(c);
+    if (['new_session', 'switch_session', 'fork'].includes(c.type)) effect({ kind: 'rebind', command_id: c.type === 'new_session' ? 'new' : c.type === 'switch_session' ? 'resume' : 'fork', session_file: this.file, session_id: this.sid });
     if (c.type === 'prompt' && this.gate) { const gate = this.gate; this.gate = undefined; await gate; }
     return result;
   }
@@ -30,7 +36,7 @@ const supervisor = new Supervisor(root, journal, '1.5.2', (c) => {
   assert.equal(mode, 'scenario', 'recovery must never launch/adopt a host');
   const id = `native-${hosts.length}`, file = join(root, id + '.jsonl');
   writeFileSync(file, JSON.stringify({ type: 'session', id }) + '\n');
-  appendFileSync(effects, JSON.stringify({ kind: 'launch', id: c.cwd }) + '\n');
+  effect({ kind: 'create', command_id: c.command_id, ...(c.command_id.endsWith('-launch') ? { parent_launch_command_id: c.command_id.replace('-launch', '-child') } : {}), session_file: file, session_id: id, spawned: true, cwd: c.cwd });
   const host = new EffectHost(root, id, file); hosts.push(host); return host;
 });
 type Logged = { op: string; id?: string; body: Record<string, unknown> };
@@ -88,6 +94,6 @@ if (mode === 'scenario') {
     const retry = await call(request.op, request.body, request.id);
     assert.deepEqual(retry, prior, 'duplicate lookup must not change a receipt or replay');
   }
-  process.stdout.write(JSON.stringify({ receipts: [...supervisor.receipts.all.values()].map(r => ({ command_id: r.command_id, state: r.state, effect: r.effect })), workers: supervisor.list().map(w => ({ worker_id: w.worker_id, execution: w.execution, fence: w.fence, status: w.status, resolutions: w.resolutions ?? [] })) }) + '\n');
+  process.stdout.write(JSON.stringify({ receipts: [...supervisor.receipts.all.values()], workers: supervisor.list() }) + '\n');
   journal.close();
 }

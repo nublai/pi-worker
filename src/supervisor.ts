@@ -207,8 +207,8 @@ export class Supervisor {
       w.foreground = w.fence ? 'unknown' : 'idle';
       live.observedIdle = true;
       if (w.execution) {
+        w.execution.state = 'settled'; // Observed in memory even if persistence fails.
         this.journal.append('settlement', { worker_id: w.worker_id, session_id: w.session_id, execution_id: w.execution.execution_id, command_id: w.execution.command_id, source: 'pi.agent_settled' });
-        w.execution.state = 'settled';
       }
       this.refresh(live); this.persist(live);
       setImmediate(() => { void this.flushPending(live); });
@@ -424,7 +424,7 @@ export class Supervisor {
     const ids = new Set([...(live.pending?.keys() ?? []), ...active.map(q => q.command_id)]);
     for (const id of ids) {
       const r = this.receipts.all.get(id);
-      if (r && ['queued', 'intent_ready', 'intent_recovered'].includes(r.state)) this.receipts.resolveIntent(id, 'abandon');
+      if (r && ['queued', 'queue_ready', 'intent_ready', 'intent_recovered'].includes(r.state)) this.receipts.resolveIntent(id, 'abandon');
       live.hub.publish('queued_dropped', { command_id: id, reason }, null, 'supervisor');
     }
     live.pending?.clear();
@@ -441,7 +441,7 @@ export class Supervisor {
       try {
         await this.authority.run(pending.guard, async () => {
           pending.guard(); this.binding(live, pending.request); this.writable(live);
-          this.receipts.resolveIntent(id, 'keep');
+          this.receipts.readyQueued(id);
           if (pending.kind === 'follow_up') await this.prompt(live.worker.worker_id, pending.request as FollowUp, 'sessions.follow_up');
           else {
             // Child launch is intentionally minimal: no inheritance or sandbox claim in slice 2.
@@ -458,7 +458,7 @@ export class Supervisor {
         const q = live.worker.queued?.find(q => q.command_id === id); if (q) q.state = 'dispatched';
       } catch (error) {
         const current = this.receipts.all.get(id);
-        if (current && ['queued', 'intent_ready', 'intent'].includes(current.state)) this.receipts.update(id, { state: 'rejected', stage: 'refused', effect: 'no_effect', error: error instanceof Error ? error.message : 'pending_refused' });
+        if (current && ['queued', 'queue_ready', 'intent_ready', 'intent'].includes(current.state)) this.receipts.update(id, { state: 'rejected', stage: 'refused', effect: 'no_effect', error: error instanceof Error ? error.message : 'pending_refused' });
         const q = live.worker.queued?.find(q => q.command_id === id); if (q) q.state = 'dropped';
       }
       try { this.persist(live); } catch (error) { this.fault(live, error); return; }

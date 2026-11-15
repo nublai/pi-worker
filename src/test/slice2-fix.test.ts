@@ -1,10 +1,34 @@
 /** Review regressions: direct supervisor dispatch and exact settlement evidence. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { Journal, parseJournal } from '../journal.js';
+import { Supervisor } from '../supervisor.js';
 import { join } from 'node:path';
 import { Refusal } from '../types.js';
 import { fixture, bind, tick } from './helpers.js';
+
+for (const kind of ['follow_up', 'child']) test(`automatic ${kind} flush is not owner-ready and recovers without redispatch eligibility`, async () => {
+  const out = spawnSync(process.execPath, [fileURLToPath(new URL('./fixtures/queue-cut.js', import.meta.url)), kind], { encoding: 'utf8', timeout: 15000 });
+  const dir = out.stdout.trim(); assert.equal(out.signal, 'SIGKILL', out.stderr);
+  const journal = new Journal(join(dir, 'journal'));
+  try {
+    const pre = parseJournal(readFileSync(journal.file)).records;
+    const queued = pre.filter(r => r.kind === 'receipt' && r.value.command_id === 'queued').at(-1)!;
+    assert.equal(queued.value.state, 'queue_ready', 'automatic flush must never claim owner resolution');
+    const s = new Supervisor(dir, journal, '1.5.2', () => assert.fail('no spawn/replay')); await s.recover();
+    const r = s.receipts.all.get('queued')!;
+    assert.equal(r.state, 'intent_recovered'); assert.equal(r.effect, 'no_effect');
+    assert.deepEqual(s.list()[0]!.resolutions ?? [], []); assert.equal(s.list()[0]!.fence, null);
+    assert.equal(s.receipts.all.get('create-child'), undefined);
+    const retry = await s.receipts.run('queued', r.operation, kind === 'follow_up'
+      ? { ...bind(s.list()[0]!, 'queued'), worker_id: s.list()[0]!.worker_id, execution_id: s.list()[0]!.execution!.execution_id, message: 'next' }
+      : { ...bind(s.list()[0]!, 'queued'), worker_id: s.list()[0]!.worker_id, execution_id: s.list()[0]!.execution!.execution_id, launch: { command_id: 'create-child', cwd: dir, provider: 'p', model: 'm', thinking: 'off' } }, async () => assert.fail('retry needs owner resolution'));
+    assert.deepEqual(retry, r);
+  } finally { journal.close(); rmSync(dir, { recursive: true }); }
+});
 
 const revoked = () => { throw new Refusal('grant_revoked: direct dispatch test'); };
 test('direct revoked prompt leaves no running execution and never fences on exit', async () => {
@@ -52,6 +76,27 @@ for (const failure of ['collision', 'resume-mismatch', 'cancelled'] as const) te
     await tick();
   } finally { f.cleanup(); }
 });
+test('observed accepts an exact fsynced settlement after restart, never a different run', async () => {
+  const f = fixture(); try {
+    const w = await f.create(); f.hosts[0]!.failure = true;
+    await f.supervisor.prompt(w.worker_id, { ...bind(w, 'lost'), message: 'run' });
+    const now = f.supervisor.get(w.worker_id), execution_id = now.execution!.execution_id;
+    for (const fields of [{ execution_id: 'other', command_id: 'lost' }, { execution_id, command_id: 'other' }]) {
+      f.journal.append('settlement', { worker_id: w.worker_id, session_id: w.session_id, ...fields, source: 'pi.agent_settled' });
+      appendFileSync(f.hosts[0]!.file, JSON.stringify({ type: 'custom', id: 'settlement-' + fields.command_id + fields.execution_id, customType: 'agent_settled', data: fields }) + '\n');
+    }
+    const request = { ...bind(now, 'resolve'), execution_id, fence_generation: now.fence!.fence_generation, disposition: 'observed' as const };
+    await assert.rejects(f.supervisor.resolveUnknown(w.worker_id, request), /execution_settlement_not_in_session_file_or_fsynced_record/);
+    f.hosts[0]!.emit('event', { type: 'agent_settled' });
+    const journal = new Journal(f.journal.file);
+    try {
+      const next = new Supervisor(f.dir, journal, '1.5.2', () => assert.fail('no replay')); await next.recover();
+      assert.equal((await next.resolveUnknown(w.worker_id, request)).state, 'delivered');
+      assert.equal(next.get(w.worker_id).fence, null);
+    } finally { journal.close(); }
+  } finally { f.cleanup(); }
+});
+
 test('observed rejects delivered admission, agent_end and attribution without settlement', async () => {
   const f = fixture(); try {
     const w = await f.create();

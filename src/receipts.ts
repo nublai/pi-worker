@@ -4,7 +4,7 @@
  */
 import { createHash } from 'node:crypto';
 import { Journal } from './journal.js';
-import { Refusal, type Receipt } from './types.js';
+import { Refusal, type Receipt, type Worker } from './types.js';
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
   if (value !== null && typeof value === 'object') return '{' + Object.entries(value).filter(([,v]) => v !== undefined)
@@ -38,14 +38,24 @@ export class ReceiptStore {
     return this.put({ ...current, ...patch });
   }
   recover(): void {
+    const workers = new Map<string, Worker>();
+    for (const record of this.journal.records) if (record.kind === 'worker') {
+      const worker = record.value.worker as Worker; workers.set(worker.worker_id, worker);
+    }
     for (const r of this.all.values()) {
-      if (r.state === 'intent' || r.state === 'queued') this.update(r.command_id, { state: 'intent_recovered', stage: 'recovery_pending', effect: 'no_effect', error: 'restart before dispatch; eligible once after owner resolution, never auto-replayed' });
+      // Legacy automatic intent_ready records are not owner authorization either.
+      const ownerReady = r.worker_id && workers.get(r.worker_id)?.resolutions?.some(x => x.command_id === r.command_id && x.disposition === 'keep');
+      if (r.state === 'intent' || r.state === 'queued' || r.state === 'queue_ready' || (r.state === 'intent_ready' && !ownerReady)) this.update(r.command_id, { state: 'intent_recovered', stage: 'recovery_pending', effect: 'no_effect', error: 'restart before dispatch; eligible once after owner resolution, never auto-replayed' });
       else if (r.state === 'accepted') this.unknown(r.command_id);
     }
   }
+  readyQueued(id: string): Receipt {
+    if (this.all.get(id)?.state !== 'queued') throw new Refusal('not_a_live_queued_intent');
+    return this.update(id, { state: 'queue_ready', stage: 'reserved', effect: 'no_effect' });
+  }
   resolveIntent(id: string, disposition: 'keep' | 'abandon' | 'observed'): Receipt {
     const r = this.all.get(id);
-    if (!r || !['intent_recovered', 'queued', 'intent_ready'].includes(r.state)) throw new Refusal('not_a_recovered_or_queued_intent');
+    if (!r || !['intent_recovered', 'queued', 'queue_ready', 'intent_ready'].includes(r.state)) throw new Refusal('not_a_recovered_or_queued_intent');
     if (disposition === 'observed') throw new Refusal('undispatched_intent_has_no_execution_evidence');
     return this.update(id, disposition === 'keep'
       ? { state: 'intent_ready', stage: 'recovery_pending', effect: 'no_effect', error: 'owner resolved; exact request may dispatch once, never auto-replayed' }
@@ -62,7 +72,7 @@ export class ReceiptStore {
     const prior = this.all.get(command_id);
     if (pending || prior) {
       if ((pending?.operation ?? prior!.operation) !== operation || (pending?.hash ?? prior!.request_hash) !== hash) throw new Refusal('command_id_conflict');
-      if (pending || prior!.state !== 'intent_ready') return pending?.promise ?? Promise.resolve(prior!);
+      if (pending || !['intent_ready', 'queue_ready'].includes(prior!.state)) return pending?.promise ?? Promise.resolve(prior!);
     }
     const result = Promise.resolve().then(async () => {
       // Validate and reserve atomically with the synchronous pre-dispatch part of
@@ -93,7 +103,7 @@ export class ReceiptStore {
     return result;
   }
   dispatch(command_id: string, patch: Partial<Receipt> = {}): Receipt {
-    if (!['intent', 'intent_ready'].includes(this.all.get(command_id)?.state ?? '')) throw new Error('dispatch requires fresh intent; recovered intent needs owner resolution');
+    if (!['intent', 'intent_ready', 'queue_ready'].includes(this.all.get(command_id)?.state ?? '')) throw new Error('dispatch requires fresh intent; recovered intent needs owner resolution');
     return this.update(command_id, { ...patch, state: 'accepted', stage: 'dispatch_recorded', effect: 'unknown' });
   }
 }

@@ -60,6 +60,13 @@ test('recovery separates undispatched intent from dispatch; neither is replayed'
     assert.equal(recovered.all.get('sent')?.effect, 'unknown');
   } finally { f.cleanup(); }
 });
+test('legacy intent_ready without an owner tombstone recovers as no_effect, not ready', () => {
+  const f = fixture(); try {
+    f.store.put({ command_id: 'legacy-auto', operation: 'sessions.follow_up', worker_id: 'w', request_hash: 'hash', state: 'intent_ready', stage: 'recovery_pending', effect: 'no_effect', evidence: 'supervisor_journal_fsynced', created_at: 'fixture' });
+    const recovered = new ReceiptStore(f.journal); recovered.recover();
+    assert.equal(recovered.all.get('legacy-auto')?.state, 'intent_recovered');
+  } finally { f.cleanup(); }
+});
 test('journal admission reserves full result room and never begins an effect without it', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'a0-capacity-'));
   const journal = new Journal(join(dir, 'journal'), 1024);
