@@ -12,7 +12,7 @@ function run(mode: string, root: string, cut?: number, trace = false, effectCut?
   return spawnSync(process.execPath, [child, mode, root], { encoding: 'utf8', timeout: 15000, maxBuffer: 4 * 1024 * 1024, env: { ...process.env, A0_TRACE_FSYNC: trace ? '1' : '', A0_CRASH_INDEX: cut ? String(cut) : '', A0_CRASH_AT: '', A0_CRASH_EFFECT: effectCut ? String(effectCut) : '' } });
 }
 type Summary = { receipts: Receipt[]; workers: Worker[] };
-type Effect = { kind: 'create' | 'prompt' | 'rebind'; command_id: string; parent_launch_command_id?: string; session_file: string; session_id?: string; entry_id?: string; spawned?: boolean; cwd?: string };
+type Effect = { kind: 'create' | 'prompt' | 'rebind' | 'clear_queue' | 'abort' | 'stop'; command_id: string; parent_launch_command_id?: string; session_file: string; session_id?: string; entry_id?: string; spawned?: boolean; cwd?: string; native_file?: string; operation?: string };
 function summary(output: string): Summary { return JSON.parse(output.trim().split('\n').at(-1)!) as Summary; }
 const bytes = (path: string) => existsSync(path) ? readFileSync(path, 'utf8') : '';
 const temp = (name: string) => mkdtempSync(join(tmpdir(), 'a0s2-' + name + '-'));
@@ -41,8 +41,9 @@ function checkRecovery(root: string, pre: ReturnType<typeof parseJournal>['recor
   // not the journal's intent->bucket mapping. Also check the parent launch receipt.
   const count = new Set<string>();
   for (const effect of effectsAt(root)) {
-    const native = bytes(effect.session_file).trim().split('\n').filter(Boolean).map(line => JSON.parse(line) as Record<string, unknown>);
-    if (effect.kind === 'prompt') assert.ok(native.some(entry => entry.type === 'message' && entry.id === effect.entry_id), 'Pi input file must corroborate prompt effect');
+    const native = bytes(effect.native_file ?? effect.session_file).trim().split('\n').filter(Boolean).map(line => JSON.parse(line) as Record<string, unknown>);
+    if (effect.native_file) assert.ok(native.some(entry => entry.command_id === effect.command_id && entry.operation === effect.operation), 'native control artifact must corroborate effect');
+    else if (effect.kind === 'prompt') assert.ok(native.some(entry => entry.type === 'message' && entry.id === effect.entry_id), 'Pi input file must corroborate prompt effect');
     else assert.ok(native.some(entry => entry.type === 'session' && entry.id === effect.session_id), 'Pi header must corroborate create/rebind effect');
     if (effect.kind === 'create') { assert.equal(effect.spawned, true); assert.ok(effect.cwd); }
     for (const id of [effect.command_id, ...(effect.parent_launch_command_id ? [effect.parent_launch_command_id] : [])]) {
@@ -81,12 +82,13 @@ function checkRecovery(root: string, pre: ReturnType<typeof parseJournal>['recor
   assert.deepEqual(summary(second.stdout).workers.map(w => w.fence), after.workers.map(w => w.fence), 'restart must not relatch a resolved item or churn a generation');
   return { buckets: [...new Set(after.receipts.map(r => `${r.state}/${r.effect}`))].sort(), effects: count.size };
 }
-for (const kind of ['prompt', 'rebind', 'create', 'child launch'] as const) test(`effect cut ${kind}: native evidence forbids no_effect and recovered buckets require fences`, { timeout: 120000 }, () => {
+for (const kind of ['prompt', 'rebind', 'create', 'child launch', 'cancel clear_queue', 'cancel abort', 'interrupt clear_queue', 'interrupt abort', 'stop'] as const) test(`effect cut ${kind}: native evidence forbids no_effect and recovered buckets require fences`, { timeout: 120000 }, () => {
   const baseline = temp('effect-base');
   try {
     const full = run('scenario', baseline); assert.equal(full.status, 0, full.stderr);
     const effects = effectsAt(baseline);
-    const points = effects.flatMap((e, i) => (kind === 'child launch' ? !!e.parent_launch_command_id : e.kind === kind && !e.parent_launch_command_id) ? [i + 1] : []);
+    const [control, operation] = kind.split(' ');
+    const points = effects.flatMap((e, i) => (kind === 'child launch' ? !!e.parent_launch_command_id : operation ? e.kind === operation && e.command_id.endsWith('-' + control) : e.kind === kind && !e.parent_launch_command_id) ? [i + 1] : []);
     assert.ok(points.length > 0);
     for (const point of points) {
       const root = temp('effect-cut');

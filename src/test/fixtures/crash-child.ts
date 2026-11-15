@@ -6,7 +6,7 @@ import { Journal } from '../../journal.js';
 import { Supervisor } from '../../supervisor.js';
 import { Host, bind, tick } from '../helpers.js';
 import type { PiRecord, PiResponse } from '../../host.js';
-import type { Binding, Create, Prompt, Rebind, Resolve, Worker } from '../../types.js';
+import type { Binding, Control, Create, Prompt, Rebind, Resolve, Worker } from '../../types.js';
 const [mode, root] = process.argv.slice(2) as [string, string];
 assert.ok(root && isAbsolute(root), 'parent supplies a per-run temporary directory');
 mkdirSync(root, { recursive: true, mode: 0o700 });
@@ -18,6 +18,18 @@ function effect(value: Record<string, unknown>): void {
 }
 class EffectHost extends Host {
   gate?: Promise<never>; release?: () => void;
+  effectCommand?: string;
+  private controlEffect(operation: string): void {
+    if (!this.effectCommand) return; // Only explicit controls, never recovery cleanup.
+    const native_file = join(root, 'native-controls.jsonl');
+    const record = { command_id: this.effectCommand, operation };
+    appendFileSync(native_file, JSON.stringify(record) + '\n');
+    effect({ kind: operation, ...record, native_file });
+  }
+  override async stop(): Promise<boolean> {
+    const gone = await super.stop();
+    this.controlEffect('stop'); return gone;
+  }
   hold(): void { this.gate = new Promise<never>((_r, reject) => { this.release = () => reject(new Error('dropped_reply')); }); }
   override async request(c: PiRecord): Promise<PiResponse> {
     if (c.type === 'prompt') {
@@ -25,6 +37,7 @@ class EffectHost extends Host {
       effect({ kind: 'prompt', command_id: c.message, session_file: this.file, entry_id: c.message });
     }
     const result = await super.request(c);
+    if (c.type === 'clear_queue' || c.type === 'abort') this.controlEffect(c.type);
     if (['new_session', 'switch_session', 'fork'].includes(c.type)) effect({ kind: 'rebind', command_id: c.type === 'new_session' ? 'new' : c.type === 'switch_session' ? 'resume' : 'fork', session_file: this.file, session_id: this.sid });
     if (c.type === 'prompt' && this.gate) { const gate = this.gate; this.gate = undefined; await gate; }
     return result;
@@ -47,7 +60,12 @@ async function call(op: string, body: Record<string, unknown>, id?: string) {
     case 'prompt': return supervisor.prompt(id!, body as Prompt);
     case 'rebind': return supervisor.rebind(id!, body as Rebind);
     case 'resolve': return supervisor.resolveUnknown(id!, body as Resolve);
-    case 'stop': return supervisor.stop(id!, body as Binding);
+    case 'cancel': case 'interrupt': case 'stop': {
+      const h = hosts.find(h => h.file === supervisor.require(id!).sessionFile);
+      if (h) h.effectCommand = String(body.command_id);
+      try { return op === 'stop' ? await supervisor.stop(id!, body as Binding) : await supervisor.control(id!, body as Control, op === 'interrupt'); }
+      finally { if (h) h.effectCommand = undefined; }
+    }
     default: throw new Error('unsupported crash fixture op');
   }
 }
@@ -77,8 +95,8 @@ if (mode === 'scenario') {
     const f = supervisor.get(w.worker_id).fence!;
     await call('resolve', { ...bind(w, disposition + '-resolve'), uncertain_command_id: disposition + '-run', fence_generation: f.fence_generation, disposition }, w.worker_id);
     await tick(); await tick(); h.emit('event', { type: 'agent_settled' }); await tick(); await tick();
-    await supervisor.control(w.worker_id, bind(w, disposition + '-cancel'), false);
-    await supervisor.control(w.worker_id, bind(w, disposition + '-interrupt'), true);
+    await call('cancel', bind(w, disposition + '-cancel'), w.worker_id);
+    await call('interrupt', bind(w, disposition + '-interrupt'), w.worker_id);
     await supervisor.report(w.worker_id, { ...bind(w, disposition + '-report'), task_id: 'task', result_digest: 'sha256:fixture' });
     await call('stop', bind(w, disposition + '-stop'), w.worker_id);
   }
