@@ -13,7 +13,7 @@ import { killGroup } from './process.js';
 import { Refusal, type Binding, type Create, type Prompt, type Worker, type Receipt, type Hello, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
 type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null };
 type Pending = { kind: 'follow_up' | 'child'; request: FollowUp | ChildLaunch; guard: () => void };
-type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; rebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout> };
+type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; exited?: boolean; rebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout> };
 export type HostFactory = (create: Create, sessionDir: string) => SessionHost;
 export class Supervisor {
   readonly epoch = randomUUID();
@@ -54,7 +54,7 @@ export class Supervisor {
         if (receipt?.state === 'intent_recovered') this.receipts.resolveIntent(command, resolution.disposition);
       }
       for (const queued of w.queued ?? []) if (!['dropped', 'dispatched'].includes(queued.state)) queued.state = 'recovered';
-      if (active && !resolved.has(w.execution!.command_id)) {
+      if (active && (!resolved.has(w.execution!.command_id) || ['ready', 'starting'].includes(w.status))) {
         const id = w.execution!.command_id;
         const receipt = this.receipts.all.get(id);
         if (receipt?.effect === 'no_effect' && (receipt.state === 'intent_recovered' || receipt.state === 'rejected')) {
@@ -71,12 +71,22 @@ export class Supervisor {
         w.status = gone ? 'stopped' : 'cleanup_pending';
         w.cleanup = gone ? 'process_group_observed_gone; escaped_descendants_unproven' : 'unresolved';
         if (gone) live.pid = null;
+      } else if (w.status === 'ready') {
+        w.status = 'cleanup_pending'; w.cleanup = 'ready_without_process_identity';
       } else if (w.status === 'starting') {
         // No process identity after a crash may be the spawn-to-record cut. Do not
         // release the environment or claim cleanup without evidence.
         w.status = 'cleanup_pending'; w.cleanup = 'spawn_identity_unrecorded';
       }
       this.persist(live);
+    }
+    for (const child of this.workers.values()) {
+      const launch = child.worker.parent_launch_command_id, parentId = child.worker.parent_worker_id;
+      if (!launch || !parentId) continue;
+      const parent = this.require(parentId);
+      const resolved = parent.worker.resolutions?.some(r => r.command_id === launch);
+      const reported = [...this.receipts.all.values()].some(r => r.operation === 'children.report' && r.worker_id === child.worker.worker_id && r.state === 'delivered' && r.result?.task_id === launch);
+      if (!reported && !resolved) this.fence(parent, launch);
     }
   }
   hello(): Hello {
@@ -203,6 +213,8 @@ export class Supervisor {
     live.hub.publish(event.type, event, w.execution?.execution_id ?? null, 'pi');
   }
   private onExit(live: Live): void {
+    if (live.exited) return;
+    live.exited = true;
     if (live.worker.execution && live.worker.execution.state !== 'settled') {
       const id = live.worker.execution.command_id;
       this.receipts.unknown(id); this.fence(live, id);
@@ -276,13 +288,12 @@ export class Supervisor {
       this.refresh(live); this.persist(live);
       return { state: 'delivered', stage: 'forwarded', effect: 'observed', admission: 'accepted', disposition, history_lag: w.history.lag };
     }, () => {
-      live = this.require(id); const w = live.worker; this.binding(live, p);
-      this.writable(live); this.refresh(live);
+      live = this.require(id); const w = live.worker; this.writable(live); this.binding(live, p); this.refresh(live);
       if (w.status !== 'ready' || !live.host || live.faulted) throw new Refusal('worker_not_ready');
       if (w.foreground !== 'idle') throw new Refusal('busy_prompt_requires_explicit_steer_or_follow_up_not_supported');
       if (p.message.trimStart().startsWith('/')) throw new Refusal('slash_commands_use_typed_rebind_or_unsupported');
     });
-    if (receipt.state === 'outcome_unknown' && receipt.worker_id) this.fence(this.require(id), p.command_id);
+    if (receipt.state === 'outcome_unknown' && receipt.worker_id && !this.require(id).worker.resolutions?.some(r => r.command_id === p.command_id)) this.fence(this.require(id), p.command_id);
     return receipt;
   }
   private writable(live: Live): void {
@@ -334,6 +345,8 @@ export class Supervisor {
     });
   }
   async rebind(id: string, b: Rebind): Promise<Receipt> {
+    const prior = this.receipts.all.get(b.command_id);
+    const fresh = !prior || prior.state === 'intent_ready';
     let live: Live, target: string | undefined;
     const receipt = await this.receipts.run(b.command_id, 'sessions.rebind', { ...b, worker_id: id }, async () => {
       const w = live.worker, old = { session_id: w.session_id, binding_revision: w.binding_revision };
@@ -359,7 +372,7 @@ export class Supervisor {
         return { state: 'delivered', stage: 'forwarded', effect: 'observed', result: { session_id: w.session_id, binding_revision: w.binding_revision } };
       } finally { live.rebinding = false; if (b.target_session_id && this.sessionReservations.get(b.target_session_id) === id) this.sessionReservations.delete(b.target_session_id); }
     }, () => {
-      live = this.require(id); const w = live.worker; this.binding(live, b); this.writable(live);
+      live = this.require(id); const w = live.worker; this.writable(live); this.binding(live, b);
       if (w.status !== 'ready' || !live.host || live.faulted) throw new Refusal('cleanup_pending_or_worker_not_ready');
       if (w.foreground !== 'idle') throw new Refusal('binding_change_requires_idle');
       if (b.action === 'navigate') throw new Refusal('pi_1_5_2_rpc_tree_navigation_unavailable');
@@ -379,7 +392,7 @@ export class Supervisor {
         target = known.file;
       }
     });
-    if (receipt.state === 'outcome_unknown') {
+    if (fresh && receipt.state === 'outcome_unknown') {
       const uncertain = this.require(id); this.fence(uncertain, b.command_id); this.fault(uncertain, new Error('binding_change_unknown'));
     }
     return receipt;
@@ -395,7 +408,7 @@ export class Supervisor {
       setImmediate(() => { void this.flushPending(live); });
       return { state: 'queued', stage: 'reserved', effect: 'no_effect', admission: 'queued', worker_id: id };
     }, () => {
-      live = this.require(id); this.binding(live, request); this.writable(live);
+      live = this.require(id); this.writable(live); this.binding(live, request);
       if (live.worker.status !== 'ready' || !live.host) throw new Refusal('worker_not_ready');
       if (request.execution_id !== live.worker.execution?.execution_id) throw new Refusal('stale_execution');
       if ((live.pending?.size ?? 0) >= 32) throw new Refusal('pending_capacity');
@@ -427,6 +440,10 @@ export class Supervisor {
             // Child launch is intentionally minimal: no inheritance or sandbox claim in slice 2.
             this.receipts.dispatch(id, { worker_id: live.worker.worker_id });
             const child = await this.create((pending.request as ChildLaunch).launch);
+            if (child.worker_id) {
+              const childLive = this.require(child.worker_id);
+              childLive.worker.parent_worker_id = live.worker.worker_id; childLive.worker.parent_launch_command_id = id; this.persist(childLive);
+            }
             this.receipts.update(id, { state: child.effect === 'unknown' ? 'outcome_unknown' : 'delivered', stage: 'forwarded', effect: child.effect, result: { child_command_id: child.command_id, child_worker_id: child.worker_id } });
             if (child.effect === 'unknown') this.fence(live, id);
           }

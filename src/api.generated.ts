@@ -328,6 +328,8 @@ export interface components {
                 disposition: "keep" | "abandon" | "observed";
                 fence_generation: number;
             }[];
+            parent_worker_id?: string;
+            parent_launch_command_id?: string;
         };
         Receipt: {
             command_id: string;

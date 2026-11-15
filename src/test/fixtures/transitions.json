@@ -1,0 +1,513 @@
+{
+  "prototype": true,
+  "fixture_schema": 1,
+  "contract_revision": 5,
+  "setup": "fresh idle worker and controller grant; fixture-only host lifecycle controls, never inferred model effects",
+  "macros": {
+    "unknown": [
+      {
+        "kind": "host_reply",
+        "mode": "drop"
+      },
+      {
+        "kind": "call",
+        "method": "sessions.prompt",
+        "command_id": "uncertain",
+        "binding": "initial",
+        "fields": {
+          "message": "uncertain"
+        }
+      }
+    ],
+    "queued": [
+      {
+        "kind": "host_reply",
+        "mode": "hold"
+      },
+      {
+        "kind": "begin",
+        "method": "sessions.prompt",
+        "command_id": "uncertain",
+        "binding": "initial",
+        "fields": {
+          "message": "uncertain"
+        }
+      },
+      {
+        "kind": "call",
+        "method": "sessions.follow_up",
+        "command_id": "queued-follow",
+        "binding": "initial",
+        "fields": {
+          "message": "follow",
+          "execution_id": "@worker.execution.execution_id"
+        }
+      },
+      {
+        "kind": "call",
+        "method": "children.launch",
+        "command_id": "queued-child",
+        "binding": "initial",
+        "fields": {
+          "execution_id": "@worker.execution.execution_id",
+          "launch": {
+            "command_id": "child-create",
+            "cwd": "@child_cwd",
+            "provider": "fixture",
+            "model": "fixture",
+            "thinking": "off"
+          }
+        }
+      },
+      {
+        "kind": "drop_reply"
+      },
+      {
+        "kind": "host_event",
+        "event": {
+          "type": "agent_settled"
+        }
+      },
+      {
+        "kind": "drain"
+      }
+    ]
+  },
+  "rows": [
+    {
+      "id": "01-binding",
+      "from": "bound(rev n)",
+      "event": "/new, fork, resume, tree move",
+      "to": "bound(rev n+1)",
+      "coverage": "partial: new/fork/resume tested; direct RPC tree navigation unsupported in Pi 1.5.2",
+      "steps": [
+        {
+          "kind": "call",
+          "method": "sessions.rebind",
+          "command_id": "new",
+          "binding": "initial",
+          "fields": {
+            "action": "new"
+          }
+        },
+        {
+          "kind": "call",
+          "method": "sessions.prompt",
+          "command_id": "stale",
+          "binding": "initial",
+          "fields": {
+            "message": "must not run"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "path": "worker.binding_revision",
+          "equals": 2
+        },
+        {
+          "path": "result.effect",
+          "equals": "no_effect"
+        },
+        {
+          "path": "result.received_binding_revision",
+          "equals": 1
+        },
+        {
+          "path": "effects.prompts",
+          "equals": 0
+        }
+      ]
+    },
+    {
+      "id": "02-unknown",
+      "from": "bound",
+      "event": "mutation outcome_unknown",
+      "to": "fenced(g)",
+      "steps": [
+        {
+          "macro": "unknown"
+        }
+      ],
+      "expect": [
+        {
+          "path": "result.effect",
+          "equals": "unknown"
+        },
+        {
+          "path": "worker.fence.command_id",
+          "equals": "uncertain"
+        },
+        {
+          "path": "disk.fence.command_id",
+          "equals": "uncertain"
+        }
+      ]
+    },
+    {
+      "id": "03-fenced-write",
+      "from": "fenced(g)",
+      "event": "any write",
+      "to": "fenced(g)",
+      "steps": [
+        {
+          "macro": "unknown"
+        },
+        {
+          "kind": "call",
+          "method": "sessions.prompt",
+          "command_id": "denied",
+          "binding": "initial",
+          "fields": {
+            "message": "no effect"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "path": "result.effect",
+          "equals": "no_effect"
+        },
+        {
+          "path": "result.uncertain_command_id",
+          "equals": "uncertain"
+        },
+        {
+          "path": "effects.prompts",
+          "equals": 1
+        }
+      ]
+    },
+    {
+      "id": "04-paused",
+      "from": "fenced(g)",
+      "event": "queued follow-up or child due",
+      "to": "fenced(g)",
+      "steps": [
+        {
+          "macro": "queued"
+        }
+      ],
+      "expect": [
+        {
+          "path": "worker.queued.0.state",
+          "equals": "paused"
+        },
+        {
+          "path": "worker.queued.1.state",
+          "equals": "paused"
+        },
+        {
+          "path": "effects.prompts",
+          "equals": 1
+        },
+        {
+          "path": "effects.hosts",
+          "equals": 1
+        }
+      ]
+    },
+    {
+      "id": "05-keep",
+      "from": "fenced(g)",
+      "event": "resolve_unknown(g, keep)",
+      "to": "bound",
+      "steps": [
+        {
+          "macro": "queued"
+        },
+        {
+          "kind": "call",
+          "method": "sessions.resolve_unknown",
+          "command_id": "resolve",
+          "binding": "initial",
+          "fields": {
+            "uncertain_command_id": "uncertain",
+            "fence_generation": "@worker.fence.fence_generation",
+            "disposition": "keep"
+          }
+        },
+        {
+          "kind": "drain"
+        },
+        {
+          "kind": "host_event",
+          "event": {
+            "type": "agent_settled"
+          }
+        },
+        {
+          "kind": "drain"
+        }
+      ],
+      "expect": [
+        {
+          "path": "worker.fence",
+          "equals": null
+        },
+        {
+          "path": "effects.prompts",
+          "equals": 2
+        },
+        {
+          "path": "effects.hosts",
+          "equals": 2
+        },
+        {
+          "path": "worker.queued.0.state",
+          "equals": "dispatched"
+        },
+        {
+          "path": "worker.queued.1.state",
+          "equals": "dispatched"
+        }
+      ]
+    },
+    {
+      "id": "06-abandon",
+      "from": "fenced(g)",
+      "event": "resolve_unknown(g, abandon)",
+      "to": "bound",
+      "steps": [
+        {
+          "macro": "queued"
+        },
+        {
+          "kind": "call",
+          "method": "sessions.resolve_unknown",
+          "command_id": "resolve",
+          "binding": "initial",
+          "fields": {
+            "uncertain_command_id": "uncertain",
+            "fence_generation": "@worker.fence.fence_generation",
+            "disposition": "abandon"
+          }
+        },
+        {
+          "kind": "drain"
+        }
+      ],
+      "expect": [
+        {
+          "path": "worker.fence",
+          "equals": null
+        },
+        {
+          "path": "effects.prompts",
+          "equals": 1
+        },
+        {
+          "path": "effects.hosts",
+          "equals": 1
+        },
+        {
+          "path": "worker.queued.0.state",
+          "equals": "dropped"
+        },
+        {
+          "path": "worker.queued.1.state",
+          "equals": "dropped"
+        }
+      ]
+    },
+    {
+      "id": "07-observed",
+      "from": "fenced(g)",
+      "event": "resolve_unknown(g, observed)",
+      "to": "bound",
+      "steps": [
+        {
+          "kind": "call",
+          "method": "sessions.prompt",
+          "command_id": "uncertain",
+          "binding": "initial",
+          "fields": {
+            "message": "uncertain"
+          }
+        },
+        {
+          "kind": "host_event",
+          "event": {
+            "type": "exit"
+          }
+        },
+        {
+          "kind": "call",
+          "method": "sessions.resolve_unknown",
+          "command_id": "resolve",
+          "binding": "initial",
+          "fields": {
+            "uncertain_command_id": "uncertain",
+            "fence_generation": "@worker.fence.fence_generation",
+            "disposition": "observed"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "path": "worker.fence",
+          "equals": null
+        },
+        {
+          "path": "result.state",
+          "equals": "delivered"
+        },
+        {
+          "path": "effects.prompts",
+          "equals": 1
+        }
+      ]
+    },
+    {
+      "id": "08-generation",
+      "from": "fenced(g)",
+      "event": "resolve_unknown(g != supplied)",
+      "to": "fenced(g)",
+      "steps": [
+        {
+          "macro": "unknown"
+        },
+        {
+          "kind": "call",
+          "method": "sessions.resolve_unknown",
+          "command_id": "resolve",
+          "binding": "initial",
+          "fields": {
+            "uncertain_command_id": "uncertain",
+            "fence_generation": 999,
+            "disposition": "keep"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "path": "result.effect",
+          "equals": "no_effect"
+        },
+        {
+          "path": "result.error",
+          "equals": "wrong_fence_generation"
+        },
+        {
+          "path": "worker.fence.fence_generation",
+          "equals": 1
+        }
+      ]
+    },
+    {
+      "id": "09-restart",
+      "from": "any",
+      "event": "supervisor restart",
+      "to": "cleanup_pending",
+      "profile": "unconfirmed_native_identity",
+      "steps": [
+        {
+          "kind": "call",
+          "method": "sessions.prompt",
+          "command_id": "uncertain",
+          "binding": "initial",
+          "fields": {
+            "message": "uncertain"
+          }
+        },
+        {
+          "kind": "restart"
+        }
+      ],
+      "expect": [
+        {
+          "path": "worker.status",
+          "equals": "cleanup_pending"
+        },
+        {
+          "path": "worker.fence.command_id",
+          "equals": "uncertain"
+        },
+        {
+          "path": "effects.prompts",
+          "equals": 1
+        }
+      ]
+    },
+    {
+      "id": "10-cleanup-resume",
+      "from": "cleanup_pending",
+      "event": "resume",
+      "to": "cleanup_pending",
+      "profile": "unconfirmed_native_identity",
+      "steps": [
+        {
+          "kind": "call",
+          "method": "sessions.prompt",
+          "command_id": "uncertain",
+          "binding": "initial",
+          "fields": {
+            "message": "uncertain"
+          }
+        },
+        {
+          "kind": "restart"
+        },
+        {
+          "kind": "call",
+          "method": "sessions.rebind",
+          "command_id": "resume",
+          "binding": "initial",
+          "fields": {
+            "action": "resume",
+            "target_session_id": "@initial.session_id"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "path": "worker.status",
+          "equals": "cleanup_pending"
+        },
+        {
+          "path": "result.effect",
+          "equals": "no_effect"
+        }
+      ]
+    },
+    {
+      "id": "11-control",
+      "from": "any",
+      "event": "cancel or interrupt",
+      "to": "same state",
+      "steps": [
+        {
+          "macro": "unknown"
+        },
+        {
+          "kind": "call",
+          "method": "executions.cancel",
+          "command_id": "cancel",
+          "binding": "initial",
+          "fields": {}
+        },
+        {
+          "kind": "call",
+          "method": "executions.interrupt",
+          "command_id": "interrupt",
+          "binding": "initial",
+          "fields": {}
+        }
+      ],
+      "expect": [
+        {
+          "path": "worker.fence.command_id",
+          "equals": "uncertain"
+        },
+        {
+          "path": "worker.fence.fence_generation",
+          "equals": 1
+        },
+        {
+          "path": "result.result.requested",
+          "equals": true
+        }
+      ]
+    }
+  ]
+}

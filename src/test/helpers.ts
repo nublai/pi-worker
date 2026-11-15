@@ -7,7 +7,7 @@ import { Supervisor } from '../supervisor.js';
 import type { SessionHost, PiRecord, PiResponse } from '../host.js';
 import type { Worker, Binding } from '../types.js';
 export class Host extends EventEmitter implements SessionHost {
-  pid = undefined; token = null; prompts = 0; stops = 0; failure = false; serial = 0;
+  pid: number | undefined = undefined; token = null; prompts = 0; stops = 0; failure = false; serial = 0;
   commands: PiRecord[] = []; before = (_c: PiRecord) => {};
   cancelled: string[] = []; holdUI = false;
   constructor(readonly dir: string, public sid: string, public file: string) { super(); }
@@ -32,7 +32,7 @@ export class Host extends EventEmitter implements SessionHost {
 }
 export const bind = (w: Worker, command_id: string): Binding => ({ command_id, session_id: w.session_id!, worker_epoch: w.worker_epoch, binding_revision: w.binding_revision });
 export const tick = () => new Promise<void>(r => setImmediate(r));
-export function fixture() {
+export function fixture(config: { unconfirmedIdentity?: boolean } = {}) {
   mkdirSync('/tmp/a0s2', { recursive: true });
   const dir = mkdtempSync('/tmp/a0s2/core-');
   const journal = new Journal(join(dir, 'journal'));
@@ -40,7 +40,8 @@ export function fixture() {
   const supervisor = new Supervisor(dir, journal, '1.5.2', () => {
     const sid = `session-${hosts.length}`, file = join(dir, sid + '.jsonl');
     writeFileSync(file, JSON.stringify({ type: 'session', id: sid }) + '\n');
-    const host = new Host(dir, sid, file); hosts.push(host); return host;
+    const host = new Host(dir, sid, file); if (config.unconfirmedIdentity) host.pid = 2147483647;
+    hosts.push(host); return host;
   });
   const create = async () => {
     const cwd = join(dir, 'cwd-' + hosts.length); mkdirSync(cwd);

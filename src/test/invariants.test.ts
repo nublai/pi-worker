@@ -58,19 +58,18 @@ test('multiple uncertainties retained, generation monotonic after partial resolu
 for (const disposition of ['keep', 'abandon'] as const) test(`queued follow-up and pending child pause under fence then ${disposition}`, async () => {
   const f = fixture(); try {
     const w = await f.create(), h = f.hosts[0]!;
-    await f.supervisor.prompt(w.worker_id, { ...bind(w, 'run'), message: 'run' });
+    const native = h.request.bind(h); let reject!: () => void; let first = true;
+    const dropped = new Promise<never>((_r, no) => { reject = () => no(new Error('lost reply')); });
+    h.request = async c => { const reply = await native(c); if (c.type === 'prompt' && first) { first = false; await dropped; } return reply; };
+    const pending = f.supervisor.prompt(w.worker_id, { ...bind(w, 'run'), message: 'run' }); await tick();
     const running = f.supervisor.get(w.worker_id), execution_id = running.execution!.execution_id;
     await f.supervisor.followUp(w.worker_id, { ...bind(w, 'follow'), message: 'next', execution_id });
     await f.supervisor.launchChild(w.worker_id, { ...bind(w, 'child'), execution_id, launch: { command_id: 'create-child', cwd: f.dir, provider: 'p', model: 'm', thinking: 'off' } });
-    h.failure = true;
-    // Host exit preserves the queue; emulate a transport loss without stopping the live host.
-    h.emit('exit');
+    reject(); await pending;
     h.emit('event', { type: 'agent_settled' }); await tick();
     assert.equal(h.prompts, 1); assert.equal(f.hosts.length, 1);
     const fenced = f.supervisor.get(w.worker_id); assert.ok(fenced.queued!.every(q => q.state === 'paused'));
     for (const action of [() => f.supervisor.prompt(w.worker_id, { ...bind(w, 'denied'), message: 'no' }), () => f.supervisor.rebind(w.worker_id, { ...bind(w, 'new'), action: 'new' }), () => f.supervisor.followUp(w.worker_id, { ...bind(w, 'more'), execution_id, message: 'no' })]) await assert.rejects(action(), (e: unknown) => e instanceof Refusal && e.effect === 'no_effect' && e.uncertain_command_id === 'run');
-    // The fake host remains available: only the fence, not readiness, controls due work here.
-    f.supervisor.require(w.worker_id).worker.status = 'ready'; h.failure = false;
     await f.supervisor.resolveUnknown(w.worker_id, { ...bind(w, 'resolve'), uncertain_command_id: 'run', fence_generation: fenced.fence!.fence_generation, disposition });
     await tick(); await tick();
     if (disposition === 'keep') {
@@ -82,8 +81,10 @@ for (const disposition of ['keep', 'abandon'] as const) test(`queued follow-up a
 test('new/fork/resume change same-process binding; stale delayed prompt and duplicate open name cause', async () => {
   const f = fixture(); try {
     const original = await f.create(), id = original.worker_id, h = f.hosts[0]!;
-    const frames: string[] = []; const detach = h.on('event', () => {});
-    f.supervisor.require(id).hub.attach(() => f.supervisor.get(id), null, frame => frames.push(frame.type))();
+    const frames: string[] = [];
+    const detach = f.supervisor.require(id).hub.attach(() => f.supervisor.get(id), null, frame => frames.push(frame.type));
+    h.holdUI = true; h.emit('event', { type: 'extension_ui_request', id: 'old-question', method: 'input' });
+    assert.equal(f.supervisor.get(id).pending_interactions.length, 1); h.holdUI = false;
     const r = await f.supervisor.rebind(id, { ...bind(original, 'new'), action: 'new' }); assert.equal(r.state, 'delivered');
     let current = f.supervisor.get(id); assert.equal(current.binding_revision, 2); assert.notEqual(current.session_id, original.session_id);
     await assert.rejects(f.supervisor.prompt(id, { ...bind(original, 'delayed'), message: 'no' }), (e: unknown) => e instanceof Refusal && e.effect === 'no_effect' && e.details.received_binding_revision === 1);
@@ -97,7 +98,8 @@ test('new/fork/resume change same-process binding; stale delayed prompt and dupl
     await assert.rejects(f.supervisor.rebind(id, { ...bind(current, 'navigate'), action: 'navigate', entry_id: 'user' }), /tree_navigation_unavailable/);
     const second = await f.create();
     await assert.rejects(f.supervisor.rebind(second.worker_id, { ...bind(second, 'duplicate-open'), action: 'resume', target_session_id: current.session_id! }), (e: unknown) => e instanceof Refusal && e.effect === 'no_effect' && e.details.holder_worker_id === id);
-    assert.equal(h.prompts, 0); assert.equal(detach, h);
+    assert.equal(h.prompts, 0); assert.deepEqual(f.supervisor.get(id).pending_interactions, []);
+    assert.ok(h.cancelled.includes('old-question')); assert.ok(frames.includes('session_rebound')); detach();
   } finally { f.cleanup(); }
 });
 test('recovered intent only dispatches once after owner resolution and exact retry', async () => {
@@ -111,6 +113,21 @@ test('recovered intent only dispatches once after owner resolution and exact ret
     const a = await f.supervisor.prompt(w.worker_id, p); assert.equal(a.state, 'delivered');
     assert.deepEqual(await f.supervisor.prompt(w.worker_id, p), a); assert.equal(f.hosts[0]!.prompts, 1);
     assert.ok(!readFileSync(f.journal.file, 'utf8').includes(p.message + '"'));
+  } finally { f.cleanup(); }
+});
+test('resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation', async () => {
+  const f = fixture(); try {
+    const w = await f.create(), p = { ...bind(w, 'lost'), message: 'live' }; f.hosts[0]!.failure = true;
+    const original = await f.supervisor.prompt(w.worker_id, p);
+    await f.supervisor.resolveUnknown(w.worker_id, { ...bind(w, 'resolve'), uncertain_command_id: 'lost', fence_generation: 1, disposition: 'keep' });
+    assert.equal(f.supervisor.get(w.worker_id).fence, null);
+    assert.deepEqual(await f.supervisor.prompt(w.worker_id, p), original); assert.equal(f.supervisor.get(w.worker_id).fence, null);
+    const journal = new Journal(f.journal.file);
+    try {
+      const next = new Supervisor(f.dir, journal, '1.5.2', () => { assert.fail('no adoption'); }); await next.recover();
+      assert.equal(next.get(w.worker_id).fence?.fence_generation, 2);
+      assert.equal(next.get(w.worker_id).fence?.command_id, 'lost');
+    } finally { journal.close(); }
   } finally { f.cleanup(); }
 });
 test('cancel, interrupt and evidence reports allowed under fence without lifting it', async () => {

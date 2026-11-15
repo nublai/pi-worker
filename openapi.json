@@ -1414,6 +1414,12 @@
               ],
               "additionalProperties": false
             }
+          },
+          "parent_worker_id": {
+            "type": "string"
+          },
+          "parent_launch_command_id": {
+            "type": "string"
           }
         },
         "required": [

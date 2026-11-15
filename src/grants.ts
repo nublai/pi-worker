@@ -1,20 +1,26 @@
 /** THROWAWAY B2 grants. Honest-component boundary only: same-user code can read these files. */
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdirSync, openSync, closeSync, writeFileSync, readFileSync, lstatSync, fsyncSync, realpathSync } from 'node:fs';
+import { mkdirSync, openSync, closeSync, writeFileSync, readFileSync, lstatSync, realpathSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
+import { syncPoint } from './fsync.js';
 import { Refusal, type Worker } from './types.js';
 export type Scope = { worker_ids: string[]; cwd_roots: string[] };
 export type Grant = { grant_id: string; caller: string; scope: Scope; methods: string[]; token: string; revoked: boolean };
 export class GrantStore {
   readonly dir: string;
-  constructor(stateDir: string) { this.dir = join(stateDir, 'grants'); mkdirSync(this.dir, { recursive: true, mode: 0o700 }); }
+  constructor(stateDir: string) {
+    this.dir = join(stateDir, 'grants');
+    if (mkdirSync(this.dir, { recursive: true, mode: 0o700 })) {
+      const fd = openSync(stateDir, 'r'); try { syncPoint(fd, 'grant.directory_created'); } finally { closeSync(fd); }
+    }
+  }
   register(caller: string, scope: Scope, methods: string[], id = randomBytes(12).toString('hex')): string {
     if (!/^[a-zA-Z0-9_-]{1,128}$/.test(id) || !caller || !methods.length) throw new Refusal('invalid_registration');
     const file = join(this.dir, id + '.json');
     const grant: Grant = { grant_id: id, caller, scope, methods, token: id + '.' + randomBytes(32).toString('base64url'), revoked: false };
     const fd = openSync(file, 'wx', 0o600);
-    try { writeFileSync(fd, JSON.stringify(grant) + '\n'); fsyncSync(fd); } finally { closeSync(fd); }
-    const dir = openSync(this.dir, 'r'); try { fsyncSync(dir); } finally { closeSync(dir); }
+    try { writeFileSync(fd, JSON.stringify(grant) + '\n'); syncPoint(fd, 'grant.register_file'); } finally { closeSync(fd); }
+    const dir = openSync(this.dir, 'r'); try { syncPoint(dir, 'grant.register_directory'); } finally { closeSync(dir); }
     return file; // never return a bearer in logs or HTTP responses
   }
   registerOwner(): string {
@@ -58,6 +64,6 @@ export class GrantStore {
   revoke(id: string): void {
     const grant = this.read(id); grant.revoked = true;
     const fd = openSync(join(this.dir, id + '.json'), 'r+');
-    try { writeFileSync(fd, JSON.stringify(grant) + '\n'); fsyncSync(fd); } finally { closeSync(fd); }
+    try { writeFileSync(fd, JSON.stringify(grant) + '\n'); syncPoint(fd, 'grant.revoke_file'); } finally { closeSync(fd); }
   }
 }

@@ -1,7 +1,8 @@
 /** THROWAWAY. Fsynced control log, not a transcript. No prompt/answer values stored. */
-import { openSync, closeSync, readFileSync, writeSync, fsyncSync, ftruncateSync, fstatSync, mkdirSync } from 'node:fs';
+import { openSync, closeSync, readFileSync, writeSync, ftruncateSync, fstatSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
+import { syncPoint } from './fsync.js';
 export type JournalRecord = { seq: number; kind: 'receipt' | 'worker' | 'supervisor'; value: Record<string, unknown> };
 const digest = (text: string) => createHash('sha256').update(text).digest('hex');
 export function parseJournal(bytes: Buffer): { records: JournalRecord[]; validBytes: number } {
@@ -32,9 +33,9 @@ export class Journal {
     const loaded = parseJournal(readFileSync(file));
     this.records = loaded.records;
     ftruncateSync(this.fd, loaded.validBytes);
-    fsyncSync(this.fd);
+    syncPoint(this.fd, 'journal.open_file');
     const dir = openSync(dirname(file), 'r');
-    try { fsyncSync(dir); } finally { closeSync(dir); }
+    try { syncPoint(dir, 'journal.open_directory'); } finally { closeSync(dir); }
   }
   reserve(commandId: string, bytes: number): boolean {
     const reserved = [...this.reservations.values()].reduce((a, b) => a + b, 0);
@@ -43,7 +44,7 @@ export class Journal {
   }
   append(kind: JournalRecord['kind'], value: Record<string, unknown>): void {
     if (this.failed) throw new Error('journal failed; supervisor fenced globally');
-    const record = { seq: this.records.length + 1, kind, value } as JournalRecord;
+    const record = structuredClone({ seq: this.records.length + 1, kind, value }) as JournalRecord;
     const data = Buffer.from(JSON.stringify({ record, checksum: digest(JSON.stringify(record)) }) + '\n');
     try {
       const reserved = [...this.reservations.values()].reduce((a, b) => a + b, 0);
@@ -52,7 +53,9 @@ export class Journal {
       if (fstatSync(this.fd).size + data.length + reserved - own > this.maxBytes) throw new Error('journal capacity; no automatic eviction');
       let offset = 0;
       while (offset < data.length) offset += writeSync(this.fd, data, offset, data.length - offset);
-      fsyncSync(this.fd);
+      const worker = value.worker as { status?: string; execution?: { state: string } | null; fence?: unknown } | undefined;
+      const label = kind === 'receipt' ? `receipt.${value.operation}.${value.state}` : kind === 'worker' ? `worker.${worker?.status}.${worker?.execution?.state ?? 'none'}.${worker?.fence ? 'fenced' : 'bound'}` : 'journal.supervisor';
+      syncPoint(this.fd, label);
       this.records.push(record);
       if (terminal) this.reservations.delete(String(value.command_id));
     } catch (error) { this.failed = true; throw error; }
