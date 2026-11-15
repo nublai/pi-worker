@@ -95,11 +95,19 @@ const gateExtension: ExtensionFactory = pi => {
     return undefined;
   });
 };
+const bindingExtension: ExtensionFactory = pi => {
+  // session_tree is an extension lifecycle event, not an AgentSession.subscribe
+  // event. Appending/settlement alone misses a native move with no new entry.
+  pi.on('session_tree', (_event, ctx) => {
+    cancelAll();
+    emit({ type: 'host_binding', action: 'tree', sessionId: ctx.sessionManager.getSessionId(), sessionFile: ctx.sessionManager.getSessionFile(), leafId: ctx.sessionManager.getLeafId() });
+  });
+};
 const runtimePromise = createAgentSessionRuntime(async options => {
   const services = await createAgentSessionServices({ ...options, settingsManager: SettingsManager.create(options.cwd, options.agentDir, { projectTrusted: projectTrusted === 'true' }), resourceLoaderOptions: { ...(launchSpec ? { noExtensions: true, noSkills: true, noPromptTemplates: true, noContextFiles: true, disabledBuiltinExtensions: ['mcp'], additionalExtensionPaths: launchSpec.resources.extensions, additionalSkillPaths: launchSpec.resources.skills } : {}), extensionFactories: [
     { name: 'codemode', builtin: true, factory: createCodemodeExtension() },
     { name: 'tool_search', builtin: true, factory: createToolSearchExtension() },
-    { name: 'mcp', builtin: true, factory: createMcpExtension() }, gateExtension,
+    { name: 'mcp', builtin: true, factory: createMcpExtension() }, gateExtension, bindingExtension,
   ] } });
   const model = services.modelRuntime.getModel(provider!, modelId!);
   if (!model) throw new Error('configured_model_not_found');
@@ -107,16 +115,24 @@ const runtimePromise = createAgentSessionRuntime(async options => {
   return { ...created, services, diagnostics: services.diagnostics };
 }, { cwd: process.cwd(), agentDir: getAgentDir(), sessionManager: SessionManager.create(process.cwd(), sessionDir) });
 async function bind(session: AgentSession): Promise<void> {
+  const replaced = current !== undefined && current !== session;
   current = session;
-  emit({ type: 'host_identity', sessionId: session.sessionId, sessionFile: session.sessionFile });
+  emit({ type: replaced ? 'host_binding' : 'host_identity', action: 'replace', sessionId: session.sessionId, sessionFile: session.sessionFile, leafId: session.sessionManager.getLeafId() });
   // SAFETY: SDK events are plain records with a string type, the host seam's only requirement.
   session.subscribe(event => {
     emit(event as unknown as PiRecord);
     if (event.type === 'entry_appended' || event.type === 'agent_settled') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
   });
-  await session.bindExtensions({ uiContext: ui, mode: 'rpc', abortHandler: () => { cancelAll(); void session.abort(); }, onError: error => emit({ type: 'extension_error', path: error.extensionPath, event: error.event, error: error.error }), shutdownHandler: () => { void shutdown(); } });
+  await session.bindExtensions({ uiContext: ui, mode: 'rpc', commandContextActions: {
+    waitForIdle: () => session.waitForIdle(),
+    newSession: async options => (await runtimePromise).newSession(options),
+    fork: async (entry, options) => (await runtimePromise).fork(entry, options),
+    switchSession: async (path, options) => (await runtimePromise).switchSession(path, options),
+    navigateTree: async (entry, options) => { cancelAll(); return session.navigateTree(entry, options); },
+    reload: () => session.reload(),
+  }, abortHandler: () => { cancelAll(); void session.abort(); }, onError: error => emit({ type: 'extension_error', path: error.extensionPath, event: error.event, error: error.error }), shutdownHandler: () => { void shutdown(); } });
 }
-const ready = runtimePromise.then(async runtime => { runtime.setBeforeSessionInvalidate(cancelAll); runtime.setRebindSession(bind); await bind(runtime.session); return runtime; });
+const ready = runtimePromise.then(async runtime => { runtime.setBeforeSessionInvalidate(() => { cancelAll(); emit({ type: 'host_binding_changing' }); }); runtime.setRebindSession(bind); await bind(runtime.session); return runtime; });
 // Drain commands concurrently: startup bind and prompt may be waiting on a dialog.
 async function command(c: PiRecord, reply: (data: Record<string, unknown>) => void): Promise<void> {
   if (c.type === 'answer_ui') { reply(resolvers.answer(String(c.nativeId), c.answer as UIAnswer)); return; }

@@ -17,7 +17,7 @@ import { sandboxRoot, readConfined, sandboxSessionDir } from './sandbox.js';
 import { Refusal, type Binding, type Create, type Prompt, type Worker, type Receipt, type Hello, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
 type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null; unit?: CleanupUnit; create?: Create; intentBindings?: Record<string, Binding & { relaunch_epoch?: string }> };
 type Pending = { kind: 'follow_up' | 'child'; request: FollowUp | ChildLaunch; guard: () => void };
-type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; exited?: boolean; rebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout>; inventoryReady?: () => void };
+type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; exited?: boolean; rebinding?: boolean; nativeRebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout>; inventoryReady?: () => void };
 export type HostFactory = (create: Create, sessionDir: string, context?: HostContext) => SessionHost;
 export class Supervisor {
   readonly epoch = randomUUID();
@@ -223,8 +223,26 @@ export class Supervisor {
     this.persist(live);
     live.hub.publish('interaction_closed', { native_id: id, reason, resolver_consumed: 'unproven' }, null, 'supervisor');
   }
+  private nativeBinding(live: Live, event: PiRecord): void {
+    if (live.rebinding) return; // B2 owns this move and will commit exactly one revision.
+    if (typeof event.sessionId !== 'string' || typeof event.sessionFile !== 'string') throw new Error('native_binding_identity_missing');
+    const w = live.worker, old = { session_id: w.session_id, binding_revision: w.binding_revision };
+    this.noOtherWriter(event.sessionId, w.worker_id);
+    const initialized = w.session_id !== null;
+    this.clearInteractions(live);
+    if (initialized) { this.dropPending(live, 'binding_changed'); w.binding_revision++; }
+    w.session_id = event.sessionId; live.sessionFile = event.sessionFile;
+    live.index = new SessionIndex(live.sessionFile, undefined, w.launch_spec?.environment.filesystem === 'bwrap' ? w.cwd : undefined);
+    live.index.setActiveLeaf(typeof event.leafId === 'string' ? event.leafId : null);
+    live.completedMessages = 0; live.nativeRebinding = false;
+    if (initialized) { w.execution = null; w.foreground = w.fence ? 'unknown' : 'idle'; }
+    this.refresh(live); this.persist(live);
+    if (initialized) live.hub.publish('session_rebound', { old, session_id: w.session_id, binding_revision: w.binding_revision, action: event.action, source: 'native' }, null, 'supervisor', true);
+  }
   private onEvent(live: Live, event: PiRecord): void {
     const w = live.worker;
+    if (event.type === 'host_binding_changing' && !live.rebinding) { live.nativeRebinding = true; this.clearInteractions(live); }
+    if (event.type === 'host_binding') this.nativeBinding(live, event);
     if (event.type === 'host_leaf' && (typeof event.leafId === 'string' || event.leafId === null)) { live.index.setActiveLeaf(event.leafId); this.refresh(live); }
     if (event.type === 'host_identity' && typeof event.sessionId === 'string' && typeof event.sessionFile === 'string') {
       if (w.session_id && w.session_id !== event.sessionId && !live.rebinding) throw new Error('unexpected_host_identity');
@@ -233,6 +251,7 @@ export class Supervisor {
     if (event.type === 'extension_ui_request' && event.method === 'notify' && typeof event.message === 'string') {
       try {
         if (event.message.startsWith('A0_RESOURCE_INVENTORY:')) { w.resources = JSON.parse(event.message.slice('A0_RESOURCE_INVENTORY:'.length)); this.persist(live); live.inventoryReady?.(); return; }
+        if (event.message.startsWith('A0_HOST_BINDING:')) { this.onEvent(live, { type: 'host_binding', ...JSON.parse(event.message.slice('A0_HOST_BINDING:'.length)) }); return; }
         if (event.message.startsWith('A0_HOST_IDENTITY:')) { this.onEvent(live, { type: 'host_identity', ...JSON.parse(event.message.slice('A0_HOST_IDENTITY:'.length)) }); return; }
       } catch { throw new Error('invalid_host_audit_record'); }
       if (event.message === 'A0_UNSUPPORTED_CUSTOM_UI') { live.hub.publish('unsupported_ui', { kind: 'custom', reason: 'headless_form_required' }, null, 'supervisor'); return; }
@@ -486,7 +505,7 @@ export class Supervisor {
   }
   private writable(live: Live): void {
     if (live.worker.fence) throw new Refusal('session_fenced', 'no_effect', live.worker.fence.command_id);
-    if (live.rebinding) throw new Refusal('binding_change_in_progress');
+    if (live.rebinding || live.nativeRebinding) throw new Refusal('binding_change_in_progress');
   }
   private noOtherWriter(sessionId: string, except: string): void {
     const reserved = this.sessionReservations.get(sessionId);
