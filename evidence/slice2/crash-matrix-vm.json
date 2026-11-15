@@ -1,0 +1,1657 @@
+{
+  "prototype": true,
+  "model": "SIGKILL-after-fsync; no power-loss proof",
+  "matrix": [
+    {
+      "index": 1,
+      "label": "journal.open_file",
+      "buckets": [],
+      "effects": 0,
+      "result": "pass"
+    },
+    {
+      "index": 2,
+      "label": "journal.open_directory",
+      "buckets": [],
+      "effects": 0,
+      "result": "pass"
+    },
+    {
+      "index": 3,
+      "label": "grant.directory_created",
+      "buckets": [],
+      "effects": 0,
+      "result": "pass"
+    },
+    {
+      "index": 4,
+      "label": "grant.register_file",
+      "buckets": [],
+      "effects": 0,
+      "result": "pass"
+    },
+    {
+      "index": 5,
+      "label": "grant.register_directory",
+      "buckets": [],
+      "effects": 0,
+      "result": "pass"
+    },
+    {
+      "index": 6,
+      "label": "journal.supervisor",
+      "buckets": [],
+      "effects": 0,
+      "result": "pass"
+    },
+    {
+      "index": 7,
+      "label": "receipt.workers.create.intent",
+      "buckets": [
+        "intent_recovered/no_effect"
+      ],
+      "effects": 0,
+      "result": "pass"
+    },
+    {
+      "index": 8,
+      "label": "worker.starting.none.bound",
+      "buckets": [
+        "intent_recovered/no_effect"
+      ],
+      "effects": 0,
+      "result": "pass"
+    },
+    {
+      "index": 9,
+      "label": "receipt.workers.create.accepted",
+      "buckets": [
+        "outcome_unknown/unknown"
+      ],
+      "effects": 0,
+      "result": "pass"
+    },
+    {
+      "index": 10,
+      "label": "worker.starting.none.bound",
+      "buckets": [
+        "outcome_unknown/unknown"
+      ],
+      "effects": 1,
+      "result": "pass"
+    },
+    {
+      "index": 11,
+      "label": "worker.ready.none.bound",
+      "buckets": [
+        "outcome_unknown/unknown"
+      ],
+      "effects": 1,
+      "result": "pass"
+    },
+    {
+      "index": 12,
+      "label": "receipt.workers.create.delivered",
+      "buckets": [
+        "delivered/observed"
+      ],
+      "effects": 1,
+      "result": "pass"
+    },
+    {
+      "index": 13,
+      "label": "receipt.sessions.prompt.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 1,
+      "result": "pass"
+    },
+    {
+      "index": 14,
+      "label": "worker.ready.admitted.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 1,
+      "result": "pass"
+    },
+    {
+      "index": 15,
+      "label": "receipt.sessions.prompt.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 1,
+      "result": "pass"
+    },
+    {
+      "index": 16,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 17,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 18,
+      "label": "receipt.sessions.prompt.delivered",
+      "buckets": [
+        "delivered/observed"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 19,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 20,
+      "label": "receipt.sessions.rebind.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 21,
+      "label": "receipt.sessions.rebind.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 22,
+      "label": "worker.ready.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 23,
+      "label": "receipt.sessions.rebind.delivered",
+      "buckets": [
+        "delivered/observed"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 24,
+      "label": "receipt.sessions.rebind.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 25,
+      "label": "receipt.sessions.rebind.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 26,
+      "label": "worker.ready.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 27,
+      "label": "receipt.sessions.rebind.delivered",
+      "buckets": [
+        "delivered/observed"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 28,
+      "label": "receipt.sessions.rebind.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 29,
+      "label": "receipt.sessions.rebind.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 30,
+      "label": "worker.ready.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 31,
+      "label": "receipt.sessions.rebind.delivered",
+      "buckets": [
+        "delivered/observed"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 32,
+      "label": "receipt.sessions.prompt.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 33,
+      "label": "worker.ready.admitted.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 34,
+      "label": "receipt.sessions.prompt.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 2,
+      "result": "pass"
+    },
+    {
+      "index": 35,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 36,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 37,
+      "label": "receipt.sessions.prompt.delivered",
+      "buckets": [
+        "delivered/observed"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 38,
+      "label": "worker.ready.outcome_unknown.fenced",
+      "buckets": [
+        "delivered/observed"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 39,
+      "label": "worker.cleanup_pending.outcome_unknown.fenced",
+      "buckets": [
+        "delivered/observed"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 40,
+      "label": "receipt.sessions.resolve_unknown.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 41,
+      "label": "receipt.sessions.resolve_unknown.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 42,
+      "label": "worker.cleanup_pending.outcome_unknown.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 43,
+      "label": "receipt.sessions.resolve_unknown.delivered",
+      "buckets": [
+        "delivered/observed"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 44,
+      "label": "receipt.workers.stop.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 45,
+      "label": "receipt.workers.stop.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 46,
+      "label": "worker.stopped.outcome_unknown.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 47,
+      "label": "receipt.workers.stop.delivered",
+      "buckets": [
+        "delivered/observed"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 48,
+      "label": "receipt.workers.create.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 49,
+      "label": "worker.starting.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 50,
+      "label": "receipt.workers.create.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 3,
+      "result": "pass"
+    },
+    {
+      "index": 51,
+      "label": "worker.starting.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 4,
+      "result": "pass"
+    },
+    {
+      "index": 52,
+      "label": "worker.ready.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 4,
+      "result": "pass"
+    },
+    {
+      "index": 53,
+      "label": "receipt.workers.create.delivered",
+      "buckets": [
+        "delivered/observed"
+      ],
+      "effects": 4,
+      "result": "pass"
+    },
+    {
+      "index": 54,
+      "label": "receipt.sessions.prompt.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 4,
+      "result": "pass"
+    },
+    {
+      "index": 55,
+      "label": "worker.ready.admitted.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect"
+      ],
+      "effects": 4,
+      "result": "pass"
+    },
+    {
+      "index": 56,
+      "label": "receipt.sessions.prompt.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 4,
+      "result": "pass"
+    },
+    {
+      "index": 57,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 58,
+      "label": "receipt.sessions.follow_up.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 59,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 60,
+      "label": "receipt.sessions.follow_up.queued",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 61,
+      "label": "receipt.children.launch.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 62,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 63,
+      "label": "receipt.children.launch.queued",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 64,
+      "label": "receipt.sessions.prompt.outcome_unknown",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 65,
+      "label": "worker.ready.outcome_unknown.fenced",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 66,
+      "label": "worker.ready.settled.fenced",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 67,
+      "label": "receipt.sessions.resolve_unknown.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 68,
+      "label": "receipt.sessions.resolve_unknown.accepted",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 69,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 70,
+      "label": "receipt.sessions.resolve_unknown.delivered",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 71,
+      "label": "receipt.sessions.follow_up.intent_ready",
+      "buckets": [
+        "delivered/observed",
+        "intent_ready/no_effect",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 72,
+      "label": "receipt.sessions.follow_up.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 73,
+      "label": "worker.ready.admitted.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 74,
+      "label": "receipt.sessions.follow_up.accepted",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 5,
+      "result": "pass"
+    },
+    {
+      "index": 75,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 6,
+      "result": "pass"
+    },
+    {
+      "index": 76,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 6,
+      "result": "pass"
+    },
+    {
+      "index": 77,
+      "label": "receipt.sessions.follow_up.delivered",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 6,
+      "result": "pass"
+    },
+    {
+      "index": 78,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 6,
+      "result": "pass"
+    },
+    {
+      "index": 79,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 6,
+      "result": "pass"
+    },
+    {
+      "index": 80,
+      "label": "receipt.children.launch.intent_ready",
+      "buckets": [
+        "delivered/observed",
+        "intent_ready/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 6,
+      "result": "pass"
+    },
+    {
+      "index": 81,
+      "label": "receipt.children.launch.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 6,
+      "result": "pass"
+    },
+    {
+      "index": 82,
+      "label": "receipt.workers.create.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 6,
+      "result": "pass"
+    },
+    {
+      "index": 83,
+      "label": "worker.starting.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 6,
+      "result": "pass"
+    },
+    {
+      "index": 84,
+      "label": "receipt.workers.create.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 6,
+      "result": "pass"
+    },
+    {
+      "index": 85,
+      "label": "worker.starting.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 86,
+      "label": "worker.ready.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 87,
+      "label": "receipt.workers.create.delivered",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 88,
+      "label": "worker.ready.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 89,
+      "label": "receipt.children.launch.delivered",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 90,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 91,
+      "label": "receipt.executions.cancel.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 92,
+      "label": "receipt.executions.cancel.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 93,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 94,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 95,
+      "label": "receipt.executions.cancel.delivered",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 96,
+      "label": "receipt.executions.interrupt.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 97,
+      "label": "receipt.executions.interrupt.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 98,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 99,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 100,
+      "label": "receipt.executions.interrupt.delivered",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 101,
+      "label": "receipt.children.report.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 102,
+      "label": "receipt.children.report.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 103,
+      "label": "receipt.children.report.delivered",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 104,
+      "label": "receipt.workers.stop.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 105,
+      "label": "receipt.workers.stop.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 106,
+      "label": "worker.cleanup_pending.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 107,
+      "label": "worker.stopped.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 108,
+      "label": "receipt.workers.stop.delivered",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 109,
+      "label": "receipt.workers.create.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 110,
+      "label": "worker.starting.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 111,
+      "label": "receipt.workers.create.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 7,
+      "result": "pass"
+    },
+    {
+      "index": 112,
+      "label": "worker.starting.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 8,
+      "result": "pass"
+    },
+    {
+      "index": 113,
+      "label": "worker.ready.none.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 8,
+      "result": "pass"
+    },
+    {
+      "index": 114,
+      "label": "receipt.workers.create.delivered",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 8,
+      "result": "pass"
+    },
+    {
+      "index": 115,
+      "label": "receipt.sessions.prompt.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 8,
+      "result": "pass"
+    },
+    {
+      "index": 116,
+      "label": "worker.ready.admitted.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 8,
+      "result": "pass"
+    },
+    {
+      "index": 117,
+      "label": "receipt.sessions.prompt.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 8,
+      "result": "pass"
+    },
+    {
+      "index": 118,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 119,
+      "label": "receipt.sessions.follow_up.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 120,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 121,
+      "label": "receipt.sessions.follow_up.queued",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 122,
+      "label": "receipt.children.launch.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 123,
+      "label": "worker.ready.started.bound",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 124,
+      "label": "receipt.children.launch.queued",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 125,
+      "label": "receipt.sessions.prompt.outcome_unknown",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 126,
+      "label": "worker.ready.outcome_unknown.fenced",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 127,
+      "label": "worker.ready.settled.fenced",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 128,
+      "label": "receipt.sessions.resolve_unknown.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 129,
+      "label": "receipt.sessions.resolve_unknown.accepted",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 130,
+      "label": "receipt.sessions.follow_up.rejected",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 131,
+      "label": "receipt.children.launch.rejected",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 132,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 133,
+      "label": "receipt.sessions.resolve_unknown.delivered",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 134,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 135,
+      "label": "receipt.executions.cancel.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 136,
+      "label": "receipt.executions.cancel.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 137,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 138,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 139,
+      "label": "receipt.executions.cancel.delivered",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 140,
+      "label": "receipt.executions.interrupt.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 141,
+      "label": "receipt.executions.interrupt.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 142,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 143,
+      "label": "worker.ready.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 144,
+      "label": "receipt.executions.interrupt.delivered",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 145,
+      "label": "receipt.children.report.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 146,
+      "label": "receipt.children.report.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 147,
+      "label": "receipt.children.report.delivered",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 148,
+      "label": "receipt.workers.stop.intent",
+      "buckets": [
+        "delivered/observed",
+        "intent_recovered/no_effect",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 149,
+      "label": "receipt.workers.stop.accepted",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 150,
+      "label": "worker.cleanup_pending.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 151,
+      "label": "worker.stopped.settled.bound",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 152,
+      "label": "receipt.workers.stop.delivered",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 153,
+      "label": "grant.register_file",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 154,
+      "label": "grant.register_directory",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 155,
+      "label": "grant.revoke_file",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown",
+        "rejected/no_effect"
+      ],
+      "effects": 9,
+      "result": "pass"
+    },
+    {
+      "index": 1,
+      "label": "recovery:journal.open_file",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 1,
+      "result": "pass"
+    },
+    {
+      "index": 2,
+      "label": "recovery:journal.open_directory",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 1,
+      "result": "pass"
+    },
+    {
+      "index": 3,
+      "label": "recovery:journal.supervisor",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 1,
+      "result": "pass"
+    },
+    {
+      "index": 4,
+      "label": "recovery:receipt.sessions.prompt.outcome_unknown",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 1,
+      "result": "pass"
+    },
+    {
+      "index": 5,
+      "label": "recovery:worker.ready.outcome_unknown.fenced",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 1,
+      "result": "pass"
+    },
+    {
+      "index": 6,
+      "label": "recovery:worker.cleanup_pending.outcome_unknown.fenced",
+      "buckets": [
+        "delivered/observed",
+        "outcome_unknown/unknown"
+      ],
+      "effects": 1,
+      "result": "pass"
+    }
+  ]
+}

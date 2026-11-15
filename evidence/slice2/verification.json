@@ -1,0 +1,21 @@
+{
+  "prototype": true,
+  "runtime_revision": "a5ed733",
+  "archive_sha256_local_and_vm": "bc227db3424d6672119ae3ad2c53dab4238511f1bccb84a3ba0782254e0536ed",
+  "local_node": "v26.13.0",
+  "vm_node": "v22.21.1",
+  "vm_pi": "1.5.2",
+  "local_tests": { "pass": 68, "fail": 0 },
+  "vm_tests": { "pass": 68, "fail": 0 },
+  "fsync_cuts_per_runtime": { "scenario": 155, "recovery": 6, "pass": 161, "fail": 0, "power_loss_proof": false },
+  "shared_transition_rows": 11,
+  "navigation_variant": "unsupported_direct_rpc_not_covered",
+  "live_final_root": "/tmp/a0s2/live-jomm5O/",
+  "generated_types_check": "pass",
+  "git_diff_check": "pass",
+  "active_lsp": { "files": 17, "diagnostics": 0, "confirmed_clean": 6, "inconclusive": 11, "blanket_clean_claim": false },
+  "secret_scan": { "findings": 0, "patterns": ["literal_bearer", "api_key_shape", "private_key", "credential_query"], "limitation": "Pattern scan plus manual whitelisting; not a universal detector." },
+  "gate_1": "not_passed",
+  "independent_review": "not_run_explicit_leaf_restriction",
+  "push_merge_pr": "none"
+}

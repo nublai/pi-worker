@@ -1,0 +1,14 @@
+{
+  "prototype": true,
+  "failed_run": "/tmp/a0s2/live-cwvGew",
+  "journal_record_count": 158,
+  "first_sequence_mismatch": {
+    "line": 138,
+    "record_seq": 132,
+    "kind": "worker"
+  },
+  "root_cause": "late callback used closed/recycled fd",
+  "regression": "CLOSED journal cannot corrupt newly opened journal",
+  "fix_commit": "d601824",
+  "original_file_preserved": true
+}

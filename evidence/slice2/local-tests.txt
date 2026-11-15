@@ -1,0 +1,84 @@
+
+> @nublai/pi-worker-a0@0.0.0-throwaway test
+> npm run build && node --test dist/test/*.test.js
+
+
+> @nublai/pi-worker-a0@0.0.0-throwaway build
+> tsc -p tsconfig.json
+
+✔ contract 0.1 fixture 01-binding (20.07965ms)
+✔ contract 0.1 fixture 02-unknown (4.052343ms)
+✔ contract 0.1 fixture 03-fenced-write (4.567427ms)
+✔ contract 0.1 fixture 04-paused (8.253112ms)
+✔ contract 0.1 fixture 05-keep (16.863525ms)
+✔ contract 0.1 fixture 06-abandon (9.251403ms)
+✔ contract 0.1 fixture 07-observed (4.832183ms)
+✔ contract 0.1 fixture 08-generation (4.677894ms)
+✔ contract 0.1 fixture 09-restart (3.539853ms)
+✔ contract 0.1 fixture 10-cleanup-resume (3.692858ms)
+✔ contract 0.1 fixture 11-control (5.033671ms)
+✔ SIGKILL after EVERY scenario fsync occurrence: recovery buckets, stable latches and no duplicate effect (16485.966049ms)
+✔ supervisor dispatch marker with execution ID is fsynced before the host receives prompt (M2) (8.103973ms)
+✔ HTTP pi prompt response timeout: unknown and durable fence before response headers (M1, M6) (10.341936ms)
+✔ HTTP stdin write failed: unknown and durable fence before response headers (M1, M6) (2.60472ms)
+✔ Pi exit fences an admitted run durably without rewriting delivered admission (M9) (1.485913ms)
+✔ unknown stop never replaces the prompt fence; two restarts preserve fence and delivered receipt (2.457995ms)
+✔ journal failure in a Pi event faults only that worker and keeps inventory readable (2.132105ms)
+✔ header failure in a Pi event faults only that worker and keeps inventory readable (2.215261ms)
+✔ validation refusals consume no durable storage, ordinary capacity never blocks termination (130.542138ms)
+✔ failed create preserves the same group-only cleanup and cwd reservation as stop (m-1) (1.141799ms)
+✔ unsupported UI dialogs auto-cancel without resolver-consumed claims (m-2) (3.077937ms)
+✔ pending unsupported interactions close on tool_execution_end (m-2) (0.794979ms)
+✔ pending unsupported interactions close on agent_settled (m-2) (0.654026ms)
+✔ pending unsupported interactions close on expiry (m-2) (20.57555ms)
+✔ pending unsupported dialogs are bounded and cancellation failure faults closed (m-2) (2.276164ms)
+✔ socket directory rejects symlink, public mode and foreign ownership before listening (M5) (0.851164ms)
+✔ reads publish derived history in memory without journal writes or stopping workers (N-1) (0.974736ms)
+✔ fault after settlement never fences the settled execution (N-2) (1.246515ms)
+✔ restart 1 and restart 2 cannot reuse transport epochs (T-1) (1.35047ms)
+✔ B2 SSE ends a slow subscriber with explicit overflow after bounded queue (M4) (9.773912ms)
+✔ every OpenAPI method requires a bearer, including hello, history, SSE and receipts (18.708762ms)
+✔ registered caller/method/scope enforced and scoped inventory/SSE cannot disclose another worker (15.220587ms)
+✔ revocation between queue admission and dispatch blocks the actual Pi write (4.886325ms)
+✔ RPC host keeps LF framing across Unicode separators and split UTF8; drains events independently (32.628071ms)
+✔ unsupported UI cancellation uses the native ID and no RPC response waiter (22.061594ms)
+✔ RPC timeout is an error, never a resend; process exit rejects pending requests (60.869172ms)
+✔ resolve keep: latch, generation, binding, final receipt and durable tombstone (10.515361ms)
+✔ resolve abandon: latch, generation, binding, final receipt and durable tombstone (1.810752ms)
+✔ resolve observed: latch, generation, binding, final receipt and durable tombstone (2.000207ms)
+✔ observed refuses mere memory and unknown dispatch, accepts exact session attribution only (1.400493ms)
+✔ multiple uncertainties retained, generation monotonic after partial resolution and refence (1.491805ms)
+✔ queued follow-up and pending child pause under fence then keep (7.035491ms)
+✔ queued follow-up and pending child pause under fence then abandon (2.562361ms)
+✔ new/fork/resume change same-process binding; stale delayed prompt and duplicate open name cause (4.194368ms)
+✔ recovered intent only dispatches once after owner resolution and exact retry (1.232209ms)
+✔ child recovery without fsynced report preserves parent launch uncertainty (3.835095ms)
+✔ child recovery with fsynced report preserves parent launch uncertainty (4.108638ms)
+✔ abandon drops a recovered queue and its durable no-dispatch intent (1.84135ms)
+✔ resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation (1.822194ms)
+✔ cancel, interrupt and evidence reports allowed under fence without lifting it (1.557478ms)
+✔ canonical idempotency ignores transport id, not operation content (5.201745ms)
+✔ intent and dispatch are durable before effect; duplicate attempts dispatch once (2.358569ms)
+✔ refusal versus uncertain timeout, plus no eviction at capacity (0.918821ms)
+✔ recovery separates undispatched intent from dispatch; neither is replayed (0.629159ms)
+✔ journal admission reserves full result room and never begins an effect without it (0.266208ms)
+✔ a late callback on a CLOSED journal cannot corrupt a newly opened journal via recycled fd (0.320961ms)
+✔ journal truncates a torn final record, rejects complete corruption or sequence gaps (0.38973ms)
+✔ SSE attach barrier: snapshot is first, no duplicate or missing event under reentrant emission (7.302812ms)
+✔ public HTTP/CLI client: identity, duplicate, stale binding, admission distinct from settlement, history, detach, stop (23.261592ms)
+✔ crash after admission while running: journal unknown/fence, no prompt replay, rejected future write (2.622153ms)
+✔ execution reservation cut before dispatch stays no_effect on recovery (1.498167ms)
+✔ supervisor projects admission, settlement, fence and stop to an already connected watcher (1.733658ms)
+✔ transport epoch changes across supervisor restart even when new seq catches the old cursor (1.220216ms)
+✔ history pages pin a branch watermark and ignore partial final JSONL (1.055107ms)
+✔ one supervisor stream filters workers/types, snapshot barrier, bounded explicit overflow and resync (8.69473ms)
+✔ client failure before connect is no_effect; after write is unknown, one attempt and keepalive disabled (7.303834ms)
+✔ public client retains no_effect HTTP detail and supervisor-wide snapshot; overflow disables controls (12.597292ms)
+ℹ tests 68
+ℹ suites 0
+ℹ pass 68
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16528.713809

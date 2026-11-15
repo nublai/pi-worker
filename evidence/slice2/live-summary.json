@@ -1,0 +1,104 @@
+{
+  "prototype": true,
+  "root": "/tmp/a0s2/live-jomm5O",
+  "pi_version": "1.5.2",
+  "node": "v22.21.1",
+  "cases": [
+    {
+      "name": "binding_and_duplicate",
+      "result": "pass",
+      "revisions": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "same_native_pid": true,
+      "delayed_effect": "no_effect",
+      "holder_worker_id": "5c7f7f3f-b684-40ed-b024-420a839aed5a",
+      "navigation": "not_covered: direct Pi 1.5.2 RPC unsupported"
+    },
+    {
+      "name": "overflow_resync",
+      "result": "pass",
+      "overflow_received": true,
+      "fresh_snapshot": true,
+      "synthetic_events": true,
+      "worker_cancelled": false
+    },
+    {
+      "name": "grant_revocation",
+      "result": "pass",
+      "mode": "600",
+      "cross_scope": "no_effect",
+      "queued": true,
+      "dispatch": "blocked_no_effect",
+      "native_history_contains_revoked_input": false,
+      "same_user_can_read_grant_file": true
+    },
+    {
+      "name": "resolve_keep",
+      "result": "pass",
+      "fence_generation": 1,
+      "wrong_generation": "no_effect",
+      "fenced_prompt": "no_effect_names_cause",
+      "final_fence": null,
+      "admission_receipt_unchanged": true,
+      "observed_evidence": null,
+      "external_effects_undone": false
+    },
+    {
+      "name": "resolve_abandon",
+      "result": "pass",
+      "fence_generation": 1,
+      "wrong_generation": "no_effect",
+      "fenced_prompt": "no_effect_names_cause",
+      "final_fence": null,
+      "admission_receipt_unchanged": true,
+      "observed_evidence": null,
+      "external_effects_undone": false
+    },
+    {
+      "name": "resolve_observed",
+      "result": "pass",
+      "fence_generation": 1,
+      "wrong_generation": "no_effect",
+      "fenced_prompt": "no_effect_names_cause",
+      "final_fence": null,
+      "admission_receipt_unchanged": true,
+      "observed_evidence": "exact_execution_in_fsynced_delivered_receipt",
+      "external_effects_undone": false
+    },
+    {
+      "name": "two_restarts",
+      "result": "pass",
+      "distinct_transport_epochs": 3,
+      "resolved_fences_stay_clear": true,
+      "no_native_adoption": true
+    },
+    {
+      "name": "real_fsync_intent_recovered",
+      "result": "pass",
+      "point": "receipt.sessions.prompt.intent",
+      "signal": "SIGKILL",
+      "recovered_bucket": "intent_recovered",
+      "effect": "no_effect",
+      "native_prompt_entries": 0,
+      "automatic_replay": false,
+      "cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "state": "/tmp/a0s2/live-jomm5O/cut-intent_recovered"
+    },
+    {
+      "name": "real_fsync_outcome_unknown",
+      "result": "pass",
+      "point": "receipt.sessions.prompt.accepted",
+      "signal": "SIGKILL",
+      "recovered_bucket": "outcome_unknown",
+      "effect": "unknown",
+      "native_prompt_entries": 0,
+      "automatic_replay": false,
+      "cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "state": "/tmp/a0s2/live-jomm5O/cut-outcome_unknown"
+    }
+  ]
+}

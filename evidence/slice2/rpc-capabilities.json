@@ -1,0 +1,16 @@
+{
+  "prototype": true,
+  "pi_version": "1.5.2",
+  "source": "/home/exedev/.local/node/lib/node_modules/@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-mode.js",
+  "types": "/home/exedev/.local/node/lib/node_modules/@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-types.d.ts",
+  "direct_session_cases": [
+    "new_session",
+    "switch_session",
+    "fork",
+    "get_entries",
+    "get_tree"
+  ],
+  "direct_navigate_case": false,
+  "extension_context_navigateTree_present": true,
+  "typed_navigate_command_present": false
+}
