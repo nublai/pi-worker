@@ -71,7 +71,8 @@ export function router(supervisor: Supervisor): Server {
       try { parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent); } catch { throw new Refusal('invalid_path_encoding'); }
       const guard = (method: string, id?: string, cwd?: string) => () => { supervisor.grants.check(token, method, id ? supervisor.require(id).worker : undefined, cwd); };
       const run = <T>(method: string, action: () => T, id?: string, cwd?: string): T => {
-        const check = guard(method, id, cwd); check(); return supervisor.authority.run(check, action);
+        const check = guard(method, id, cwd); check();
+        return supervisor.callerGrant.run(supervisor.grants.authenticate(token), () => supervisor.authority.run(check, action));
       };
       if (req.method === 'GET' && url.pathname === '/v0/events') {
         const initialGrant = supervisor.grants.check(token, 'events.subscribe');
@@ -97,7 +98,7 @@ export function router(supervisor: Supervisor): Server {
       if (req.method === 'GET' && url.pathname === '/v0/hello') return json(res, run('hello', () => supervisor.hello()));
       if (url.pathname === '/v0/workers') {
         if (req.method === 'GET') return json(res, run('workers.list', () => { const g = supervisor.grants.check(token, 'workers.list'); return supervisor.list().filter(w => supervisor.grants.allowsWorker(g, w)); }));
-        if (req.method === 'POST') { const c = await body(req, 'Create') as Create; return json(res, await run('workers.create', () => supervisor.create(c), undefined, c.cwd)); }
+        if (req.method === 'POST') { const c = await body(req, 'Create') as Create; return json(res, await run('workers.create', () => supervisor.create(c), c.parent?.worker_id, c.cwd)); }
       }
       if (req.method === 'GET' && parts[0] === 'v0' && parts[1] === 'receipts' && parts.length === 3) {
         supervisor.grants.check(token, 'receipts.get');

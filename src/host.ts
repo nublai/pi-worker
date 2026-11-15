@@ -6,6 +6,10 @@ import { EventEmitter } from 'node:events';
 import { StringDecoder } from 'node:string_decoder';
 import { randomUUID } from 'node:crypto';
 import { killGroup, processToken } from './process.js';
+import type { Create } from './types.js';
+import type { Readable } from 'node:stream';
+export type HostContext = { worker_id: string; launch_command_id: string; parent?: Create['parent']; launch_spec?: Create['launch_spec'] };
+export type ChildReport = { report_id: string; kind: 'result' | 'help'; message: string };
 export type PiRecord = Record<string, unknown> & { type: string };
 export type PiResponse = { type: 'response'; id: string; success: boolean; data?: Record<string, unknown>; error?: string };
 export interface SessionHost {
@@ -15,6 +19,7 @@ export interface SessionHost {
   cancelUI(nativeId: string): Promise<void>;
   on(event: 'event', listener: (record: PiRecord) => void): this;
   on(event: 'exit', listener: () => void): this;
+  on(event: 'report', listener: (report: ChildReport) => void): this;
   stop(): Promise<boolean>;
 }
 export class RpcHost extends EventEmitter implements SessionHost {
@@ -25,9 +30,45 @@ export class RpcHost extends EventEmitter implements SessionHost {
   private exited = false;
   private stderr = '';
   readonly token: string | null;
-  constructor(executable: string, cwd: string, sessionDir: string, provider: string, model: string, thinking: string, readonly timeoutMs = 30_000) {
+  constructor(executable: string, cwd: string, sessionDir: string, provider: string, model: string, thinking: string, readonly timeoutMs = 30_000, context?: HostContext) {
     super();
-    this.child = spawn(executable, ['--mode', 'rpc', '--session-dir', sessionDir, '--provider', provider, '--model', model, '--thinking', thinking], { cwd, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    const args = ['--mode', 'rpc', '--session-dir', sessionDir, '--provider', provider, '--model', model, '--thinking', thinking];
+    const env = { ...process.env };
+    if (context) env.PI_WORKER_ID = context.worker_id;
+    if (context?.launch_spec) {
+      const spec = context.launch_spec;
+      args.push('--no-extensions', '--no-skills', '--no-mcp', '--no-context-files', '--no-prompt-templates', '--no-approve');
+      args.push(...(spec.tools.length ? ['--tools', spec.tools.join(',')] : ['--no-tools']));
+      if (spec.denied_tools.length) args.push('--exclude-tools', spec.denied_tools.join(','));
+      for (const path of spec.resources.extensions) args.push('--extension', path);
+      for (const path of spec.resources.skills) args.push('--skill', path);
+    }
+    if (context?.parent) {
+      // The child's only report authority is its inherited, job-bound pipe.
+      delete env.PI_WORKER_SOCKET; delete env.PI_WORKER_GRANT_FILE;
+      env.PI_WORKER_REPORT_FD = '3';
+      env.PI_WORKER_TASK_ID = context.parent.task_id;
+      env.PI_SUBAGENT_ID = context.parent.task_id;
+    } else { delete env.PI_WORKER_REPORT_FD; delete env.PI_WORKER_TASK_ID; }
+    this.child = spawn(executable, args, { cwd, env, detached: true, stdio: context?.parent ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'] }) as ChildProcessWithoutNullStreams;
+    if (context?.parent) {
+      const channel = this.child.stdio[3] as Readable;
+      const decoder = new StringDecoder('utf8'); let buffer = ''; let count = 0;
+      channel.on('data', (chunk: Buffer) => {
+        buffer += decoder.write(chunk);
+        if (Buffer.byteLength(buffer) > 16384) { channel.destroy(); this.fail(new Error('child report overflow')); void this.stop(); return; }
+        for (;;) {
+          const end = buffer.indexOf('\n'); if (end < 0) break;
+          const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
+          try {
+            const r = JSON.parse(line) as ChildReport;
+            if (++count > 32 || !r || !/^[a-zA-Z0-9_-]{1,128}$/.test(r.report_id) || !['result', 'help'].includes(r.kind) || typeof r.message !== 'string' || Buffer.byteLength(r.message) > 8192 || Object.keys(r).some(k => !['report_id', 'kind', 'message'].includes(k))) throw new Error('invalid job report');
+            this.emit('report', r);
+          } catch { channel.destroy(); this.fail(new Error('invalid child report')); void this.stop(); return; }
+        }
+      });
+      channel.on('error', error => this.fail(error));
+    }
     this.token = this.child.pid ? processToken(this.child.pid) : null;
     this.child.stderr.on('data', (b: Buffer) => { this.stderr = (this.stderr + b.toString('utf8')).slice(-4096); });
     this.child.stdout.on('data', (b: Buffer) => this.read(b));

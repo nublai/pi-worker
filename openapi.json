@@ -1131,6 +1131,63 @@
         ],
         "additionalProperties": false
       },
+      "Parent": {
+        "type": "object",
+        "properties": {
+          "worker_id": { "type": "string" },
+          "worker_epoch": { "type": "string" },
+          "session_id": { "type": "string" },
+          "binding_revision": { "type": "integer", "minimum": 1 },
+          "execution_id": { "type": "string" },
+          "task_id": { "type": "string" },
+          "generation_id": { "type": "string" }
+        },
+        "required": ["worker_id", "worker_epoch", "session_id", "binding_revision", "execution_id", "task_id", "generation_id"],
+        "additionalProperties": false
+      },
+      "LaunchSpec": {
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "revision": { "type": "integer", "minimum": 1 },
+              "base_sha": { "type": "string" },
+              "allowed_methods": { "type": "array", "items": { "type": "string" } }
+            },
+            "required": ["id", "revision", "allowed_methods"],
+            "additionalProperties": false
+          },
+          "role": { "type": "string" },
+          "tools": { "type": "array", "items": { "type": "string" } },
+          "denied_tools": { "type": "array", "items": { "type": "string" } },
+          "resources": {
+            "type": "object",
+            "properties": {
+              "extensions": { "type": "array", "items": { "type": "string" } },
+              "skills": { "type": "array", "items": { "type": "string" } }
+            },
+            "required": ["extensions", "skills"],
+            "additionalProperties": false
+          },
+          "grant_methods": { "type": "array", "items": { "type": "string" } },
+          "seed_mode": { "const": "standalone" }
+        },
+        "required": ["environment", "role", "tools", "denied_tools", "resources", "grant_methods", "seed_mode"],
+        "additionalProperties": false
+      },
+      "ChildClaim": {
+        "type": "object",
+        "properties": {
+          "command_id": { "type": "string" },
+          "kind": { "enum": ["result", "help"] },
+          "message": { "type": "string" },
+          "claim_not_verified": { "const": true }
+        },
+        "required": ["command_id", "kind", "message", "claim_not_verified"],
+        "additionalProperties": false
+      },
       "Create": {
         "type": "object",
         "properties": {
@@ -1140,6 +1197,8 @@
           "cwd": {
             "type": "string"
           },
+          "parent": { "$ref": "#/components/schemas/Parent" },
+          "launch_spec": { "$ref": "#/components/schemas/LaunchSpec" },
           "provider": {
             "type": "string"
           },
@@ -1249,6 +1308,10 @@
       "Worker": {
         "type": "object",
         "properties": {
+          "parent": { "$ref": "#/components/schemas/Parent" },
+          "launch_spec": { "$ref": "#/components/schemas/LaunchSpec" },
+          "grant_source_id": { "type": "string" },
+          "child_reports": { "type": "array", "items": { "$ref": "#/components/schemas/ChildClaim" } },
           "worker_id": {
             "type": "string"
           },
@@ -2003,6 +2066,8 @@
       "Report": {
         "type": "object",
         "properties": {
+          "kind": { "enum": ["result", "help"] },
+          "message": { "type": "string" },
           "command_id": {
             "type": "string"
           },

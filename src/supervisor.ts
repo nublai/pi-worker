@@ -4,9 +4,9 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Journal } from './journal.js';
-import { GrantStore } from './grants.js';
+import { GrantStore, type Grant } from './grants.js';
 import { ReceiptStore } from './receipts.js';
-import { RpcHost, type SessionHost, type PiRecord } from './host.js';
+import { RpcHost, type SessionHost, type PiRecord, type HostContext, type ChildReport } from './host.js';
 import { SessionIndex } from './session.js';
 import { EventHub, type EventScope } from './events.js';
 import { killGroup } from './process.js';
@@ -14,7 +14,7 @@ import { Refusal, type Binding, type Create, type Prompt, type Worker, type Rece
 type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null };
 type Pending = { kind: 'follow_up' | 'child'; request: FollowUp | ChildLaunch; guard: () => void };
 type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; exited?: boolean; rebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout> };
-export type HostFactory = (create: Create, sessionDir: string) => SessionHost;
+export type HostFactory = (create: Create, sessionDir: string, context?: HostContext) => SessionHost;
 export class Supervisor {
   readonly epoch = randomUUID();
   readonly events = new EventHub(this.epoch);
@@ -24,8 +24,10 @@ export class Supervisor {
   readonly id: string;
   private sessionFiles = new Map<string, { file: string; worker_id: string }>();
   private sessionReservations = new Map<string, string>();
+  private reportNotifications = new Set<string>();
   // Internal callers are trusted; the HTTP boundary supplies a per-request dispatch guard.
   readonly authority = new AsyncLocalStorage<() => void>();
+  readonly callerGrant = new AsyncLocalStorage<Grant>();
   private dispatchGuard(): void { this.authority.getStore()?.(); }
   constructor(readonly stateDir: string, readonly journal: Journal, readonly piVersion: string, readonly factory: HostFactory) {
     this.grants = new GrantStore(stateDir); this.grants.registerOwner();
@@ -39,7 +41,7 @@ export class Supervisor {
     }
   }
   static rpcFactory(executable: string): HostFactory {
-    return (c, dir) => new RpcHost(executable, c.cwd, dir, c.provider, c.model, c.thinking);
+    return (c, dir, context) => new RpcHost(executable, c.cwd, dir, c.provider, c.model, c.thinking, 30_000, context);
   }
   async recover(): Promise<void> {
     this.receipts.recover();
@@ -82,10 +84,10 @@ export class Supervisor {
     }
     for (const child of this.workers.values()) {
       const launch = child.worker.parent_launch_command_id, parentId = child.worker.parent_worker_id;
-      if (!launch || !parentId) continue;
+      if (!launch || !parentId || this.receipts.all.get(launch)?.effect === 'no_effect') continue;
       const parent = this.require(parentId);
       const resolved = parent.worker.resolutions?.some(r => r.command_id === launch);
-      const reported = [...this.receipts.all.values()].some(r => r.operation === 'children.report' && r.worker_id === child.worker.worker_id && r.state === 'delivered' && r.result?.task_id === launch);
+      const reported = [...this.receipts.all.values()].some(r => r.operation === 'children.report' && r.worker_id === child.worker.worker_id && r.state === 'delivered' && r.result?.task_id === (child.worker.parent?.task_id ?? launch) && r.result?.kind !== 'help');
       if (!reported && !resolved) this.fence(parent, launch);
     }
   }
@@ -117,7 +119,10 @@ export class Supervisor {
   }
   require(id: string): Live { const live = this.workers.get(id); if (!live) throw new Refusal('unknown_worker'); return live; }
   get(id: string): Worker {
-    const live = this.require(id); this.guarded(live, () => this.refresh(live), true); return structuredClone(live.worker);
+    const live = this.require(id); this.guarded(live, () => this.refresh(live), true);
+    const w = structuredClone(live.worker);
+    if (w.parent) w.child_reports = [...this.receipts.all.values()].filter(r => r.worker_id === id && r.operation === 'children.report' && r.state === 'delivered' && r.result?.kind).map(r => ({ command_id: r.command_id, kind: r.result!.kind as 'result' | 'help', message: String(r.result!.message), claim_not_verified: true }));
+    return w;
   }
   list(): Worker[] { return [...this.workers.keys()].map(id => this.get(id)); }
   private refresh(live: Live): void {
@@ -229,21 +234,54 @@ export class Supervisor {
     this.persist(live);
     live.hub.publish('worker_exit', {}, live.worker.execution?.execution_id ?? null, 'supervisor', true);
   }
-  create(c: Create): Promise<Receipt> {
+  private validateLaunch(c: Create): void {
+    const spec = c.launch_spec;
+    if (c.parent && !spec) throw new Refusal('child_launch_spec_required');
+    const caller = this.callerGrant.getStore();
+    if (spec) {
+      const subset = (child: string[], parent: string[]) => child.every(x => parent.includes('*') || parent.includes(x));
+      if (!subset(spec.grant_methods, spec.environment.allowed_methods) || (caller && !subset(spec.grant_methods, this.grants.active(caller.grant_id).methods))) throw new Refusal('child_grant_not_subset');
+      if (spec.tools.some(t => !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(t)) || spec.tools.some(t => spec.denied_tools.includes(t))) throw new Refusal('invalid_tool_allowlist');
+      if (spec.resources.extensions.concat(spec.resources.skills).some(p => !p.startsWith('/'))) throw new Refusal('resource_path_must_be_absolute');
+      if (c.parent) {
+        const parent = this.require(c.parent.worker_id); this.writable(parent);
+        this.binding(parent, { ...c.parent, command_id: c.command_id });
+        if (parent.worker.status !== 'ready' || parent.worker.execution?.execution_id !== c.parent.execution_id) throw new Refusal('stale_parent_execution');
+        const p = parent.worker.launch_spec;
+        if (!p || !subset(spec.grant_methods, p.grant_methods) || !subset(spec.environment.allowed_methods, p.environment.allowed_methods) || !subset(spec.tools, p.tools) || !subset(p.denied_tools, spec.denied_tools) || !subset(spec.resources.extensions, p.resources.extensions) || !subset(spec.resources.skills, p.resources.skills)) throw new Refusal('child_authority_not_subset');
+        if (parent.worker.grant_source_id) this.grants.active(parent.worker.grant_source_id);
+      }
+    }
+  }
+  private onReport(live: Live, report: ChildReport): void {
+    const w = live.worker, parent = w.parent;
+    if (!parent || !w.session_id) { this.fault(live, new Error('report_before_binding')); return; }
+    const guard = () => {
+      if (!w.launch_spec?.grant_methods.includes('children.report')) throw new Refusal('report_not_granted');
+      for (const owner of [w, this.require(parent.worker_id).worker]) if (owner.grant_source_id) this.grants.active(owner.grant_source_id);
+    };
+    void this.authority.run(guard, () => this.report(w.worker_id, { command_id: `fd-${w.worker_id}-${report.report_id}`, worker_epoch: w.worker_epoch, session_id: w.session_id!, binding_revision: w.binding_revision, task_id: parent.task_id, result_digest: 'unverified-claim', kind: report.kind, message: report.message })).catch(error => this.fault(live, error));
+  }
+  async create(c: Create): Promise<Receipt> {
     let cwd: string;
-    return this.receipts.run(c.command_id, 'workers.create', c, async () => {
+    const receipt = await this.receipts.run(c.command_id, 'workers.create', c, async () => {
       this.dispatchGuard(); // Refusal must precede even local worker/cwd reservation.
+      this.validateLaunch(c);
       const worker_id = randomUUID(), worker_epoch = randomUUID();
       const w: Worker = { worker_id, worker_epoch, supervisor_epoch: this.epoch, session_id: null, session_identity_evidence: 'pi_rpc_header_id', binding_revision: 1, leaf_id: null, cwd, status: 'starting', foreground: 'idle', execution: null, fence: null, history: { last_entry_id: null, lag: false, evidence: 'pi_session_file' }, cleanup: 'not_started', pending_interactions: [] };
+      if (c.launch_spec) w.launch_spec = structuredClone(c.launch_spec);
+      if (this.callerGrant.getStore()) w.grant_source_id = this.callerGrant.getStore()!.grant_id;
+      if (c.parent) { w.parent = structuredClone(c.parent); w.parent_worker_id = c.parent.worker_id; w.parent_launch_command_id = c.command_id; }
       const live: Live = { worker: w, sessionFile: null, pid: null, token: null, index: new SessionIndex(null), hub: this.events.scoped(worker_id), completedMessages: 0 };
       this.workers.set(worker_id, live);
       this.persist(live);
       this.receipts.dispatch(c.command_id, { worker_id });
       const dir = join(this.stateDir, 'sessions', worker_id); mkdirSync(dir, { recursive: true, mode: 0o700 });
-      const host = this.factory({ ...c, cwd }, dir); live.host = host;
+      const host = this.factory({ ...c, cwd }, dir, { worker_id, launch_command_id: c.command_id, parent: c.parent, launch_spec: c.launch_spec }); live.host = host;
       live.pid = host.pid ?? null; live.token = host.token; this.persist(live);
       host.on('event', event => this.guarded(live, () => this.onEvent(live, event)));
       host.on('exit', () => this.guarded(live, () => this.onExit(live)));
+      host.on('report', report => this.onReport(live, report));
       try {
         const state = await host.request({ type: 'get_state' });
         if (live.faulted) throw new Error('worker fault during initialization');
@@ -262,10 +300,13 @@ export class Supervisor {
         this.persist(live); throw error;
       }
     }, () => {
+      this.validateLaunch(c);
       try { if (!statSync(c.cwd).isDirectory()) throw new Error('not directory'); cwd = realpathSync(c.cwd); }
       catch { throw new Refusal('cwd_not_directory'); }
       if ([...this.workers.values()].some(l => l.worker.cwd === cwd && (['starting', 'ready', 'cleanup_pending'].includes(l.worker.status) || l.worker.cleanup.includes('escaped_descendants_unproven')))) throw new Refusal('exclusive_environment_already_bound');
     });
+    if (c.parent && receipt.effect === 'unknown') this.fence(this.require(c.parent.worker_id), c.command_id);
+    return receipt;
   }
   async prompt(id: string, p: Prompt, operation: 'sessions.prompt' | 'sessions.follow_up' = 'sessions.prompt'): Promise<Receipt> {
     let live: Live;
@@ -481,11 +522,20 @@ export class Supervisor {
       if (b.execution_id && live.worker.execution?.execution_id !== b.execution_id) throw new Refusal('stale_execution');
     });
   }
-  report(id: string, r: Report): Promise<Receipt> {
-    return this.receipts.run(r.command_id, 'children.report', { ...r, worker_id: id }, async () => {
+  async report(id: string, r: Report): Promise<Receipt> {
+    const receipt = await this.receipts.run(r.command_id, 'children.report', { ...r, worker_id: id }, async () => {
       this.dispatchGuard(); this.receipts.dispatch(r.command_id, { worker_id: id });
-      return { state: 'delivered', stage: 'forwarded', effect: 'observed', result: { task_id: r.task_id, result_digest: r.result_digest, claim_not_verified: true } };
-    }, () => { this.binding(this.require(id), r); });
+      return { state: 'delivered', stage: 'forwarded', effect: 'observed', result: { task_id: r.task_id, result_digest: r.result_digest, ...(r.kind ? { kind: r.kind, message: r.message } : {}), claim_not_verified: true } };
+    }, () => {
+      const w = this.require(id).worker; this.binding(this.require(id), r);
+      if (w.parent && r.task_id !== w.parent.task_id) throw new Refusal('wrong_child_task');
+      if (r.kind && (typeof r.message !== 'string' || Buffer.byteLength(r.message) > 8192)) throw new Refusal('report_message_invalid');
+    });
+    if (receipt.state === 'delivered' && !this.reportNotifications.has(r.command_id)) {
+      this.reportNotifications.add(r.command_id);
+      this.require(id).hub.publish('child_report', { receipt }, null, 'supervisor', true);
+    }
+    return receipt;
   }
   async stop(id: string, b: Binding): Promise<Receipt> {
     let live: Live;
