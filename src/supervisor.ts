@@ -109,12 +109,17 @@ export class Supervisor {
   }
   private async cleanup(live: Live): Promise<boolean> {
     live.worker.status = 'cleanup_pending'; live.worker.cleanup = 'unresolved';
-    this.persist(live); // fsynced before kill, including startup recovery and stop
+    let durable = true;
+    try { this.persist(live); } catch { durable = false; } // storage failure must not suppress a safety kill
     let gone = false;
     try { gone = live.unit ? await this.containment.clean(live.unit) : false; } catch { /* remain pending */ }
-    if (gone) { live.pid = null; live.worker.status = 'stopped'; live.worker.cleanup = 'cgroup_empty_removed'; }
-    this.persist(live); // only removal/empty evidence can release the lease
-    return gone;
+    if (gone && durable) {
+      live.pid = null; live.worker.status = 'stopped'; live.worker.cleanup = 'cgroup_empty_removed';
+      try { this.persist(live); return true; } catch { /* unrecorded cleanup is not confirmation */ }
+    }
+    live.worker.status = 'cleanup_pending'; live.worker.cleanup = gone ? 'unit_empty_cleanup_unrecorded' : 'unresolved';
+    try { this.persist(live); } catch { /* original durable unit identity still reserves the lease on recovery */ }
+    return false;
   }
   private persist(live: Live): void {
     if (live.worker.session_id && live.sessionFile) this.sessionFiles.set(live.worker.session_id, { file: live.sessionFile, worker_id: live.worker.worker_id });
@@ -659,7 +664,7 @@ export class Supervisor {
     return this.receipts.run(b.command_id, 'workers.stop', { ...b, worker_id: id }, async () => {
       this.dispatchGuard();
       this.receipts.dispatch(b.command_id, { worker_id: id });
-      live.worker.status = 'cleanup_pending'; this.persist(live);
+      if (!live.unit) { live.worker.status = 'cleanup_pending'; this.persist(live); }
       const gone = live.unit ? await this.cleanup(live) : live.host ? await live.host.stop() : live.pid !== null ? await killGroup(live.pid, live.token) : live.worker.cleanup === 'not_started';
       live.worker.status = gone ? 'stopped' : 'cleanup_pending';
       live.worker.cleanup = gone ? live.unit ? 'cgroup_empty_removed' : 'process_group_observed_gone; escaped_descendants_unproven' : 'unresolved';

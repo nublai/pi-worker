@@ -39,6 +39,22 @@ test('cleanup_pending is fsynced before kill; failed empty proof blocks resume a
   } finally { journal.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('a failed journal still permits fault termination but never records cleanup as confirmed', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'a0s5-storage-')), cwd = join(dir, 'work'); mkdirSync(cwd);
+  const journal = new Journal(join(dir, 'journal')); let killed = 0;
+  const jail: Containment = { profile: 'test', reserve: epoch => ({ root: dir, name: 'w-' + epoch, boot: 'test' }), spawn: () => { throw new Error('seam'); }, clean: async () => { killed++; return true; } };
+  let host: Host;
+  const s = new Supervisor(dir, journal, 'test', (_c, sessionDir) => { const file = join(sessionDir, 's.jsonl'); writeFileSync(file, '{"type":"session","id":"s"}\n'); host = new Host(sessionDir, 's', file); return host; }, jail);
+  try {
+    const c = await s.create({ command_id: 'create', cwd, provider: 'p', model: 'm', thinking: 'off' }); assert.equal(c.state, 'delivered');
+    journal.failed = true;
+    host!.emit('event', { type: 'host_identity', sessionId: 'changed-behind-supervisor', sessionFile: '/bad' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(killed, 1, 'storage failure must not suppress the cgroup kill');
+    assert.equal(s.get(c.worker_id!).status, 'cleanup_pending', 'no durable proof means no lease release');
+  } finally { journal.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('fallback names weaker process-group semantics', () => {
   assert.match(new ProcessGroupContainment().profile, /WEAKER.*escaped descendants unproven/);
 });
