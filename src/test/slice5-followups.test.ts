@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Supervisor } from '../supervisor.js';
 import { Journal } from '../journal.js';
+import { requestHash } from '../receipts.js';
 import type { Containment, CleanupUnit } from '../containment.js';
 import { Host, bind, tick } from './helpers.js';
 
@@ -53,4 +54,57 @@ for (const trigger of ['exit', 'stop', 'fault'] as const) for (const lateGone of
     await assert.rejects(f.s.relaunch(old.worker_id, bind(fresh, 'second-relaunch')), /cleanup_pending_or_cleanup_unproven/);
     assert.equal(f.hosts.length, 2, 'no second live Pi on the same session');
   } finally { for (const call of calls) call.finish(true); await tick(); await f.close(); }
+});
+
+for (const failure of ['spawn', 'get_state'] as const) for (const restart of [false, true]) test(`owner-kept prompt binds to the successful retry after ${failure} failure (restart=${restart})`, async () => {
+  const f = setup(); let recovered: Supervisor | undefined, fail = true;
+  try {
+    const made = await f.create(), old = f.s.get(made.worker_id!);
+    const p = { ...bind(old, 'kept'), message: 'EXACT ONCE' };
+    f.s.receipts.put({ command_id: p.command_id, worker_id: old.worker_id, operation: 'sessions.prompt', request_hash: requestHash({ ...p, worker_id: old.worker_id, operation: 'sessions.prompt' }), state: 'intent', stage: 'reserved', effect: 'no_effect', evidence: 'supervisor_journal_fsynced', created_at: new Date().toISOString() });
+    const factory: typeof f.factory = (c, dir) => {
+      if (fail && failure === 'spawn') throw new Error('test_spawn_failure');
+      const h = f.factory(c, dir), request = h.request.bind(h);
+      h.request = async c => fail && c.type === 'get_state' ? { type: 'response', id: 'failed', success: false } : request(c);
+      return h;
+    };
+    recovered = new Supervisor(f.root, f.journal, 'test', factory, f.jail); await recovered.recover();
+    await recovered.resolveUnknown(old.worker_id, { ...bind(recovered.get(old.worker_id), 'keep'), uncertain_command_id: p.command_id, fence_generation: 0, disposition: 'keep' });
+    const failed = await recovered.relaunch(old.worker_id, bind(recovered.get(old.worker_id), 'failed-relaunch'));
+    assert.equal(failed.state, 'outcome_unknown');
+    assert.match(failed.error!, failure === 'spawn' ? /test_spawn_failure/ : /initialization_failed/);
+    assert.equal(recovered.get(old.worker_id).cleanup, 'cgroup_empty_removed');
+    assert.equal(recovered.receipts.all.get(p.command_id)!.state, 'intent_ready');
+    fail = false;
+    if (restart) { recovered = new Supervisor(f.root, f.journal, 'test', factory, f.jail); await recovered.recover(); }
+    const retry = await recovered.relaunch(old.worker_id, bind(recovered.get(old.worker_id), 'retry-relaunch'));
+    assert.equal(retry.state, 'delivered');
+    const fresh = recovered.get(old.worker_id), host = f.hosts.at(-1)!;
+    assert.equal(fresh.session_id, old.session_id); assert.equal(fresh.binding_revision, old.binding_revision);
+    assert.equal(host.file, f.hosts[0]!.file); assert.equal(host.prompts, 0, 'neither recovery nor relaunch sends the kept prompt');
+    await assert.rejects(recovered.prompt(old.worker_id, { ...p, message: 'changed payload' }), /command_id_conflict/);
+    assert.throws(() => recovered!.followUp(old.worker_id, { ...p, execution_id: 'wrong-operation' }), /command_id_conflict/);
+    await assert.rejects(recovered.prompt(old.worker_id, { ...bind(old, 'ordinary-stale'), message: p.message }), /stale_binding/);
+    const sent = await recovered.prompt(old.worker_id, p).catch(error => assert.fail(`exact owner-kept retry refused: ${String(error)}`));
+    assert.equal(sent.state, 'delivered'); assert.deepEqual(await recovered.prompt(old.worker_id, p), sent);
+    assert.equal(host.prompts, 1); assert.deepEqual(host.commands.filter(c => c.type === 'prompt'), [{ type: 'prompt', message: p.message }]);
+    assert.equal(f.hosts.reduce((n, h) => n + h.prompts, 0), 1);
+  } finally { if (recovered) await recovered.shutdown(); await f.close(); }
+});
+
+test('a second successful relaunch does not rebind an undispatched owner-kept prompt', async () => {
+  const f = setup(); let recovered: Supervisor | undefined;
+  try {
+    const made = await f.create(), old = f.s.get(made.worker_id!);
+    const p = { ...bind(old, 'kept'), message: 'NOT REBOUND' };
+    f.s.receipts.put({ command_id: p.command_id, worker_id: old.worker_id, operation: 'sessions.prompt', request_hash: requestHash({ ...p, worker_id: old.worker_id, operation: 'sessions.prompt' }), state: 'intent', stage: 'reserved', effect: 'no_effect', evidence: 'supervisor_journal_fsynced', created_at: new Date().toISOString() });
+    recovered = new Supervisor(f.root, f.journal, 'test', f.factory, f.jail); await recovered.recover();
+    await recovered.resolveUnknown(old.worker_id, { ...bind(recovered.get(old.worker_id), 'keep'), uncertain_command_id: p.command_id, fence_generation: 0, disposition: 'keep' });
+    assert.equal((await recovered.relaunch(old.worker_id, bind(recovered.get(old.worker_id), 'first'))).state, 'delivered');
+    const first = recovered.get(old.worker_id);
+    await recovered.stop(old.worker_id, bind(first, 'stop-first'));
+    assert.equal((await recovered.relaunch(old.worker_id, bind(first, 'second'))).state, 'delivered');
+    await assert.rejects(recovered.prompt(old.worker_id, p), /stale_binding/);
+    assert.equal(f.hosts.reduce((n, h) => n + h.prompts, 0), 0);
+  } finally { if (recovered) await recovered.shutdown(); await f.close(); }
 });

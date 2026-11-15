@@ -434,7 +434,7 @@ export class Supervisor {
       const w = live.worker, old = { worker_epoch: w.worker_epoch, session_id: w.session_id!, binding_revision: w.binding_revision };
       w.worker_epoch = randomUUID();
       (live.intentBindings ??= {});
-      for (const r of this.receipts.all.values()) if (r.worker_id === id && ['intent_recovered', 'intent_ready'].includes(r.state) && r.operation === 'sessions.prompt') live.intentBindings[r.command_id] ??= { ...old, command_id: r.command_id, relaunch_epoch: w.worker_epoch };
+      for (const r of this.receipts.all.values()) if (r.worker_id === id && ['intent_recovered', 'intent_ready'].includes(r.state) && r.operation === 'sessions.prompt') live.intentBindings[r.command_id] ??= { ...old, command_id: r.command_id };
       w.status = 'starting'; w.cleanup = 'not_started';
       w.execution = null; w.foreground = 'idle'; live.exited = false; live.faulted = false;
       live.unit = this.containment.reserve(w.worker_epoch); live.pid = null; live.token = null;
@@ -461,7 +461,11 @@ export class Supervisor {
           w.resources = inventory.data;
         }
         w.status = 'ready'; w.cleanup = 'live_cgroup'; live.observedIdle = true;
-        this.refresh(live); this.persist(live);
+        this.refresh(live);
+        // Failed attempts retain the original exact binding, but do not consume
+        // its one target epoch. Only a verified successful launch binds it.
+        for (const kept of Object.values(live.intentBindings)) if (!kept.relaunch_epoch && kept.session_id === w.session_id && kept.binding_revision === w.binding_revision) kept.relaunch_epoch = w.worker_epoch;
+        this.persist(live);
         return { state: 'delivered', stage: 'forwarded', effect: 'observed', result: { worker_id: id, worker_epoch: w.worker_epoch, session_id: w.session_id, binding_revision: w.binding_revision, prompted: false } };
       } catch (error) { await this.cleanup(live); throw error; }
       finally { live.rebinding = false; }
