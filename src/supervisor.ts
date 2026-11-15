@@ -688,15 +688,23 @@ export class Supervisor {
       this.dispatchGuard();
       this.receipts.dispatch(b.command_id, { worker_id: id });
       const unit = live.unit;
+      const stoppedEpoch = live.worker.worker_epoch;
       if (!unit) { live.worker.status = 'cleanup_pending'; this.persist(live); }
       const gone = unit ? await this.cleanup(live) : live.host ? await live.host.stop() : live.pid !== null ? await killGroup(live.pid, live.token) : live.worker.cleanup === 'not_started';
-      if (live.unit === unit) {
+      const superseded = live.unit !== unit;
+      if (!superseded) {
         live.worker.status = gone ? 'stopped' : 'cleanup_pending';
         live.worker.cleanup = gone ? unit ? 'cgroup_empty_removed' : 'process_group_observed_gone; escaped_descendants_unproven' : 'unresolved';
         if (gone) live.pid = null;
         this.persist(live);
       }
-      return { state: gone ? 'delivered' : 'outcome_unknown', stage: gone ? 'termination_observed' : 'unknown', effect: gone ? 'observed' : 'unknown', result: { termination: gone ? 'observed_stopped' : 'unknown', profile: unit ? 'cgroup_v2' : 'process_group_only' } };
+      if (superseded) {
+        const currentEpoch = live.worker.worker_epoch;
+        return gone
+          ? { state: 'delivered', stage: 'termination_observed', effect: 'observed', result: { termination: 'superseded_generation_stopped', stopped_worker_epoch: stoppedEpoch, current_worker_epoch: currentEpoch, profile: unit ? 'cgroup_v2' : 'process_group_only' } }
+          : { state: 'outcome_unknown', stage: 'unknown', effect: 'unknown', result: { termination: 'superseded_generation_unknown', stopped_worker_epoch: stoppedEpoch, current_worker_epoch: currentEpoch, profile: unit ? 'cgroup_v2' : 'process_group_only' } };
+      }
+      return { state: gone ? 'delivered' : 'outcome_unknown', stage: gone ? 'termination_observed' : 'unknown', effect: gone ? 'observed' : 'unknown', result: { termination: gone ? 'observed_stopped' : 'unknown', stopped_worker_epoch: stoppedEpoch, current_worker_epoch: stoppedEpoch, profile: unit ? 'cgroup_v2' : 'process_group_only' } };
     }, () => { live = this.require(id); this.binding(live, b); });
   }
   async shutdown(): Promise<void> {

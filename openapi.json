@@ -506,7 +506,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Receipt"
+                  "$ref": "#/components/schemas/StopReceipt"
                 }
               }
             }
@@ -2574,6 +2574,40 @@
           "result_digest"
         ],
         "additionalProperties": false
+      },
+      "StopResult": {
+        "type": "object",
+        "properties": {
+          "termination": {
+            "enum": ["observed_stopped", "superseded_generation_stopped", "superseded_generation_unknown", "unknown"],
+            "description": "observed_stopped: normal stop, generation confirmed gone. superseded_generation_stopped: old generation gone but a new relaunch was already running. superseded_generation_unknown: old generation cleanup outcome unknown, new generation running. unknown: cleanup outcome unknown, generation status not checked."
+          },
+          "stopped_worker_epoch": {
+            "type": "string",
+            "description": "The worker_epoch of the generation that was targeted by this stop. Present for all termination values."
+          },
+          "current_worker_epoch": {
+            "type": "string",
+            "description": "The worker_epoch of the currently active generation at the time of receipt. Equals stopped_worker_epoch for non-superseded stops; differs when the generation was superseded."
+          },
+          "profile": {
+            "enum": ["cgroup_v2", "process_group_only"]
+          }
+        },
+        "additionalProperties": true
+      },
+      "StopReceipt": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Receipt" },
+          {
+            "type": "object",
+            "properties": {
+              "result": {
+                "$ref": "#/components/schemas/StopResult"
+              }
+            }
+          }
+        ]
       }
     },
     "securitySchemes": {
