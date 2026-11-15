@@ -11,6 +11,111 @@
     }
   ],
   "paths": {
+    "/v0/workers/{worker_id}/files/read": {
+      "post": {
+        "operationId": "files.read",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileRead"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pinned UTF-8 regular file, <=1 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileContent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}/relaunch": {
+      "post": {
+        "operationId": "workers.relaunch",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Binding"
+              }
+            }
+          }
+        },
+        "summary": "Explicit fresh process after confirmed cleanup; opens history without prompting"
+      }
+    },
     "/v0/workers/{id}/interactions": {
       "get": {
         "operationId": "interactions.list",
@@ -1451,6 +1556,50 @@
         "required": ["worker_id", "worker_epoch", "session_id", "binding_revision", "execution_id", "task_id", "generation_id"],
         "additionalProperties": false
       },
+      "FileRead": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "roots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "path",
+          "roots"
+        ],
+        "additionalProperties": false
+      },
+      "FileContent": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 0
+          },
+          "bytes": {
+            "type": "integer"
+          },
+          "evidence": {
+            "const": "pinned_file_read"
+          }
+        },
+        "required": [
+          "path",
+          "content",
+          "bytes",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
       "LaunchSpec": {
         "type": "object",
         "properties": {
@@ -1460,6 +1609,8 @@
               "id": { "type": "string" },
               "revision": { "type": "integer", "minimum": 1 },
               "base_sha": { "type": "string" },
+              "filesystem": { "enum": ["none", "bwrap"] },
+              "root": { "type": "string" },
               "allowed_methods": { "type": "array", "items": { "type": "string" } }
             },
             "required": ["id", "revision", "allowed_methods"],
@@ -1830,6 +1981,7 @@
               "workers.create",
               "sessions.prompt",
               "workers.stop",
+              "workers.relaunch",
               "sessions.resolve_unknown",
               "sessions.rebind",
               "sessions.follow_up",

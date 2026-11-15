@@ -18,6 +18,13 @@ export class CgroupContainment implements Containment {
   constructor(root: string, readonly timeoutMs = 5000) {
     this.root = realpathSync(root);
     if (!this.root.startsWith('/sys/fs/cgroup/')) throw new Error('delegation must be under cgroup v2 mount');
+    const own = readFileSync('/proc/self/cgroup', 'utf8').trim();
+    if (!own.startsWith('0::') || own.includes('\n')) throw new Error('pure cgroup v2 required');
+    const current = join('/sys/fs/cgroup', own.slice(3)).split('/');
+    const target = this.root.split('/'); let common = 0;
+    while (common < current.length && current[common] === target[common]) common++;
+    try { accessSync(join(current.slice(0, common).join('/') || '/', 'cgroup.procs'), constants.W_OK); }
+    catch { throw new Error('supervisor cannot migrate from current cgroup; launch it via systemd-run --user --pipe --wait (not an SSH init.scope process)'); }
     accessSync(join(this.root, 'cgroup.procs'), constants.W_OK);
     accessSync(join(this.root, 'cgroup.subtree_control'), constants.W_OK);
     if (!existsSync(join(this.root, 'cgroup.kill'))) throw new Error('cgroup v2 kill unavailable');

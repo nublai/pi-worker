@@ -32,7 +32,7 @@ function validate(schema: Schema, value: unknown): boolean {
   }
   return true;
 }
-async function body(req: IncomingMessage, name: 'Create' | 'Prompt' | 'Binding' | 'Resolve' | 'Rebind' | 'FollowUp' | 'Control' | 'ChildLaunch' | 'Report' | 'Answer'): Promise<Record<string, unknown>> {
+async function body(req: IncomingMessage, name: 'Create' | 'Prompt' | 'Binding' | 'Resolve' | 'Rebind' | 'FollowUp' | 'Control' | 'ChildLaunch' | 'Report' | 'Answer' | 'FileRead'): Promise<Record<string, unknown>> {
   if (req.headers['content-type']?.split(';')[0] !== 'application/json') throw new Refusal('content_type_must_be_json');
   let bytes = 0; const chunks: Buffer[] = [];
   for await (const chunk of req) {
@@ -117,8 +117,13 @@ export function router(supervisor: Supervisor): Server {
         if (parts.length === 5 && parts[4] === 'status' && req.method === 'GET') return json(res, run('interactions.status', () => supervisor.interactions.status(id, url.searchParams.get('interaction_id') ?? ''), id));
         if (parts.length === 5 && parts[4] === 'answer_if_current' && req.method === 'POST') { const a = await body(req, 'Answer') as Answer; return json(res, await run('interactions.answer_if_current', () => supervisor.answer(id, a), id)); }
       }
+      if (parts.length === 5 && parts[3] === 'files' && parts[4] === 'read' && req.method === 'POST') {
+        const request = await body(req, 'FileRead') as { path: string; roots: string[] };
+        return json(res, run('files.read', () => supervisor.readFile(id, request), id));
+      }
       if (parts.length !== 4) throw new Refusal('unsupported_method');
       if (parts[3] === 'prompt' && req.method === 'POST') { const p = await body(req, 'Prompt') as Prompt; return json(res, await run('sessions.prompt', () => supervisor.prompt(id, p), id)); }
+      if (parts[3] === 'relaunch' && req.method === 'POST') { const b = await body(req, 'Binding') as Binding; return json(res, await run('workers.relaunch', () => supervisor.relaunch(id, b), id)); }
       if (parts[3] === 'stop' && req.method === 'POST') { const b = await body(req, 'Binding') as Binding; return json(res, await run('workers.stop', () => supervisor.stop(id, b), id)); }
       if (parts[3] === 'resolve_unknown' && req.method === 'POST') { const r = await body(req, 'Resolve') as Resolve; return json(res, await run('sessions.resolve_unknown', () => supervisor.resolveUnknown(id, r), id)); }
       if (parts[3] === 'rebind' && req.method === 'POST') { const b = await body(req, 'Rebind') as Rebind; return json(res, await run('sessions.rebind', () => supervisor.rebind(id, b), id)); }

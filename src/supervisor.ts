@@ -1,7 +1,7 @@
 /** THROWAWAY A0 supervisor. pi owns transcript, this process owns control records. */
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { mkdirSync, realpathSync, statSync } from 'node:fs';
+import { mkdirSync, realpathSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Journal } from './journal.js';
 import { GrantStore, type Grant } from './grants.js';
@@ -13,6 +13,7 @@ import { SessionIndex } from './session.js';
 import { EventHub, type EventScope } from './events.js';
 import { killGroup } from './process.js';
 import { ProcessGroupContainment, type Containment, type CleanupUnit } from './containment.js';
+import { sandboxRoot, readConfined } from './sandbox.js';
 import { Refusal, type Binding, type Create, type Prompt, type Worker, type Receipt, type Hello, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
 type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null; unit?: CleanupUnit; create?: Create; intentBindings?: Record<string, Binding> };
 type Pending = { kind: 'follow_up' | 'child'; request: FollowUp | ChildLaunch; guard: () => void };
@@ -102,8 +103,8 @@ export class Supervisor {
   }
   hello(): Hello {
     return { protocol: { major: 0, minor: 1 }, prototype: true, supervisor_id: this.id, supervisor_epoch: this.epoch, pi_version: this.piVersion,
-      capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'host.sdk', 'host.acp', 'interactions.list', 'interactions.answer_if_current', 'interactions.status', 'interaction.select', 'interaction.confirm', 'interaction.input', 'interaction.editor', 'interaction.tool_approval.sdk_acp', 'answer_stage.rpc.2', 'answer_stage.sdk_acp.3', 'gate_stage.sdk_acp.4', 'custom_ui.refused', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt', 'workers.create.typed_child', 'children.report.fd'],
-      limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; SDK/ACP test bash gate rechecks grant at release dispatch and child rechecks input digest/policy/expiry; not a production sandbox', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination, cancel/interrupt, resolution and child reports bypass count quota; journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed requires exact agent_settled evidence in the session file or fsynced settlement record, never external-effect completion', tree_navigation: 'SDK/ACP navigateTree supported; RPC refused no_effect. SDK leaf overrides append-order history.', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
+      capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'host.sdk', 'host.acp', 'interactions.list', 'interactions.answer_if_current', 'interactions.status', 'interaction.select', 'interaction.confirm', 'interaction.input', 'interaction.editor', 'interaction.tool_approval.sdk_acp', 'answer_stage.rpc.2', 'answer_stage.sdk_acp.3', 'gate_stage.sdk_acp.4', 'custom_ui.refused', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt', 'workers.create.typed_child', 'children.report.fd', 'workers.relaunch', 'environment.bwrap', 'files.read'],
+      limits: { cleanup_replacement: 'Cgroup cleanup requires populated=0 AND removal; weaker process-group cleanup never authorizes reuse/relaunch.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; SDK/ACP test bash gate rechecks grant at release dispatch and child rechecks input digest/policy/expiry; not a production sandbox', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination, cancel/interrupt, resolution and child reports bypass count quota; journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed requires exact agent_settled evidence in the session file or fsynced settlement record, never external-effect completion', tree_navigation: 'SDK/ACP navigateTree supported; RPC refused no_effect. SDK leaf overrides append-order history.', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
       resource_profile: 'per-worker resources inventories actually registered tools/commands; SDK/ACP also exact loaded extension paths and skills. Project resources require create.project_trusted=true. SDK builtins added explicitly for untyped launches; launch_spec uses explicit resources/tools with no discovered resources/MCP/project context; no MCP connection parity claim', cleanup_profile: this.containment.profile };
   }
   private async cleanup(live: Live): Promise<boolean> {
@@ -256,6 +257,12 @@ export class Supervisor {
     }
     live.hub.publish(event.type, event, w.execution?.execution_id ?? null, 'pi');
   }
+  private wireHost(live: Live, host: SessionHost): void {
+    // Retired process callbacks must not fault or rebind the fresh generation.
+    host.on('event', event => { if (live.host === host) this.guarded(live, () => this.onEvent(live, event)); });
+    host.on('exit', () => { if (live.host === host) this.guarded(live, () => this.onExit(live)); });
+    host.on('report', report => { if (live.host === host) this.onReport(live, report); });
+  }
   private onExit(live: Live): void {
     if (live.exited) return;
     // killGroup may observe termination before Node delivers the exit callback.
@@ -292,6 +299,11 @@ export class Supervisor {
       }
     }
   }
+  readFile(id: string, request: { path: string; roots: string[] }) {
+    const w = this.require(id).worker;
+    if (w.launch_spec?.environment.filesystem !== 'bwrap') throw new Refusal('files_read_requires_sandbox_environment');
+    return readConfined(w.cwd, request.path, request.roots);
+  }
   private onReport(live: Live, report: ChildReport): void {
     const w = live.worker, parent = w.parent;
     if (!parent || !w.session_id) { this.fault(live, new Error('report_before_binding')); return; }
@@ -315,12 +327,10 @@ export class Supervisor {
       this.workers.set(worker_id, live);
       this.persist(live);
       this.receipts.dispatch(c.command_id, { worker_id });
-      const dir = join(this.stateDir, 'sessions', worker_id); mkdirSync(dir, { recursive: true, mode: 0o700 });
+      const dir = this.sessionDir(live);
       const host = this.factory({ ...c, cwd }, dir, { worker_id, launch_command_id: c.command_id, parent: c.parent, launch_spec: c.launch_spec, containment: this.containment, unit: live.unit }); live.host = host;
       live.pid = host.pid ?? null; live.token = host.token; this.persist(live);
-      host.on('event', event => this.guarded(live, () => this.onEvent(live, event)));
-      host.on('exit', () => this.guarded(live, () => this.onExit(live)));
-      host.on('report', report => this.onReport(live, report));
+      this.wireHost(live, host);
       try {
         const state = await host.request({ type: 'get_state' });
         if (live.faulted) throw new Error('worker fault during initialization');
@@ -345,6 +355,7 @@ export class Supervisor {
       }
     }, () => {
       this.validateLaunch(c);
+      sandboxRoot(c, this.stateDir);
       try { if (!statSync(c.cwd).isDirectory()) throw new Error('not directory'); cwd = realpathSync(c.cwd); }
       catch { throw new Refusal('cwd_not_directory'); }
       if ([...this.workers.values()].some(l => l.worker.cwd === cwd && (['starting', 'ready', 'cleanup_pending'].includes(l.worker.status) || l.worker.cleanup.includes('escaped_descendants_unproven')))) throw new Refusal('exclusive_environment_already_bound');
@@ -376,13 +387,69 @@ export class Supervisor {
       this.refresh(live); this.persist(live);
       return { state: 'delivered', stage: 'forwarded', effect: 'observed', admission: 'accepted', disposition, history_lag: w.history.lag };
     }, () => {
-      live = this.require(id); const w = live.worker; this.writable(live); this.binding(live, p); this.refresh(live);
+      live = this.require(id); const w = live.worker; this.writable(live); this.intentBinding(live, p); this.refresh(live);
       if (w.status !== 'ready' || !live.host || live.faulted) throw new Refusal('worker_not_ready');
       if (w.foreground !== 'idle') throw new Refusal('busy_prompt_requires_explicit_steer_or_follow_up_not_supported');
       if (p.message.trimStart().startsWith('/')) throw new Refusal('slash_commands_use_typed_rebind_or_unsupported');
     });
     if (receipt.state === 'outcome_unknown' && receipt.worker_id && !this.require(id).worker.resolutions?.some(r => r.command_id === p.command_id)) this.fence(this.require(id), p.command_id);
     return receipt;
+  }
+  /** Only a durable owner-kept pre-dispatch intent can retain its old binding
+   * across an explicit fresh-process launch. All ordinary stale writes refuse. */
+  private intentBinding(live: Live, b: Binding): void {
+    const old = live.intentBindings?.[b.command_id];
+    if (this.receipts.all.get(b.command_id)?.state === 'intent_ready' && old && old.worker_epoch === b.worker_epoch && old.session_id === b.session_id && old.binding_revision === b.binding_revision) return;
+    this.binding(live, b);
+  }
+  async relaunch(id: string, b: Binding): Promise<Receipt> {
+    let live: Live;
+    return this.receipts.run(b.command_id, 'workers.relaunch', { ...b, worker_id: id }, async () => {
+      this.dispatchGuard();
+      live.host = undefined; // retire listeners before publishing the new epoch
+      const w = live.worker, old = { worker_epoch: w.worker_epoch, session_id: w.session_id!, binding_revision: w.binding_revision };
+      (live.intentBindings ??= {});
+      for (const r of this.receipts.all.values()) if (r.worker_id === id && ['intent_recovered', 'intent_ready'].includes(r.state) && r.operation === 'sessions.prompt') live.intentBindings[r.command_id] ??= { ...old, command_id: r.command_id };
+      w.worker_epoch = randomUUID(); w.status = 'starting'; w.cleanup = 'not_started';
+      w.execution = null; w.foreground = 'idle'; live.exited = false; live.faulted = false;
+      live.unit = this.containment.reserve(w.worker_epoch); live.pid = null; live.token = null;
+      this.persist(live); // new domain and old exact-intent binding before any spawn
+      this.receipts.dispatch(b.command_id, { worker_id: id });
+      const c = live.create!, originalFile = live.sessionFile!, originalId = w.session_id;
+      const dir = this.sessionDir(live);
+      live.rebinding = true;
+      try {
+        const host = this.factory(c, dir, { worker_id: id, launch_command_id: b.command_id, parent: c.parent, launch_spec: c.launch_spec, containment: this.containment, unit: live.unit });
+        live.host = host; live.pid = host.pid ?? null; live.token = host.token; this.persist(live);
+        this.wireHost(live, host);
+        const init = await host.request({ type: 'get_state' });
+        if (!init.success) throw new Error('fresh_host_initialization_failed');
+        const opened = await host.request({ type: 'switch_session', sessionPath: originalFile });
+        if (!opened.success || opened.data?.cancelled) throw new Error('fresh_host_session_open_failed');
+        const state = await host.request({ type: 'get_state' });
+        if (!state.success || state.data?.sessionId !== originalId || state.data?.sessionFile !== originalFile || live.faulted) throw new Error('fresh_host_session_identity_mismatch');
+        live.index = new SessionIndex(originalFile); live.completedMessages = 0;
+        if (host.kind === 'sdk' || host.kind === 'acp') {
+          live.index.setActiveLeaf(typeof state.data.leafId === 'string' ? state.data.leafId : null);
+          const inventory = await host.request({ type: 'inventory' });
+          if (!inventory.success || (inventory.data?.extension_errors as unknown[])?.length) throw new Error('resource_inventory_failed');
+          w.resources = inventory.data;
+        }
+        w.status = 'ready'; w.cleanup = 'live_cgroup'; live.observedIdle = true;
+        this.refresh(live); this.persist(live);
+        return { state: 'delivered', stage: 'forwarded', effect: 'observed', result: { worker_id: id, worker_epoch: w.worker_epoch, session_id: w.session_id, binding_revision: w.binding_revision, prompted: false } };
+      } catch (error) { await this.cleanup(live); throw error; }
+      finally { live.rebinding = false; }
+    }, () => {
+      live = this.require(id); this.binding(live, b);
+      if (live.worker.status === 'cleanup_pending' || live.worker.cleanup !== 'cgroup_empty_removed' || !live.unit) throw new Refusal('cleanup_pending_or_cleanup_unproven');
+      this.writable(live); this.noOtherWriter(live.worker.session_id!, id);
+      if (!live.create || !live.sessionFile || !existsSync(live.sessionFile)) throw new Refusal('relaunch_session_or_launch_record_unavailable');
+    });
+  }
+  private sessionDir(live: Live): string {
+    const dir = live.worker.launch_spec?.environment.filesystem === 'bwrap' ? join(live.worker.cwd, '.a0-worker', 'sessions', live.worker.worker_id) : join(this.stateDir, 'sessions', live.worker.worker_id);
+    mkdirSync(dir, { recursive: true, mode: 0o700 }); return dir;
   }
   private writable(live: Live): void {
     if (live.worker.fence) throw new Refusal('session_fenced', 'no_effect', live.worker.fence.command_id);

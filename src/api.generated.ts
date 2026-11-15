@@ -4,6 +4,39 @@
  */
 
 export interface paths {
+    "/v0/workers/{worker_id}/files/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["files.read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v0/workers/{worker_id}/relaunch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Explicit fresh process after confirmed cleanup; opens history without prompting */
+        post: operations["workers.relaunch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v0/workers/{id}/interactions": {
         parameters: {
             query?: never;
@@ -376,11 +409,25 @@ export interface components {
             task_id: string;
             generation_id: string;
         };
+        FileRead: {
+            path: string;
+            roots: string[];
+        };
+        FileContent: {
+            path: string;
+            content: string;
+            bytes: number;
+            /** @constant */
+            evidence: "pinned_file_read";
+        };
         LaunchSpec: {
             environment: {
                 id: string;
                 revision: number;
                 base_sha?: string;
+                /** @enum {unknown} */
+                filesystem?: "none" | "bwrap";
+                root?: string;
                 allowed_methods: string[];
             };
             role: string;
@@ -485,7 +532,7 @@ export interface components {
         Receipt: {
             command_id: string;
             /** @enum {unknown} */
-            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.follow_up" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release";
+            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.follow_up" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release";
             request_hash: string;
             /** @enum {unknown} */
             state: "intent" | "intent_recovered" | "accepted" | "delivered" | "rejected" | "outcome_unknown" | "queued" | "queue_ready" | "intent_ready";
@@ -642,6 +689,85 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "files.read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileRead"];
+            };
+        };
+        responses: {
+            /** @description Pinned UTF-8 regular file, <=1 MiB */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileContent"];
+                };
+            };
+        };
+    };
+    "workers.relaunch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Binding"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+            /** @description Refusal; never implies cancel */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict or fence */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown; reconcile, never retry blindly */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "interactions.list": {
         parameters: {
             query?: never;
