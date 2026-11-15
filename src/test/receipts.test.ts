@@ -65,6 +65,17 @@ test('journal admission reserves full result room and never begins an effect wit
     assert.equal(journal.records.length, 0); assert.equal(journal.failed, false);
   } finally { journal.close(); rmSync(dir, { recursive: true }); }
 });
+test('a late callback on a CLOSED journal cannot corrupt a newly opened journal via recycled fd', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'a0-closed-journal-'));
+  const file = join(dir, 'journal'); const old = new Journal(file);
+  old.append('supervisor', { supervisor_id: 'first' }); old.close();
+  const next = new Journal(file);
+  try {
+    next.append('supervisor', { supervisor_id: 'second' }); const before = readFileSync(file);
+    assert.throws(() => old.append('worker', { worker: { status: 'late-exit' } }), /closed/);
+    assert.deepEqual(readFileSync(file), before); assert.equal(parseJournal(readFileSync(file)).records.length, 2);
+  } finally { next.close(); rmSync(dir, { recursive: true }); }
+});
 test('journal truncates a torn final record, rejects complete corruption or sequence gaps', () => {
   const f = fixture(); try {
     f.journal.append('supervisor', { supervisor_id: 'id' });

@@ -27,6 +27,7 @@ export class Journal {
   private fd: number;
   private reservations = new Map<string, number>();
   failed = false;
+  private closed = false;
   constructor(readonly file: string, readonly maxBytes = 32 * 1024 * 1024) {
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     this.fd = openSync(file, 'a+', 0o600);
@@ -39,10 +40,11 @@ export class Journal {
   }
   reserve(commandId: string, bytes: number): boolean {
     const reserved = [...this.reservations.values()].reduce((a, b) => a + b, 0);
-    if (this.failed || fstatSync(this.fd).size + reserved + bytes > this.maxBytes) return false;
+    if (this.closed || this.failed || fstatSync(this.fd).size + reserved + bytes > this.maxBytes) return false;
     this.reservations.set(commandId, bytes); return true;
   }
   append(kind: JournalRecord['kind'], value: Record<string, unknown>): void {
+    if (this.closed) throw new Error('journal closed; late callback has no write authority');
     if (this.failed) throw new Error('journal failed; supervisor fenced globally');
     const record = structuredClone({ seq: this.records.length + 1, kind, value }) as JournalRecord;
     const data = Buffer.from(JSON.stringify({ record, checksum: digest(JSON.stringify(record)) }) + '\n');
@@ -60,5 +62,5 @@ export class Journal {
       if (terminal) this.reservations.delete(String(value.command_id));
     } catch (error) { this.failed = true; throw error; }
   }
-  close(): void { closeSync(this.fd); }
+  close(): void { if (this.closed) return; this.closed = true; closeSync(this.fd); }
 }
