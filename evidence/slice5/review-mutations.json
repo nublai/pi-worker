@@ -1,0 +1,219 @@
+{
+  "source_head": "90220b591de31a8ef5dd1fe5676ac4c0c23839d2",
+  "root": "/tmp/a0-review5-mutations-ijzf0rxd",
+  "results": [
+    {
+      "mutation": "intent-target-binding",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 owner-kept intent is session-bound and once only (move=new) (4.112285ms)",
+        "\u2716 owner-kept intent is session-bound and once only (move=resume) (4.042223ms)",
+        "\u2716 owner-kept intent is session-bound and once only (move=new-relaunch) (4.042093ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 166",
+        "\u2139 fail 3",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/intent-target-binding/result.txt"
+    },
+    {
+      "mutation": "intent-target-revision",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 owner-kept intent is session-bound and once only (move=resume) (9.822523ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 168",
+        "\u2139 fail 1",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/intent-target-revision/result.txt"
+    },
+    {
+      "mutation": "relaunch-no-cleanup-gate",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 relaunch requires recorded confirmed cleanup (restart=false) (2.862022ms)",
+        "\u2716 relaunch requires recorded confirmed cleanup (restart=true) (4.111593ms)",
+        "\u2716 process-group fallback never authorizes fresh-process relaunch (3.379131ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 166",
+        "\u2139 fail 3",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/relaunch-no-cleanup-gate/result.txt"
+    },
+    {
+      "mutation": "relaunch-status-only",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 process-group fallback never authorizes fresh-process relaunch (3.569136ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 168",
+        "\u2139 fail 1",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/relaunch-status-only/result.txt"
+    },
+    {
+      "mutation": "sandbox-host-root",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 sandbox launch refuses mismatched roots, parent state exposure, non-child and external resources (2.721329ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 168",
+        "\u2139 fail 1",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/sandbox-host-root/result.txt"
+    },
+    {
+      "mutation": "sandbox-protected-paths",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 sandbox launch refuses mismatched roots, parent state exposure, non-child and external resources (4.51575ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 168",
+        "\u2139 fail 1",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/sandbox-protected-paths/result.txt"
+    },
+    {
+      "mutation": "sandbox-inherited-env",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 sandbox host uses environment allowlist and a private PID namespace (3.305322ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 168",
+        "\u2139 fail 1",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/sandbox-inherited-env/result.txt"
+    },
+    {
+      "mutation": "sandbox-no-private-pid",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 sandbox host uses environment allowlist and a private PID namespace (5.116716ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 168",
+        "\u2139 fail 1",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/sandbox-no-private-pid/result.txt"
+    },
+    {
+      "mutation": "relaunch-no-session-identity",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 relaunch verifies the returned session file, not just successful switch (2.788534ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 168",
+        "\u2139 fail 1",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/relaunch-no-session-identity/result.txt"
+    },
+    {
+      "mutation": "child-filesystem-widen",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 sandboxed parent cannot create an unconfined child (13.568811ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 168",
+        "\u2139 fail 1",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/child-filesystem-widen/result.txt"
+    },
+    {
+      "mutation": "startup-no-sweep",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 recover awaits orphan sweep before permitting worker operations (1.308501ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 168",
+        "\u2139 fail 1",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/startup-no-sweep/result.txt"
+    },
+    {
+      "mutation": "startup-sweep-no-kill",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 startup sweeps only unknown worker domains in its own installation service (1.862089ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 168",
+        "\u2139 fail 1",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/startup-sweep-no-kill/result.txt"
+    },
+    {
+      "mutation": "exit-no-cleanup",
+      "command": "npm test (kernel flags unset)",
+      "exit": 1,
+      "assertion_failure": true,
+      "failed_tests": [
+        "\u2716 spontaneous leader exit immediately cleans domain (confirmed=false) (4.471598ms)",
+        "\u2716 spontaneous leader exit immediately cleans domain (confirmed=true) (2.027899ms)"
+      ],
+      "counts": [
+        "\u2139 tests 174",
+        "\u2139 pass 167",
+        "\u2139 fail 2",
+        "\u2139 skipped 5"
+      ],
+      "log": "/tmp/a0-review5-mutations-ijzf0rxd/exit-no-cleanup/result.txt"
+    }
+  ]
+}

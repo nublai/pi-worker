@@ -1,0 +1,137 @@
+{
+  "root": "/tmp/a0s5/live-4hW12M",
+  "host": "sdk",
+  "provider": "exe-dev-anthropic",
+  "model": "claude-sonnet-4-6@llm",
+  "thinking": "off",
+  "direct_native_requests": [],
+  "failures": [],
+  "cleanup_profile": "cgroup_v2_user_delegation; Linux; cgroup.kill + populated=0 + removed; no hostile-same-uid guarantee",
+  "cleanup_pending": {
+    "actual_populated_unit": true,
+    "kill_permission_withheld_only_on_own_unit": true,
+    "stop_unknown": true,
+    "actual_restart_retained_pending": true,
+    "resume_and_relaunch_refused_no_effect": true
+  },
+  "stop": {
+    "pid": 122619,
+    "final_state": null,
+    "marker_absent_after_deadline": true,
+    "unit_removed": true
+  },
+  "detached_alive_after_supervisor_kill": true,
+  "restart": {
+    "pid": 122651,
+    "final_state": null,
+    "marker_absent_after_deadline": true,
+    "unit_removed": true
+  },
+  "pi_crash": {
+    "leader_pid": 122669,
+    "explicit_stop_or_restart": false,
+    "pid": 122681,
+    "final_state": null,
+    "marker_absent_after_deadline": true,
+    "unit_removed": true
+  },
+  "owner_resolved_intent": {
+    "actual_SIGKILL_before_dispatch": true,
+    "recovered_no_effect": true,
+    "fresh_epoch": true,
+    "native_user_entries": 1,
+    "external_append_count": 1,
+    "duplicate_receipt_identical": true,
+    "relaunch_prompted": false
+  },
+  "sandbox": {
+    "actual_socket_hidden": true,
+    "parent_state_and_grants_hidden": true,
+    "outside_sentinel_hidden": true,
+    "real_bash_tool_proof": "SANDBOX_TOOL_OK",
+    "inherited_fd_report_count": 1,
+    "files_read_allowed": true,
+    "files_read_outside_and_hidden_refused": true,
+    "worktree_retained": true,
+    "worktree_locked": true,
+    "base": "1ca664688f89fb94c7faaaaf6c2a04f6b26b1f14",
+    "network": "shared; not a network sandbox",
+    "provider_probe_copy": "VM marker existence check removed only in private copied provider extension; /exe.dev never mounted"
+  },
+  "supervisor_pids": [
+    {
+      "pid": 122589,
+      "absent": true
+    },
+    {
+      "pid": 122621,
+      "absent": true
+    },
+    {
+      "pid": 122653,
+      "absent": true
+    },
+    {
+      "pid": 122691,
+      "absent": true
+    },
+    {
+      "pid": 122718,
+      "absent": true
+    }
+  ],
+  "pass": true,
+  "pi_leaders": [
+    {
+      "pid": 122607,
+      "state": null
+    },
+    {
+      "pid": 122637,
+      "state": null
+    },
+    {
+      "pid": 122669,
+      "state": null
+    },
+    {
+      "pid": 122707,
+      "state": null
+    },
+    {
+      "pid": 122734,
+      "state": null
+    },
+    {
+      "pid": 122746,
+      "state": null
+    }
+  ],
+  "units": [
+    {
+      "name": "w-01cc7713-d4f6-442c-bfe4-7cad5330e029",
+      "removed": true
+    },
+    {
+      "name": "w-156abe5d-e407-4d24-b8e8-d339498d445c",
+      "removed": true
+    },
+    {
+      "name": "w-3963ec42-a5ba-4ef4-b094-fb276df518b3",
+      "removed": true
+    },
+    {
+      "name": "w-d28f9c0e-248a-404e-a0eb-8674b65bd2a4",
+      "removed": true
+    },
+    {
+      "name": "w-10507198-73a8-4d4e-8c7b-7e33894729e7",
+      "removed": true
+    },
+    {
+      "name": "w-3d25e566-803e-4156-a5c6-0b0b9d676b60",
+      "removed": true
+    }
+  ],
+  "keeper_stopped": true
+}

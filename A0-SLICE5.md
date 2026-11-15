@@ -1,8 +1,8 @@
 # A0 slice 5: containment, sandbox and recovery
 
-**Complete for this throwaway slice.** Real Pi SDK workers and their detached tools are cleaned up through cgroup v2. Owner-kept recovered prompts dispatch once on a fresh Pi process, and a bwrap child delivers its report without seeing the supervisor socket. This is not production approval, Gate 1, or a contract freeze.
+**Complete for this throwaway slice.** Real Pi SDK workers and their descendant detached tools are cleaned up through cgroup v2. Owner-kept recovered prompts dispatch once on a fresh Pi process, and a bwrap child delivers its report without seeing the supervisor socket. This is not production approval, Gate 1, or a contract freeze.
 
-The tested runtime is **`6517837feeb79ab8246f338fe717f148cbf78f9c`**, based on `65f767c`. Later report commits do not change runtime code. No build or review subagents, push, merge, PR, or deployment outside the authorized VM. The real Pi child below is the requested test workload.
+The review-fix artifact is **`90220b5`**, based on the reviewed `93bc4ad` and original base `65f767c`. The [fix-round source manifest](evidence/slice5/review-source.sha256) matches the local and VM copies. Later evidence/report commits do not change runtime or tests. The original verification below covers `6517837feeb79ab8246f338fe717f148cbf78f9c`; the fix-round section supersedes its counts and current behavior. No build or review subagents, push, merge, PR, or deployment outside the authorized VM.
 
 ## Cleanup domains and durable state
 
@@ -10,11 +10,11 @@ The tested runtime is **`6517837feeb79ab8246f338fe717f148cbf78f9c`**, based on `
 
 The journal records the domain root, unique generation and boot ID **before spawn**. A fixed shell joins the domain before it executes the payload. A domain that already exists is refused, even if empty. Relaunch always reserves a new generation.
 
-Stop, restart recovery, fault cleanup and shutdown use the whole domain, not its leader's process group. Normal cleanup records a fsynced `cleanup_pending`, writes `cgroup.kill`, waits for `populated 0`, and removes the domain. Only then does the supervisor record `cgroup_empty_removed` and release the lease. Removal also prevents a delayed pre-exec wrapper from joining a retired generation. A missing PID record does not lose the domain identity.
+Stop, spontaneous Pi exit, restart recovery, fault cleanup and shutdown use the whole domain, not its leader's process group. Normal cleanup records a fsynced `cleanup_pending`, writes `cgroup.kill`, waits for `populated 0`, and removes the domain. Only then does the supervisor record `cgroup_empty_removed` and release the lease. Removal also prevents a delayed pre-exec wrapper from joining a retired generation. A missing PID record does not lose the domain identity.
 
 A failed kill, removal, delegation check or cleanup record keeps the lease blocked. If storage fails during fault cleanup, the supervisor still attempts the safety kill. It does not claim confirmed cleanup without a durable record. The new storage-failure regression was observed failing before that correction.
 
-Linux defaults to cgroup v2 and refuses an unavailable delegation. `A0_CGROUP_DIR` can select an operator-provided delegation. The automatically created user service survives supervisor crashes. The supervisor itself must run under the user systemd manager so migration at the common ancestor is permitted. A bare exe.dev SSH process starts in `init.scope` and cannot perform that migration.
+Linux defaults to cgroup v2 and refuses an unavailable delegation. `A0_CGROUP_DIR` can select an operator-provided delegation. The automatically created user service survives supervisor crashes. Before accepting requests, startup sweeps unknown `w-*` domains inside that installation-hashed service: kill, wait empty, remove, or fail startup. Journaled current domains use normal durable cleanup. Another installation's service and operator-supplied `A0_CGROUP_DIR` trees are never swept. The supervisor itself must run under the user systemd manager so migration at the common ancestor is permitted. A bare exe.dev SSH process starts in `init.scope` and cannot perform that migration.
 
 `hello.cleanup_profile` publishes the actual provider. Explicit `A0_CLEANUP=process-group`, or a non-Linux platform, selects a named **weaker** fallback. That fallback never authorizes environment reuse or fresh-process relaunch. Its portable `ps` identity path is unverified on macOS.
 
@@ -22,7 +22,7 @@ Linux defaults to cgroup v2 and refuses an unavailable delegation. `A0_CGROUP_DI
 
 `workers.relaunch`, available through B2, the typed client and CLI, requires confirmed cgroup cleanup, an existing session file, no fence and no competing session or checkout writer. It starts a fresh process epoch, opens the original history and never prompts. Retired host callbacks cannot fault the replacement process.
 
-A recovered pre-dispatch prompt stays `intent_recovered/no_effect` until the owner records `keep`. The existing resolution tombstone repairs `intent_ready` after a crash, including a crash between the tombstone and receipt update. Relaunch saves the original binding for each such prompt. Only that exact owner-kept command can use its captured binding on the fresh process. Ordinary stale writes still refuse.
+A recovered pre-dispatch prompt stays `intent_recovered/no_effect` until the owner records `keep`. The existing resolution tombstone repairs `intent_ready` after a crash, including a crash between the tombstone and receipt update. Relaunch saves the original binding for each such prompt. Only that exact owner-kept command can use its captured binding on the captured relaunch epoch, original session and original binding revision. A later new-session, same-session revision change or another relaunch invalidates compatibility. The capture is consumed at admission, and the receipt/dispatch gate prevents a second write. Ordinary stale writes still refuse.
 
 The original command ID, operation, binding and payload hash must match. Dispatch remains intent, fsynced dispatch record, one Pi write, result, reply. A dispatched uncertain command is never replayed. The tests also refuse relaunch when another worker has acquired the cleaned-up checkout.
 
@@ -46,7 +46,46 @@ The child's own Pi profile must be staged explicitly at `ROOT/.a0-agent`. Its tr
 
 Final inspection reproduced a readback gap in the old, unconfined `SessionIndex`: a worktree symlink could make it read an outside transcript. Sandbox history and settlement reads now use the same root-pinned, no-symlink open policy, while allowing Pi's hidden transcript directory. Tests cover outside file and directory symlinks. Removing this guard fails by assertion.
 
-## Verification
+## Review fix round
+
+**All eight requested findings are addressed.** The input was independent review 9 at `/home/g/Projects/nubl/.pi/plan/research/a0-slice5-review.md`. Each finding was checked against source and a regression or live probe before acceptance; no finding was rejected. This round did not commission another independent review.
+
+| Finding | Fix and regression evidence |
+| --- | --- |
+| 1. Kept prompt crossed session boundaries | Persist the target relaunch epoch; require its exact session/revision and consume the capture. Tests cover one dispatch plus duplicate, `/new`, same-session resume and `/new` followed by another relaunch. Before the fix, the new-session case dispatched instead of rejecting. Both target-binding and revision-only reversions now fail assertions. |
+| 2. Relaunch cleanup gate lacked tests | Keep the existing full guard. Default tests refuse pending cleanup both before and after restart, and refuse process-group fallback even when status is stopped. Removing the guard fails three assertions; weakening it to status-only fails the fallback assertion in plain `npm test`. |
+| 3. Unsafe sandbox roots | Refuse `/`, fix slash-root containment, and reject overlaps with supervisor state, socket directory, grant file and cgroup controls. Reverting the original slash-root policy or the protected-path guard fails the root regression. |
+| 4. Untested confinement/identity guards | Default tests inspect the actual host spawn environment key allowlist and PID flag, reject unconfined children of sandboxed parents, and require the returned original session file on relaunch. Each of the four reversions fails by assertion. Environment failure messages compare names only, never inherited values. |
+| 5. Keeper leak | The bwrap test stops its exact hashed keeper in teardown and asserts it is inactive. Removing the stop fails the kernel regression; the mutation runner then stops that test's keeper using its isolated temp state path. |
+| 6. Unknown startup domains | Sweep only the installation-owned delegation before startup readiness. Portable tests cover known/unknown domains, unrelated directories, other installations, operator trees and failed cleanup. A real-kernel test removes an unjournaled populated domain while leaving another installation populated. Removing sweep, its kill, or default-provider ownership fails regressions. |
+| 7. Pi crash left detached tools alive | A spontaneous leader exit immediately starts normal domain cleanup; failed proof remains `cleanup_pending`. Before the fix both portable cases recorded zero clean calls. Tests now require immediate cleanup, durable final status and real detached-grandchild termination. The live real-Pi journey independently kills only the Pi leader and observes automatic removal, with no stop/restart request. |
+| 8. Daemon handoffs escape | Documented below as a containment limit; no detection or daemon-control code was added. |
+
+### Current verification and reversion evidence
+
+[Checks](evidence/slice5/review-checks.json), [default mutations](evidence/slice5/review-mutations.json), [kernel mutations](evidence/slice5/review-kernel-mutations.json) and the [source manifest](evidence/slice5/review-source.sha256) identify this round. Mutation programs use disposable copies, not the working checkout.
+
+| Check | Result |
+| --- | --- |
+| Local Node 26.13.0, default `npm test` | **174 tests: 169 pass, 5 kernel skips, 0 failures** |
+| Local under delegated user service, kernel flags enabled | **174 pass, 0 skips/failures** |
+| VM Node 22.21.1, default `npm test` | **174 tests: 169 pass, 5 kernel skips, 0 failures** |
+| VM under delegated user service, kernel flags enabled | **174 pass, 0 skips/failures** |
+| Strict TypeScript and API generation | Pass locally and on VM; regeneration preserves identical API bytes |
+| Default guard reversions | **13/13 fail by assertion**, including both cleanup-gate variants; no compile failure/timeout counted |
+| Kernel guard reversions | **2/2 fail by assertion**: keeper stop and installation sweep ownership |
+| Existing bounded slice 5 cuts | 13 create fsync cuts + 1 native cut; 47 recovery/relaunch/sandbox/report/stop fsync cuts + 8 native cuts, unchanged |
+| Active LSP, six changed TypeScript paths | No reported errors; 2 confirmed clean, 4 inconclusive. Strict compiler supplies full type evidence. |
+
+Final full-suite VM logs are in **`/tmp/a0s5/review5-nqEg70/`**; committed logs have `review-` names under `evidence/slice5/`. The only post-runtime adjustment was a test assertion privacy change, followed by fresh full default/kernel suites on both hosts and source-hash comparison.
+
+The [review driver](evidence/slice5/review-live.mjs) reran the B2 real-Pi journey at **`/tmp/a0s5/live-4hW12M/`**, using the same explicit provider/model and private provider-copy policy described below. Its [summary](evidence/slice5/review-live-summary.json) proves actual populated `cleanup_pending` across restart, stop cleanup, restart cleanup, **automatic cleanup after a Pi leader SIGKILL**, one owner-kept append, and a real bwrap SDK tool plus inherited-FD report. The extra Pi-crash detached tool was alive in the exact domain before the leader died; its marker stayed absent past its deadline.
+
+The separate read-only [native audit](evidence/slice5/review-native-tools.json) found exactly **4 parent bash calls and 1 child bash call**, no other tools, exact detached/append commands, and the child's denied-path/allowed-read/write checks. All **5 supervisors, 6 Pi leaders and 3 detached-tool PIDs are absent**, and all **6 worker domains are removed**. The child's worktree remains locked and retained. The driver's keeper is stopped. After every runner exited, `systemctl --user list-units 'a0-*'` showed **zero loaded units on both hosts**; only explicitly test-owned services were stopped.
+
+Setup failures excluded from passing evidence: the short SSH hostname refused connections, the first local user-service runner lacked Node PATH, and the `python` shim had no selected version. Explicit VM FQDN, Node PATH and `python3` corrected them. No test was weakened or removed.
+
+## Original verification (pre-review)
 
 [Machine-readable checks](evidence/slice5/checks.json) and the [source manifest](evidence/slice5/source.sha256) identify the tested artifact. Every `src` file, package manifest, OpenAPI file and live driver hash matches the VM copy.
 
@@ -70,7 +109,7 @@ Markdown analysis was unavailable. The report received manual evidence, privacy 
 
 These are every fsync occurrence and native seam effect in the **selected bounded scenarios**. They are not exhaustive state-space exploration, power-loss proof, or real-kernel SIGKILL injection at every machine instruction. Real kernel and real Pi evidence are separate below. No existing test was dropped or weakened.
 
-## Real Pi evidence on a0-worker
+## Original real Pi evidence on a0-worker
 
 Final run: **`/tmp/a0s5/live-ug9ddB/`**. Full verification logs are in `/tmp/a0s5/accept-vm-bUCQKQ/`. Pi SDK 1.5.2, bubblewrap 0.9.0, systemd 255. The explicit model was `exe-dev-anthropic/claude-sonnet-4-6@llm`, thinking off. All worker operations used B2 with a non-owner, non-wildcard, run-scoped orchestrator grant. No driver-direct native RPC or prompt was used.
 
@@ -102,13 +141,14 @@ These failed checks are not counted as passes. Earlier successful live runs do n
 ## Limits and open work
 
 - **Not hostile same-user isolation.** An unsandboxed process with the same UID can migrate out of a user-delegated cgroup or interfere with another process. Root-owned domains or a separate-UID helper would be needed for that threat. The sandbox does not mount the cgroup filesystem, but a hostile process outside it still has the named same-user capability.
+- **Existing-daemon handoffs escape containment.** Cleanup covers processes launched in the worker's domain and their descendants, including setsid/nohup detachment. Work handed to an already-running tmux server, `systemd-run --user`/D-Bus service, Docker daemon or similar external executor runs outside that domain and is not killed by `cgroup.kill`. This ordinary handoff is distinct from hostile same-UID cgroup migration. No daemon-handoff detection or cleanup is implemented. The bwrap profile hides normal filesystem-backed user-daemon sockets; that is not a general external-executor guarantee.
 - **Network is shared.** This is filesystem confinement and cleanup, not a network or credential-exfiltration sandbox. The child can access credentials deliberately staged inside its root. No cgroup CPU, memory or PID limits are configured by this slice.
 - **Linux only evidence.** The process-group fallback is weaker and macOS is untested. Unavailable cgroup delegation refuses rather than silently downgrading. RPC sandbox execution is unsupported.
 - **Git and registered environment policy remain open.** A linked worktree's Git administrative directory is outside its root and intentionally inaccessible. `environment.id`, revision and base SHA remain launcher declarations, not supervisor attestations. There is no registered root policy or complete result and cancel policy.
 - **Recovery is intentionally narrow.** Fresh-process compatibility applies to exact owner-kept prompts, not every operation. No adoption, automatic replay, exactly-once external effects or durable parent-delivery dedupe is claimed.
 - **Storage limits remain.** Journal capacity, lack of compaction and incomplete whole-command reservations are inherited. Admission can still refuse durable control when storage is failed. Fault cleanup attempts a safety kill without falsely releasing the lease. Physical disk-loss recovery is not proved.
 - **Earlier review deferrals remain.** Native extension-driven binding changes, interaction attribution and sibling-settlement false fences, child frame-budget edges, late-report handling, host deadlines, transport classification and production authority policy are not silently fixed by this slice. The separate pi-herdr-agents repository is unchanged.
-- No verified PR job, bridge, macOS check, production deployment or independent review was attempted. No contract freeze follows from this result alone.
+- No verified PR job, bridge, macOS check or production deployment was attempted. The fix round used the supplied independent review; no second review was commissioned. No contract freeze follows from this result alone.
 
 ## Sources and privacy
 

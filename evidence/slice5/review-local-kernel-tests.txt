@@ -1,0 +1,220 @@
+Running as unit: a0-review5-local.service; invocation ID: bbe96de026df435dbb5ab66e7e7dfe8c
+
+> @nublai/pi-worker-a0@0.0.0-throwaway test
+> npm run build && node --test dist/test/*.test.js
+
+
+> @nublai/pi-worker-a0@0.0.0-throwaway build
+> tsc -p tsconfig.json
+
+✔ ACP v1 initialize/new/prompt/permission answer frames match official pinned schemas (4.973147ms)
+✔ ACP profile preserves exact resolver ack, early admission and distinct native ids (0.674934ms)
+✔ in-flight input, consumed=false: navigate cancels accepted resolver and refuses stale success (12.73564ms)
+✔ in-flight input, consumed=true: navigate cancels accepted resolver and refuses stale success (2.756745ms)
+✔ in-flight tool_approval, consumed=false: navigate cancels accepted resolver and refuses stale success (4.544825ms)
+✔ in-flight tool_approval, consumed=true: navigate cancels accepted resolver and refuses stale success (2.350955ms)
+✔ in-flight answer rechecks epoch even without a revision move (1.625085ms)
+✔ in-flight answer rechecks fence even without a revision move (1.123956ms)
+✔ in-flight answer rechecks rebinding even without a revision move (1.189137ms)
+✔ already-consumed approval is cancelled by navigate; late gate check does not fault or release (4.434538ms)
+{"slice4_fsync_cuts":45,"slice4_effect_cuts":5,"result":"pass"}
+✔ slice4 typed child launch/report: every fsync and native spawn/FD/delivery cut (4958.217669ms)
+✔ late native exit cannot downgrade a confirmed stop (14.679251ms)
+✔ help-only durable report does not discharge the parent recovery fence (10.59582ms)
+✔ child methods respect distinct caller grant ceiling (3.258765ms)
+✔ child methods respect distinct parent grant ceiling (2.314827ms)
+✔ FD report rechecks distinct parent-source revocation (4.950395ms)
+✔ FD report rechecks distinct child-caller revocation (2.510163ms)
+✔ child create rechecks revoked parent source even with an active independent caller (1.941577ms)
+✔ FD report requires children.report in the child grant (3.295994ms)
+✔ unknown child initialization fences the live parent before another launch (3.937947ms)
+✔ typed child lineage exists before spawn, narrows authority and reports a claim exactly once (7.135578ms)
+✔ typed child refuses tools before any spawn or checkout reservation (2.944767ms)
+✔ typed child refuses denials before any spawn or checkout reservation (2.176087ms)
+✔ typed child refuses methods before any spawn or checkout reservation (1.377301ms)
+✔ typed child refuses environment before any spawn or checkout reservation (1.374645ms)
+✔ typed child refuses resources before any spawn or checkout reservation (1.474854ms)
+✔ typed child refuses skills before any spawn or checkout reservation (4.552459ms)
+✔ typed child refuses stale before any spawn or checkout reservation (2.079286ms)
+✔ typed child refuses execution before any spawn or checkout reservation (1.694023ms)
+✔ typed child refuses fence before any spawn or checkout reservation (2.94624ms)
+✔ FD reports recheck parent grant revocation; siblings and parent remain untouched on child stop (5.01754ms)
+✔ contract 0.1 fixture 01-binding (32.06908ms)
+✔ contract 0.1 fixture 02-unknown (5.147564ms)
+✔ contract 0.1 fixture 03-fenced-write (6.226435ms)
+✔ contract 0.1 fixture 04-paused (10.33368ms)
+✔ contract 0.1 fixture 05-keep (23.846135ms)
+✔ contract 0.1 fixture 06-abandon (11.93547ms)
+✔ contract 0.1 fixture 07-observed (9.405962ms)
+✔ contract 0.1 fixture 08-generation (6.624261ms)
+✔ contract 0.1 fixture 09-restart (5.423982ms)
+✔ contract 0.1 fixture 10-cleanup-resume (4.178679ms)
+✔ contract 0.1 fixture 11-control (7.04018ms)
+{"slice5_create_fsync_cuts":13,"slice5_create_effect_cuts":1}
+{"slice5_fsync_cuts":47,"slice5_effect_cuts":8}
+✔ slice 5: contained initial create reserves its domain before every spawn and survives all fsync/effect cuts (1326.628785ms)
+✔ slice 5: SIGKILL after every recovery/resolve/relaunch/sandbox/report/stop fsync and native lifecycle effect (7099.774569ms)
+✔ cleanup_pending is fsynced before kill; failed empty proof blocks resume and replacement (13.455689ms)
+✔ a failed journal still permits fault termination but never records cleanup as confirmed (4.628591ms)
+✔ fallback names weaker process-group semantics (0.259356ms)
+✔ startup sweeps only unknown worker domains in its own installation service (1.217992ms)
+✔ recover awaits orphan sweep before permitting worker operations (0.639709ms)
+✔ real startup sweeps orphaned domains but never another installation service (83.701793ms)
+✔ real leader crash kills a detached grandchild without stop or restart (2227.194395ms)
+✔ real cgroup stop kills setsid/nohup grandchild and retires the pre-exec join target (2241.185889ms)
+✔ real cgroup restart kills setsid/nohup grandchild and retires the pre-exec join target (2233.732837ms)
+{"effect_kind":"prompt","cuts":5,"result":"pass"}
+{"effect_kind":"rebind","cuts":3,"result":"pass"}
+{"effect_kind":"create","cuts":3,"result":"pass"}
+{"effect_kind":"child launch","cuts":1,"result":"pass"}
+{"effect_kind":"cancel clear_queue","cuts":2,"result":"pass"}
+{"effect_kind":"cancel abort","cuts":2,"result":"pass"}
+{"effect_kind":"interrupt clear_queue","cuts":2,"result":"pass"}
+{"effect_kind":"interrupt abort","cuts":2,"result":"pass"}
+{"effect_kind":"stop","cuts":3,"result":"pass"}
+{"fsync_cuts":175,"result":"pass"}
+✔ effect cut prompt: native evidence forbids no_effect and recovered buckets require fences (653.794321ms)
+✔ effect cut rebind: native evidence forbids no_effect and recovered buckets require fences (356.610869ms)
+✔ effect cut create: native evidence forbids no_effect and recovered buckets require fences (364.414659ms)
+✔ effect cut child launch: native evidence forbids no_effect and recovered buckets require fences (155.869405ms)
+✔ effect cut cancel clear_queue: native evidence forbids no_effect and recovered buckets require fences (268.941433ms)
+✔ effect cut cancel abort: native evidence forbids no_effect and recovered buckets require fences (268.402132ms)
+✔ effect cut interrupt clear_queue: native evidence forbids no_effect and recovered buckets require fences (270.543424ms)
+✔ effect cut interrupt abort: native evidence forbids no_effect and recovered buckets require fences (290.608907ms)
+✔ effect cut stop: native evidence forbids no_effect and recovered buckets require fences (370.942539ms)
+✔ SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect (18957.712519ms)
+✔ supervisor dispatch marker with execution ID is fsynced before the host receives prompt (M2) (12.43143ms)
+✔ HTTP pi prompt response timeout: unknown and durable fence before response headers (M1, M6) (17.541103ms)
+✔ HTTP stdin write failed: unknown and durable fence before response headers (M1, M6) (4.08346ms)
+✔ Pi exit fences an admitted run durably without rewriting delivered admission (M9) (2.286764ms)
+✔ unknown stop never replaces the prompt fence; two restarts preserve fence and delivered receipt (3.660909ms)
+✔ journal failure in a Pi event faults only that worker and keeps inventory readable (2.718162ms)
+✔ header failure in a Pi event faults only that worker and keeps inventory readable (2.789907ms)
+✔ validation refusals consume no durable storage, ordinary capacity never blocks termination (173.042921ms)
+✔ failed create preserves the same group-only cleanup and cwd reservation as stop (m-1) (1.846849ms)
+✔ unsupported UI dialogs auto-cancel without resolver-consumed claims (m-2) (3.300303ms)
+✔ pending unsupported interactions close on tool_execution_end (m-2) (0.913972ms)
+✔ pending unsupported interactions close on agent_settled (m-2) (0.759673ms)
+✔ pending unsupported interactions close on expiry (m-2) (21.527061ms)
+✔ pending unsupported dialogs are bounded and cancellation failure faults closed (m-2) (3.456035ms)
+✔ socket directory rejects symlink, public mode and foreign ownership before listening (M5) (1.017406ms)
+✔ reads publish derived history in memory without journal writes or stopping workers (N-1) (1.086024ms)
+✔ fault after settlement never fences the settled execution (N-2) (1.545886ms)
+✔ restart 1 and restart 2 cannot reuse transport epochs (T-1) (1.742314ms)
+✔ B2 SSE ends a slow subscriber with explicit overflow after bounded queue (M4) (11.555309ms)
+✔ every OpenAPI method requires a bearer, including hello, history, SSE and receipts (24.081926ms)
+✔ registered caller/method/scope enforced and scoped inventory/SSE cannot disclose another worker (22.734883ms)
+✔ revocation between queue admission and dispatch blocks the actual Pi write (7.606801ms)
+✔ child report is an inherited FD, not spoofable RPC stdout; no socket or grant environment inherited (44.064974ms)
+✔ RPC host keeps LF framing across Unicode separators and split UTF8; drains events independently (47.141869ms)
+✔ unsupported UI cancellation uses the native ID and no RPC response waiter (29.350818ms)
+✔ RPC answers honestly stop at stage 2 even without any native resolver acknowledgement (27.485423ms)
+✔ RPC timeout is an error, never a resend; process exit rejects pending requests (89.704679ms)
+{"interaction_scenario_fsync_cuts":77,"interaction_recovery_fsync_cuts":7,"result":"pass"}
+{"interaction_effect_cuts":9,"result":"pass"}
+✔ new interactions: SIGKILL at every scenario and recovery fsync occurrence, no answer replay, native effect oracle (8336.79207ms)
+✔ new interactions: cut at each answer/cancel/gate/navigation effect before reply, independent native evidence (901.289016ms)
+✔ first valid answer wins, honest stage 2, invalid answer does not win (13.579361ms)
+✔ first valid answer wins, honest stage 3, invalid answer does not win (2.938455ms)
+✔ concurrent exact command with conflicting value refuses; private value and hash never persist (1.946446ms)
+✔ deadline, timeout, stale kind/revision/worker binding, fence, and old interaction after recovery (44.777239ms)
+✔ restart answer_id lookup returns outcome without revalidating private content or redispatching (1.776217ms)
+✔ SDK resolver atomically arbitrates answer/timeout/abort and distinguishes No, cancel, timeout (0.578404ms)
+✔ all four kinds, editor prefill, duplicate labels; exact resolver rejects invalid option/text/boolean (0.25087ms)
+✔ two HTTP clients race through public B2 list/answer/status with method-scoped grants (17.818763ms)
+✔ typed tool approval separates resolver consumption from gate release: none (3.729417ms)
+✔ typed tool approval separates resolver consumption from gate release: grant (2.830212ms)
+✔ typed tool approval separates resolver consumption from gate release: policy (2.829701ms)
+✔ typed tool approval separates resolver consumption from gate release: expiry (3.082815ms)
+✔ typed tool approval separates resolver consumption from gate release: digest (1.96445ms)
+✔ typed tool approval separates resolver consumption from gate release: binding (2.254955ms)
+✔ typed tool approval separates resolver consumption from gate release: fence (2.700268ms)
+✔ deadline validation refuses at the boundary before the timeout callback can run (2.055601ms)
+✔ SDK refusal acknowledgement never claims stage 3 for an expired exact resolver (1.961846ms)
+✔ a consumed answer with a dropped host acknowledgement is unknown/fenced, never blindly replayed (2.128517ms)
+✔ resolve keep: latch, generation, binding, final receipt and durable tombstone (19.116333ms)
+✔ resolve abandon: latch, generation, binding, final receipt and durable tombstone (3.777126ms)
+✔ resolve observed: latch, generation, binding, final receipt and durable tombstone (3.486292ms)
+✔ observed refuses mere memory and unknown dispatch, accepts exact session settlement only (2.034953ms)
+✔ multiple uncertainties retained, generation monotonic after partial resolution and refence (1.99613ms)
+✔ queued follow-up and pending child pause under fence then keep (10.565474ms)
+✔ queued follow-up and pending child pause under fence then abandon (3.754213ms)
+✔ new/fork/resume change same-process binding; stale delayed prompt and duplicate open name cause (6.719279ms)
+✔ recovered intent only dispatches once after owner resolution and exact retry (2.89846ms)
+✔ child recovery without fsynced report preserves parent launch uncertainty (4.33391ms)
+✔ child recovery with fsynced report preserves parent launch uncertainty (5.08704ms)
+✔ abandon drops a recovered queue and its durable no-dispatch intent (2.223215ms)
+✔ resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation (2.117578ms)
+✔ cancel, interrupt and evidence reports allowed under fence without lifting it (2.217294ms)
+✔ merged rpc tools=1: typed resources/tools, child lineage and job-bound FD report (605.96729ms)
+✔ merged rpc tools=0: typed resources/tools, child lineage and job-bound FD report (560.961463ms)
+✔ merged sdk tools=1: typed resources/tools, child lineage and job-bound FD report (728.156346ms)
+✔ merged sdk tools=0: typed resources/tools, child lineage and job-bound FD report (720.719825ms)
+✔ merged acp tools=1: typed resources/tools, child lineage and job-bound FD report (745.812496ms)
+✔ merged acp tools=0: typed resources/tools, child lineage and job-bound FD report (713.525748ms)
+✔ canonical idempotency ignores transport id, not operation content (8.042948ms)
+✔ intent and dispatch are durable before effect; duplicate attempts dispatch once (3.711854ms)
+✔ refusal versus uncertain timeout, plus no eviction at capacity (1.424439ms)
+✔ recovery separates undispatched intent from dispatch; neither is replayed (1.456459ms)
+✔ legacy intent_ready without an owner tombstone recovers as no_effect, not ready (0.478507ms)
+✔ journal admission reserves full result room and never begins an effect without it (0.353102ms)
+✔ a late callback on a CLOSED journal cannot corrupt a newly opened journal via recycled fd (0.436237ms)
+✔ journal truncates a torn final record, rejects complete corruption or sequence gaps (0.55004ms)
+✔ relaunch refuses a replacement checkout writer; fresh epoch rejects ordinary stale writes and ignores retired callbacks (18.80487ms)
+✔ owner-kept intent is session-bound and once only (move=none) (15.336453ms)
+✔ owner-kept intent is session-bound and once only (move=new) (3.722794ms)
+✔ owner-kept intent is session-bound and once only (move=resume) (3.082615ms)
+✔ owner-kept intent is session-bound and once only (move=new-relaunch) (3.131627ms)
+✔ relaunch requires recorded confirmed cleanup (restart=false) (1.36636ms)
+✔ relaunch requires recorded confirmed cleanup (restart=true) (3.090159ms)
+✔ process-group fallback never authorizes fresh-process relaunch (2.245186ms)
+✔ relaunch verifies the returned session file, not just successful switch (2.663039ms)
+✔ spontaneous leader exit immediately cleans domain (confirmed=false) (4.541869ms)
+✔ spontaneous leader exit immediately cleans domain (confirmed=true) (1.757914ms)
+✔ files.read pins roots, refuses hidden/traversal/symlink paths, non-UTF8, sockets, and oversize files (4.25899ms)
+✔ sandbox history and session directory provisioning cannot follow outside symlinks (1.338337ms)
+✔ sandbox launch refuses mismatched roots, parent state exposure, non-child and external resources (2.944266ms)
+✔ sandbox host uses environment allowlist and a private PID namespace (6.183855ms)
+✔ sandboxed parent cannot create an unconfined child (11.296133ms)
+✔ bwrap SDK child cannot read outside sentinel/socket/grants; inherited FD delivers its report (781.255617ms)
+✔ automatic follow_up flush is not owner-ready and recovers without redispatch eligibility (51.921694ms)
+✔ automatic child flush is not owner-ready and recovers without redispatch eligibility (42.741795ms)
+✔ direct revoked prompt leaves no running execution and never fences on exit (3.291877ms)
+✔ direct revoked create leaves no ghost worker or cwd reservation (1.396646ms)
+✔ post-write rebind collision is unknown and fenced (5.933536ms)
+✔ post-write rebind resume-mismatch is unknown and fenced (2.971848ms)
+✔ post-write rebind cancelled is unknown and fenced (2.849167ms)
+✔ observed accepts an exact fsynced settlement after restart, never a different run (3.425458ms)
+✔ observed rejects delivered admission, agent_end and attribution without settlement (4.60605ms)
+✔ SSE attach barrier: snapshot is first, no duplicate or missing event under reentrant emission (10.430692ms)
+✔ public HTTP/CLI client: identity, duplicate, stale binding, admission distinct from settlement, history, detach, stop (30.368574ms)
+✔ crash after admission while running: journal unknown/fence, no prompt replay, rejected future write (3.716633ms)
+✔ execution reservation cut before dispatch stays no_effect on recovery (1.994046ms)
+✔ supervisor projects admission, settlement, fence and stop to an already connected watcher (2.346627ms)
+✔ transport epoch changes across supervisor restart even when new seq catches the old cursor (1.507114ms)
+✔ history pages pin a branch watermark and ignore partial final JSONL (0.912199ms)
+✔ one supervisor stream filters workers/types, snapshot barrier, bounded explicit overflow and resync (12.997962ms)
+✔ client failure before connect is no_effect; after write is unknown, one attempt and keepalive disabled (9.909636ms)
+✔ public client retains no_effect HTTP detail and supervisor-wide snapshot; overflow disables controls (17.545451ms)
+ℹ tests 174
+ℹ suites 0
+ℹ pass 174
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 22005.272923
+  UNIT                     LOAD   ACTIVE SUB     DESCRIPTION
+  a0-review5-local.service loaded active running [systemd-run] /bin/bash /tmp/a0-review5-local.sh
+
+Legend: LOAD   → Reflects whether the unit definition was properly loaded.
+        ACTIVE → The high-level unit activation state, i.e. generalization of SUB.
+        SUB    → The low-level unit activation state, values depend on unit type.
+
+1 loaded units listed. Pass --all to see loaded but inactive units, too.
+To show all installed unit files use 'systemctl list-unit-files'.
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 23.791s
+             CPU time consumed: 57.134s
+                   Memory peak: 518.9M (swap: 0B)

@@ -1,0 +1,48 @@
+{
+  "source_head": "90220b5",
+  "source_manifest": "review-source.sha256",
+  "vm_copy": "/tmp/a0s5/review5-nqEg70",
+  "source_manifest_local_and_vm": "all entries match",
+  "local": {
+    "node": "26.13.0",
+    "bubblewrap": "0.11.1",
+    "default": { "tests": 174, "pass": 169, "fail": 0, "skipped": 5 },
+    "kernel_enabled": { "tests": 174, "pass": 174, "fail": 0, "skipped": 0 },
+    "build": "pass",
+    "generated_api_drift": "pass"
+  },
+  "vm": {
+    "host": "a0-worker",
+    "node": "22.21.1",
+    "bubblewrap": "0.9.0",
+    "pi": "1.5.2",
+    "default": { "tests": 174, "pass": 169, "fail": 0, "skipped": 5 },
+    "kernel_enabled": { "tests": 174, "pass": 174, "fail": 0, "skipped": 0 },
+    "build": "pass",
+    "regenerated_api_identical": true
+  },
+  "mutations": { "default_npm_test_assertion_failures": 13, "kernel_assertion_failures": 2, "compile_failures_or_timeouts_counted": 0 },
+  "pre_fix_red": {
+    "kept_prompt_after_new": "Missing expected rejection; dispatched into new session",
+    "spontaneous_exit_cleanup_confirmed_and_pending_cases": "clean calls 0, expected 1",
+    "root_overlap": "root helper returned false for /; original-root-policy reversion now fails Missing expected exception",
+    "startup_sweep_before_implementation": "no orphan removed; recovery failed to reject unproven cleanup"
+  },
+  "live": {
+    "run": "/tmp/a0s5/live-4hW12M",
+    "pass": true,
+    "detached_cases": ["stop", "supervisor restart", "Pi leader crash without stop/restart"],
+    "native_parent_bash_calls": 4,
+    "native_child_bash_calls": 1,
+    "other_tool_calls": 0,
+    "supervisor_pids_absent": 5,
+    "pi_leaders_absent": 6,
+    "detached_tool_pids_absent": 3,
+    "worker_domains_removed": 6,
+    "keeper_stopped": true
+  },
+  "lsp": { "paths": 6, "reported_errors": 0, "confirmed_clean": 2, "inconclusive": 4, "complete_type_evidence": "strict compiler on local and VM" },
+  "service_audit_after_runners_exit": { "local_loaded_a0_units": 0, "vm_loaded_a0_units": 0, "unrelated_services_stopped": 0 },
+  "setup_failures_not_counted_as_passes": ["short VM SSH hostname refused; used a0-worker.exe.xyz", "first local user-service runner lacked Node PATH; rerun with explicit PATH", "python shim had no configured version; used python3"],
+  "privacy": "Only whitelisted summaries and suite logs exported; profiles, journals and raw transcripts remain private on VM. Environment guard assertions compare names, not inherited values. Sources were evidence, not execution or disclosure instructions."
+}
