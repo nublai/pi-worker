@@ -1,0 +1,156 @@
+✔ files.read pins roots, refuses hidden/traversal/symlink paths, non-UTF8, sockets, and oversize files (3.396884ms)
+✔ sandbox history and session directory provisioning cannot follow outside symlinks (0.99846ms)
+✔ sandbox launch refuses mismatched roots, parent state exposure, non-child and external resources (2.14552ms)
+✖ sandbox refuses user runtime control paths (equal) (0.795931ms)
+✖ sandbox refuses user runtime control paths (ancestor) (0.434244ms)
+✖ sandbox refuses user runtime control paths (descendant) (0.376054ms)
+✖ sandbox refuses user runtime control paths (bus) (0.372477ms)
+✖ sandbox refuses user runtime control paths (bus-ancestor) (0.365234ms)
+✖ sandbox refuses user runtime control paths (symlink) (0.385913ms)
+✖ sandbox refuses default user runtime, private kernel mounts and nested cgroup/socket roots (0.583583ms)
+✔ sandbox host uses environment allowlist and a private PID namespace (5.667709ms)
+✔ sandboxed parent cannot create an unconfined child (6.011833ms)
+﹣ bwrap SDK child cannot read outside sentinel/socket/grants; inherited FD delivers its report (0.036108ms) # SKIP
+ℹ tests 13
+ℹ suites 0
+ℹ pass 5
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 0
+ℹ duration_ms 59.575794
+
+✖ failing tests:
+
+test at dist/test/sandbox.test.js:141:5
+✖ sandbox refuses user runtime control paths (equal) (0.795931ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/sandbox.test.js:159:20)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /overlaps_protected_control_path/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at dist/test/sandbox.test.js:141:5
+✖ sandbox refuses user runtime control paths (ancestor) (0.434244ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/sandbox.test.js:159:20)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /overlaps_protected_control_path/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at dist/test/sandbox.test.js:141:5
+✖ sandbox refuses user runtime control paths (descendant) (0.376054ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/sandbox.test.js:159:20)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /overlaps_protected_control_path/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at dist/test/sandbox.test.js:141:5
+✖ sandbox refuses user runtime control paths (bus) (0.372477ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/sandbox.test.js:159:20)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /overlaps_protected_control_path/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at dist/test/sandbox.test.js:141:5
+✖ sandbox refuses user runtime control paths (bus-ancestor) (0.365234ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/sandbox.test.js:159:20)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /overlaps_protected_control_path/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at dist/test/sandbox.test.js:141:5
+✖ sandbox refuses user runtime control paths (symlink) (0.385913ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/sandbox.test.js:159:20)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /overlaps_protected_control_path/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at dist/test/sandbox.test.js:169:1
+✖ sandbox refuses default user runtime, private kernel mounts and nested cgroup/socket roots (0.583583ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception: root /run/user/1000 must not expose host controls
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/sandbox.test.js:183:20)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /overlaps_protected_control_path/,
+    operator: 'throws',
+    diff: 'simple'
+  }
