@@ -680,6 +680,21 @@ export interface components {
             task_id: string;
             result_digest: string;
         };
+        StopResult: {
+            /**
+             * @description observed_stopped: normal stop, generation confirmed gone. superseded_generation_stopped: old generation gone but a new relaunch was already running. superseded_generation_unknown: old generation cleanup outcome unknown, new generation running. unknown: cleanup outcome unknown.
+             * @enum {unknown}
+             */
+            termination?: "observed_stopped" | "superseded_generation_stopped" | "superseded_generation_unknown" | "unknown";
+            /** @description Present for observed_stopped and superseded_generation_stopped. The worker_epoch of the generation that was stopped. */
+            stopped_worker_epoch?: string;
+            /** @description Present for observed_stopped and superseded_generation_stopped. The worker_epoch of the currently active generation (may differ from stopped_worker_epoch when superseded). */
+            current_worker_epoch?: string;
+            /** @enum {unknown} */
+            profile?: "cgroup_v2" | "process_group_only";
+        } & {
+            [key: string]: unknown;
+        };
     };
     responses: never;
     parameters: never;
