@@ -254,7 +254,9 @@ export class Supervisor {
       // forwarding is observed; do not claim the native resolver consumed it.
       void live.host!.cancelUI(id).then(() => this.guarded(live, () => this.closeInteraction(live, id, 'cancel_forwarded'))).catch(error => this.fault(live, error));
     }
-    if (event.type === 'tool_execution_end' || event.type === 'agent_settled') {
+    // Exact resolver/deadline events own supported dialogs. A sibling tool/run
+    // settling is not a binding move and must not erase an accepted answer.
+    if (!live.host?.answerUI && (event.type === 'tool_execution_end' || event.type === 'agent_settled')) {
       if (w.pending_interactions.length) { this.clearInteractions(live); this.persist(live); }
     }
     if (event.type === 'message_end') live.completedMessages++;
