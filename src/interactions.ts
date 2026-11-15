@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { Journal } from './journal.js';
 import { ReceiptStore } from './receipts.js';
 import type { SessionHost, PiRecord } from './host.js';
-import { Refusal, type Worker, type Receipt } from './types.js';
+import { Refusal, ProvenNoEffect, type Worker, type Receipt } from './types.js';
 import type { DialogKind, UIAnswer } from './resolvers.js';
 export type AnswerGuard = (() => void) & { actor?: string; grant_id?: string; grant_state_dir?: string };
 export type Answer = { command_id: string; answer_id: string; worker_epoch: string; session_id: string; binding_revision: number; interaction_id: string; revision: number; kind: DialogKind } & UIAnswer;
@@ -109,7 +109,7 @@ export class Interactions {
         this.live.delete(a.interaction_id); this.notify(l);
         // A negative exact-resolver ack proves no effect. Consumed (or RPC's
         // unproven forwarding) cannot become either no_effect or stale stage 3.
-        throw new Refusal('answer_binding_changed', response.stage === 3 && response.consumed === false ? 'no_effect' : 'unknown');
+        throw response.stage === 3 && response.consumed === false ? new ProvenNoEffect('answer_binding_changed', 'resolver_negative_ack') : new Refusal('answer_binding_changed', 'unknown');
       }
       if (response.stage === 3 && !response.consumed) {
         l.record.status = 'resolver_refused'; l.record.answer_stage = 2; l.record.outcome = response.outcome; this.save(l.record); this.notify(l);

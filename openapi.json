@@ -1878,6 +1878,23 @@
           "cleanup": {
             "type": "string"
           },
+          "failure": {
+            "type": "object",
+            "description": "Why a launch ended the row in status failed. The launch receipt keeps its own effect label.",
+            "additionalProperties": false,
+            "required": [
+              "command_id",
+              "reason"
+            ],
+            "properties": {
+              "command_id": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
           "pending_interactions": {
             "type": "array",
             "items": {

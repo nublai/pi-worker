@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { Create } from './types.js';
 import { Refusal } from './types.js';
 import { gitPlan, type GitPin } from './git-sandbox.js';
-import { openPinned, openUnder, isMissing } from './pinned-fs.js';
+import { openPinned, openUnder, isMissing, type DependencyBind } from './pinned-fs.js';
 export const inside = (root: string, path: string): boolean => path === root || path.startsWith(root === '/' ? '/' : root + '/');
 const runtime = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '');
 export function sandboxRoot(c: Create, stateDir: string): string | undefined {
@@ -52,7 +52,9 @@ export function openSandboxRoot(root: string, within?: string): number {
     return fd;
   } finally { closeSync(base); }
 }
-export type SandboxOptions = { rootFd?: number; within?: string; gitPin?: GitPin | null };
+/** `dependencies`: already-opened profile dependency directories (the parent's
+ * `node_modules` trees), bound read-only at `ROOT/.a0-agent/<dest>`. */
+export type SandboxOptions = { rootFd?: number; within?: string; gitPin?: GitPin | null; dependencies?: DependencyBind[] };
 /** Child descriptor numbers for mount sources: 0-2 stdio, 3 child report pipe. */
 export const SANDBOX_FD_BASE = 4;
 export type SandboxLaunch = { command: string; args: string[]; env: NodeJS.ProcessEnv; fds: number[]; gitPin: GitPin | null; close(): void };
@@ -81,6 +83,14 @@ export function sandboxLaunch(root: string, command: string, args: string[], par
     const git = gitPlan(root, rootFd, { within: options.within && dirname(options.within), expected: options.gitPin });
     opened.push(...git.fds);
     for (const mount of git.mounts) bind(mount.mode, mount.fd, mount.dest);
+    // Profile dependency trees: read-only binds of the exact descriptors staging
+    // opened. The mount point must be the real directory staging created.
+    for (const dep of options.dependencies ?? []) {
+      let point: number;
+      try { point = openUnder(rootFd, ['.a0-agent', ...dep.dest], 'dir'); } catch { throw new Refusal('sandbox_dependency_mount_point_invalid'); }
+      closeSync(point);
+      bind('ro-bind', dep.fd, join(root, '.a0-agent', ...dep.dest));
+    }
     mounts.push('--chdir', root, '--dir', '/tmp/a0-home');
     // Pi may read only the deliberately staged credential stores, read-only. No
     // host profile, HOME, grant directory or supervisor state is mounted. A
