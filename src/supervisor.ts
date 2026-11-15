@@ -23,7 +23,7 @@ export class Supervisor {
     this.receipts = new ReceiptStore(journal);
     for (const record of journal.records) if (record.kind === 'worker') {
       const persisted = structuredClone(record.value) as Persisted;
-      this.workers.set(persisted.worker.worker_id, { ...persisted, index: new SessionIndex(persisted.sessionFile), hub: new EventHub(persisted.worker.worker_epoch), completedMessages: 0 });
+      this.workers.set(persisted.worker.worker_id, { ...persisted, index: new SessionIndex(persisted.sessionFile), hub: new EventHub(`${this.epoch}:${persisted.worker.worker_epoch}`), completedMessages: 0 });
     }
   }
   static rpcFactory(executable: string): HostFactory {
@@ -69,6 +69,7 @@ export class Supervisor {
   }
   private persist(live: Live): void {
     this.journal.append('worker', { worker: live.worker, sessionFile: live.sessionFile, pid: live.pid, token: live.token });
+    live.hub.publish('worker_changed', { worker: structuredClone(live.worker) }, live.worker.execution?.execution_id ?? null, 'supervisor', true);
   }
   private fence(live: Live, command_id: string): void {
     const prior = live.worker.fence;
@@ -88,6 +89,7 @@ export class Supervisor {
   }
   list(): Worker[] { return [...this.workers.keys()].map(id => this.get(id)); }
   private refresh(live: Live): void {
+    const before = JSON.stringify(live.worker);
     live.index.refresh();
     if (live.index.headerId !== null) {
       if (live.worker.session_id !== live.index.headerId) throw new Refusal('pi_header_identity_changed', 'unknown');
@@ -95,6 +97,7 @@ export class Supervisor {
     }
     live.worker.leaf_id = live.index.leafId;
     live.worker.history = { last_entry_id: live.index.leafId, lag: live.worker.foreground !== 'idle' || live.completedMessages > live.index.messageEntries, evidence: 'pi_session_file' };
+    if (JSON.stringify(live.worker) !== before) this.persist(live);
   }
   private binding(live: Live, b: Binding): void {
     const w = live.worker;
@@ -135,7 +138,7 @@ export class Supervisor {
       if ([...this.workers.values()].some(l => l.worker.cwd === cwd && (['starting', 'ready', 'cleanup_pending'].includes(l.worker.status) || l.worker.cleanup.includes('escaped_descendants_unproven')))) throw new Refusal('exclusive_environment_already_bound');
       const worker_id = randomUUID(), worker_epoch = randomUUID();
       const w: Worker = { worker_id, worker_epoch, supervisor_epoch: this.epoch, session_id: null, session_identity_evidence: 'pi_rpc_header_id', binding_revision: 1, leaf_id: null, cwd, status: 'starting', foreground: 'idle', execution: null, fence: null, history: { last_entry_id: null, lag: false, evidence: 'pi_session_file' }, cleanup: 'not_started', pending_interactions: [] };
-      const live: Live = { worker: w, sessionFile: null, pid: null, token: null, index: new SessionIndex(null), hub: new EventHub(worker_epoch), completedMessages: 0 };
+      const live: Live = { worker: w, sessionFile: null, pid: null, token: null, index: new SessionIndex(null), hub: new EventHub(`${this.epoch}:${worker_epoch}`), completedMessages: 0 };
       this.workers.set(worker_id, live);
       this.persist(live);
       this.receipts.dispatch(c.command_id, { worker_id });

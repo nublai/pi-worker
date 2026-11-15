@@ -129,6 +129,45 @@ test('execution reservation cut before dispatch stays no_effect on recovery', as
     reopened.close();
   } finally { f.cleanup(); }
 });
+test('supervisor projects admission, settlement, fence and stop to an already connected watcher', async () => {
+  const f = setup(); try {
+    const r = await f.supervisor.create(create(f.cwd)), id = r.worker_id!, w = f.supervisor.get(id);
+    const frames: (Snapshot | WorkerEvent)[] = [];
+    const detach = f.supervisor.require(id).hub.attach(() => f.supervisor.get(id), null, frame => frames.push(frame));
+    await f.supervisor.prompt(id, { ...asBinding(w, 'turn'), message: 'hello' });
+    f.host.emit('event', { type: 'agent_settled' });
+    await f.supervisor.prompt(id, { ...asBinding(w, 'crash'), message: 'crash' });
+    f.host.emit('exit');
+    await f.supervisor.stop(id, asBinding(w, 'stop'));
+    detach();
+    const changes = frames.filter((x): x is WorkerEvent => x.type === 'worker_changed');
+    const workers = changes.map(x => x.data.worker as Worker);
+    assert.ok(workers.some(x => x.execution?.state === 'admitted'));
+    assert.ok(workers.some(x => x.execution?.state === 'settled'));
+    assert.ok(workers.some(x => x.fence?.command_id === 'crash'));
+    assert.ok(workers.some(x => x.status === 'stopped'));
+    assert.ok(changes.every(x => x.producer === 'supervisor' && x.evidence === 'supervisor_journal_fsynced'));
+  } finally { f.cleanup(); }
+});
+test('transport epoch changes across supervisor restart even when new seq catches the old cursor', async () => {
+  const f = setup(); try {
+    const r = await f.supervisor.create(create(f.cwd)), id = r.worker_id!;
+    let old!: Snapshot;
+    f.supervisor.require(id).hub.attach(() => f.supervisor.get(id), null, frame => { old = frame as Snapshot; })();
+    const log = new Journal(f.journal.file);
+    try {
+      const next = new Supervisor(f.dir, log, '1.5.2', () => { throw new Error('no replay'); });
+      await next.recover();
+      for (let i = 0; i <= old.cursor.seq; i++) next.require(id).hub.publish('padding', {});
+      next.require(id).hub.attach(() => next.get(id), old.cursor, frame => {
+        const fresh = frame as Snapshot;
+        assert.equal(fresh.resync_reason, 'epoch');
+        assert.notEqual(fresh.cursor.worker_epoch, old.cursor.worker_epoch);
+        assert.equal(fresh.worker.worker_epoch, old.worker.worker_epoch);
+      })();
+    } finally { log.close(); }
+  } finally { f.cleanup(); }
+});
 test('history pages pin a branch watermark and ignore partial final JSONL', () => {
   const f = setup(); try {
     const records = [{ type: 'message', id: 'a', parentId: null }, { type: 'message', id: 'b', parentId: 'a' }, { type: 'message', id: 'branch', parentId: 'a' }];
