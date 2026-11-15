@@ -29,6 +29,22 @@ export class GrantStore {
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     return this.register('installation-owner', { worker_ids: ['*'], cwd_roots: ['*'] }, ['*'], 'owner');
   }
+  /** A sandboxed parent's channel acts with its OWN grant: scoped to the parent
+   * worker and its root (children qualify by cwd), never the owner's `*`.
+   * Stable per parent worker so children keep a valid source across relaunch. */
+  channel(workerId: string, root: string, methods: string[]): string {
+    const id = 'channel-' + workerId;
+    try {
+      const g = this.read(id);
+      if (g.revoked) throw new Refusal('grant_revoked');
+      if (g.scope.worker_ids.join() !== workerId || g.scope.cwd_roots.join() !== root || g.methods.includes('*')) throw new Refusal('parent_channel_grant_mismatch');
+      return id;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      this.register(`parent-channel:${workerId}`, { worker_ids: [workerId], cwd_roots: [root] }, methods.length ? methods : ['hello'], id);
+      return id;
+    }
+  }
   private read(id: string): Grant {
     const file = join(this.dir, id + '.json'), st = lstatSync(file);
     if (!st.isFile() || st.isSymbolicLink() || st.uid !== process.getuid?.() || (st.mode & 0o777) !== 0o600) throw new Refusal('grant_file_requires_owned_0600');
