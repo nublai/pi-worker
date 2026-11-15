@@ -19,12 +19,10 @@ const acp = protocol === 'acp';
 const output = (value: unknown) => process.stdout.write(JSON.stringify(value) + '\n');
 console.log = (...args) => console.error(...args);
 let current: AgentSession | undefined;
-const nativeKinds = new Map<string, string>();
 function emit(event: PiRecord): void {
   if (!acp) { output(event); return; }
   const sessionId = current?.sessionId ?? '';
   if (event.type === 'extension_ui_request' && ['select', 'confirm', 'input', 'editor', 'tool_approval'].includes(String(event.method))) {
-    nativeKinds.set(String(event.id), String(event.method));
     output({ jsonrpc: '2.0', id: event.id, method: event.method === 'tool_approval' ? 'session/request_permission' : '_pi/dialog', params: { sessionId, ...(event.method === 'tool_approval' ? { toolCall: { toolCallId: event.id, title: 'bash approval', kind: 'execute', status: 'pending' }, options: [{ optionId: 'allow', name: 'Allow once', kind: 'allow_once' }, { optionId: 'deny', name: 'Deny once', kind: 'reject_once' }] } : {}), _meta: { piEvent: event } } });
   } else if (event.type === 'message_update' && (event.assistantMessageEvent as { type?: string })?.type === 'text_delta') {
     output({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: (event.assistantMessageEvent as { delta: string }).delta } }, _meta: { piEvent: event } } });
@@ -156,8 +154,9 @@ async function handle(r: Record<string, unknown>): Promise<void> {
     if (r.jsonrpc !== '2.0') throw new Error('invalid_jsonrpc');
     if ('result' in r) {
       const data = r.result as { _meta?: { piAnswer?: UIAnswer; ackId?: string } };
-      if (!nativeKinds.has(String(r.id)) || !data._meta?.piAnswer || !data._meta.ackId) throw new Error('profile_response_required');
-      nativeKinds.delete(String(r.id));
+      if (!data._meta?.piAnswer || !data._meta.ackId) throw new Error('profile_response_required');
+      // Late/duplicate answers still need their correlated negative resolver ack.
+      // A cancelled request no longer owns a resolver, but is not a framing error.
       const consumed = resolvers.answer(String(r.id), data._meta.piAnswer);
       output({ jsonrpc: '2.0', method: '_pi/consumed', params: { id: data._meta.ackId, data: consumed } }); return;
     }
