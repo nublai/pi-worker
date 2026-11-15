@@ -1,0 +1,194 @@
+{
+  "producer": "slice7-security-owner-git-follow-up",
+  "review": "nubl/.pi/plan/research/a0-slice7-security-delta.md (local planning file)",
+  "subject": {
+    "commit_id": "51a8641943b958243cffc3534f1db96f1ba555bb",
+    "tree_id": "ccdaf4989cbc0d33d998ef35005a5f06941f0b58",
+    "base_id": "a8d1357c115ed66a8fa28f93dfdbd3573a4c49e0",
+    "diff_digest": {
+      "advisory": true,
+      "git_version": "git version 2.53.0",
+      "algorithm": "sha256",
+      "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+      "value": "d6b40223eca923578c4af46df6455fe4c4e020ff883772bee556786e6d3252be"
+    }
+  },
+  "checks": [
+    {
+      "host": "local",
+      "name": "owner-git-local-default.log",
+      "command": "npm test (TMPDIR=/tmp/a0s7g/tmp)",
+      "log": "owner-git-local-default.log",
+      "sha256": "23a1c29658ba4ee07e171cfc058b1a093a6f33080b521c55de4364c1b9213e16",
+      "counts": {
+        "tests": 239,
+        "pass": 226,
+        "fail": 0,
+        "skipped": 13
+      }
+    },
+    {
+      "host": "local",
+      "name": "owner-git-local-kernel.log",
+      "command": "systemd-run --user --unit=a0-s7g-kernel --property=Delegate=yes ... evidence/slice7/kernel.sh (A0_TEST_BWRAP=1, A0_TEST_CGROUP_DIR, TMPDIR=/tmp/a0s7g/tmp)",
+      "log": "owner-git-local-kernel.log",
+      "sha256": "b1a95b14d86e59c10eec79109068a354892cb39c950a04946284efc2246d8cf5",
+      "counts": {
+        "tests": 239,
+        "pass": 239,
+        "fail": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "before_fix": {
+    "log": "before-fix/owner-git-before-a8d1357.log",
+    "sha256": "16c527e8e4f779bff85d5253db7afb9765eb2d46a28d245bd002f23750e238be",
+    "runtime": "a8d1357 src/git-safe.ts with the new owner-git tests",
+    "counts": {
+      "tests": 6,
+      "pass": 1,
+      "fail": 4,
+      "skipped": 1
+    }
+  },
+  "reversions": [
+    {
+      "name": "owner-helper-a8d1357",
+      "tests": [
+        "racing a child admin",
+        "racing a planted commondir",
+        "refused, not run",
+        "not honoured",
+        "kernel owner Git"
+      ],
+      "compiled": true,
+      "exit_code": 1,
+      "failed_tests": [
+        "kernel owner Git: a bwrap parent racing its child admin commondir cannot make owner safeGit run a planted driver",
+        "owner Git: a repository config that defines a filter, diff driver, textconv or include is refused, not run",
+        "owner Git: racing a child admin commondir against safeGit diff/status never runs a planted driver or filter",
+        "owner Git: racing a planted commondir in an ordinary .git against safeGit diff/status never runs a planted driver or filter",
+        "owner Git: ~/.gitconfig includes, XDG config/attributes and GIT_CONFIG_GLOBAL/SYSTEM are not honoured"
+      ],
+      "guards_failed": [
+        "racing a child admin",
+        "racing a planted commondir",
+        "refused, not run",
+        "not honoured",
+        "kernel owner Git"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "race_tallies": [
+        "{\"passed\":437,\"refused\":463,\"other\":[]}",
+        "{\"passed\":702,\"refused\":198,\"other\":[]}",
+        "{\"passed\":196,\"refused\":104,\"other\":[]}"
+      ],
+      "payload_runs": [
+        600,
+        600,
+        98,
+        98,
+        28,
+        28,
+        134,
+        134
+      ],
+      "log": "reversions/owner-helper-a8d1357.log",
+      "diff": "reversions/owner-helper-a8d1357.diff",
+      "log_sha256": "8acc03872eee51f6b1ea8afa96fddae8492b87304f67ffe6e3f971edb3fd20cf"
+    },
+    {
+      "name": "snapshot-removed-git-reads-pinned-paths",
+      "tests": [
+        "racing a child admin",
+        "racing a planted commondir",
+        "kernel owner Git"
+      ],
+      "compiled": true,
+      "exit_code": 1,
+      "failed_tests": [
+        "kernel owner Git: a bwrap parent racing its child admin commondir cannot make owner safeGit run a planted driver",
+        "owner Git: racing a child admin commondir against safeGit diff/status never runs a planted driver or filter",
+        "owner Git: racing a planted commondir in an ordinary .git against safeGit diff/status never runs a planted driver or filter"
+      ],
+      "guards_failed": [
+        "racing a child admin",
+        "racing a planted commondir",
+        "kernel owner Git"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "race_tallies": [
+        "{\"passed\":428,\"refused\":472,\"other\":[]}",
+        "{\"passed\":714,\"refused\":186,\"other\":[]}",
+        "{\"passed\":207,\"refused\":93,\"other\":[]}"
+      ],
+      "payload_runs": [
+        328,
+        328,
+        24,
+        24,
+        26,
+        26
+      ],
+      "log": "reversions/snapshot-removed-git-reads-pinned-paths.log",
+      "diff": "reversions/snapshot-removed-git-reads-pinned-paths.diff",
+      "log_sha256": "99c156f213dc8ba38c82966895a06b63aa12cd2a59d048b97a3751be5a5abc3b"
+    },
+    {
+      "name": "executing-config-allowed",
+      "tests": [
+        "refused, not run"
+      ],
+      "compiled": true,
+      "exit_code": 1,
+      "failed_tests": [
+        "owner Git: a repository config that defines a filter, diff driver, textconv or include is refused, not run"
+      ],
+      "guards_failed": [
+        "refused, not run"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "race_tallies": [],
+      "payload_runs": [],
+      "log": "reversions/executing-config-allowed.log",
+      "diff": "reversions/executing-config-allowed.diff",
+      "log_sha256": "0477d0c53515d0319849d9a8607e92e02f084b1f9dfc503ea9182c1e8044bb35"
+    },
+    {
+      "name": "global-config-honoured",
+      "tests": [
+        "not honoured"
+      ],
+      "compiled": true,
+      "exit_code": 1,
+      "failed_tests": [
+        "owner Git: ~/.gitconfig includes, XDG config/attributes and GIT_CONFIG_GLOBAL/SYSTEM are not honoured"
+      ],
+      "guards_failed": [
+        "not honoured"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "race_tallies": [],
+      "payload_runs": [
+        14,
+        14
+      ],
+      "log": "reversions/global-config-honoured.log",
+      "diff": "reversions/global-config-honoured.diff",
+      "log_sha256": "3efb20449ae229b675deb60553129b42ed936205e4a430aed36b3da48a4cbd91"
+    }
+  ],
+  "killed": 4,
+  "total": 4,
+  "platform": {
+    "node": "v26.13.0",
+    "bwrap": "0.11.1",
+    "git": "git version 2.53.0"
+  },
+  "final_a0_units": 0
+}

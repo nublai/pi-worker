@@ -1,0 +1,14 @@
+diff --git i/src/git-sandbox.ts w/src/git-sandbox.ts
+index 1b7b526..dd7d0b0 100644
+--- i/src/git-sandbox.ts
++++ w/src/git-sandbox.ts
+@@ -99,9 +99,6 @@ export function gitPlan(root: string, rootFd: number, options: { within?: string
+       // fresh one; then overlay everything Git can execute from read-only.
+       const git = pin.git_dir;
+       mounts.push({ mode: 'bind', fd: found.dotGit!, dest: git });
+-      ro(open(common, ['config'], 'file'), join(git, 'config'));
+-      for (const name of ['hooks', 'info']) ro(open(common, [name], 'dir', true), join(git, name));
+-      ro(open(common, ['objects', 'info'], 'dir', true), join(git, 'objects', 'info'));
+       return { pin, mounts, fds };
+     }
+     const admin = found.admin!, c = pin.common_dir, a = pin.git_dir;

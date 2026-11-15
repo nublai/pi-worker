@@ -1,0 +1,25 @@
+diff --git i/src/server.ts w/src/server.ts
+index d9a855d..6cb948d 100644
+--- i/src/server.ts
++++ w/src/server.ts
+@@ -133,7 +133,6 @@ export function router(supervisor: Supervisor, channel?: ParentChannel): Server
+             c.host = 'sdk'; c.launch_spec.environment.filesystem = 'bwrap'; c.launch_spec.environment.root = c.cwd;
+             const create = () => supervisor.create(c, { channelParent: channel.workerId });
+             if (supervisor.receipts.all.has(c.command_id)) return json(res, await run('workers.create', create, channel.workerId));
+-            supervisor.checkChannelChildRoot(channel.workerId, c.cwd);
+             check('workers.create', channel.workerId, c.cwd);
+             if (parent!.fence) throw new Refusal('session_fenced', 'no_effect', parent!.fence.command_id);
+             if (c.parent.worker_epoch !== parent!.worker_epoch || c.parent.session_id !== parent!.session_id || c.parent.binding_revision !== parent!.binding_revision || c.parent.execution_id !== parent!.execution?.execution_id) throw new Refusal('stale_parent_binding');
+diff --git i/src/supervisor.ts w/src/supervisor.ts
+index 95a2cdf..c0d1f43 100644
+--- i/src/supervisor.ts
++++ w/src/supervisor.ts
+@@ -422,7 +422,7 @@ export class Supervisor {
+   /** A channel child's root is opened by O_NOFOLLOW walk from the parent root's
+    * descriptor, never realpath; it must not already hold a profile. */
+   private openRoot(cwd: string, within: string | undefined, channel: boolean): number {
+-    const fd = pinned('parent_channel_child_root_not_real_directory', () => openSandboxRoot(cwd, within));
++    const fd = pinned('parent_channel_child_root_not_real_directory', () => openSandboxRoot(realpathSync(cwd)));
+     if (channel) {
+       let exists = true;
+       try { closeSync(openUnder(fd, ['.a0-agent'], 'any')); } catch (error) { if (isMissing(error)) exists = false; }

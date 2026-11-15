@@ -1,0 +1,34 @@
+diff --git i/src/sandbox.ts w/src/sandbox.ts
+index abcbfa6..c4a72eb 100644
+--- i/src/sandbox.ts
++++ w/src/sandbox.ts
+@@ -78,7 +78,7 @@ export function sandboxLaunch(root: string, command: string, args: string[], par
+     for (const path of ['/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc/ssl', '/etc/resolv.conf', '/etc/hosts', '/etc/nsswitch.conf', ...runtimePaths()]) if (existsSync(path)) mounts.push('--ro-bind', path, path);
+     bind('bind', rootFd, root);
+     // A channel child's Git admin/common dirs live in the PARENT root's .git.
+-    const git = gitPlan(root, rootFd, { within: options.within && dirname(options.within), expected: options.gitPin });
++    const git = gitPlan(root, rootFd, { expected: options.gitPin });
+     opened.push(...git.fds);
+     for (const mount of git.mounts) bind(mount.mode, mount.fd, mount.dest);
+     mounts.push('--chdir', root, '--dir', '/tmp/a0-home');
+diff --git i/src/supervisor.ts w/src/supervisor.ts
+index 95a2cdf..d99a6f1 100644
+--- i/src/supervisor.ts
++++ w/src/supervisor.ts
+@@ -428,7 +428,6 @@ export class Supervisor {
+       try { closeSync(openUnder(fd, ['.a0-agent'], 'any')); } catch (error) { if (isMissing(error)) exists = false; }
+       if (exists) { closeSync(fd); throw new Refusal('parent_channel_child_profile_exists'); }
+       // Git admin/common dirs must stay inside the parent root (its own .git).
+-      try { pinned('sandbox_git_metadata_unreadable', () => gitPinAt(cwd, fd, dirname(within!))); } catch (error) { closeSync(fd); throw error; }
+     }
+     return fd;
+   }
+@@ -447,7 +446,7 @@ export class Supervisor {
+       this.validateLaunch(c);
+       const rootFd = bwrap ? openChildRoot() : undefined;
+       try {
+-      const gitPin = rootFd === undefined ? undefined : pinned('sandbox_git_metadata_unreadable', () => gitPinAt(cwd, rootFd, channelParent?.cwd));
++      const gitPin = rootFd === undefined ? undefined : pinned('sandbox_git_metadata_unreadable', () => gitPinAt(cwd, rootFd, undefined));
+       const worker_id = randomUUID(), worker_epoch = randomUUID();
+       const w: Worker = { worker_id, worker_epoch, host: c.host ?? 'rpc', supervisor_epoch: this.epoch, session_id: null, session_identity_evidence: 'pi_rpc_header_id', binding_revision: 1, leaf_id: null, cwd, status: 'starting', foreground: 'idle', execution: null, fence: null, history: { last_entry_id: null, lag: false, evidence: 'pi_session_file' }, cleanup: 'not_started', pending_interactions: [] };
+       if (c.launch_spec) w.launch_spec = structuredClone(c.launch_spec);

@@ -1,0 +1,30 @@
+✔ parent channel staging never dereferences profile symlinks into supervisor secrets (16.009993ms)
+✖ project extension reaches B2 unsandboxed; bwrap parent cannot read grants/state or reach B2, but can use its own channel (1001.264086ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1063.619751
+
+✖ failing tests:
+
+test at dist/test/gate1-parent.test.js:45:1
+✖ project extension reaches B2 unsandboxed; bwrap parent cannot read grants/state or reach B2, but can use its own channel (1001.264086ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/parent-unconfined-3pesu3im/dist/test/gate1-parent.test.js:99:20)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -1,0 +1,13 @@
+diff --git i/src/sandbox.ts w/src/sandbox.ts
+index abcbfa6..3a5d03f 100644
+--- i/src/sandbox.ts
++++ w/src/sandbox.ts
+@@ -76,7 +76,7 @@ export function sandboxLaunch(root: string, command: string, args: string[], par
+     const mounts = ['--die-with-parent', '--clearenv', ...Object.entries(env).flatMap(([k, v]) => ['--setenv', k, v]), '--unshare-user', '--unshare-pid', '--unshare-ipc', '--unshare-uts', '--new-session', '--cap-drop', 'ALL', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--tmpfs', '/run'];
+     // System and worker runtime paths are owner-controlled, never sandbox-writable.
+     for (const path of ['/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc/ssl', '/etc/resolv.conf', '/etc/hosts', '/etc/nsswitch.conf', ...runtimePaths()]) if (existsSync(path)) mounts.push('--ro-bind', path, path);
+-    bind('bind', rootFd, root);
++    mounts.push('--bind', root, root);
+     // A channel child's Git admin/common dirs live in the PARENT root's .git.
+     const git = gitPlan(root, rootFd, { within: options.within && dirname(options.within), expected: options.gitPin });
+     opened.push(...git.fds);

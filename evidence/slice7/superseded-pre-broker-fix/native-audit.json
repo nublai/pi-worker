@@ -1,0 +1,205 @@
+{
+  "clock": "2026-11-15T17:00:39.178Z",
+  "subject": {
+    "commit_id": "9845f63fa32accf8f94d827e3ea39abd45b7ecf9",
+    "tree_id": "ccf329133e8c599f4c21ddbab40681e8a4b2c519",
+    "base_id": "89ad6a54a6d319c2f657ad2aa80bac6d783dc565",
+    "diff_digest": {
+      "advisory": true,
+      "git_version": "git version 2.43.0",
+      "algorithm": "sha256",
+      "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+      "value": "56a047513813f8df8e70645cae77bf90df782e8c29413a2a29cf5e7e97ee36cc"
+    }
+  },
+  "workers": [
+    {
+      "worker_id": "574487c0-0686-40e7-bcbe-e11790424339",
+      "worker_epoch": "ed63a60f-9cff-456d-8c9e-9513b7c02689",
+      "session_id": "01a1e01f-cad6-765b-b9ab-5f4696677aa7",
+      "host": "sdk",
+      "filesystem": "bwrap",
+      "status": "stopped",
+      "cleanup": "cgroup_empty_removed",
+      "domain": "w-ed63a60f-9cff-456d-8c9e-9513b7c02689",
+      "domain_removed": true,
+      "tool_counts": {
+        "read": 2,
+        "bash": 11,
+        "subagent": 2
+      },
+      "grant_source_id": "orchestrator",
+      "grant_methods": [
+        "workers.create",
+        "children.report"
+      ],
+      "credential_read_tools": 0,
+      "terminal_trap_present": false
+    },
+    {
+      "worker_id": "ed1a5b45-9610-477a-9453-bde471ab6c90",
+      "worker_epoch": "dc50e676-f351-47a4-99f9-912a01fd3cda",
+      "parent_worker_id": "574487c0-0686-40e7-bcbe-e11790424339",
+      "session_id": "01a1e020-4c68-7033-b666-9d53c497b2ad",
+      "host": "sdk",
+      "filesystem": "bwrap",
+      "status": "stopped",
+      "cleanup": "cgroup_empty_removed",
+      "domain": "w-dc50e676-f351-47a4-99f9-912a01fd3cda",
+      "domain_removed": true,
+      "tool_counts": {
+        "bash": 4,
+        "read": 1,
+        "edit": 1
+      },
+      "grant_source_id": "orchestrator",
+      "grant_methods": [
+        "children.report"
+      ],
+      "credential_read_tools": 0,
+      "terminal_trap_present": false,
+      "git": {
+        "cwd": "/tmp/a0s7/run/workspace/.a0-worktrees/a67919ea-c559-4fb6-bc23-0a257c7dceca",
+        "branch": "s7-note/task",
+        "subject": {
+          "commit_id": "a89e82b71841c8b9cbab50c346e4c6e61bb86064",
+          "tree_id": "31ec8142d4cacb588e1178cca239a87f422075c1",
+          "base_id": "89ad6a54a6d319c2f657ad2aa80bac6d783dc565",
+          "diff_digest": {
+            "advisory": true,
+            "git_version": "git version 2.43.0",
+            "algorithm": "sha256",
+            "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+            "value": "5b12ac88a46a9233cbd31463734b4a44f8606c602e689d365dce12255121112d"
+          }
+        },
+        "clean": true,
+        "locked": true,
+        "retained": true
+      },
+      "fd_result_reports": 1
+    },
+    {
+      "worker_id": "9e365f3f-25f6-4a52-b5bb-13b2ec73aa55",
+      "worker_epoch": "a9513479-7999-44c6-afbe-47a09f687c4d",
+      "parent_worker_id": "574487c0-0686-40e7-bcbe-e11790424339",
+      "session_id": "01a1e020-5022-71a9-9892-18e45b189f89",
+      "host": "sdk",
+      "filesystem": "bwrap",
+      "status": "stopped",
+      "cleanup": "cgroup_empty_removed",
+      "domain": "w-a9513479-7999-44c6-afbe-47a09f687c4d",
+      "domain_removed": true,
+      "tool_counts": {
+        "write": 1,
+        "bash": 4
+      },
+      "grant_source_id": "orchestrator",
+      "grant_methods": [
+        "children.report"
+      ],
+      "credential_read_tools": 0,
+      "terminal_trap_present": false,
+      "git": {
+        "cwd": "/tmp/a0s7/run/workspace/.a0-worktrees/4238e0ff-1aa7-44bc-8a98-a9bddd26e7e0",
+        "branch": "s7-check/task",
+        "subject": {
+          "commit_id": "c8c993985cb9e3b8744f895e452095a7ffa6b48c",
+          "tree_id": "ad73e6fe55580b5feffd2477f854cd0f732c17e5",
+          "base_id": "89ad6a54a6d319c2f657ad2aa80bac6d783dc565",
+          "diff_digest": {
+            "advisory": true,
+            "git_version": "git version 2.43.0",
+            "algorithm": "sha256",
+            "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+            "value": "13b052d4f3d8f6044be9040806bb3634fde8d5133a295141b2f8b29ae007e082"
+          }
+        },
+        "clean": true,
+        "locked": true,
+        "retained": true
+      },
+      "fd_result_reports": 1
+    }
+  ],
+  "launch_attempts": [
+    {
+      "name": "note-writer",
+      "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+      "thinking": "off",
+      "branch": "s7-note/task"
+    },
+    {
+      "name": "check-author",
+      "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+      "thinking": "off",
+      "branch": "s7-check/task"
+    }
+  ],
+  "delivery_counts": {
+    "4238e0ff-1aa7-44bc-8a98-a9bddd26e7e0:result": 1,
+    "4238e0ff-1aa7-44bc-8a98-a9bddd26e7e0:termination": 1,
+    "a67919ea-c559-4fb6-bc23-0a257c7dceca:result": 1,
+    "a67919ea-c559-4fb6-bc23-0a257c7dceca:termination": 1
+  },
+  "changed_refs": [
+    {
+      "ref": "refs/heads/job/slice7",
+      "commit_id": "9845f63fa32accf8f94d827e3ea39abd45b7ecf9"
+    },
+    {
+      "ref": "refs/heads/s7-check/task",
+      "commit_id": "c8c993985cb9e3b8744f895e452095a7ffa6b48c"
+    },
+    {
+      "ref": "refs/heads/s7-note/task",
+      "commit_id": "a89e82b71841c8b9cbab50c346e4c6e61bb86064"
+    }
+  ],
+  "unrelated_refs_unchanged": true,
+  "unexpected_refs_absent": true,
+  "parent_grant_and_state_read_denied": true,
+  "playbook_reads": [
+    {
+      "tool_call_id": "toolu_01FKT67g7dcgrjM3VAVNYB55",
+      "path": "/tmp/a0s7/run/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/SKILL.md",
+      "success": true
+    },
+    {
+      "tool_call_id": "toolu_013mqvffDM5VLnWQtRiAdYzB",
+      "path": "/tmp/a0s7/run/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/playbooks/prototype.md",
+      "success": true
+    }
+  ],
+  "native_calls_during_disconnect": 15,
+  "reconnect": {
+    "disconnected_seconds": 371.313,
+    "resync_reason": "gap",
+    "parent_epoch_unchanged": true,
+    "session_id_unchanged": true
+  },
+  "recorded_leaders": [
+    {
+      "pid": 269117,
+      "state": null
+    },
+    {
+      "pid": 269910,
+      "state": null
+    },
+    {
+      "pid": 269954,
+      "state": null
+    }
+  ],
+  "driver_direct_native_calls": [],
+  "result_claims_are_not_verification": true,
+  "limitations": [
+    "SDK/ACP only bwrap; network shared; deliberately staged VM model-store readable read-only.",
+    "Shared Git objects and own ref namespace writable; owner compared complete refs map.",
+    "No cross-provider review; two authorized leaves use same family.",
+    "External inventory read preceded the reconnect snapshot by a short interval; job-owned parent observer stayed connected.",
+    "No syscall audit or crash-durable parent delivery claim."
+  ],
+  "producer": "slice7-native-audit-driver"
+}

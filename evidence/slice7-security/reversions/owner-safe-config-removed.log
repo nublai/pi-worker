@@ -1,0 +1,31 @@
+✔ dist/test/gate1-parent.test.js (52.205291ms)
+✖ M1: a planted core.fsmonitor never runs from the owner checks (pin compare, then safe config) (41.457925ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 95.391783
+
+✖ failing tests:
+
+test at dist/test/security-fix.test.js:221:1
+✖ M1: a planted core.fsmonitor never runs from the owner checks (pin compare, then safe config) (41.457925ms)
+  AssertionError [ERR_ASSERTION]: fsmonitor payload ran from an owner-side Git command
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/rev/wt/dist/test/security-fix.test.js:244:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

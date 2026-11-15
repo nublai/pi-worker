@@ -1,0 +1,50 @@
+✖ linked-worktree sandbox refuses flat or shared branch write namespaces before spawn (15.850534ms)
+✖ bwrap linked worktree status/add/commit writes only its branch namespace and shared objects (18.15469ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 69.642086
+
+✖ failing tests:
+
+test at dist/test/gate1-git.test.js:8:1
+✖ linked-worktree sandbox refuses flat or shared branch write namespaces before spawn (15.850534ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/git-mounts-sjig0mw7/dist/test/gate1-git.test.js:21:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /requires_private_namespace/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-git.test.js:31:1
+✖ bwrap linked worktree status/add/commit writes only its branch namespace and shared objects (18.15469ms)
+  AssertionError [ERR_ASSERTION]: fatal: not a git repository: /tmp/a0s7/a0s7-git-W7esYy/repo/.git/worktrees/child
+  
+  
+  128 !== 0
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/git-mounts-sjig0mw7/dist/test/gate1-git.test.js:60:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 128,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

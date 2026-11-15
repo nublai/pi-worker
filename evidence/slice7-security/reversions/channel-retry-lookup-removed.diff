@@ -1,0 +1,12 @@
+diff --git i/src/server.ts w/src/server.ts
+index d9a855d..c278602 100644
+--- i/src/server.ts
++++ w/src/server.ts
+@@ -132,7 +132,6 @@ export function router(supervisor: Supervisor, channel?: ParentChannel): Server
+             c.launch_spec.resources = { extensions: c.launch_spec.resources.extensions.map(remap), skills: c.launch_spec.resources.skills.map(remap) };
+             c.host = 'sdk'; c.launch_spec.environment.filesystem = 'bwrap'; c.launch_spec.environment.root = c.cwd;
+             const create = () => supervisor.create(c, { channelParent: channel.workerId });
+-            if (supervisor.receipts.all.has(c.command_id)) return json(res, await run('workers.create', create, channel.workerId));
+             supervisor.checkChannelChildRoot(channel.workerId, c.cwd);
+             check('workers.create', channel.workerId, c.cwd);
+             if (parent!.fence) throw new Refusal('session_fenced', 'no_effect', parent!.fence.command_id);

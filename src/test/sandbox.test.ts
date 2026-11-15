@@ -85,7 +85,7 @@ test('sandbox launch refuses mismatched roots, parent state exposure, non-child 
       if (savedGrant === undefined) delete process.env.PI_WORKER_GRANT_FILE; else process.env.PI_WORKER_GRANT_FILE = savedGrant;
     }
     assert.throws(() => sandboxRoot(c, f.dir), /overlaps_supervisor_state/);
-    assert.throws(() => sandboxRoot({ ...c, parent: undefined }, state), /requires_linux/);
+    assert.equal(sandboxRoot({ ...c, parent: undefined }, state), root, 'SDK parents now use the same confinement policy');
     assert.throws(() => sandboxRoot({ ...c, host: 'rpc' }, state), /requires_linux/);
     const wrong = structuredClone(c); wrong.launch_spec!.environment.root = state;
     assert.throws(() => sandboxRoot(wrong, state), /must_equal_cwd/);

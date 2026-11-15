@@ -1,0 +1,31 @@
+✔ dist/test/gate1-parent.test.js (48.599736ms)
+✖ kernel B1: bwrap binds the exact opened root even if the path is swapped before spawn; no mount fd reaches the sandbox (11.09611ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 68.516952
+
+✖ failing tests:
+
+test at dist/test/security-fix.test.js:414:1
+✖ kernel B1: bwrap binds the exact opened root even if the path is swapped before spawn; no mount fd reaches the sandbox (11.09611ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'OUTSIDE'
+  - 'ORIGINAL'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/rev/wt/dist/test/security-fix.test.js:427:16)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'OUTSIDE',
+    expected: 'ORIGINAL',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

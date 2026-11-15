@@ -1,0 +1,127 @@
+[
+  {
+    "name": "owner-helper-a8d1357",
+    "tests": [
+      "racing a child admin",
+      "racing a planted commondir",
+      "refused, not run",
+      "not honoured",
+      "kernel owner Git"
+    ],
+    "compiled": true,
+    "exit_code": 1,
+    "failed_tests": [
+      "kernel owner Git: a bwrap parent racing its child admin commondir cannot make owner safeGit run a planted driver",
+      "owner Git: a repository config that defines a filter, diff driver, textconv or include is refused, not run",
+      "owner Git: racing a child admin commondir against safeGit diff/status never runs a planted driver or filter",
+      "owner Git: racing a planted commondir in an ordinary .git against safeGit diff/status never runs a planted driver or filter",
+      "owner Git: ~/.gitconfig includes, XDG config/attributes and GIT_CONFIG_GLOBAL/SYSTEM are not honoured"
+    ],
+    "guards_failed": [
+      "racing a child admin",
+      "racing a planted commondir",
+      "refused, not run",
+      "not honoured",
+      "kernel owner Git"
+    ],
+    "assertion_failure": true,
+    "killed": true,
+    "race_tallies": [
+      "{\"passed\":437,\"refused\":463,\"other\":[]}",
+      "{\"passed\":702,\"refused\":198,\"other\":[]}",
+      "{\"passed\":196,\"refused\":104,\"other\":[]}"
+    ],
+    "payload_runs": [
+      600,
+      600,
+      98,
+      98,
+      28,
+      28,
+      134,
+      134
+    ],
+    "log": "owner-helper-a8d1357.log",
+    "diff": "owner-helper-a8d1357.diff"
+  },
+  {
+    "name": "snapshot-removed-git-reads-pinned-paths",
+    "tests": [
+      "racing a child admin",
+      "racing a planted commondir",
+      "kernel owner Git"
+    ],
+    "compiled": true,
+    "exit_code": 1,
+    "failed_tests": [
+      "kernel owner Git: a bwrap parent racing its child admin commondir cannot make owner safeGit run a planted driver",
+      "owner Git: racing a child admin commondir against safeGit diff/status never runs a planted driver or filter",
+      "owner Git: racing a planted commondir in an ordinary .git against safeGit diff/status never runs a planted driver or filter"
+    ],
+    "guards_failed": [
+      "racing a child admin",
+      "racing a planted commondir",
+      "kernel owner Git"
+    ],
+    "assertion_failure": true,
+    "killed": true,
+    "race_tallies": [
+      "{\"passed\":428,\"refused\":472,\"other\":[]}",
+      "{\"passed\":714,\"refused\":186,\"other\":[]}",
+      "{\"passed\":207,\"refused\":93,\"other\":[]}"
+    ],
+    "payload_runs": [
+      328,
+      328,
+      24,
+      24,
+      26,
+      26
+    ],
+    "log": "snapshot-removed-git-reads-pinned-paths.log",
+    "diff": "snapshot-removed-git-reads-pinned-paths.diff"
+  },
+  {
+    "name": "executing-config-allowed",
+    "tests": [
+      "refused, not run"
+    ],
+    "compiled": true,
+    "exit_code": 1,
+    "failed_tests": [
+      "owner Git: a repository config that defines a filter, diff driver, textconv or include is refused, not run"
+    ],
+    "guards_failed": [
+      "refused, not run"
+    ],
+    "assertion_failure": true,
+    "killed": true,
+    "race_tallies": [],
+    "payload_runs": [],
+    "log": "executing-config-allowed.log",
+    "diff": "executing-config-allowed.diff"
+  },
+  {
+    "name": "global-config-honoured",
+    "tests": [
+      "not honoured"
+    ],
+    "compiled": true,
+    "exit_code": 1,
+    "failed_tests": [
+      "owner Git: ~/.gitconfig includes, XDG config/attributes and GIT_CONFIG_GLOBAL/SYSTEM are not honoured"
+    ],
+    "guards_failed": [
+      "not honoured"
+    ],
+    "assertion_failure": true,
+    "killed": true,
+    "race_tallies": [],
+    "payload_runs": [
+      14,
+      14
+    ],
+    "log": "global-config-honoured.log",
+    "diff": "global-config-honoured.diff"
+  }
+]

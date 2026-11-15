@@ -1,0 +1,21 @@
+{
+  "actor": "slice7-authorized-owner-driver",
+  "job_id": "slice7-daemon-limit-note",
+  "policy_revision": "slice7-owner-v1",
+  "subject": {
+    "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+    "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3",
+    "base_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+    "diff_digest": {
+      "advisory": true,
+      "git_version": "git version 2.43.0",
+      "algorithm": "sha256",
+      "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+      "value": "b797e44ea0f9957169057c55982faf326c94b9620217509b3ac18df6ac4945db"
+    }
+  },
+  "scope": "verified local artifact retained for root review only; no push, PR, merge, release or deploy",
+  "expiry": "2026-11-16T12:00:00Z",
+  "revocation_condition": "any artifact or policy revision change invalidates acceptance",
+  "accepted_at": "2026-11-15T18:01:36.976Z"
+}

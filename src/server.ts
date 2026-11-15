@@ -3,9 +3,9 @@
  */
 import { createServer, type ServerResponse, type IncomingMessage, type Server } from 'node:http';
 import { readFileSync, lstatSync, chmodSync, unlinkSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join, normalize } from 'node:path';
 import { Refusal, type Binding, type Create, type Prompt, type Cursor, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
-import { Supervisor } from './supervisor.js';
+import type { Supervisor } from './supervisor.js';
 import type { Answer } from './interactions.js';
 function loadSpec(): { components: { schemas: Record<string, Schema> } } {
   try { return JSON.parse(readFileSync(new URL('../openapi.json', import.meta.url), 'utf8')) as { components: { schemas: Record<string, Schema> } }; }
@@ -62,33 +62,50 @@ function cursor(req: IncomingMessage, url: URL): Cursor | null {
   }
   return value as Cursor | null;
 }
-export function router(supervisor: Supervisor): Server {
+export type ParentChannel = { workerId: string; epoch: string; grantId: string };
+export function router(supervisor: Supervisor, channel?: ParentChannel): Server {
+  const owned = (id: string) => !channel || id === channel.workerId || supervisor.require(id).worker.parent_worker_id === channel.workerId;
+  const methods = ['hello', 'workers.list', 'workers.get', 'workers.create', 'sessions.prompt', 'workers.stop', 'events.subscribe', 'history.page', 'receipts.get'];
   return createServer((req, res) => {
     void (async () => {
       const url = new URL(req.url ?? '/', 'http://a0-unix-socket');
-      const token = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined;
+      const parent = channel ? supervisor.require(channel.workerId).worker : undefined;
+      if (channel && (parent!.worker_epoch !== channel.epoch || !['starting', 'ready'].includes(parent!.status))) throw new Refusal('parent_channel_retired');
+      // The channel is the authority. Its compatibility config contains a PUBLIC
+      // placeholder, not a B2 bearer. Real credentials never enter the sandbox.
+      // The channel acts with its OWN grant (parent worker + parent root), never
+      // the owner's; revoking the parent's source grant still stops it.
+      if (parent) supervisor.grants.active(parent.grant_source_id ?? 'owner');
+      const token = channel ? supervisor.grants.active(channel.grantId).token : req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined;
       const caller = supervisor.grants.authenticate(token);
+      const check = (method: string, id?: string, cwd?: string) => {
+        if (channel) supervisor.grants.active(parent!.grant_source_id ?? 'owner');
+        if (channel && (!methods.includes(method) || (id && !owned(id)))) throw new Refusal('parent_channel_scope_denied');
+        if (channel && (supervisor.require(channel.workerId).worker.worker_epoch !== channel.epoch || !['starting', 'ready'].includes(supervisor.require(channel.workerId).worker.status))) throw new Refusal('parent_channel_retired');
+        return supervisor.grants.check(token, method, id ? supervisor.require(id).worker : undefined, cwd);
+      };
+      const visible = (grant: typeof caller, id: string) => owned(id) && supervisor.grants.allowsWorker(grant, supervisor.require(id).worker);
       let parts: string[];
       try { parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent); } catch { throw new Refusal('invalid_path_encoding'); }
-      const guard = (method: string, id?: string, cwd?: string) => Object.assign(() => { supervisor.grants.check(token, method, id ? supervisor.require(id).worker : undefined, cwd); }, { actor: caller.caller, grant_id: caller.grant_id, grant_state_dir: supervisor.stateDir });
+      const guard = (method: string, id?: string, cwd?: string) => Object.assign(() => { check(method, id, cwd); }, { actor: caller.caller, grant_id: caller.grant_id, grant_state_dir: supervisor.stateDir });
       const run = <T>(method: string, action: () => T, id?: string, cwd?: string): T => {
         const check = guard(method, id, cwd); check();
         return supervisor.callerGrant.run(supervisor.grants.authenticate(token), () => supervisor.authority.run(check, action));
       };
       if (req.method === 'GET' && url.pathname === '/v0/events') {
-        const initialGrant = supervisor.grants.check(token, 'events.subscribe');
+        const initialGrant = check('events.subscribe');
         const since = cursor(req, url);
         const workerIds = url.searchParams.get('worker_id')?.split(',');
-        if (workerIds) for (const id of workerIds) supervisor.grants.check(token, 'events.subscribe', supervisor.require(id).worker);
+        if (workerIds) for (const id of workerIds) check('events.subscribe', id);
         const types = url.searchParams.get('types')?.split(',');
         supervisor.list();
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'close', 'X-Accel-Buffering': 'no' });
         res.flushHeaders();
-        const subscription = supervisor.events.subscribe(() => supervisor.list().filter(w => supervisor.grants.allowsWorker(initialGrant, w)), since, frame => {
+        const subscription = supervisor.events.subscribe(() => supervisor.list().filter(w => visible(initialGrant, w.worker_id)), since, frame => {
           if (res.destroyed) return false;
-          try { supervisor.grants.check(token, 'events.subscribe'); } catch { res.end(); return false; }
+          try { check('events.subscribe'); } catch { res.end(); return false; }
           return res.write(`id: ${JSON.stringify(frame.cursor)}\nevent: ${frame.type === 'snapshot' ? 'snapshot' : frame.type === 'overflow' ? 'overflow' : 'worker_event'}\ndata: ${JSON.stringify(frame)}\n\n`);
-        }, { workerIds, types, acceptWorker: id => supervisor.grants.allowsWorker(initialGrant, supervisor.require(id).worker), overflowResync: url.searchParams.get('resync') === 'overflow', onOverflow: () => {
+        }, { workerIds, types, acceptWorker: id => visible(initialGrant, id), overflowResync: url.searchParams.get('resync') === 'overflow', onOverflow: () => {
           res.end();
           // A peer that never drains cannot retain even the bounded final transport buffer forever.
           const timer = setTimeout(() => { if (!res.destroyed) res.destroy(); }, 1000); timer.unref();
@@ -98,14 +115,39 @@ export function router(supervisor: Supervisor): Server {
       }
       if (req.method === 'GET' && url.pathname === '/v0/hello') return json(res, run('hello', () => supervisor.hello()));
       if (url.pathname === '/v0/workers') {
-        if (req.method === 'GET') return json(res, run('workers.list', () => { const g = supervisor.grants.check(token, 'workers.list'); return supervisor.list().filter(w => supervisor.grants.allowsWorker(g, w)); }));
-        if (req.method === 'POST') { const c = await body(req, 'Create') as Create; return json(res, await run('workers.create', () => supervisor.create(c), c.parent?.worker_id, c.cwd)); }
+        if (req.method === 'GET') return json(res, run('workers.list', () => { const g = check('workers.list'); return supervisor.list().filter(w => visible(g, w.worker_id)); }));
+        if (req.method === 'POST') {
+          const c = await body(req, 'Create') as Create;
+          if (channel) {
+            if (c.parent?.worker_id !== channel.workerId || !c.launch_spec) throw new Refusal('parent_channel_requires_own_child');
+            // Pure, deterministic normalization (no filesystem reads), so an exact
+            // retry hashes identically and returns its stored receipt. The
+            // supervisor opens the root by O_NOFOLLOW walk and stages the profile
+            // only after validation; nothing here touches the parent's tree.
+            const profile = join(parent!.cwd, '.a0-agent'), childProfile = join(c.cwd, '.a0-agent');
+            const remap = (path: string) => {
+              if (path !== normalize(path) || !path.startsWith(profile + '/')) throw new Refusal('parent_channel_resource_outside_profile');
+              return join(childProfile, path.slice(profile.length + 1));
+            };
+            c.launch_spec.resources = { extensions: c.launch_spec.resources.extensions.map(remap), skills: c.launch_spec.resources.skills.map(remap) };
+            c.host = 'sdk'; c.launch_spec.environment.filesystem = 'bwrap'; c.launch_spec.environment.root = c.cwd;
+            const create = () => supervisor.create(c, { channelParent: channel.workerId });
+            if (supervisor.receipts.all.has(c.command_id)) return json(res, await run('workers.create', create, channel.workerId));
+            supervisor.checkChannelChildRoot(channel.workerId, c.cwd);
+            check('workers.create', channel.workerId, c.cwd);
+            if (parent!.fence) throw new Refusal('session_fenced', 'no_effect', parent!.fence.command_id);
+            if (c.parent.worker_epoch !== parent!.worker_epoch || c.parent.session_id !== parent!.session_id || c.parent.binding_revision !== parent!.binding_revision || c.parent.execution_id !== parent!.execution?.execution_id) throw new Refusal('stale_parent_binding');
+            return json(res, await run('workers.create', create, channel.workerId, c.cwd));
+          }
+          return json(res, await run('workers.create', () => supervisor.create(c), c.parent?.worker_id, c.cwd));
+        }
       }
       if (req.method === 'GET' && parts[0] === 'v0' && parts[1] === 'receipts' && parts.length === 3) {
-        supervisor.grants.check(token, 'receipts.get');
+        check('receipts.get');
         const receipt = supervisor.receipts.all.get(parts[2]!);
         if (!receipt) throw new Refusal('unknown_command_id_is_not_proof_of_no_effect', 'unknown');
-        const grant = supervisor.grants.check(token, 'receipts.get', receipt.worker_id ? supervisor.require(receipt.worker_id).worker : undefined);
+        if (channel && !receipt.worker_id) throw new Refusal('parent_channel_scope_denied');
+        const grant = check('receipts.get', receipt.worker_id);
         if (!receipt.worker_id && !grant.scope.worker_ids.includes('*')) throw new Refusal('grant_scope_unknown_receipt');
         return json(res, receipt);
       }
@@ -132,7 +174,7 @@ export function router(supervisor: Supervisor): Server {
       if (parts[3] === 'report' && req.method === 'POST') { const r = await body(req, 'Report') as Report; return json(res, await run('children.report', () => supervisor.report(id, r), id)); }
       if (['cancel', 'interrupt'].includes(parts[3]!) && req.method === 'POST') { const b = await body(req, 'Control') as Control, interrupt = parts[3] === 'interrupt'; return json(res, await run(interrupt ? 'executions.interrupt' : 'executions.cancel', () => supervisor.control(id, b, interrupt), id)); }
       if (parts[3] === 'history' && req.method === 'GET') {
-        supervisor.grants.check(token, 'history.page', live.worker);
+        check('history.page', id);
         const limit = Number(url.searchParams.get('limit') ?? 50);
         if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Refusal('invalid_history_limit');
         const watermark = url.searchParams.get('watermark');

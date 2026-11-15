@@ -1,0 +1,32 @@
+✔ dist/test/gate1-parent.test.js (45.171482ms)
+✖ B1: a symlinked .a0-worktrees (or child entry) cannot hand a child an arbitrary host root (16.883843ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 69.815555
+
+✖ failing tests:
+
+test at dist/test/security-fix.test.js:53:1
+✖ B1: a symlinked .a0-worktrees (or child entry) cannot hand a child an arbitrary host root (16.883843ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'grant_scope_denied: environment'
+  - 'parent_channel_child_root_not_real_directory'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/rev/wt/dist/test/security-fix.test.js:65:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'grant_scope_denied: environment',
+    expected: 'parent_channel_child_root_not_real_directory',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

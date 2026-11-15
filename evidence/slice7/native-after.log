@@ -1,0 +1,11 @@
+✔ sdk: extension native tree/new/fork/resume bumps binding without B2 rebind (410.743294ms)
+✔ acp: extension native tree/new/fork/resume bumps binding without B2 rebind (350.121166ms)
+✔ rpc: extension native tree/new/fork/resume bumps binding without B2 rebind (262.853296ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1071.89572

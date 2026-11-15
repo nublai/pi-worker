@@ -1,0 +1,35 @@
+✔ owner Git: racing a child admin commondir against safeGit diff/status never runs a planted driver or filter (1456.989962ms)
+✔ owner Git: racing a planted commondir in an ordinary .git against safeGit diff/status never runs a planted driver or filter (1981.967439ms)
+✖ owner Git: a repository config that defines a filter, diff driver, textconv or include is refused, not run (21.549734ms)
+✔ owner Git: ~/.gitconfig includes, XDG config/attributes and GIT_CONFIG_GLOBAL/SYSTEM are not honoured (78.139817ms)
+✔ owner Git: results match plain Git on an untouched checkout (snapshot is faithful) (88.951022ms)
+✔ kernel owner Git: a bwrap parent racing its child admin commondir cannot make owner safeGit run a planted driver (747.904938ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 5
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4410.312198
+
+✖ failing tests:
+
+test at dist/test/owner-git.test.js:129:1
+✖ owner Git: a repository config that defines a filter, diff driver, textconv or include is refused, not run (21.549734ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception: filter.evil.clean via diff
+      at TestContext.<anonymous> (file:///tmp/a0s7g/tmp/a0-owner-git-rev-omk1s949/dist/test/owner-git.test.js:137:28)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /git_config_executes_code/,
+    operator: 'throws',
+    diff: 'simple'
+  }

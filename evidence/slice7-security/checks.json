@@ -1,0 +1,96 @@
+{
+  "producer": "slice7-security-fix-round-owner-runner",
+  "subject": {
+    "commit_id": "c8bfbdbfbbce2c257458b60362c7e6752763b66f",
+    "tree_id": "52d1653219cfbb3b1151bdbb5a42706963a9fd34",
+    "base_id": "1f380366ae1130090570530ecbd61aee07f6befc",
+    "diff_digest": {
+      "advisory": true,
+      "git_version": "git version 2.53.0",
+      "algorithm": "sha256",
+      "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+      "value": "944916aa5aa254b3ef8c78c57c076ddcbcdc2c778e6495f2ea8116b94b15e334"
+    }
+  },
+  "base_subject": {
+    "commit_id": "1f380366ae1130090570530ecbd61aee07f6befc",
+    "tree_id": "adf46f93e632915359a88fa6dace702ef617f246"
+  },
+  "checks": [
+    {
+      "host": "local",
+      "name": "local-default.log",
+      "command": "npm test (TMPDIR=/tmp/a0s7f/tmp)",
+      "log": "local-default.log",
+      "sha256": "2b104931c01ae08a708cfabd57912c29a46ae0150a2a19d7fd5521e373e5aabf",
+      "counts": {
+        "tests": 233,
+        "pass": 221,
+        "fail": 0,
+        "skipped": 12
+      }
+    },
+    {
+      "host": "local",
+      "name": "local-kernel.log",
+      "command": "systemd-run --user --property=Delegate=yes ... evidence/slice7/kernel.sh (A0_TEST_BWRAP=1, A0_TEST_CGROUP_DIR)",
+      "log": "local-kernel.log",
+      "sha256": "a8e4e118d422d6de280952ebb5ab02d93b03b85ce0ebde7d9553aa832867c64d",
+      "counts": {
+        "tests": 233,
+        "pass": 233,
+        "fail": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "host": "local",
+      "name": "local-generated.log",
+      "command": "npm run check:generated",
+      "log": "local-generated.log",
+      "sha256": "0ebbe77a8c6cc74709705e4fdd9f8e663d0af5704ababcdaeda76a0726390067"
+    },
+    {
+      "host": "a0-worker",
+      "name": "vm-default.log",
+      "command": "npm test (git archive of subject, /tmp/a0s7f/src2)",
+      "log": "vm-default.log",
+      "sha256": "ef0c966bbbc707c114ab3fe287a2df2fbe03f87b4871f8d23d510218e916273e",
+      "counts": {
+        "tests": 233,
+        "pass": 221,
+        "fail": 0,
+        "skipped": 12
+      }
+    },
+    {
+      "host": "a0-worker",
+      "name": "vm-kernel.log",
+      "command": "systemd-run --user --property=Delegate=yes ... kernel.sh",
+      "log": "vm-kernel.log",
+      "sha256": "0f63e2df3b27d2a11739d155e58d912fdfd1d8c46a0e2b0573031971438127e6",
+      "counts": {
+        "tests": 233,
+        "pass": 233,
+        "fail": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "platform": {
+    "local": {
+      "node": "v26.13.0",
+      "bwrap": "0.11.1",
+      "git": "2.53.0"
+    },
+    "vm": {
+      "node": "v22.21.1",
+      "bwrap": "0.9.0",
+      "git": "2.43.0"
+    }
+  },
+  "final_a0_units": {
+    "local": 0,
+    "vm": 0
+  }
+}

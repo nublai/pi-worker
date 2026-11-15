@@ -1,0 +1,12 @@
+diff --git i/src/rpc-audit.ts w/src/rpc-audit.ts
+index a8a461d..e176597 100644
+--- i/src/rpc-audit.ts
++++ w/src/rpc-audit.ts
+@@ -7,7 +7,6 @@ export default function audit(pi: ExtensionAPI): void {
+   // Pre-move warning (SDK/ACP get it from beforeSessionInvalidate): the old
+   // session is being torn down, so the supervisor refuses writes until the
+   // replacement binds. Pipe latency still leaves a tiny window (stated limit).
+-  pi.on('session_shutdown', (_event, ctx) => ctx.ui.notify('A0_HOST_BINDING_CHANGING'));
+   pi.on('session_start', (event, ctx) => {
+     binding(ctx, event.reason);
+     const inventory = () => ctx.ui.notify('A0_RESOURCE_INVENTORY:' + JSON.stringify({ tools: pi.getAllTools().map(t => ({ name: t.name, sourceInfo: t.sourceInfo })), active_tools: pi.getActiveTools(), commands: pi.getCommands().map(c => ({ name: c.name, source: c.source, sourceInfo: c.sourceInfo })) }));

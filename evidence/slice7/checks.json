@@ -1,0 +1,135 @@
+{
+  "producer": "slice7-owner-evidence-packager",
+  "subject": {
+    "commit_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+    "tree_id": "efa1b492b8c713ab5888c66c27498111e6f9b18c"
+  },
+  "checks": [
+    {
+      "producer": "local-full-suite-runner",
+      "subject": {
+        "commit_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+        "tree_id": "efa1b492b8c713ab5888c66c27498111e6f9b18c"
+      },
+      "command": "npm test",
+      "kernel_flags": [],
+      "host": "local",
+      "node": "v26.13.0",
+      "exit_code": 0,
+      "counts": {
+        "tests": 216,
+        "pass": 209,
+        "fail": 0,
+        "skipped": 7
+      },
+      "log": {
+        "path": "local-default-216.log",
+        "sha256": "2aa38a434b1d0138946b20c2a626cfa1f36d1b12dac0b208dde2140a4095deb4"
+      }
+    },
+    {
+      "producer": "local-full-suite-runner",
+      "subject": {
+        "commit_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+        "tree_id": "efa1b492b8c713ab5888c66c27498111e6f9b18c"
+      },
+      "command": "npm test",
+      "kernel_flags": [
+        "A0_TEST_CGROUP_DIR=<exact delegated test-service cgroup>",
+        "A0_TEST_BWRAP=1"
+      ],
+      "host": "local",
+      "node": "v26.13.0",
+      "exit_code": 0,
+      "counts": {
+        "tests": 216,
+        "pass": 216,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": {
+        "path": "local-kernel-216.log",
+        "sha256": "da6ed0759a53296d29fefc2b67688a80ed2f05d377ec6a622d9ce8637728ed1a"
+      }
+    },
+    {
+      "producer": "vm-full-suite-runner",
+      "subject": {
+        "commit_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+        "tree_id": "efa1b492b8c713ab5888c66c27498111e6f9b18c"
+      },
+      "command": "npm test",
+      "kernel_flags": [],
+      "host": "vm",
+      "node": "v22.21.1",
+      "exit_code": 0,
+      "counts": {
+        "tests": 216,
+        "pass": 209,
+        "fail": 0,
+        "skipped": 7
+      },
+      "log": {
+        "path": "vm-default-216.log",
+        "sha256": "0a638a26ec23c29ad69db520fdcf38e83e3abfd292f88efbdd5ea52eb4646889"
+      }
+    },
+    {
+      "producer": "vm-full-suite-runner",
+      "subject": {
+        "commit_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+        "tree_id": "efa1b492b8c713ab5888c66c27498111e6f9b18c"
+      },
+      "command": "npm test",
+      "kernel_flags": [
+        "A0_TEST_CGROUP_DIR=<exact delegated test-service cgroup>",
+        "A0_TEST_BWRAP=1"
+      ],
+      "host": "vm",
+      "node": "v22.21.1",
+      "exit_code": 0,
+      "counts": {
+        "tests": 216,
+        "pass": 216,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": {
+        "path": "vm-kernel-216.log",
+        "sha256": "a918f76fca6953106ee89e8e1079c7772ab6b47a1f14e54897e2f4e5c7c8d93f"
+      }
+    },
+    {
+      "producer": "local-generated-type-checker",
+      "subject": {
+        "commit_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+        "tree_id": "efa1b492b8c713ab5888c66c27498111e6f9b18c"
+      },
+      "command": "npm run check:generated",
+      "exit_code": 0,
+      "log": {
+        "path": "local-generated.log",
+        "sha256": "dc33519cd3273ed65d8db7de5c0200651265d3c202db3016e201fa4fcdbb7ed8"
+      }
+    },
+    {
+      "producer": "vm-generated-type-checker",
+      "subject": {
+        "commit_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+        "tree_id": "efa1b492b8c713ab5888c66c27498111e6f9b18c"
+      },
+      "command": "npm run check:generated",
+      "exit_code": 0,
+      "log": {
+        "path": "vm-generated.log",
+        "sha256": "1391fd893ddb5ec73b3063efb5def9bbaf2c62cd1927b83a44bd21800f81d97a"
+      }
+    }
+  ],
+  "live_job_base_subject": {
+    "commit_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+    "tree_id": "efa1b492b8c713ab5888c66c27498111e6f9b18c"
+  },
+  "lsp": "active probes returned zero findings but were inconclusive; strict tsc is definitive type evidence",
+  "independent_review": "not run: build-leaf prohibition on subagents"
+}

@@ -1,0 +1,13 @@
+diff --git i/src/git-safe.ts w/src/git-safe.ts
+index 1614d5a..e6fef1c 100644
+--- i/src/git-safe.ts
++++ w/src/git-safe.ts
+@@ -42,7 +42,7 @@ function env(): NodeJS.ProcessEnv {
+ /** Run Git after checking the pin; returns the raw result (no status check). */
+ export function safeGitRun(root: string, pin: GitPin | null | undefined, args: string[], options: { maxBuffer?: number } = {}): SpawnSyncReturns<Buffer> {
+   const checked = checkGitPin(root, pin);
+-  const result = spawnSync('git', ['-C', root, `--git-dir=${checked.git_dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...args], { env: env(), maxBuffer: options.maxBuffer ?? 256 * 1024 * 1024 });
++  const result = spawnSync('git', ['-C', root, `--git-dir=${checked.git_dir}`, `--work-tree=${root}`, ...args], { env: env(), maxBuffer: options.maxBuffer ?? 256 * 1024 * 1024 });
+   if (result.error) throw result.error;
+   return result;
+ }

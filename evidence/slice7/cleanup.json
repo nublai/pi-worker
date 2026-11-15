@@ -1,0 +1,33 @@
+{
+  "clock": "2026-11-15T18:01:37.043Z",
+  "supervisor_pid": 328690,
+  "supervisor_absent": true,
+  "stopped_units": [
+    "a0-s7-supervisor.service",
+    "a0-02c483c120e954c023db.service"
+  ],
+  "loaded_a0_units": [],
+  "grant_revoked": true,
+  "terminal_trap_absent_during_job": true,
+  "terminal_positive_controls_after_freeze": [
+    {
+      "command": "herdr",
+      "exit_code": 97
+    },
+    {
+      "command": "hc",
+      "exit_code": 97
+    },
+    {
+      "command": "herdr-core",
+      "exit_code": 97
+    }
+  ],
+  "all_worker_domains_removed": true,
+  "retention": "both locked child worktrees and all private profiles/journals/native sessions retained on VM",
+  "producer": "slice7-cleanup-driver",
+  "subject": {
+    "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+    "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3"
+  }
+}

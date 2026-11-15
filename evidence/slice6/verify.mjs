@@ -4,15 +4,20 @@ import {execFileSync,spawnSync} from 'node:child_process';
 import {mkdirSync,writeFileSync,copyFileSync,existsSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {hostname} from 'node:os';
+import {safeGit,safeGitBuffer} from '/tmp/a0s6/supervisor/dist/git-safe.js';
 assert.equal(hostname(),'a0-worker');process.umask(0o077);
 const R='/tmp/a0s6/run1', work=R+'/workspace', V=process.env.VERIFY_DIR??'/tmp/a0s6/verify', out='/tmp/a0s6/out';
 const base='409bd889289fa3601977411747e0aaccf9a73332';
 const hash=x=>createHash('sha256').update(x).digest('hex');
-const git=(cwd,...args)=>execFileSync('git',['-C',cwd,...args],{encoding:'utf8'}).trim();
+// Security fix round: Git only after a launch-time pin check (A0_S6_PIN file).
+// Slice 6 recorded no pin, so this historical verifier refuses to rerun without one.
+let pinValue;try{pinValue=process.env.A0_S6_PIN?JSON.parse(process.env.A0_S6_PIN):undefined;}catch(cause){throw new Error('Invalid A0_S6_PIN',{cause});}
+const pins=new Map(pinValue?[[work,pinValue]]:[]);
+const git=(cwd,...args)=>safeGit(cwd,pins.get(cwd),args);
 assert.equal(git(work,'branch','--show-current'),'fix/issue-1');assert.equal(git(work,'status','--porcelain'),'');
 const head=git(work,'rev-parse','HEAD');assert.notEqual(head,base);
 assert.equal(existsSync(V),false,'verification must use fresh checkout');mkdirSync(V);mkdirSync(out,{recursive:true});
-const diff=execFileSync('git',['-C',work,'diff','--binary',base,head]);
+const diff=safeGitBuffer(work,pins.get(work),['diff','--binary',base,head]);
 const evidence={schema:'a0-verification-evidence-v1',job_id:'pi-worker-issue-1',producer:{name:'slice6-owner-deterministic-verifier',kind:'independent fresh-checkout command runner',model_family:null,independent_of_agent_success_text:true},subject:{commit_sha:head,base_sha:base,diff_digest:{algorithm:'sha256',definition:'exact git diff --binary BASE COMMIT bytes',value:hash(diff)}},started_at:new Date().toISOString(),environment:{host:'a0-worker',node:process.version},checks:[],limitations:['Throwaway Linux prototype, not production or a Gate 1 freeze.','Default npm test may skip kernel opt-in cases; counts are recorded, not presented as full kernel evidence.','Implementer and tester both use Anthropic Claude Sonnet; no independent-provider model review.','Verification is independent execution and artifact inspection, not hostile same-UID isolation.','No PR, push, merge, deployment or release is authorized. Test 13 draft-PR step remains for root.'],verdict:'incomplete'};
 function run(label,cwd,command,args,expected=0){
   const started_at=new Date().toISOString(),t=Date.now();

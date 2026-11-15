@@ -1,0 +1,12 @@
+✔ sibling agent_settled does not invalidate an accepted input answer (9.336092ms)
+✔ sibling agent_settled does not invalidate an accepted tool_approval answer (1.280118ms)
+✔ sibling tool_execution_end does not invalidate an accepted input answer (1.022846ms)
+✔ sibling tool_execution_end does not invalidate an accepted tool_approval answer (4.380317ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 51.784323

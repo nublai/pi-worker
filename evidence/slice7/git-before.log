@@ -1,0 +1,31 @@
+✖ bwrap linked worktree status/add/commit writes only its branch namespace and shared objects (17.719669ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 51.296719
+
+✖ failing tests:
+
+test at dist/test/gate1-git.test.js:9:1
+✖ bwrap linked worktree status/add/commit writes only its branch namespace and shared objects (17.719669ms)
+  AssertionError [ERR_ASSERTION]: fatal: not a git repository: /tmp/a0s7-git-Q9dA0S/repo/.git/worktrees/child
+  
+  
+  128 !== 0
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice7-gate1/dist/test/gate1-git.test.js:38:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 128,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

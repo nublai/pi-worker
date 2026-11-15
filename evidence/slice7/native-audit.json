@@ -1,0 +1,244 @@
+{
+  "producer": "slice7-additional-native-git-acceptance-audit",
+  "workflow_zero_refusal_criterion": {
+    "pass": false,
+    "original_audit_log": "audit2-zero-refusal-failed.log",
+    "attempts": 6,
+    "refused_before_acquisition": 4,
+    "actual_acquisitions": 2,
+    "refusal": "unsupported thinking level",
+    "supported_thinking_of_both_actual_children": "off"
+  },
+  "clock": "2026-11-15T18:00:50.451Z",
+  "subject": {
+    "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+    "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3",
+    "base_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+    "diff_digest": {
+      "advisory": true,
+      "git_version": "git version 2.43.0",
+      "algorithm": "sha256",
+      "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+      "value": "b797e44ea0f9957169057c55982faf326c94b9620217509b3ac18df6ac4945db"
+    }
+  },
+  "workers": [
+    {
+      "worker_id": "1dc6d63c-e46d-4d47-8803-b99b051a0fc9",
+      "worker_epoch": "b0284726-c193-4a4f-87c2-5471df9a2af7",
+      "session_id": "01a1e050-8df7-70fb-a13e-b92602e54620",
+      "host": "sdk",
+      "filesystem": "bwrap",
+      "status": "stopped",
+      "cleanup": "cgroup_empty_removed",
+      "domain": "w-b0284726-c193-4a4f-87c2-5471df9a2af7",
+      "domain_removed": true,
+      "tool_counts": {
+        "read": 3,
+        "bash": 20,
+        "subagent": 6
+      },
+      "grant_source_id": "orchestrator",
+      "grant_methods": [
+        "workers.create",
+        "children.report"
+      ],
+      "credential_read_tools": 0,
+      "terminal_trap_present": false
+    },
+    {
+      "worker_id": "97e75163-656e-4293-9801-9cb4c2ef1597",
+      "worker_epoch": "0e5bc365-1434-4929-946a-22b22c3fd65c",
+      "parent_worker_id": "1dc6d63c-e46d-4d47-8803-b99b051a0fc9",
+      "session_id": "01a1e051-d012-766e-b0ad-6064df0fe022",
+      "host": "sdk",
+      "filesystem": "bwrap",
+      "status": "stopped",
+      "cleanup": "cgroup_empty_removed",
+      "domain": "w-0e5bc365-1434-4929-946a-22b22c3fd65c",
+      "domain_removed": true,
+      "tool_counts": {
+        "bash": 5,
+        "read": 3,
+        "edit": 1
+      },
+      "grant_source_id": "orchestrator",
+      "grant_methods": [
+        "children.report"
+      ],
+      "credential_read_tools": 0,
+      "terminal_trap_present": false,
+      "git": {
+        "cwd": "/tmp/a0s7/run2/workspace/.a0-worktrees/da581a52-f82f-4b45-96c3-c7fbea0d11bd",
+        "branch": "s7-note/task",
+        "subject": {
+          "commit_id": "b759cc6e989dda572738cfd187bd81d39e0b790d",
+          "tree_id": "fa730baaf11e6c6f5c0d85d10d957dbdd3eb129f",
+          "base_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+          "diff_digest": {
+            "advisory": true,
+            "git_version": "git version 2.43.0",
+            "algorithm": "sha256",
+            "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+            "value": "5b12ac88a46a9233cbd31463734b4a44f8606c602e689d365dce12255121112d"
+          }
+        },
+        "clean": true,
+        "locked": true,
+        "retained": true
+      },
+      "fd_result_reports": 1
+    },
+    {
+      "worker_id": "69ce51b5-e91e-4abd-9f00-64ababf0157c",
+      "worker_epoch": "19f7c0cd-b405-45a5-ae85-f72eb849404d",
+      "parent_worker_id": "1dc6d63c-e46d-4d47-8803-b99b051a0fc9",
+      "session_id": "01a1e051-d49c-7766-9b2d-e78d17ba30ab",
+      "host": "sdk",
+      "filesystem": "bwrap",
+      "status": "stopped",
+      "cleanup": "cgroup_empty_removed",
+      "domain": "w-19f7c0cd-b405-45a5-ae85-f72eb849404d",
+      "domain_removed": true,
+      "tool_counts": {
+        "write": 1,
+        "bash": 5
+      },
+      "grant_source_id": "orchestrator",
+      "grant_methods": [
+        "children.report"
+      ],
+      "credential_read_tools": 0,
+      "terminal_trap_present": false,
+      "git": {
+        "cwd": "/tmp/a0s7/run2/workspace/.a0-worktrees/ba847529-cee0-4743-99fa-b4dea2c7831e",
+        "branch": "s7-check/task",
+        "subject": {
+          "commit_id": "8d517d5a43642417ee988c103cf82e341dcead17",
+          "tree_id": "12a7ed8cc52bf5b312bf971a58c91d8cb0ea5007",
+          "base_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+          "diff_digest": {
+            "advisory": true,
+            "git_version": "git version 2.43.0",
+            "algorithm": "sha256",
+            "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+            "value": "1e6f1732210587285925803b984105c1808f66d4ec1ad49ea2046781a2154534"
+          }
+        },
+        "clean": true,
+        "locked": true,
+        "retained": true
+      },
+      "fd_result_reports": 1
+    }
+  ],
+  "launch_attempts": [
+    {
+      "name": "note-writer",
+      "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+      "thinking": "disabled",
+      "branch": "s7-note/task",
+      "isError": true
+    },
+    {
+      "name": "check-author",
+      "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+      "thinking": "disabled",
+      "branch": "s7-check/task",
+      "isError": true
+    },
+    {
+      "name": "note-writer",
+      "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+      "thinking": "none",
+      "branch": "s7-note/task",
+      "isError": true
+    },
+    {
+      "name": "check-author",
+      "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+      "thinking": "none",
+      "branch": "s7-check/task",
+      "isError": true
+    },
+    {
+      "name": "note-writer",
+      "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+      "thinking": "off",
+      "branch": "s7-note/task",
+      "isError": false
+    },
+    {
+      "name": "check-author",
+      "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+      "thinking": "off",
+      "branch": "s7-check/task",
+      "isError": false
+    }
+  ],
+  "delivery_counts": {
+    "ba847529-cee0-4743-99fa-b4dea2c7831e:result": 1,
+    "ba847529-cee0-4743-99fa-b4dea2c7831e:termination": 1,
+    "da581a52-f82f-4b45-96c3-c7fbea0d11bd:result": 1,
+    "da581a52-f82f-4b45-96c3-c7fbea0d11bd:termination": 1
+  },
+  "changed_refs": [
+    {
+      "ref": "refs/heads/job/slice7",
+      "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3"
+    },
+    {
+      "ref": "refs/heads/s7-check/task",
+      "commit_id": "8d517d5a43642417ee988c103cf82e341dcead17"
+    },
+    {
+      "ref": "refs/heads/s7-note/task",
+      "commit_id": "b759cc6e989dda572738cfd187bd81d39e0b790d"
+    }
+  ],
+  "unrelated_refs_unchanged": true,
+  "unexpected_refs_absent": true,
+  "parent_grant_and_state_read_denied": true,
+  "playbook_reads": [
+    {
+      "tool_call_id": "toolu_01TYGt8d2xCbtHctYzTd36r9",
+      "path": "/tmp/a0s7/run2/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/SKILL.md",
+      "success": true
+    },
+    {
+      "tool_call_id": "toolu_01Cq52o9GcAbzfSDxutz4jLG",
+      "path": "/tmp/a0s7/run2/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/playbooks/prototype.md",
+      "success": true
+    }
+  ],
+  "native_calls_during_disconnect": 29,
+  "reconnect": {
+    "disconnected_seconds": 407.542,
+    "resync_reason": "gap",
+    "parent_epoch_unchanged": true,
+    "session_id_unchanged": true
+  },
+  "recorded_leaders": [
+    {
+      "pid": 328752,
+      "state": null
+    },
+    {
+      "pid": 329597,
+      "state": null
+    },
+    {
+      "pid": 329648,
+      "state": null
+    }
+  ],
+  "driver_direct_native_calls": [],
+  "result_claims_are_not_verification": true,
+  "limitations": [
+    "SDK/ACP only bwrap; network shared; deliberately staged VM model-store readable read-only.",
+    "Shared Git objects and own ref namespace writable; owner compared complete refs map.",
+    "No cross-provider review; two authorized leaves use same family.",
+    "Original zero-refusal audit failed; four unsupported thinking aliases were refused before acquisition. Job-owned parent observer stayed connected.",
+    "No syscall audit or crash-durable parent delivery claim."
+  ]
+}

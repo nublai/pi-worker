@@ -1,0 +1,32 @@
+✖ evidence binds commit AND native tree; diff bytes are advisory with producing Git version (23.942513ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 59.553065
+
+✖ failing tests:
+
+test at dist/test/gate1-artifact.test.js:8:1
+✖ evidence binds commit AND native tree; diff bytes are advisory with producing Git version (23.942513ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '96292dd714ea6e363680affcfd914c47d3160f74'
+  - 'a312c2d15738efc5975746b858fdeb82debcbf48'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/evidence-tree-mmjsfoiv/dist/test/gate1-artifact.test.js:23:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '96292dd714ea6e363680affcfd914c47d3160f74',
+    expected: 'a312c2d15738efc5975746b858fdeb82debcbf48',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

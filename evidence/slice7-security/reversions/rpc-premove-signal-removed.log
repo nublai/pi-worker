@@ -1,0 +1,28 @@
+✔ dist/test/gate1-parent.test.js (52.174403ms)
+✖ m3: RPC refuses a stale-binding prompt while a native move is in progress (445.056929ms)
+ℹ Error: Test "m3: RPC refuses a stale-binding prompt while a native move is in progress" at dist/test/security-fix.test.js:358:1 generated asynchronous activity after the test ended. This activity created the error "Error: pi exited" and would have caused the test to fail, but instead triggered an unhandledRejection event.
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 504.642808
+
+✖ failing tests:
+
+test at dist/test/security-fix.test.js:358:1
+✖ m3: RPC refuses a stale-binding prompt while a native move is in progress (445.056929ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///tmp/a0s7f/rev/wt/dist/test/security-fix.test.js:384:9)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /binding_change_in_progress|stale_binding/,
+    operator: 'rejects',
+    diff: 'simple'
+  }

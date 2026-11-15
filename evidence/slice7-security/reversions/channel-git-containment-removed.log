@@ -1,0 +1,30 @@
+✔ dist/test/gate1-parent.test.js (48.62347ms)
+✖ B1: a channel child may be a linked worktree of the parent repo, never of a repo outside the parent root (47.493513ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 101.833654
+
+✖ failing tests:
+
+test at dist/test/security-fix.test.js:101:1
+✖ B1: a channel child may be a linked worktree of the parent repo, never of a repo outside the parent root (47.493513ms)
+  AssertionError [ERR_ASSERTION]: {"command_id":"outside","operation":"workers.create","request_hash":"485190b4ce46f195a9e0c2e9b040ee265609f4bb758aaafdffa0d402625ab9ee","state":"delivered","stage":"forwarded","effect":"observed","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T19:16:20.123Z","worker_id":"16768527-6d30-4a5f-9959-028103cf6148","result":{"worker_id":"16768527-6d30-4a5f-9959-028103cf6148","worker_epoch":"71a3f6ce-69bf-4c87-8373-542070b78f8f","session_id":"session-2","binding_revision":1},"history_lag":false}
+  
+  200 !== 409
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/rev/wt/dist/test/security-fix.test.js:124:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 409,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

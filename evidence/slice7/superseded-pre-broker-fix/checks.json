@@ -1,0 +1,139 @@
+{
+  "producer": "slice7-owner-evidence-packager",
+  "subject": {
+    "commit_id": "249be1b0ff539b723e95e6dcff106237fc555496",
+    "tree_id": "bc3cef7814d1e67caa4b5e6e84669c76383181fe"
+  },
+  "checks": [
+    {
+      "producer": "local-full-suite-runner",
+      "subject": {
+        "commit_id": "249be1b0ff539b723e95e6dcff106237fc555496",
+        "tree_id": "bc3cef7814d1e67caa4b5e6e84669c76383181fe"
+      },
+      "command": "npm test",
+      "kernel_flags": [],
+      "host": "local",
+      "node": "v26.13.0",
+      "exit_code": 0,
+      "counts": {
+        "tests": 215,
+        "pass": 208,
+        "fail": 0,
+        "skipped": 7
+      },
+      "log": {
+        "path": "local-default-215.log",
+        "sha256": "718be141e3e49bf1ab71b818d3c45a6cc3103b2bd5434a6c965ff8fab6fb8d66"
+      }
+    },
+    {
+      "producer": "local-full-suite-runner",
+      "subject": {
+        "commit_id": "249be1b0ff539b723e95e6dcff106237fc555496",
+        "tree_id": "bc3cef7814d1e67caa4b5e6e84669c76383181fe"
+      },
+      "command": "npm test",
+      "kernel_flags": [
+        "A0_TEST_CGROUP_DIR=<exact delegated test-service cgroup>",
+        "A0_TEST_BWRAP=1"
+      ],
+      "host": "local",
+      "node": "v26.13.0",
+      "exit_code": 0,
+      "counts": {
+        "tests": 215,
+        "pass": 215,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": {
+        "path": "local-kernel-215.log",
+        "sha256": "ccb5fc62fc7084bc0e9551494ac4168ee5815876748403590e5a1d90272b35f0"
+      }
+    },
+    {
+      "producer": "vm-full-suite-runner",
+      "subject": {
+        "commit_id": "249be1b0ff539b723e95e6dcff106237fc555496",
+        "tree_id": "bc3cef7814d1e67caa4b5e6e84669c76383181fe"
+      },
+      "command": "npm test",
+      "kernel_flags": [],
+      "host": "vm",
+      "node": "v22.21.1",
+      "exit_code": 0,
+      "counts": {
+        "tests": 215,
+        "pass": 208,
+        "fail": 0,
+        "skipped": 7
+      },
+      "log": {
+        "path": "vm-default-215.log",
+        "sha256": "087f956a00dd70d78a875b31b6c3493cd4b59fb9dad9e5f1ba077525827e7212"
+      }
+    },
+    {
+      "producer": "vm-full-suite-runner",
+      "subject": {
+        "commit_id": "249be1b0ff539b723e95e6dcff106237fc555496",
+        "tree_id": "bc3cef7814d1e67caa4b5e6e84669c76383181fe"
+      },
+      "command": "npm test",
+      "kernel_flags": [
+        "A0_TEST_CGROUP_DIR=<exact delegated test-service cgroup>",
+        "A0_TEST_BWRAP=1"
+      ],
+      "host": "vm",
+      "node": "v22.21.1",
+      "exit_code": 0,
+      "counts": {
+        "tests": 215,
+        "pass": 215,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": {
+        "path": "vm-kernel-215.log",
+        "sha256": "886cd5837732c6c186397a7aa4d39844eb8f5a93984241161041f0b6ccc04a6d"
+      }
+    },
+    {
+      "producer": "local-generated-type-checker",
+      "subject": {
+        "commit_id": "249be1b0ff539b723e95e6dcff106237fc555496",
+        "tree_id": "bc3cef7814d1e67caa4b5e6e84669c76383181fe"
+      },
+      "command": "npm run check:generated",
+      "exit_code": 0,
+      "log": {
+        "path": "local-generated.log",
+        "sha256": "482ecb307faef1300fc5178506367fae327a8c31cbf9522816c14e8197877e47"
+      }
+    },
+    {
+      "producer": "vm-generated-type-checker",
+      "subject": {
+        "commit_id": "249be1b0ff539b723e95e6dcff106237fc555496",
+        "tree_id": "bc3cef7814d1e67caa4b5e6e84669c76383181fe"
+      },
+      "command": "npm run check:generated",
+      "exit_code": 0,
+      "log": {
+        "path": "vm-generated.log",
+        "sha256": "dee3aaf4df7f462a2c6f8d14e7e5dca4ccc2908986aa8eceb4c50d2cfde9b817"
+      }
+    }
+  ],
+  "runtime_unchanged_since_live_subject": {
+    "commit_id": "89ad6a54a6d319c2f657ad2aa80bac6d783dc565",
+    "tree_id": "0372acfc5089903dadede555ed8fc153df8a85ce"
+  },
+  "subsequent_code_changes": [
+    "src/test/gate1-git.test.ts",
+    "src/test/gate1-pi-cuts.test.ts"
+  ],
+  "lsp": "active probes returned zero findings, all selected files inconclusive; strict tsc is definitive type evidence",
+  "independent_review": "not run: build-leaf prohibition on subagents"
+}

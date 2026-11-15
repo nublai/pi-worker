@@ -1,0 +1,267 @@
+{
+  "base": "b461253",
+  "method": "isolated copies; compile then assertion-only rejection; no timeouts accepted",
+  "results": [
+    {
+      "name": "base-b461253",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 1.224,
+      "tests": [
+        "gate1-git",
+        "gate1-sibling",
+        "gate1-native-binding",
+        "gate1-parent"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-base-b461253.log",
+        "sha256": "4d6914303729ecdca2144f31b66182ddd0bf217487501e165833b87cab763680"
+      }
+    },
+    {
+      "name": "fixed",
+      "build_exit": 0,
+      "test_exit": 0,
+      "assertion_failure": false,
+      "duration_seconds": 1.471,
+      "tests": [
+        "gate1-git",
+        "gate1-sibling",
+        "gate1-native-binding",
+        "gate1-parent",
+        "gate1-artifact"
+      ],
+      "expected": "green",
+      "pass": true,
+      "log": {
+        "path": "reversion-fixed.log",
+        "sha256": "677accd38c2b29bf99d885a53b028c7fe5cb6c82cd4ecf919e95103b6f71498f"
+      }
+    },
+    {
+      "name": "profile-link-dereference",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 1.412,
+      "tests": [
+        "gate1-parent"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-profile-link-dereference.log",
+        "sha256": "a31717af836f575d1a3db03dd890d1ae98249b2af402f8427214f2797f4767bc"
+      }
+    },
+    {
+      "name": "git-mounts",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.089,
+      "tests": [
+        "gate1-git"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-git-mounts.log",
+        "sha256": "c0cec19a0da4d3ceaaf29fb1e578621f6e21a6ed1fef2c63a389280c9fde9ad8"
+      }
+    },
+    {
+      "name": "git-namespace",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.11,
+      "tests": [
+        "gate1-git"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-git-namespace.log",
+        "sha256": "0458ef57569648cccaf81dd8e31c6df448584c1251eb19f6933d704fef566ee8"
+      }
+    },
+    {
+      "name": "parent-unconfined",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 1.084,
+      "tests": [
+        "gate1-parent"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-parent-unconfined.log",
+        "sha256": "28b81c085162677a703cd4b935aa0a28a9a38551645f9b1a285031769550f515"
+      }
+    },
+    {
+      "name": "channel-other-worker",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 1.393,
+      "tests": [
+        "gate1-parent"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-channel-other-worker.log",
+        "sha256": "9415653ad8aa136260a2eeed92caff55b523b04f0bde4bf061221c96d77505a9"
+      }
+    },
+    {
+      "name": "native-binding",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.962,
+      "tests": [
+        "gate1-native-binding"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-native-binding.log",
+        "sha256": "bf3273b0ca1b954ca3667621586f59f107c9e9b051008248e14bbb885c7b4e8e"
+      }
+    },
+    {
+      "name": "sdk-native-tree",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.981,
+      "tests": [
+        "gate1-native-binding"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-sdk-native-tree.log",
+        "sha256": "a6a466d940137defce2c8bcd77cafd08ca6895ecb3e8655c4bc203c6c4bfdcf2"
+      }
+    },
+    {
+      "name": "rpc-native-tree",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 1.077,
+      "tests": [
+        "gate1-native-binding"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-rpc-native-tree.log",
+        "sha256": "0da5a5fe93c38da5f3e6ad41f5ae1aa92225095dfc79690c5d7728c5fa8c7fdc"
+      }
+    },
+    {
+      "name": "sibling",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.085,
+      "tests": [
+        "gate1-sibling"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-sibling.log",
+        "sha256": "55a7af4e95f48df58d23895db4fac1bbf31f3d148b771561908fb5f174b254f3"
+      }
+    },
+    {
+      "name": "evidence-tree",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.08,
+      "tests": [
+        "gate1-artifact"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-evidence-tree.log",
+        "sha256": "cf05af4d149afc99ff99af7197e7eafac790eee123c962da530823290e38feb5"
+      }
+    },
+    {
+      "name": "evidence-advisory",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.09,
+      "tests": [
+        "gate1-artifact"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-evidence-advisory.log",
+        "sha256": "e1d7a9fc096ee4b2a097bdfed97b8602a9de20bbf61829c6a4d32bf1708cfb33"
+      }
+    },
+    {
+      "name": "evidence-git-version",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.084,
+      "tests": [
+        "gate1-artifact"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-evidence-git-version.log",
+        "sha256": "f66086ed6b79d5c877a224de0672478f38165d03d17143e0ce32413f56e8fddf"
+      }
+    }
+  ],
+  "producer": "slice7-isolated-copy-reversion-runner",
+  "subject": {
+    "commit_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+    "tree_id": "efa1b492b8c713ab5888c66c27498111e6f9b18c"
+  },
+  "base_subject": {
+    "commit_id": "b4612533ee7c284085954747e6f46ab2e9cdcbb5",
+    "tree_id": "d976266c42603298bc1110dbec01f4808df84fe0"
+  },
+  "baseline_limit": "The new portable broker fixture uses the per-parent router absent on b461253 and is omitted only from that old-base comparison. It separately failed twice by assertion on 249be1b before fd99c89, including the real sandbox probe. All final tests run in the full suites.",
+  "profile_broker_red_green": {
+    "before_source": {
+      "commit_id": "249be1b0ff539b723e95e6dcff106237fc555496",
+      "tree_id": "bc3cef7814d1e67caa4b5e6e84669c76383181fe"
+    },
+    "after_source": {
+      "commit_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+      "tree_id": "efa1b492b8c713ab5888c66c27498111e6f9b18c"
+    },
+    "before": {
+      "assertion_failures": 2,
+      "log": "broker-before.log",
+      "sha256": "cfb41ebd053ebd37c7300ebf8037f26080e091bf6eda9613cdfa65d1170f9441"
+    },
+    "after": {
+      "pass": 2,
+      "log": "broker-after.log",
+      "sha256": "6a2351cd228e837ab26c4ba0aa42ce474c2adcb95f2ad463b2097848540b72a0"
+    }
+  }
+}

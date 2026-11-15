@@ -1,0 +1,13 @@
+diff --git 1/home/g/.herdr/worktrees/pi-worker/a0-slice7-gate1/src/git-safe.ts 2/tmp/a0s7g/tmp/a0-owner-git-rev-q4zf1qc3/src/git-safe.ts
+index d959172..44c1f4a 100644
+--- 1/home/g/.herdr/worktrees/pi-worker/a0-slice7-gate1/src/git-safe.ts
++++ 2/tmp/a0s7g/tmp/a0-owner-git-rev-q4zf1qc3/src/git-safe.ts
+@@ -65,7 +65,7 @@ export function checkGitPin(root: string, expected: GitPin | null | undefined):
+ function cleanEnv(home: string, objects: string): NodeJS.ProcessEnv {
+   const env: NodeJS.ProcessEnv = {};
+   for (const k of ENV_KEEP) if (process.env[k] !== undefined) env[k] = process.env[k];
+-  return { ...env, HOME: home, XDG_CONFIG_HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_ATTR_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', GIT_NO_LAZY_FETCH: '1', GIT_OBJECT_DIRECTORY: objects };
++  void env; void home; return { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', GIT_NO_LAZY_FETCH: '1', GIT_OBJECT_DIRECTORY: objects };
+ }
+ /** A fresh supervisor-private directory; refused if it is not ours, private, and outside the checkout. */
+ function privateDir(pin: GitPin, root: string): string {

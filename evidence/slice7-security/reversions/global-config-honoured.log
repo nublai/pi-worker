@@ -1,0 +1,40 @@
+✔ owner Git: racing a child admin commondir against safeGit diff/status never runs a planted driver or filter (1603.583479ms)
+✔ owner Git: racing a planted commondir in an ordinary .git against safeGit diff/status never runs a planted driver or filter (2162.206192ms)
+✔ owner Git: a repository config that defines a filter, diff driver, textconv or include is refused, not run (135.794396ms)
+✖ owner Git: ~/.gitconfig includes, XDG config/attributes and GIT_CONFIG_GLOBAL/SYSTEM are not honoured (72.073797ms)
+✔ owner Git: results match plain Git on an untouched checkout (snapshot is faithful) (91.632288ms)
+✔ kernel owner Git: a bwrap parent racing its child admin commondir cannot make owner safeGit run a planted driver (800.146491ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 5
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4903.792387
+
+✖ failing tests:
+
+test at dist/test/owner-git.test.js:151:1
+✖ owner Git: ~/.gitconfig includes, XDG config/attributes and GIT_CONFIG_GLOBAL/SYSTEM are not honoured (72.073797ms)
+  AssertionError [ERR_ASSERTION]: owner Git honoured ~/.gitconfig or XDG config
+  + actual - expected
+  
+  + '14 run(s), first: RAN '
+  - 'none'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7g/tmp/a0-owner-git-rev-q4zf1qc3/dist/test/owner-git.test.js:170:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '14 run(s), first: RAN ',
+    expected: 'none',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

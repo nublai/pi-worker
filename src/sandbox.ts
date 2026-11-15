@@ -4,12 +4,14 @@ import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Create } from './types.js';
 import { Refusal } from './types.js';
+import { gitPlan, type GitPin } from './git-sandbox.js';
+import { openPinned, openUnder, isMissing } from './pinned-fs.js';
 export const inside = (root: string, path: string): boolean => path === root || path.startsWith(root === '/' ? '/' : root + '/');
 const runtime = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '');
 export function sandboxRoot(c: Create, stateDir: string): string | undefined {
   const env = c.launch_spec?.environment;
   if (env?.filesystem !== 'bwrap') return undefined;
-  if (process.platform !== 'linux' || !c.parent || !['sdk', 'acp'].includes(c.host ?? 'rpc')) throw new Refusal('bwrap_requires_linux_sdk_or_acp_child');
+  if (process.platform !== 'linux' || !['sdk', 'acp'].includes(c.host ?? 'rpc')) throw new Refusal('bwrap_requires_linux_sdk_or_acp');
   if (!env.root || realpathSync(env.root) !== realpathSync(c.cwd)) throw new Refusal('sandbox_root_must_equal_cwd');
   const root = realpathSync(env.root), state = realpathSync(stateDir);
   if (root === '/') throw new Refusal('sandbox_root_is_host_root');
@@ -18,7 +20,16 @@ export function sandboxRoot(c: Create, stateDir: string): string | undefined {
   const protectedPaths = ['/sys/fs/cgroup', '/proc', '/dev', ...userRuntimeDirs.flatMap(path => [path, join(path, 'bus')]), ...(process.env.PI_WORKER_SOCKET ? [realpathSync(dirname(process.env.PI_WORKER_SOCKET))] : []), ...(process.env.PI_WORKER_GRANT_FILE ? [realpathSync(process.env.PI_WORKER_GRANT_FILE)] : [])]
     .map(path => existsSync(path) ? realpathSync(path) : resolve(path));
   if (protectedPaths.some(path => inside(root, path) || inside(path, root))) throw new Refusal('sandbox_overlaps_protected_control_path');
-  for (const path of c.launch_spec!.resources.extensions.concat(c.launch_spec!.resources.skills)) if (!inside(root, realpathSync(path))) throw new Refusal('sandbox_resource_outside_root');
+  const rootFd = openSandboxRoot(root);
+  try {
+    const git = gitPlan(root, rootFd);
+    try {
+      for (const mount of git.mounts) if ([state, ...protectedPaths].some(control => inside(mount.dest, control) || inside(control, mount.dest))) throw new Refusal('sandbox_git_overlaps_protected_control_path');
+    } finally { for (const fd of git.fds) closeSync(fd); }
+  } finally { closeSync(rootFd); }
+  // Channel-staged resources do not exist until after validation; inside the
+  // sandbox they resolve only within its own mounts either way.
+  for (const path of c.launch_spec!.resources.extensions.concat(c.launch_spec!.resources.skills)) if (!inside(root, existsSync(path) ? realpathSync(path) : resolve(path))) throw new Refusal('sandbox_resource_outside_root');
   // Runtime mounts are worker-owned code/dependencies, never a user-selected
   // host directory. Refuse accidental exposure of state via any read-only bind.
   for (const path of runtimePaths()) if (inside(path, state) || inside(path, root) || inside(root, path)) throw new Refusal('sandbox_runtime_overlaps_state_or_worktree');
@@ -27,14 +38,65 @@ export function sandboxRoot(c: Create, stateDir: string): string | undefined {
 function runtimePaths(): string[] {
   return [...new Set([join(runtime, 'dist'), join(runtime, 'node_modules'), join(runtime, 'package.json'), dirname(realpathSync(process.execPath)), ...[join(runtime, 'node_modules')].filter(existsSync).map(path => realpathSync(path))])];
 }
-export function sandboxLaunch(root: string, command: string, args: string[], parent: NonNullable<Create['parent']>, workerId: string): { command: string; args: string[]; env: NodeJS.ProcessEnv } {
-  const mounts = ['--unshare-user', '--unshare-pid', '--unshare-ipc', '--unshare-uts', '--new-session', '--cap-drop', 'ALL', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--tmpfs', '/run'];
-  for (const path of ['/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc/ssl', '/etc/resolv.conf', '/etc/hosts', '/etc/nsswitch.conf', ...runtimePaths()]) if (existsSync(path)) mounts.push('--ro-bind', path, path);
-  mounts.push('--bind', root, root, '--chdir', root, '--dir', '/tmp/a0-home');
-  return { command: 'bwrap', args: [...mounts, '--', command, ...args], env: {
-    PATH: `${dirname(realpathSync(process.execPath))}:/usr/bin:/bin`, HOME: '/tmp/a0-home', LANG: 'C.UTF-8', TERM: 'dumb',
-    PI_CODING_AGENT_DIR: join(root, '.a0-agent'), PI_WORKER_ID: workerId, PI_WORKER_REPORT_FD: '3', PI_WORKER_TASK_ID: parent.task_id, PI_SUBAGENT_ID: parent.task_id,
-  } };
+/** Open a sandbox root with no symlink at any component. With `within`, the
+ * root must be exactly one real directory below that canonical base, reached
+ * by O_NOFOLLOW opens from the base descriptor (never by realpath). */
+export function openSandboxRoot(root: string, within?: string): number {
+  if (!within) return openPinned(root, 'dir');
+  const name = root.startsWith(within + '/') ? root.slice(within.length + 1) : '';
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(name)) throw new Refusal('parent_channel_child_root_not_direct_worktree');
+  const base = openPinned(within, 'dir');
+  try {
+    const fd = openUnder(base, [name], 'dir');
+    if (fstatSync(fd).dev !== fstatSync(base).dev) { closeSync(fd); throw new Refusal('parent_channel_child_root_crosses_mount'); }
+    return fd;
+  } finally { closeSync(base); }
+}
+export type SandboxOptions = { rootFd?: number; within?: string; gitPin?: GitPin | null };
+/** Child descriptor numbers for mount sources: 0-2 stdio, 3 child report pipe. */
+export const SANDBOX_FD_BASE = 4;
+export type SandboxLaunch = { command: string; args: string[]; env: NodeJS.ProcessEnv; fds: number[]; gitPin: GitPin | null; close(): void };
+export function sandboxLaunch(root: string, command: string, args: string[], parent: Create['parent'], workerId: string, channel?: { socket: string; config: string }, options: SandboxOptions = {}): SandboxLaunch {
+  const opened: number[] = [];
+  const close = () => { for (const fd of opened.splice(0)) closeSync(fd); };
+  try {
+    let rootFd = options.rootFd;
+    if (rootFd === undefined) { rootFd = openSandboxRoot(root, options.within); opened.push(rootFd); }
+    const fds: number[] = [];
+    // bwrap binds the exact open object: a rename or symlink swap after this
+    // point cannot change what the sandbox gets.
+    const bind = (mode: 'bind' | 'ro-bind', fd: number, dest: string) => { fds.push(fd); mounts.push(`--${mode}-fd`, String(SANDBOX_FD_BASE + fds.length - 1), dest); };
+    const env: Record<string, string> = {
+      PATH: `${join(root, '.a0-bin')}:${dirname(realpathSync(process.execPath))}:/usr/bin:/bin`, PI_WORKER_TERMINAL_TRAP: join(root, '.a0-terminal-calls'), HOME: '/tmp/a0-home', LANG: 'C.UTF-8', TERM: 'dumb',
+      PI_CODING_AGENT_DIR: join(root, '.a0-agent'), PI_WORKER_ID: workerId, PI_WORKER_BACKEND: '1',
+      ...(parent ? { PI_WORKER_REPORT_FD: '3', PI_WORKER_TASK_ID: parent.task_id, PI_SUBAGENT_ID: parent.task_id } : { PI_WORKER_SOCKET: '/run/a0-parent/socket', PI_WORKER_GRANT_FILE: '/run/a0-parent/client.json', PI_WORKER_WORKTREE_ROOT: join(root, '.a0-worktrees') }),
+    };
+    // --clearenv: the allowlist below is the whole environment, even if a future
+    // spawn path merges the supervisor environment.
+    const mounts = ['--die-with-parent', '--clearenv', ...Object.entries(env).flatMap(([k, v]) => ['--setenv', k, v]), '--unshare-user', '--unshare-pid', '--unshare-ipc', '--unshare-uts', '--new-session', '--cap-drop', 'ALL', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--tmpfs', '/run'];
+    // System and worker runtime paths are owner-controlled, never sandbox-writable.
+    for (const path of ['/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc/ssl', '/etc/resolv.conf', '/etc/hosts', '/etc/nsswitch.conf', ...runtimePaths()]) if (existsSync(path)) mounts.push('--ro-bind', path, path);
+    bind('bind', rootFd, root);
+    // A channel child's Git admin/common dirs live in the PARENT root's .git.
+    const git = gitPlan(root, rootFd, { within: options.within && dirname(options.within), expected: options.gitPin });
+    opened.push(...git.fds);
+    for (const mount of git.mounts) bind(mount.mode, mount.fd, mount.dest);
+    mounts.push('--chdir', root, '--dir', '/tmp/a0-home');
+    // Pi may read only the deliberately staged credential stores, read-only. No
+    // host profile, HOME, grant directory or supervisor state is mounted. A
+    // link here refuses rather than letting bwrap resolve it on the host.
+    for (const name of ['models-store.json', 'auth.json']) {
+      let fd: number;
+      try { fd = openUnder(rootFd, ['.a0-agent', name], 'file'); }
+      catch (error) { if (isMissing(error)) continue; throw new Refusal('sandbox_credential_not_regular_file'); }
+      opened.push(fd); bind('ro-bind', fd, join(root, '.a0-agent', name));
+    }
+    if (!parent) {
+      if (!channel) throw new Refusal('sandbox_parent_channel_required');
+      mounts.push('--ro-bind', channel.socket, '/run/a0-parent/socket', '--ro-bind', channel.config, '/run/a0-parent/client.json');
+    }
+    return { command: 'bwrap', args: [...mounts, '--', command, ...args], env, fds, gitPin: git.pin, close };
+  } catch (error) { close(); throw error; }
 }
 /** Walk from a pinned / fd, refusing symlinks at EVERY component. A renamed
  * directory cannot redirect a later component through a textual ancestor. */

@@ -1,0 +1,31 @@
+warning: Empty last update token.
+✖ M1 before: a planted core.fsmonitor never runs from the owner checks (29.398971ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 62.429136
+
+✖ failing tests:
+
+test at dist/test/m1-before.test.js:31:1
+✖ M1 before: a planted core.fsmonitor never runs from the owner checks (29.398971ms)
+  AssertionError [ERR_ASSERTION]: fsmonitor payload ran from an owner-side Git command
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/old/dist/test/m1-before.test.js:46:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

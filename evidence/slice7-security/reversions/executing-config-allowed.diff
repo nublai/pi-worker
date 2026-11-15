@@ -1,0 +1,13 @@
+diff --git 1/home/g/.herdr/worktrees/pi-worker/a0-slice7-gate1/src/git-safe.ts 2/tmp/a0s7g/tmp/a0-owner-git-rev-omk1s949/src/git-safe.ts
+index d959172..c456585 100644
+--- 1/home/g/.herdr/worktrees/pi-worker/a0-slice7-gate1/src/git-safe.ts
++++ 2/tmp/a0s7g/tmp/a0-owner-git-rev-omk1s949/src/git-safe.ts
+@@ -130,7 +130,7 @@ function refuseExecutingConfig(dir: string, expected: GitPin): void {
+   if (listed.error || listed.status !== 0) throw new Refusal('git_config_unparseable');
+   for (const entry of listed.stdout.toString('utf8').split('\0')) {
+     const key = entry.split('\n', 1)[0]!;
+-    if (key && EXECUTES.test(key)) throw new Refusal(`git_config_executes_code: ${key}`);
++    if (key && EXECUTES.test(key) && false) throw new Refusal(`git_config_executes_code: ${key}`);
+   }
+ }
+ /** Callers' argv, with external diff and textconv off for diff-family commands. */

@@ -1,13 +1,16 @@
 /** Whitelist-only native/Git audit. Private profiles and transcripts never leave VM. */
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,existsSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
+import {safeGit} from '/tmp/a0s6/supervisor/dist/git-safe.js';
 const R='/tmp/a0s6/run1', out='/tmp/a0s6/out';
 function json(s){try{return JSON.parse(s);}catch(cause){throw Error('invalid audit input',{cause});}}
 const entries=p=>readFileSync(p,'utf8').trim().split('\n').filter(Boolean).map(json);
 const rows=entries(R+'/state/journal.jsonl').map(e=>e.record).filter(r=>r.kind==='worker');
 const latest=new Map(rows.map(r=>[r.value.worker.worker_id,r.value]));
-const git=(cwd,...args)=>execFileSync('git',['-C',cwd,...args],{encoding:'utf8'}).trim();
+// Security fix round: Git only after the launch-time pin check. Slice-6 worker
+// records predate git_pin, so this historical audit now refuses to rerun.
+const pinOf=cwd=>[...latest.values()].find(v=>v.worker.cwd===cwd)?.worker.git_pin;
+const git=(cwd,...args)=>safeGit(cwd,pinOf(cwd),args);
 const proc=pid=>{if(!pid)return null;try{const s=readFileSync('/proc/'+pid+'/stat','utf8');return s.slice(s.lastIndexOf(')')+2).split(' ')[0];}catch{return null;}};
 const parentId=json(readFileSync(R+'/parent.json','utf8')).worker_id;
 const parent=latest.get(parentId);assert.ok(parent);

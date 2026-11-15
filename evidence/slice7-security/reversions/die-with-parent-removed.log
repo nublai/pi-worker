@@ -1,0 +1,49 @@
+✔ dist/test/gate1-parent.test.js (49.923055ms)
+✖ bwrap profile: --die-with-parent, --clearenv allowlist, credential links refuse (3.792215ms)
+✖ kernel: --die-with-parent kills the sandbox when its spawning process dies (2083.185481ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 1
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2144.581621
+
+✖ failing tests:
+
+test at dist/test/security-fix.test.js:317:1
+✖ bwrap profile: --die-with-parent, --clearenv allowlist, credential links refuse (3.792215ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(launch.args.includes('--die-with-parent'))
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/rev/wt/dist/test/security-fix.test.js:324:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at dist/test/security-fix.test.js:473:1
+✖ kernel: --die-with-parent kills the sandbox when its spawning process dies (2083.185481ms)
+  AssertionError [ERR_ASSERTION]: bwrap outlived its parent
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7f/rev/wt/dist/test/security-fix.test.js:504:16)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

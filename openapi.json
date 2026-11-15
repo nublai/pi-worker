@@ -1770,9 +1770,27 @@
         ],
         "additionalProperties": false
       },
+      "GitPin": {
+        "type": "object",
+        "description": "Launch-time Git pointer bytes of a sandbox root. Relaunch and owner Git commands refuse when any value changed.",
+        "properties": {
+          "kind": { "enum": ["linked", "ordinary"] },
+          "dot_git": { "type": "string" },
+          "git_dir": { "type": "string" },
+          "common_dir": { "type": "string" },
+          "gitdir_file": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "commondir_file": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "head": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "config_sha256": { "type": "string" },
+          "alternates": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["kind", "dot_git", "git_dir", "common_dir", "gitdir_file", "commondir_file", "head", "config_sha256", "alternates"],
+        "additionalProperties": false
+      },
       "Worker": {
         "type": "object",
         "properties": {
+          "git_pin": { "anyOf": [{ "$ref": "#/components/schemas/GitPin" }, { "type": "null" }] },
           "parent": { "$ref": "#/components/schemas/Parent" },
           "launch_spec": { "$ref": "#/components/schemas/LaunchSpec" },
           "grant_source_id": { "type": "string" },

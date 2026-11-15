@@ -1,0 +1,13 @@
+{
+  "producer": "slice7-owner-evidence-packager",
+  "subject": {
+    "commit_id": "249be1b0ff539b723e95e6dcff106237fc555496",
+    "tree_id": "bc3cef7814d1e67caa4b5e6e84669c76383181fe"
+  },
+  "job_subject": {
+    "commit_id": "9845f63fa32accf8f94d827e3ea39abd45b7ecf9",
+    "tree_id": "ccf329133e8c599f4c21ddbab40681e8a4b2c519"
+  },
+  "normalization": "Added producer/subject metadata to supporting VM audit/cleanup/attention/platform/privacy records after their execution; no source behavior or check result changed. Original VM records remain private scratch.",
+  "job_diff_digest_note": "The job verifier produced its advisory digest on Git 2.43.0; local diff-byte output may differ without changing commit/tree identity."
+}

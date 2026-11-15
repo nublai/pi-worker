@@ -1,0 +1,19 @@
+{
+  "producer": "slice7-final-in-memory-private-value-and-pattern-scanner",
+  "subject": {
+    "commit_id": "9845f63fa32accf8f94d827e3ea39abd45b7ecf9",
+    "tree_id": "ccf329133e8c599f4c21ddbab40681e8a4b2c519"
+  },
+  "clock": "2026-11-15T17:33:31.356Z",
+  "scope": "final slice-7 report, README, src, harness and whitelisted evidence snapshot",
+  "files": 126,
+  "bytes": 1073362,
+  "known_private_values_compared_in_memory": true,
+  "no_credential_value_or_hash_logged": true,
+  "credential_patterns_checked": true,
+  "pass": true,
+  "limitations": [
+    "exact-value and pattern scans do not detect every possible transformed/unknown secret",
+    "private raw profiles/grants/transcripts not exported"
+  ]
+}

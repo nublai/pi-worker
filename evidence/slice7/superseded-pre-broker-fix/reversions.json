@@ -1,0 +1,230 @@
+{
+  "base": "b461253",
+  "method": "isolated copies; compile then assertion-only rejection; no timeouts accepted",
+  "results": [
+    {
+      "name": "base-b461253",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 1.241,
+      "tests": [
+        "gate1-git",
+        "gate1-sibling",
+        "gate1-native-binding",
+        "gate1-parent"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-base-b461253.log",
+        "sha256": "279ab242b04eca1ce9c1f9e363c4182de55d786f00f7aa017413c44a25d97699"
+      }
+    },
+    {
+      "name": "fixed",
+      "build_exit": 0,
+      "test_exit": 0,
+      "assertion_failure": false,
+      "duration_seconds": 1.22,
+      "tests": [
+        "gate1-git",
+        "gate1-sibling",
+        "gate1-native-binding",
+        "gate1-parent",
+        "gate1-artifact"
+      ],
+      "expected": "green",
+      "pass": true,
+      "log": {
+        "path": "reversion-fixed.log",
+        "sha256": "4f98c11072df2d72efdf195bb0966d645da4c089be7a8fba8aefca41fb019f3e"
+      }
+    },
+    {
+      "name": "git-mounts",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.095,
+      "tests": [
+        "gate1-git"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-git-mounts.log",
+        "sha256": "e857a96f6e1e1a073116cacec6e0c7591f83f86ef3e8ccdd47363872a67fcae4"
+      }
+    },
+    {
+      "name": "git-namespace",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.107,
+      "tests": [
+        "gate1-git"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-git-namespace.log",
+        "sha256": "d6dde6aa6525ea4abf549c360417671d3c0271687f87f7a7a4541fe36b2e387e"
+      }
+    },
+    {
+      "name": "parent-unconfined",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 1.159,
+      "tests": [
+        "gate1-parent"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-parent-unconfined.log",
+        "sha256": "741f47229394f1bbdb3ad4f4284387c278947d40fd7e673bb78b30469ffd6336"
+      }
+    },
+    {
+      "name": "channel-other-worker",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 1.088,
+      "tests": [
+        "gate1-parent"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-channel-other-worker.log",
+        "sha256": "bc492ee8bfa6286b6b27dd1ac1e5b1b2ab89c6b028b7ba783d76a10c40c385e5"
+      }
+    },
+    {
+      "name": "native-binding",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.956,
+      "tests": [
+        "gate1-native-binding"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-native-binding.log",
+        "sha256": "9814ff0259a053870b7643c252949149d16f43456147bf440e344757861d0229"
+      }
+    },
+    {
+      "name": "sdk-native-tree",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 1.008,
+      "tests": [
+        "gate1-native-binding"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-sdk-native-tree.log",
+        "sha256": "07e7e7d315162ac883a7c9dd977131ccba57acd97f034bb4efb062d3dddeed80"
+      }
+    },
+    {
+      "name": "rpc-native-tree",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 1.011,
+      "tests": [
+        "gate1-native-binding"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-rpc-native-tree.log",
+        "sha256": "e5ea10545ee8ba003e7a40272f296918f8eb8a09baec6c003f8d30e2efbbaa97"
+      }
+    },
+    {
+      "name": "sibling",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.09,
+      "tests": [
+        "gate1-sibling"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-sibling.log",
+        "sha256": "f4e8357a384202da8c51a15323315e13968d7f6be00769c72319e4bcbfc1c986"
+      }
+    },
+    {
+      "name": "evidence-tree",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.081,
+      "tests": [
+        "gate1-artifact"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-evidence-tree.log",
+        "sha256": "a10ab2637517093ecc167d969f427c04be645ed43f6342473060388ede79fe3b"
+      }
+    },
+    {
+      "name": "evidence-advisory",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.091,
+      "tests": [
+        "gate1-artifact"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-evidence-advisory.log",
+        "sha256": "ac165a5f55c37847fc81a46e75bd3c668c281a4a93198df7bf4a24fd8dfc0b9f"
+      }
+    },
+    {
+      "name": "evidence-git-version",
+      "build_exit": 0,
+      "test_exit": 1,
+      "assertion_failure": true,
+      "duration_seconds": 0.09,
+      "tests": [
+        "gate1-artifact"
+      ],
+      "expected": "red",
+      "pass": true,
+      "log": {
+        "path": "reversion-evidence-git-version.log",
+        "sha256": "67ddbfd13bfdaba8878cf182f89c3e12c85e555f131434df0fe5ca7c72601b85"
+      }
+    }
+  ],
+  "producer": "slice7-isolated-copy-reversion-runner",
+  "subject": {
+    "commit_id": "249be1b0ff539b723e95e6dcff106237fc555496",
+    "tree_id": "bc3cef7814d1e67caa4b5e6e84669c76383181fe"
+  },
+  "base_subject": {
+    "commit_id": "b4612533ee7c284085954747e6f46ab2e9cdcbb5",
+    "tree_id": "d976266c42603298bc1110dbec01f4808df84fe0"
+  }
+}
