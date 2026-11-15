@@ -6,6 +6,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sandboxLaunch } from '../sandbox.js';
 
+test('linked-worktree sandbox refuses flat or shared branch write namespaces before spawn', () => {
+  const base = mkdtempSync(join(tmpdir(), 'a0s7-git-policy-')), repo = join(base, 'repo'); mkdirSync(repo);
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], {encoding:'utf8'}).trim();
+  try {
+    git('init','-q'); git('config','user.name','A0 fixture'); git('config','user.email','a0@example.invalid');
+    writeFileSync(join(repo,'note'),'base'); git('add','.'); git('commit','-qm','base');
+    const flat = join(base,'flat'), shared = join(base,'shared');
+    git('worktree','add','-qb','flat',flat,'HEAD');
+    assert.throws(() => sandboxLaunch(flat, '/bin/true', [], parent, 'child'), /requires_private_namespace/);
+    git('worktree','add','-qb','shared/task',shared,'HEAD'); git('branch','shared/sibling');
+    assert.throws(() => sandboxLaunch(shared, '/bin/true', [], parent, 'child'), /sandbox_git_branch_namespace_not_private/);
+  } finally {rmSync(base,{recursive:true,force:true});}
+});
+
 const parent = { worker_id: 'p', worker_epoch: 'e', session_id: 's', binding_revision: 1, execution_id: 'run', task_id: 'task', generation_id: 'gen' };
 test('bwrap linked worktree status/add/commit writes only its branch namespace and shared objects', { skip: process.env.A0_TEST_BWRAP !== '1' }, () => {
   const base = mkdtempSync(join(tmpdir(), 'a0s7-git-')), repo = join(base, 'repo'), root = join(base, 'child'); mkdirSync(repo);
