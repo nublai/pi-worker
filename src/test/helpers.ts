@@ -2,6 +2,7 @@
 import { EventEmitter } from 'node:events';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { Journal } from '../journal.js';
 import { Supervisor } from '../supervisor.js';
 import type { SessionHost, PiRecord, PiResponse } from '../host.js';
@@ -33,8 +34,7 @@ export class Host extends EventEmitter implements SessionHost {
 export const bind = (w: Worker, command_id: string): Binding => ({ command_id, session_id: w.session_id!, worker_epoch: w.worker_epoch, binding_revision: w.binding_revision });
 export const tick = () => new Promise<void>(r => setImmediate(r));
 export function fixture(config: { unconfirmedIdentity?: boolean } = {}) {
-  mkdirSync('/tmp/a0s2', { recursive: true });
-  const dir = mkdtempSync('/tmp/a0s2/core-');
+  const dir = mkdtempSync(join(tmpdir(), 'a0s2-core-'));
   const journal = new Journal(join(dir, 'journal'));
   const hosts: Host[] = [];
   const supervisor = new Supervisor(dir, journal, '1.5.2', () => {

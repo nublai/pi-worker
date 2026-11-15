@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, symlinkSync, chownSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { request } from 'node:http';
 import { Journal, parseJournal } from '../journal.js';
 import { Supervisor } from '../supervisor.js';
@@ -26,8 +27,7 @@ class Host extends EventEmitter implements SessionHost {
   async stop() { this.stops++; this.emit('exit'); return this.stopOk; }
 }
 function fixture(initHost?: (host: Host) => void) {
-  mkdirSync('/tmp/a0s2', { recursive: true });
-  const dir = mkdtempSync('/tmp/a0s2/fix-test-'), journal = new Journal(join(dir, 'journal'));
+  const dir = mkdtempSync(join(tmpdir(), 'a0s2-fix-test-')), journal = new Journal(join(dir, 'journal'));
   const hosts: Host[] = [];
   const supervisor = new Supervisor(dir, journal, '1.5.2', () => {
     const sid = `session-${hosts.length}`, file = join(dir, `${sid}.jsonl`);

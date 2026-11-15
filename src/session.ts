@@ -148,8 +148,8 @@ export class SessionIndex {
 
   hasEntry(id: string): boolean { this.refresh(); return this.byId.has(id); }
 
-  /** Exact nubl attribution only; never infer an execution from user/model text. */
-  hasExecution(executionId: string, commandId: string): boolean {
+  /** Exact agent_settled attribution only; admission or model text is insufficient. */
+  hasSettlement(executionId: string, commandId: string): boolean {
     this.refresh();
     if (!this.file) return false;
     const fd = openSync(this.file, 'r');
@@ -158,7 +158,8 @@ export class SessionIndex {
         if (meta.oversize || meta.length > SIZE_LIMITS.historyPageBytes) continue;
         const entry = this.read(fd, meta);
         const data = entry.data as Record<string, unknown> | undefined;
-        if (entry.type === 'custom' && entry.customType === 'a0_execution' && data?.execution_id === executionId && data.command_id === commandId) return true;
+        if (entry.type === 'custom' && entry.customType === 'agent_settled' && data?.execution_id === executionId && data.command_id === commandId) return true;
+        if (entry.type === 'agent_settled' && entry.execution_id === executionId && entry.command_id === commandId) return true;
       }
       return false;
     } finally { closeSync(fd); }

@@ -57,7 +57,7 @@ if (mode === 'scenario') {
   await call('rebind', { ...bind(supervisor.get(id), 'resume'), action: 'resume', target_session_id: a.session_id }, id);
   await call('rebind', { ...bind(supervisor.get(id), 'fork'), action: 'fork', source_leaf_id: supervisor.get(id).leaf_id, entry_id: 'first' }, id);
   await call('prompt', { ...bind(supervisor.get(id), 'observed'), message: 'observed' }, id);
-  hosts[0]!.emit('exit');
+  hosts[0]!.emit('exit'); hosts[0]!.emit('event', { type: 'agent_settled' });
   await call('resolve', { ...bind(supervisor.get(id), 'resolve-observed'), uncertain_command_id: 'observed', fence_generation: supervisor.get(id).fence!.fence_generation, disposition: 'observed' }, id);
   await call('stop', bind(supervisor.get(id), 'stop-a'), id);
   for (const disposition of ['keep', 'abandon'] as const) {

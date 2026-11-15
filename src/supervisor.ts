@@ -92,7 +92,7 @@ export class Supervisor {
   hello(): Hello {
     return { protocol: { major: 0, minor: 1 }, prototype: true, supervisor_id: this.id, supervisor_epoch: this.epoch, pi_version: this.piVersion,
       capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt'],
-      limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; no privileged-tool-release gate in slice 2', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination, cancel/interrupt, resolution and child reports bypass count quota; journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed proves exact input evidence, never external-effect completion', tree_navigation: 'Pi 1.5.2 RPC has get_tree but no navigate command; refused no_effect', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
+      limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; no privileged-tool-release gate in slice 2', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination, cancel/interrupt, resolution and child reports bypass count quota; journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed requires exact agent_settled evidence in the session file or fsynced settlement record, never external-effect completion', tree_navigation: 'Pi 1.5.2 RPC has get_tree but no navigate command; refused no_effect', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
       resource_profile: 'normal CLI discovery; exact loaded extension/tool inventory unverified', cleanup_profile: 'linux_process_group; no adoption or resume; escaped descendants unproven' };
   }
   private persist(live: Live): void {
@@ -206,7 +206,10 @@ export class Supervisor {
     if (event.type === 'agent_settled') {
       w.foreground = w.fence ? 'unknown' : 'idle';
       live.observedIdle = true;
-      if (w.execution) w.execution.state = 'settled';
+      if (w.execution) {
+        this.journal.append('settlement', { worker_id: w.worker_id, session_id: w.session_id, execution_id: w.execution.execution_id, command_id: w.execution.command_id, source: 'pi.agent_settled' });
+        w.execution.state = 'settled';
+      }
       this.refresh(live); this.persist(live);
       setImmediate(() => { void this.flushPending(live); });
     }
@@ -229,12 +232,12 @@ export class Supervisor {
   create(c: Create): Promise<Receipt> {
     let cwd: string;
     return this.receipts.run(c.command_id, 'workers.create', c, async () => {
+      this.dispatchGuard(); // Refusal must precede even local worker/cwd reservation.
       const worker_id = randomUUID(), worker_epoch = randomUUID();
       const w: Worker = { worker_id, worker_epoch, supervisor_epoch: this.epoch, session_id: null, session_identity_evidence: 'pi_rpc_header_id', binding_revision: 1, leaf_id: null, cwd, status: 'starting', foreground: 'idle', execution: null, fence: null, history: { last_entry_id: null, lag: false, evidence: 'pi_session_file' }, cleanup: 'not_started', pending_interactions: [] };
       const live: Live = { worker: w, sessionFile: null, pid: null, token: null, index: new SessionIndex(null), hub: this.events.scoped(worker_id), completedMessages: 0 };
       this.workers.set(worker_id, live);
       this.persist(live);
-      this.dispatchGuard();
       this.receipts.dispatch(c.command_id, { worker_id });
       const dir = join(this.stateDir, 'sessions', worker_id); mkdirSync(dir, { recursive: true, mode: 0o700 });
       const host = this.factory({ ...c, cwd }, dir); live.host = host;
@@ -267,10 +270,10 @@ export class Supervisor {
   async prompt(id: string, p: Prompt, operation: 'sessions.prompt' | 'sessions.follow_up' = 'sessions.prompt'): Promise<Receipt> {
     let live: Live;
     const receipt = await this.receipts.run(p.command_id, operation, { ...p, worker_id: id }, async () => {
+      this.dispatchGuard(); // A revoked input must not leave an admitted execution.
       const w = live.worker;
       w.execution = { execution_id: randomUUID(), command_id: p.command_id, state: 'admitted' }; w.foreground = 'running';
       this.persist(live);
-      this.dispatchGuard();
       this.receipts.dispatch(p.command_id, { worker_id: id, execution_id: w.execution.execution_id });
       const response = await live.host!.request({ type: 'prompt', message: p.message });
       if (live.faulted) throw new Error('worker fault during prompt');
@@ -338,9 +341,9 @@ export class Supervisor {
       if (w.fence ? !(w.fence.uncertain_command_ids ?? [w.fence.command_id]).includes(uncertain) : !recovered) throw new Refusal('uncertainty_not_current');
       if (r.disposition === 'observed') {
         const execution = r.execution_id ?? target?.execution_id ?? (w.execution?.command_id === uncertain ? w.execution.execution_id : undefined);
-        // A delivered fsynced receipt proves this exact input was accepted, not that its effects completed.
-        const receiptEvidence = execution && target?.execution_id === execution && target.state === 'delivered' && target.effect === 'observed';
-        if (!receiptEvidence && !(execution && live.index.hasExecution(execution, uncertain))) throw new Refusal('execution_not_in_session_file_or_fsynced_receipt');
+        // Admission is not settlement. Require exact worker/session/run attribution.
+        const settlementEvidence = execution && this.journal.records.some(record => record.kind === 'settlement' && record.value.worker_id === id && record.value.session_id === w.session_id && record.value.execution_id === execution && record.value.command_id === uncertain && record.value.source === 'pi.agent_settled');
+        if (!settlementEvidence && !(execution && live.index.hasSettlement(execution, uncertain))) throw new Refusal('execution_settlement_not_in_session_file_or_fsynced_record');
       }
     });
   }
@@ -359,10 +362,12 @@ export class Supervisor {
         this.clearInteractions(live);
         this.dispatchGuard();
         const response = await live.host!.request(b.action === 'new' ? { type: 'new_session' } : b.action === 'resume' ? { type: 'switch_session', sessionPath: target! } : { type: 'fork', entryId: b.entry_id! });
-        if (!response.success || response.data?.cancelled) throw new Refusal('pi_binding_change_cancelled');
+        if (!response.success || response.data?.cancelled) throw new Refusal('pi_binding_change_cancelled', 'unknown');
         const state = await live.host!.request({ type: 'get_state' });
         if (!state.success || typeof state.data?.sessionId !== 'string' || typeof state.data.sessionFile !== 'string') throw new Error('binding_identity_unavailable');
-        this.noOtherWriter(state.data.sessionId, id);
+        if (b.action === 'resume' && state.data.sessionId !== b.target_session_id) throw new Error('resumed_session_identity_mismatch');
+        try { this.noOtherWriter(state.data.sessionId, id); }
+        catch (error) { throw new Refusal(error instanceof Error ? error.message : 'post_write_binding_refusal', 'unknown'); }
         this.dropPending(live, 'binding_changed');
         w.session_id = state.data.sessionId; w.binding_revision++; w.session_identity_evidence = 'pi_rpc_header_id';
         live.sessionFile = state.data.sessionFile; live.index = new SessionIndex(live.sessionFile); live.completedMessages = 0;

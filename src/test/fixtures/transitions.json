@@ -1,7 +1,7 @@
 {
   "prototype": true,
   "fixture_schema": 1,
-  "contract_revision": 5,
+  "contract_revision": 6,
   "setup": "fresh idle worker and controller grant; fixture-only host lifecycle controls, never inferred model effects",
   "macros": {
     "unknown": [
@@ -332,6 +332,12 @@
           }
         },
         {
+          "kind": "host_event",
+          "event": {
+            "type": "agent_settled"
+          }
+        },
+        {
           "kind": "call",
           "method": "sessions.resolve_unknown",
           "command_id": "resolve",
@@ -437,15 +443,6 @@
       "profile": "unconfirmed_native_identity",
       "steps": [
         {
-          "kind": "call",
-          "method": "sessions.prompt",
-          "command_id": "uncertain",
-          "binding": "initial",
-          "fields": {
-            "message": "uncertain"
-          }
-        },
-        {
           "kind": "restart"
         },
         {
@@ -467,6 +464,18 @@
         {
           "path": "result.effect",
           "equals": "no_effect"
+        },
+        {
+          "path": "worker.fence",
+          "equals": null
+        },
+        {
+          "path": "result.error",
+          "equals": "cleanup_pending_or_worker_not_ready"
+        },
+        {
+          "path": "effects.prompts",
+          "equals": 0
         }
       ]
     },

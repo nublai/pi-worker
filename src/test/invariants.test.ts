@@ -11,6 +11,7 @@ for (const disposition of ['keep', 'abandon', 'observed'] as const) test(`resolv
     const w = await f.create(), host = f.hosts[0]!;
     const delivered = await f.supervisor.prompt(w.worker_id, { ...bind(w, 'uncertain'), message: 'run' });
     host.emit('exit');
+    if (disposition === 'observed') host.emit('event', { type: 'agent_settled' });
     const fenced = f.supervisor.get(w.worker_id);
     assert.equal(fenced.fence?.command_id, 'uncertain');
     const r = { ...bind(fenced, 'resolve'), uncertain_command_id: 'uncertain', fence_generation: fenced.fence!.fence_generation, disposition };
@@ -27,14 +28,14 @@ for (const disposition of ['keep', 'abandon', 'observed'] as const) test(`resolv
     }
   } finally { f.cleanup(); }
 });
-test('observed refuses mere memory and unknown dispatch, accepts exact session attribution only', async () => {
+test('observed refuses mere memory and unknown dispatch, accepts exact session settlement only', async () => {
   const f = fixture(); try {
     const w = await f.create(), host = f.hosts[0]!; host.failure = true;
     const r = await f.supervisor.prompt(w.worker_id, { ...bind(w, 'lost'), message: 'run' }); assert.equal(r.state, 'outcome_unknown');
     const now = f.supervisor.get(w.worker_id), execution = now.execution!.execution_id;
     const resolve = { ...bind(now, 'resolve'), execution_id: execution, fence_generation: now.fence!.fence_generation, disposition: 'observed' as const };
-    await assert.rejects(f.supervisor.resolveUnknown(w.worker_id, resolve), /execution_not_in_session_file_or_fsynced_receipt/);
-    appendFileSync(host.file, JSON.stringify({ type: 'custom', id: 'attribution', parentId: null, customType: 'a0_execution', data: { execution_id: execution, command_id: 'lost' } }) + '\n');
+    await assert.rejects(f.supervisor.resolveUnknown(w.worker_id, resolve), /execution_settlement_not_in_session_file_or_fsynced_record/);
+    appendFileSync(host.file, JSON.stringify({ type: 'custom', id: 'attribution', parentId: null, customType: 'agent_settled', data: { execution_id: execution, command_id: 'lost' } }) + '\n');
     assert.equal((await f.supervisor.resolveUnknown(w.worker_id, resolve)).state, 'delivered');
     assert.equal(f.supervisor.get(w.worker_id).fence, null);
   } finally { f.cleanup(); }
