@@ -42,7 +42,9 @@ test('bwrap linked worktree status/add/commit writes only its branch namespace a
       git rev-parse HEAD
     `;
     const launch = sandboxLaunch(root, '/bin/sh', ['-c', script], parent, 'child');
-    const result = spawnSync(launch.command, launch.args, { env: launch.env, encoding: 'utf8', timeout: 20000 });
+    // Mount sources are descriptors from fd 4 (fd 3 is the child report slot).
+    const result = spawnSync(launch.command, launch.args, { env: launch.env, encoding: 'utf8', timeout: 20000, stdio: ['ignore', 'pipe', 'pipe', 'ignore', ...launch.fds] });
+    launch.close();
     assert.equal(result.status, 0, result.stderr);
     assert.equal(readFileSync(join(root, 'note'), 'utf8'), 'child\n');
     assert.equal(git(repo, 'rev-parse', 'unrelated'), original);

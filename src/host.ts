@@ -10,9 +10,9 @@ import type { UIAnswer } from './resolvers.js';
 import { killGroup, processToken } from './process.js';
 import type { Create } from './types.js';
 import type { Containment, CleanupUnit } from './containment.js';
-import { sandboxLaunch } from './sandbox.js';
+import { sandboxLaunch, type SandboxOptions } from './sandbox.js';
 import type { Readable } from 'node:stream';
-export type HostContext = { worker_id: string; launch_command_id: string; parent?: Create['parent']; launch_spec?: Create['launch_spec']; containment?: Containment; unit?: CleanupUnit; parent_channel?: { socket: string; config: string } };
+export type HostContext = { worker_id: string; launch_command_id: string; parent?: Create['parent']; launch_spec?: Create['launch_spec']; containment?: Containment; unit?: CleanupUnit; parent_channel?: { socket: string; config: string }; sandbox?: SandboxOptions };
 export type ChildReport = { report_id: string; kind: 'result' | 'help'; message: string };
 export type PiRecord = Record<string, unknown> & { type: string };
 export type PiResponse = { type: 'response'; id: string; success: boolean; data?: Record<string, unknown>; error?: string };
@@ -60,13 +60,20 @@ export class RpcHost extends EventEmitter implements SessionHost {
       env.PI_WORKER_TASK_ID = context.parent.task_id;
       env.PI_SUBAGENT_ID = context.parent.task_id;
     } else { delete env.PI_WORKER_REPORT_FD; delete env.PI_WORKER_TASK_ID; }
+    let sandbox: ReturnType<typeof sandboxLaunch> | undefined;
     if (context?.launch_spec?.environment.filesystem === 'bwrap') {
-      const sandbox = sandboxLaunch(cwd, executable, args, context.parent, context.worker_id, context.parent_channel);
+      sandbox = sandboxLaunch(cwd, executable, args, context.parent, context.worker_id, context.parent_channel, context.sandbox);
       executable = sandbox.command; spawnArgs = sandbox.args; env = sandbox.env;
     }
-    const options = { cwd, env, detached: true, stdio: context?.parent ? ['pipe', 'pipe', 'pipe', 'pipe'] as const : ['pipe', 'pipe', 'pipe'] as const };
+    // Mount-source descriptors start at fd 4 (sandbox.SANDBOX_FD_BASE); bwrap
+    // closes each after binding it, so none reaches Pi.
+    const stdio: (number | 'pipe' | 'ignore')[] = context?.parent ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'];
+    if (sandbox?.fds.length) { if (stdio.length === 3) stdio.push('ignore'); stdio.push(...sandbox.fds); }
+    const options = { cwd, env, detached: true };
     this.cleanupContext = context;
-    this.child = (context?.unit && context.containment ? context.containment.spawn(context.unit, executable, spawnArgs, { ...options, stdio: [...options.stdio] }) : spawn(executable, spawnArgs, { ...options, stdio: [...options.stdio] })) as ChildProcessWithoutNullStreams;
+    try {
+      this.child = (context?.unit && context.containment ? context.containment.spawn(context.unit, executable, spawnArgs, { ...options, stdio: [...stdio] }) : spawn(executable, spawnArgs, { ...options, stdio: [...stdio] })) as ChildProcessWithoutNullStreams;
+    } finally { sandbox?.close(); }
     if (context?.parent) {
       const channel = this.child.stdio[3] as Readable;
       const decoder = new StringDecoder('utf8'); let buffer = ''; let count = 0;

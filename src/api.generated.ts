@@ -481,7 +481,21 @@ export interface components {
             fence_generation: number;
             uncertain_command_ids?: string[];
         };
+        /** @description Launch-time Git pointer bytes of a sandbox root. Relaunch and owner Git commands refuse when any value changed. */
+        GitPin: {
+            /** @enum {unknown} */
+            kind: "linked" | "ordinary";
+            dot_git: string;
+            git_dir: string;
+            common_dir: string;
+            gitdir_file: string | null;
+            commondir_file: string | null;
+            head: string | null;
+            config_sha256: string;
+            alternates: string | null;
+        };
         Worker: {
+            git_pin?: components["schemas"]["GitPin"] | null;
             parent?: components["schemas"]["Parent"];
             launch_spec?: components["schemas"]["LaunchSpec"];
             grant_source_id?: string;
