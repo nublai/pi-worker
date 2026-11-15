@@ -1,0 +1,85 @@
+{
+  "producer": "gate1-rerun-owner-evidence-packager",
+  "subject": {
+    "commit_id": "4474a9a8eecda33ba5d0af2c0259554dd56fb431",
+    "tree_id": "cabd514c0962de15324a4e2b1f15767a44ee3666"
+  },
+  "platform": {
+    "vm": "a0-worker.exe.xyz",
+    "node": "v26.13.0 (official linux-x64 tarball, SHASUMS256 sha256 d28a96af6c38596f6d9d97c0ee531c13d238d757742387d1928de822d959e997 verified; GPG signature not checked), user-local at ~/.local/node26; existing ~/.local/node 22.21.1 untouched",
+    "npm": "11.20.0",
+    "pi": "1.5.2",
+    "pi_herdr_agents": "3.11.0",
+    "pstack": "1.0.0",
+    "bwrap": "0.9.0",
+    "git": "2.43.0",
+    "kernel": "6.12.115",
+    "experimental_host_source_hashes_match_slice7": true
+  },
+  "checks": [
+    {
+      "name": "vm-default",
+      "command": "npm test",
+      "host": "a0-worker",
+      "node": "v26.13.0",
+      "exit_code": 0,
+      "counts": {
+        "tests": 239,
+        "pass": 226,
+        "fail": 0,
+        "skipped": 13,
+        "cancelled": 0
+      },
+      "log": {
+        "path": "vm/vm-default.log",
+        "sha256": "f8ac6b7b369fe945c39d3ddc45d05694e29fd85d883e4d5b39048a4b559e5bbc"
+      },
+      "started": "2026-11-15T21:13:16Z",
+      "ended": "2026-11-15T21:16:11Z"
+    },
+    {
+      "name": "vm-kernel",
+      "command": "systemd-run --user --unit=a0-g1-suite-kernel --property=Delegate=yes ... kernel.sh (A0_TEST_CGROUP_DIR, A0_TEST_BWRAP=1, npm test)",
+      "host": "a0-worker",
+      "node": "v26.13.0",
+      "exit_code": 0,
+      "counts": {
+        "tests": 239,
+        "pass": 239,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0
+      },
+      "log": {
+        "path": "vm/vm-kernel.log",
+        "sha256": "f797252572030d047cddd9d5cd164096bc03b7df218226bf640756b8d62cc6df"
+      },
+      "started": "2026-11-15T21:16:17Z",
+      "ended": "2026-11-15T21:19:28Z"
+    },
+    {
+      "name": "vm-generated",
+      "command": "npm run check:generated",
+      "host": "a0-worker",
+      "exit_code": 0,
+      "log": {
+        "path": "vm/vm-generated.log",
+        "sha256": "2cfbd2478bf08c77d9376b15765b637e062ffcb47544991c5b5a77d5980f6bca"
+      }
+    },
+    {
+      "name": "model-driven-job",
+      "command": "live.mjs start / wait",
+      "host": "a0-worker",
+      "exit_code": 1,
+      "pass": false,
+      "result": "FAILED: both child launches rejected profile_copy_too_many_entries; wait hit its 900 s deadline (no auto cancel/retry)",
+      "log": {
+        "path": "vm/wait.log",
+        "sha256": "9a2f2b88a15031a56c03025315b092d5fe2f94c9c61213b95379f2a5df9d6a09"
+      },
+      "detail": "vm/failure-audit.json"
+    }
+  ],
+  "verdict": "FAILED: real defect in fixed runtime blocks the sandboxed child fan-out"
+}

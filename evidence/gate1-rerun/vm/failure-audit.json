@@ -1,0 +1,147 @@
+{
+  "producer": "gate1-rerun-failure-audit",
+  "clock": "2026-11-15T21:43:01.820Z",
+  "runtime_commit": "4474a9a8eecda33ba5d0af2c0259554dd56fb431",
+  "parent_worker_id": "fcf84d86-a049-409f-9fc4-937102d1fc39",
+  "parent_status": "ready",
+  "parent_fence": null,
+  "workers_in_journal": 3,
+  "parent_tool_counts": {
+    "read": 2,
+    "bash": 38,
+    "subagent": 2,
+    "edit": 3,
+    "write": 1
+  },
+  "subagent_launch_attempts": [
+    {
+      "at": "2026-11-15T21:20:47.528Z",
+      "name": "note-writer",
+      "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+      "thinking": "off",
+      "branch": "g1-note/task",
+      "isError": true,
+      "mentions_profile_copy_too_many_entries": false,
+      "error_codes": []
+    },
+    {
+      "at": "2026-11-15T21:20:47.528Z",
+      "name": "check-author",
+      "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+      "thinking": "off",
+      "branch": "g1-check/task",
+      "isError": true,
+      "mentions_profile_copy_too_many_entries": false,
+      "error_codes": []
+    }
+  ],
+  "subagent_result_deliveries": 0,
+  "parent_git_commit_or_cherry_pick_calls": 6,
+  "parent_edit_write_paths": [
+    "/tmp/a0g1/run/workspace/.a0-worktrees/739bceb0-03f3-41eb-8daa-5eac39f170ac/README.md",
+    "/tmp/a0g1/run/workspace/.a0-worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9/evidence/gate1-job/verify.mjs",
+    "/tmp/a0g1/run/workspace/evidence/gate1-job/verify.mjs",
+    "/tmp/a0g1/run/workspace/.a0-worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9/evidence/gate1-job/verify.mjs"
+  ],
+  "children": [
+    {
+      "worker_id": "2448195e-2217-409a-af39-e7362389a73f",
+      "status": "starting",
+      "cleanup": "not_started",
+      "pid": null,
+      "cwd": "/tmp/a0g1/run/workspace/.a0-worktrees/739bceb0-03f3-41eb-8daa-5eac39f170ac",
+      "partial_profile_entries_written": 10000
+    },
+    {
+      "worker_id": "38f2088a-ba7e-44e5-9fce-e065a94569e1",
+      "status": "starting",
+      "cleanup": "not_started",
+      "pid": null,
+      "cwd": "/tmp/a0g1/run/workspace/.a0-worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9",
+      "partial_profile_entries_written": 10000
+    }
+  ],
+  "create_receipts": [
+    {
+      "command_id": "gate1-parent",
+      "worker_id": "fcf84d86-a049-409f-9fc4-937102d1fc39",
+      "state": "accepted",
+      "stage": "dispatch_recorded",
+      "effect": "unknown",
+      "error": null,
+      "created_at": "2026-11-15T21:20:05.641Z"
+    },
+    {
+      "command_id": "gate1-parent",
+      "worker_id": "fcf84d86-a049-409f-9fc4-937102d1fc39",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "error": null,
+      "created_at": "2026-11-15T21:20:05.641Z"
+    },
+    {
+      "command_id": "db712edf-2c61-4bf5-9e34-8827b155e3c4",
+      "worker_id": "2448195e-2217-409a-af39-e7362389a73f",
+      "state": "accepted",
+      "stage": "dispatch_recorded",
+      "effect": "unknown",
+      "error": null,
+      "created_at": "2026-11-15T21:20:47.711Z"
+    },
+    {
+      "command_id": "db712edf-2c61-4bf5-9e34-8827b155e3c4",
+      "worker_id": "2448195e-2217-409a-af39-e7362389a73f",
+      "state": "rejected",
+      "stage": "refused",
+      "effect": "no_effect",
+      "error": "profile_copy_too_many_entries",
+      "created_at": "2026-11-15T21:20:47.711Z"
+    },
+    {
+      "command_id": "fd01df87-17a9-485e-b6e1-125d4c7870b0",
+      "worker_id": "38f2088a-ba7e-44e5-9fce-e065a94569e1",
+      "state": "accepted",
+      "stage": "dispatch_recorded",
+      "effect": "unknown",
+      "error": null,
+      "created_at": "2026-11-15T21:20:48.331Z"
+    },
+    {
+      "command_id": "fd01df87-17a9-485e-b6e1-125d4c7870b0",
+      "worker_id": "38f2088a-ba7e-44e5-9fce-e065a94569e1",
+      "state": "rejected",
+      "stage": "refused",
+      "effect": "no_effect",
+      "error": "profile_copy_too_many_entries",
+      "created_at": "2026-11-15T21:20:48.331Z"
+    }
+  ],
+  "staged_parent_profile_entries": 18801,
+  "copy_tree_entry_budget": 10000,
+  "workspace_log": [
+    "1e689e8c389e7f13309c2481cc555738b899f2e1 4945e5114fa3c521a03e179e3f0f096b298f4567 evidence: fix verify.mjs line check to use includes",
+    "bba8957418cc34cb181ac1cf58d96aae622bf5d0 3032cd7322c0d67d8eb35fafc0fa51c50b700f0b evidence: gate1-job checker for owner-Git snapshot note",
+    "4204da5b839185658f41be2f9fea1f5d09e15362 dd715757112c6ceb7e16010177e1b2e7fc6b4a71 docs: add owner-Git snapshot note to Semantics and limits",
+    "4474a9a8eecda33ba5d0af2c0259554dd56fb431 cabd514c0962de15324a4e2b1f15767a44ee3666 merge: A0 slice 7, Gate 1 gaps closed (reviewed by Claude Opus; security reviewed by Grok three times)",
+    "a67838959a461f3992dd6cb3630b40bccd5e83f3 b2e0f2544661806d0b563bfe71f2b42ae14b4d53 docs: A0-SLICE7 owner-Git follow-up (commondir race closed, global config ignored, evidence)"
+  ],
+  "changed_files_vs_base": [
+    "README.md",
+    "evidence/gate1-job/verify.mjs"
+  ],
+  "refs_after": [
+    "refs/heads/g1-check/task f4a3c2555255516bb402d53d37bb28e87faddfb0",
+    "refs/heads/g1-note/task f161aa85d2d113c982b63ae341821a01f9fd7c37",
+    "refs/heads/job/gate1 1e689e8c389e7f13309c2481cc555738b899f2e1",
+    "refs/remotes/origin/prototype/a0 4474a9a8eecda33ba5d0af2c0259554dd56fb431"
+  ],
+  "disconnect": {
+    "clock": "2026-11-15T21:20:08.592Z",
+    "reconnect_clock": "2026-11-15T21:26:57.090Z",
+    "seconds": 408.499,
+    "resync_reason": "gap",
+    "parent_epoch_unchanged": true,
+    "parent_tool_calls_during_gap": 46
+  }
+}

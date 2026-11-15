@@ -1,0 +1,4 @@
+{"clock":"2026-11-15T21:20:05.630Z","kind":"create","actor":"gate1-authorized-owner-driver","policy_revision":"gate1-owner-v1","command_id":"gate1-parent"}
+{"clock":"2026-11-15T21:20:08.563Z","kind":"prompt","actor":"gate1-authorized-owner-driver","policy_revision":"gate1-owner-v1","command_id":"gate1-job","base":"4474a9a8eecda33ba5d0af2c0259554dd56fb431"}
+{"clock":"2026-11-15T21:43:21.851Z","kind":"failure-stop","actor":"gate1-authorized-owner-driver","policy_revision":"gate1-owner-v1","worker_id":"fcf84d86-a049-409f-9fc4-937102d1fc39","reason":"child launches rejected profile_copy_too_many_entries; job shape failed"}
+{"clock":"2026-11-15T21:43:31.335Z","kind":"cleanup","actor":"gate1-authorized-owner-driver","policy_revision":"gate1-owner-v1","units":["a0-g1-supervisor.service","a0-a838fd122b09beb979f6.service"],"grant_revoked":"orchestrator"}
