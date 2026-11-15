@@ -12,7 +12,7 @@ import type { Create } from './types.js';
 import type { Containment, CleanupUnit } from './containment.js';
 import { sandboxLaunch } from './sandbox.js';
 import type { Readable } from 'node:stream';
-export type HostContext = { worker_id: string; launch_command_id: string; parent?: Create['parent']; launch_spec?: Create['launch_spec']; containment?: Containment; unit?: CleanupUnit };
+export type HostContext = { worker_id: string; launch_command_id: string; parent?: Create['parent']; launch_spec?: Create['launch_spec']; containment?: Containment; unit?: CleanupUnit; parent_channel?: { socket: string; config: string } };
 export type ChildReport = { report_id: string; kind: 'result' | 'help'; message: string };
 export type PiRecord = Record<string, unknown> & { type: string };
 export type PiResponse = { type: 'response'; id: string; success: boolean; data?: Record<string, unknown>; error?: string };
@@ -61,8 +61,7 @@ export class RpcHost extends EventEmitter implements SessionHost {
       env.PI_SUBAGENT_ID = context.parent.task_id;
     } else { delete env.PI_WORKER_REPORT_FD; delete env.PI_WORKER_TASK_ID; }
     if (context?.launch_spec?.environment.filesystem === 'bwrap') {
-      if (!context.parent) throw new Error('sandbox_child_required');
-      const sandbox = sandboxLaunch(cwd, executable, args, context.parent, context.worker_id);
+      const sandbox = sandboxLaunch(cwd, executable, args, context.parent, context.worker_id, context.parent_channel);
       executable = sandbox.command; spawnArgs = sandbox.args; env = sandbox.env;
     }
     const options = { cwd, env, detached: true, stdio: context?.parent ? ['pipe', 'pipe', 'pipe', 'pipe'] as const : ['pipe', 'pipe', 'pipe'] as const };

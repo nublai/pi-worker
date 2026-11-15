@@ -1,8 +1,10 @@
 /** THROWAWAY A0 supervisor. pi owns transcript, this process owns control records. */
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { mkdirSync, realpathSync, statSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, realpathSync, statSync, existsSync, writeFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import type { Server } from 'node:http';
+import { router, listenPrivate } from './server.js';
 import { Journal } from './journal.js';
 import { GrantStore, type Grant } from './grants.js';
 import { ReceiptStore } from './receipts.js';
@@ -17,7 +19,7 @@ import { sandboxRoot, readConfined, sandboxSessionDir } from './sandbox.js';
 import { Refusal, type Binding, type Create, type Prompt, type Worker, type Receipt, type Hello, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
 type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null; unit?: CleanupUnit; create?: Create; intentBindings?: Record<string, Binding & { relaunch_epoch?: string }> };
 type Pending = { kind: 'follow_up' | 'child'; request: FollowUp | ChildLaunch; guard: () => void };
-type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; exited?: boolean; rebinding?: boolean; nativeRebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout>; inventoryReady?: () => void };
+type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; exited?: boolean; rebinding?: boolean; nativeRebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout>; inventoryReady?: () => void; channel?: { server: Server; socket: string; config: string } };
 export type HostFactory = (create: Create, sessionDir: string, context?: HostContext) => SessionHost;
 export class Supervisor {
   readonly epoch = randomUUID();
@@ -45,6 +47,23 @@ export class Supervisor {
       if (persisted.worker.session_id && persisted.sessionFile) this.sessionFiles.set(persisted.worker.session_id, { file: persisted.sessionFile, worker_id: persisted.worker.worker_id });
       this.workers.set(persisted.worker.worker_id, { ...persisted, index: new SessionIndex(persisted.sessionFile, undefined, persisted.worker.launch_spec?.environment.filesystem === 'bwrap' ? persisted.worker.cwd : undefined), hub: this.events.scoped(persisted.worker.worker_id), completedMessages: 0 });
     }
+  }
+  private async hostContext(live: Live, c: Create, command: string): Promise<HostContext> {
+    if (c.launch_spec?.environment.filesystem === 'bwrap' && !c.parent) {
+      this.closeChannel(live);
+      const dir = join(this.stateDir, 'channels', live.worker.worker_epoch);
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+      const socket = join(dir, 'socket'), config = join(dir, 'client.json');
+      writeFileSync(config, JSON.stringify({ token: 'PUBLIC-parent-channel-not-a-B2-grant' }), { mode: 0o400 });
+      const server = router(this, { workerId: live.worker.worker_id, epoch: live.worker.worker_epoch });
+      await listenPrivate(server, socket);
+      live.channel = { server, socket, config };
+    }
+    return { worker_id: live.worker.worker_id, launch_command_id: command, parent: c.parent, launch_spec: c.launch_spec, containment: this.containment, unit: live.unit, ...(live.channel ? { parent_channel: { socket: live.channel.socket, config: live.channel.config } } : {}) };
+  }
+  private closeChannel(live: Live): void {
+    if (!live.channel) return;
+    live.channel.server.closeAllConnections(); live.channel.server.close(); live.channel = undefined;
   }
   static rpcFactory(executable: string): HostFactory {
     return (c, dir, context) => c.host === 'sdk' ? new SdkHost(c, dir, 'sdk', context) : c.host === 'acp' ? new AcpHost(c, dir, context) : new RpcHost(executable, c.cwd, dir, c.provider, c.model, c.thinking, 30000, context, undefined, c.project_trusted === true);
@@ -105,7 +124,7 @@ export class Supervisor {
   hello(): Hello {
     return { protocol: { major: 0, minor: 1 }, prototype: true, supervisor_id: this.id, supervisor_epoch: this.epoch, pi_version: this.piVersion,
       capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'host.sdk', 'host.acp', 'interactions.list', 'interactions.answer_if_current', 'interactions.status', 'interaction.select', 'interaction.confirm', 'interaction.input', 'interaction.editor', 'interaction.tool_approval.sdk_acp', 'answer_stage.rpc.2', 'answer_stage.sdk_acp.3', 'gate_stage.sdk_acp.4', 'custom_ui.refused', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt', 'workers.create.typed_child', 'children.report.fd', 'workers.relaunch', 'environment.bwrap', 'files.read'],
-      limits: { sandbox: 'Linux SDK/ACP children only; bwrap filesystem root is cwd, system/runtime mounts read-only, private proc/tmp; network shared. Child profile must be staged inside root; no inherited parent credentials, socket or grants. files.read uses explicit subroots, pinned no-symlink opens, hidden-file refusal, UTF-8 and 1 MiB cap. Sandbox history opens are also root-pinned.', relaunch: 'Explicit workers.relaunch only after cgroup_empty_removed; opens known history without prompting, fresh process epoch. Exact owner-kept recovered prompts retain only their original command binding; ordinary stale writes refuse. Other recovered operation rebinding is not implemented.', cleanup_replacement: 'Cgroup cleanup requires populated=0 AND removal; weaker process-group cleanup never authorizes reuse/relaunch.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; SDK/ACP test bash gate rechecks grant at release dispatch and child rechecks input digest/policy/expiry; not a production sandbox', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination, cancel/interrupt, resolution and child reports bypass count quota; journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed requires exact agent_settled evidence in the session file or fsynced settlement record, never external-effect completion', tree_navigation: 'SDK/ACP navigateTree supported; RPC refused no_effect. SDK leaf overrides append-order history.', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
+      limits: { sandbox: 'Linux SDK/ACP parents and children; bwrap root is cwd, system/runtime read-only, private proc/tmp; network shared. Linked-worktree admin, shared objects and private branch namespace writable; owner must verify all refs. Explicit profile inside root; staged model/auth stores read-only. Parent gets one generation-scoped own/direct-child channel with public non-bearer config; children only report FD. No supervisor state, B2 socket, grant files or host home mounted. files.read uses explicit subroots, pinned no-symlink opens, hidden-file refusal, UTF-8 and 1 MiB cap. Sandbox history opens are also root-pinned.', relaunch: 'Explicit workers.relaunch only after cgroup_empty_removed; opens known history without prompting, fresh process epoch. Exact owner-kept recovered prompts retain only their original command binding; ordinary stale writes refuse. Other recovered operation rebinding is not implemented.', cleanup_replacement: 'Cgroup cleanup requires populated=0 AND removal; weaker process-group cleanup never authorizes reuse/relaunch.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; SDK/ACP test bash gate rechecks grant at release dispatch and child rechecks input digest/policy/expiry; not a production sandbox', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination, cancel/interrupt, resolution and child reports bypass count quota; journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed requires exact agent_settled evidence in the session file or fsynced settlement record, never external-effect completion', tree_navigation: 'SDK/ACP B2 navigateTree supported; RPC B2 navigation refused no_effect. Native new/fork/resume/tree lifecycle hooks bump bindings for all hosts; SDK leaf overrides append-order history.', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
       resource_profile: 'per-worker resources inventories actually registered tools/commands; SDK/ACP also exact loaded extension paths and skills. Project resources require create.project_trusted=true. SDK builtins added explicitly for untyped launches; launch_spec uses explicit resources/tools with no discovered resources/MCP/project context; no MCP connection parity claim', cleanup_profile: this.containment.profile };
   }
   private async cleanup(live: Live): Promise<boolean> {
@@ -308,6 +327,7 @@ export class Supervisor {
     // Never downgrade that independent confirmed-stop evidence to leader-only.
     if (live.worker.status === 'stopped' && live.pid === null) { live.exited = true; return; }
     live.exited = true;
+    this.closeChannel(live);
     const cleaning = live.worker.status === 'cleanup_pending';
     if (live.worker.execution && live.worker.execution.state !== 'settled') {
       const id = live.worker.execution.command_id;
@@ -337,8 +357,9 @@ export class Supervisor {
         this.binding(parent, { ...c.parent, command_id: c.command_id });
         if (parent.worker.status !== 'ready' || parent.worker.execution?.execution_id !== c.parent.execution_id) throw new Refusal('stale_parent_execution');
         const p = parent.worker.launch_spec;
+        const resourceSubset = (paths: string[], allowed: string[]) => paths.every(path => allowed.includes(path) || (p?.environment.filesystem === 'bwrap' && spec.environment.filesystem === 'bwrap' && path.startsWith(join(c.cwd, '.a0-agent') + '/') && allowed.includes(join(parent.worker.cwd, '.a0-agent', relative(join(c.cwd, '.a0-agent'), path)))));
         if (p?.environment.filesystem === 'bwrap' && spec.environment.filesystem !== 'bwrap') throw new Refusal('child_filesystem_cannot_widen');
-        if (!p || !subset(spec.grant_methods, p.grant_methods) || !subset(spec.environment.allowed_methods, p.environment.allowed_methods) || !subset(spec.tools, p.tools) || !subset(p.denied_tools, spec.denied_tools) || !subset(spec.resources.extensions, p.resources.extensions) || !subset(spec.resources.skills, p.resources.skills)) throw new Refusal('child_authority_not_subset');
+        if (!p || !subset(spec.grant_methods, p.grant_methods) || !subset(spec.environment.allowed_methods, p.environment.allowed_methods) || !subset(spec.tools, p.tools) || !subset(p.denied_tools, spec.denied_tools) || !resourceSubset(spec.resources.extensions, p.resources.extensions) || !resourceSubset(spec.resources.skills, p.resources.skills)) throw new Refusal('child_authority_not_subset');
         if (parent.worker.grant_source_id) this.grants.active(parent.worker.grant_source_id);
       }
     }
@@ -372,7 +393,7 @@ export class Supervisor {
       this.persist(live);
       this.receipts.dispatch(c.command_id, { worker_id });
       const dir = this.sessionDir(live);
-      const host = this.factory({ ...c, cwd }, dir, { worker_id, launch_command_id: c.command_id, parent: c.parent, launch_spec: c.launch_spec, containment: this.containment, unit: live.unit }); live.host = host;
+      const host = this.factory({ ...c, cwd }, dir, await this.hostContext(live, c, c.command_id)); live.host = host;
       live.pid = host.pid ?? null; live.token = host.token; this.persist(live);
       this.wireHost(live, host);
       try {
@@ -465,7 +486,7 @@ export class Supervisor {
       const dir = this.sessionDir(live);
       live.rebinding = true;
       try {
-        const host = this.factory(c, dir, { worker_id: id, launch_command_id: b.command_id, parent: c.parent, launch_spec: c.launch_spec, containment: this.containment, unit: live.unit });
+        const host = this.factory(c, dir, await this.hostContext(live, c, b.command_id));
         live.host = host; live.pid = host.pid ?? null; live.token = host.token; this.persist(live);
         this.wireHost(live, host);
         const init = await host.request({ type: 'get_state' });
@@ -730,6 +751,7 @@ export class Supervisor {
   }
   async shutdown(): Promise<void> {
     for (const live of this.workers.values()) {
+      this.closeChannel(live);
       this.clearInteractions(live);
       if (live.unit) await this.cleanup(live);
       else if (live.host) { await live.host.stop(); }

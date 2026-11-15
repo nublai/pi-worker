@@ -15,7 +15,7 @@ export function gitWorktreeMounts(root: string): string[] {
   if (dirname(admin) !== join(common, 'worktrees') || realpathSync(readFileSync(join(admin, 'gitdir'), 'utf8').trim()) !== realpathSync(dot)) throw new Refusal('sandbox_git_not_linked_worktree');
   const head = readFileSync(join(admin, 'HEAD'), 'utf8').trim();
   const mounts = ['--bind', admin, admin];
-  for (const name of ['config', 'packed-refs', 'shallow', 'refs', 'logs']) {
+  for (const name of ['config', 'packed-refs', 'shallow', 'info/exclude', 'refs', 'logs']) {
     const path = join(common, name); if (existsSync(path)) mounts.push('--ro-bind', path, path);
   }
   // A commit creates loose objects and may update object-store metadata. This

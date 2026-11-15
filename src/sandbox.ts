@@ -10,7 +10,7 @@ const runtime = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '')
 export function sandboxRoot(c: Create, stateDir: string): string | undefined {
   const env = c.launch_spec?.environment;
   if (env?.filesystem !== 'bwrap') return undefined;
-  if (process.platform !== 'linux' || !c.parent || !['sdk', 'acp'].includes(c.host ?? 'rpc')) throw new Refusal('bwrap_requires_linux_sdk_or_acp_child');
+  if (process.platform !== 'linux' || !['sdk', 'acp'].includes(c.host ?? 'rpc')) throw new Refusal('bwrap_requires_linux_sdk_or_acp');
   if (!env.root || realpathSync(env.root) !== realpathSync(c.cwd)) throw new Refusal('sandbox_root_must_equal_cwd');
   const root = realpathSync(env.root), state = realpathSync(stateDir);
   if (root === '/') throw new Refusal('sandbox_root_is_host_root');
@@ -19,6 +19,11 @@ export function sandboxRoot(c: Create, stateDir: string): string | undefined {
   const protectedPaths = ['/sys/fs/cgroup', '/proc', '/dev', ...userRuntimeDirs.flatMap(path => [path, join(path, 'bus')]), ...(process.env.PI_WORKER_SOCKET ? [realpathSync(dirname(process.env.PI_WORKER_SOCKET))] : []), ...(process.env.PI_WORKER_GRANT_FILE ? [realpathSync(process.env.PI_WORKER_GRANT_FILE)] : [])]
     .map(path => existsSync(path) ? realpathSync(path) : resolve(path));
   if (protectedPaths.some(path => inside(root, path) || inside(path, root))) throw new Refusal('sandbox_overlaps_protected_control_path');
+  const gitMounts = gitWorktreeMounts(root);
+  for (let i = 1; i < gitMounts.length; i += 3) {
+    const path = realpathSync(gitMounts[i]!);
+    if ([state, ...protectedPaths].some(control => inside(path, control) || inside(control, path))) throw new Refusal('sandbox_git_overlaps_protected_control_path');
+  }
   for (const path of c.launch_spec!.resources.extensions.concat(c.launch_spec!.resources.skills)) if (!inside(root, realpathSync(path))) throw new Refusal('sandbox_resource_outside_root');
   // Runtime mounts are worker-owned code/dependencies, never a user-selected
   // host directory. Refuse accidental exposure of state via any read-only bind.
@@ -28,13 +33,24 @@ export function sandboxRoot(c: Create, stateDir: string): string | undefined {
 function runtimePaths(): string[] {
   return [...new Set([join(runtime, 'dist'), join(runtime, 'node_modules'), join(runtime, 'package.json'), dirname(realpathSync(process.execPath)), ...[join(runtime, 'node_modules')].filter(existsSync).map(path => realpathSync(path))])];
 }
-export function sandboxLaunch(root: string, command: string, args: string[], parent: NonNullable<Create['parent']>, workerId: string): { command: string; args: string[]; env: NodeJS.ProcessEnv } {
+export function sandboxLaunch(root: string, command: string, args: string[], parent: Create['parent'], workerId: string, channel?: { socket: string; config: string }): { command: string; args: string[]; env: NodeJS.ProcessEnv } {
   const mounts = ['--unshare-user', '--unshare-pid', '--unshare-ipc', '--unshare-uts', '--new-session', '--cap-drop', 'ALL', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--tmpfs', '/run'];
   for (const path of ['/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc/ssl', '/etc/resolv.conf', '/etc/hosts', '/etc/nsswitch.conf', ...runtimePaths()]) if (existsSync(path)) mounts.push('--ro-bind', path, path);
   mounts.push('--bind', root, root, ...gitWorktreeMounts(root), '--chdir', root, '--dir', '/tmp/a0-home');
+  // Pi may read only the deliberately staged credential stores, read-only. No
+  // host profile, HOME, grant directory or supervisor state is mounted.
+  for (const name of ['models-store.json', 'auth.json']) {
+    const path = join(root, '.a0-agent', name);
+    if (existsSync(path)) mounts.push('--ro-bind', path, path);
+  }
+  if (!parent) {
+    if (!channel) throw new Refusal('sandbox_parent_channel_required');
+    mounts.push('--ro-bind', channel.socket, '/run/a0-parent/socket', '--ro-bind', channel.config, '/run/a0-parent/client.json');
+  }
   return { command: 'bwrap', args: [...mounts, '--', command, ...args], env: {
-    PATH: `${dirname(realpathSync(process.execPath))}:/usr/bin:/bin`, HOME: '/tmp/a0-home', LANG: 'C.UTF-8', TERM: 'dumb',
-    PI_CODING_AGENT_DIR: join(root, '.a0-agent'), PI_WORKER_ID: workerId, PI_WORKER_REPORT_FD: '3', PI_WORKER_TASK_ID: parent.task_id, PI_SUBAGENT_ID: parent.task_id,
+    PATH: `${join(root, '.a0-bin')}:${dirname(realpathSync(process.execPath))}:/usr/bin:/bin`, PI_WORKER_TERMINAL_TRAP: join(root, '.a0-terminal-calls'), HOME: '/tmp/a0-home', LANG: 'C.UTF-8', TERM: 'dumb',
+    PI_CODING_AGENT_DIR: join(root, '.a0-agent'), PI_WORKER_ID: workerId, PI_WORKER_BACKEND: '1',
+    ...(parent ? { PI_WORKER_REPORT_FD: '3', PI_WORKER_TASK_ID: parent.task_id, PI_SUBAGENT_ID: parent.task_id } : { PI_WORKER_SOCKET: '/run/a0-parent/socket', PI_WORKER_GRANT_FILE: '/run/a0-parent/client.json', PI_WORKER_WORKTREE_ROOT: join(root, '.a0-worktrees') }),
   } };
 }
 /** Walk from a pinned / fd, refusing symlinks at EVERY component. A renamed
