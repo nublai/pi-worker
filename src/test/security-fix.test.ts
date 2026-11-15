@@ -102,17 +102,25 @@ test('B2: refused launches stage nothing; accepted staging never copies a raced 
       assert.equal(refused.body.error, 'child_authority_not_subset', JSON.stringify(refused.body));
       assert.deepEqual(tree(cwd), [], 'a refused launch performs no copy');
     }
-    let staged = 0;
+    let staged = 0; const failed: string[] = [];
     for (let i = 0; i < 40; i++) {
       const cwd = join(f.root, '.a0-worktrees', 'ok' + i); mkdirSync(cwd);
       const launched = await call(f.socket, '/workers', f.child('ok' + i, cwd));
-      assert.equal(launched.body.state, 'delivered', JSON.stringify(launched.body));
-      for (const name of readdirSync(join(cwd, '.a0-agent'))) {
+      // Leak check first, whatever the receipt says: a path-following copy can
+      // both fail and steal under this race.
+      for (const name of existsSync(join(cwd, '.a0-agent')) ? readdirSync(join(cwd, '.a0-agent')) : []) {
         const path = join(cwd, '.a0-agent', name);
         if (lstatSync(path).isFile()) { staged++; assert.notEqual(readFileSync(path, 'utf8'), 'SECRET-MARKER', `staging copied a link target (${name}, attempt ${i})`); }
       }
+      if (launched.body.state !== 'delivered') {
+        failed.push(String(launched.body.error ?? launched.body.state));
+        // Fixture plumbing only: lift the parent fence so later attempts still race.
+        const w = f.s.get(f.w.worker_id);
+        if (w.fence) await f.s.resolveUnknown(w.worker_id, { command_id: 'resolve-' + i, worker_epoch: w.worker_epoch, session_id: w.session_id!, binding_revision: w.binding_revision, uncertain_command_id: w.fence.command_id, fence_generation: w.fence.fence_generation, disposition: 'abandon' });
+      }
     }
     assert.ok(staged > 0);
+    assert.deepEqual(failed, [], 'descriptor staging tolerates a racing swap without failing the launch');
   } finally { racer.kill('SIGKILL'); await f.cleanup(); }
 });
 
