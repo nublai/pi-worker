@@ -31,9 +31,11 @@ for (const name of Object.keys(process.env)) if (/^(HERDR_|HC_|PI_SUBAGENT_)/.te
 Object.assign(process.env, { PI_CODING_AGENT_DIR: profile, PI_WORKER_BACKEND: '1', PI_WORKER_TERMINAL_TRAP: join(root, 'terminal-calls'), PI_WORKER_SOCKET: socket, PI_WORKER_GRANT_FILE: join(state, 'grants/orchestrator.json'), PI_WORKER_WORKTREE_ROOT: join(root, 'worktrees') });
 const journal = new Journal(join(state, 'journal'));
 const rpcCounts = {};
+const nativeExits = [];
 const factory = Supervisor.rpcFactory('/home/exedev/.local/bin/pi');
 const s = new Supervisor(state, journal, '1.5.2', (...args) => {
   const host = factory(...args), request = host.request.bind(host);
+  nativeExits.push(new Promise(resolve => host.once('exit', resolve)));
   host.request = (command, ...rest) => { rpcCounts[command.type] = (rpcCounts[command.type] ?? 0) + 1; return request(command, ...rest); };
   return host;
 });
@@ -134,8 +136,13 @@ try {
   summary.native_rpc_counts = rpcCounts;
   const owned = [...s.workers.values()].filter(live => live.host?.pid).map(live => ({ worker_id: live.worker.worker_id, pid: live.host.pid }));
   await s.shutdown();
+  // killGroup can observe a zombie before Node reaps it. Wait for our own exit events,
+  // not a process-name sweep or a polling loop, before asserting /proc absence.
+  let reapTimer;
+  await Promise.race([Promise.all(nativeExits), new Promise(resolve => { reapTimer = setTimeout(resolve, 10000); })]);
+  clearTimeout(reapTimer);
   summary.process_check = owned.map(p => ({ ...p, absent: !existsSync(`/proc/${p.pid}`) }));
-  assert.ok(summary.process_check.every(p => p.absent), 'all test-owned Pi leaders gone');
+  if (!summary.process_check.every(p => p.absent)) { summary.outcome = 'failed'; summary.error = 'test-owned Pi leader still present after exit wait'; process.exitCode = 1; }
   await new Promise(resolve => server.close(resolve));
   journal.close();
   writeFileSync(join(root, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');
