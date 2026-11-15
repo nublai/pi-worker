@@ -1,18 +1,43 @@
 /** The ONE way owner-side and harness code runs Git in a checkout that a
- * sandboxed agent could write. Before every command it re-reads the `.git`
- * pointer, the admin dir's gitdir/commondir (and symbolic HEAD), common config
- * and alternates through O_NOFOLLOW descriptor opens and compares them with the
- * launch-time pin. It then runs Git against the pinned git dir with fsmonitor
- * and hooks disabled and submodules ignored. Repository config is read-only to
- * every sandbox and may not contain includes. */
+ * sandboxed agent could write.
+ *
+ * A pin compare followed by `git --git-dir=<path>` is not one step: Git would
+ * re-open the gitfile, `commondir`, HEAD and config by path, and a sandboxed
+ * parent can rewrite its children's admin files (and its own `.git/commondir`)
+ * in that window. So every call:
+ *  1. opens the checkout's `.git`, admin and common dirs with O_NOFOLLOW and
+ *     compares the launch-time pin (gitfile, gitdir, commondir, symbolic HEAD,
+ *     config hash, alternates) through those descriptors;
+ *  2. copies HEAD, config (re-hashed against the pin), refs, packed-refs,
+ *     shallow, info and the index from the SAME descriptors into a fresh
+ *     mode-0700 directory the supervisor owns, outside every sandbox mount;
+ *  3. refuses a config that names a program Git could run (filters, diff
+ *     drivers, textconv, includes, aliases, ...): `-c` cannot neutralise a
+ *     driver it does not know the name of, and worktree `.gitattributes` (agent
+ *     data) selects drivers by name;
+ *  4. runs Git with GIT_DIR = that snapshot (no `commondir`, so nothing is
+ *     redirected), objects from the pinned common dir (content-addressed data),
+ *     a clean environment allowlist, no global/system/XDG config or attributes,
+ *     fsmonitor and hooks disabled, submodules ignored, no transport, and
+ *     `--no-ext-diff --no-textconv` on diff-family commands.
+ * Owner Git never re-opens an agent-writable path for anything that selects
+ * code to execute. Read-only: writes Git makes land in the discarded snapshot. */
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
-import { closeSync } from 'node:fs';
-import { assertPin, gitPinAt, type GitPin } from './git-sandbox.js';
-import { openPinned } from './pinned-fs.js';
+import { closeSync, fstatSync, mkdirSync, mkdtempSync, openSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, sep } from 'node:path';
+import { assertPin, checkConfig, gitPinAt, inspect, type GitPin } from './git-sandbox.js';
+import { DIR_FLAGS, copyFileAt, copyTreeAt, fdPath, isMissing, openPinned, openUnder, readUnder } from './pinned-fs.js';
 import { Refusal } from './types.js';
 export type { GitPin } from './git-sandbox.js';
 
-export const SAFE_GIT_CONFIG = ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-c', 'diff.ignoreSubmodules=all', '-c', 'submodule.recurse=false'];
+export const SAFE_GIT_CONFIG = ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-c', 'core.attributesFile=/dev/null', '-c', 'diff.ignoreSubmodules=all', '-c', 'submodule.recurse=false', '-c', 'protocol.allow=never'];
+/** Config keys whose value names a program Git can run. */
+const EXECUTES = /^(include|includeif)\.|^filter\.|^diff\.external$|^diff\..+\.(command|textconv)$|^merge\..+\.driver$|^alias\.|^gpg\.(.+\.)?program$|^core\.(sshcommand|pager|editor|askpass|gitproxy|alternaterefscommand)$|^pager\.|^sequence\.editor$|^uploadpack\.packobjectshook$/i;
+const DIFF_FAMILY = new Set(['diff', 'diff-tree', 'diff-index', 'diff-files', 'log', 'show', 'whatchanged']);
+const ENV_KEEP = ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES', 'TZ'];
+const inside = (root: string, path: string) => path === root || path.startsWith(root + sep);
+
 /** Read the current pin. Use ONLY for checkouts the owner created and no sandbox
  * has touched yet (that is what makes it a launch-time pin). */
 export function readGitPin(root: string): GitPin {
@@ -23,6 +48,9 @@ export function readGitPin(root: string): GitPin {
     return pin;
   } finally { closeSync(fd); }
 }
+/** Compare the current pointers with the pin. Advisory on its own: Git run
+ * afterwards by path could still see different bytes. safeGitRun does not
+ * rely on it; it snapshots from the compared descriptors. */
 export function checkGitPin(root: string, expected: GitPin | null | undefined): GitPin {
   if (!expected) throw new Refusal('git_launch_pin_required');
   const fd = openPinned(root, 'dir');
@@ -34,19 +62,95 @@ export function checkGitPin(root: string, expected: GitPin | null | undefined): 
   } finally { closeSync(fd); }
   return expected;
 }
-function env(): NodeJS.ProcessEnv {
-  const e = { ...process.env };
-  for (const k of Object.keys(e)) if (/^GIT_(DIR|WORK_TREE|COMMON_DIR|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|CONFIG_PARAMETERS|CONFIG_COUNT|CONFIG_KEY_\d+|CONFIG_VALUE_\d+|EXEC_PATH|NAMESPACE|CEILING_DIRECTORIES)$/.test(k)) delete e[k];
-  return e;
+function cleanEnv(home: string, objects: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const k of ENV_KEEP) if (process.env[k] !== undefined) env[k] = process.env[k];
+  return { ...env, HOME: home, XDG_CONFIG_HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_ATTR_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', GIT_NO_LAZY_FETCH: '1', GIT_OBJECT_DIRECTORY: objects };
 }
-/** Run Git after checking the pin; returns the raw result (no status check). */
+/** A fresh supervisor-private directory; refused if it is not ours, private, and outside the checkout. */
+function privateDir(pin: GitPin, root: string): string {
+  const dir = mkdtempSync(join(tmpdir(), 'a0-git-'));
+  const fd = openSync(dir, DIR_FLAGS);
+  try {
+    const st = fstatSync(fd);
+    if (st.uid !== process.getuid!() || (st.mode & 0o077) !== 0) throw new Refusal('git_snapshot_dir_not_private');
+  } finally { closeSync(fd); }
+  if ([root, pin.git_dir, pin.common_dir].some(p => inside(p, dir))) { rmSync(dir, { recursive: true, force: true }); throw new Refusal('git_snapshot_dir_inside_checkout'); }
+  return dir;
+}
+/** Steps 1-3: compare the pin and copy the pinned metadata through the same descriptors. */
+function snapshot(root: string, expected: GitPin, dir: string): void {
+  const rootFd = openPinned(root, 'dir');
+  let fds: number[] = [];
+  try {
+    let found;
+    try { found = inspect(root, rootFd); }
+    catch (error) { throw new Refusal(`git_metadata_changed_since_launch: ${error instanceof Error ? error.message : 'unreadable'}`); }
+    fds = found.fds;
+    assertPin(found.pin, expected);
+    const pin = found.pin!, gitFd = pin.kind === 'linked' ? found.admin! : found.dotGit!, common = found.common!;
+    const head = readUnder(gitFd, ['HEAD']);
+    if (!headMatches(pin, head)) throw new Refusal('git_metadata_changed_since_launch');
+    // Config: the bytes Git will read are the bytes hashed here.
+    const config = readUnder(common, ['config']);
+    let hash: string;
+    try { hash = checkConfig(config); } catch { throw new Refusal('git_metadata_changed_since_launch'); }
+    if (hash !== pin.config_sha256) throw new Refusal('git_metadata_changed_since_launch');
+    writeFileSync(join(dir, 'HEAD'), head!, { mode: 0o600, flag: 'wx' });
+    writeFileSync(join(dir, 'config'), config!, { mode: 0o600, flag: 'wx' });
+    copyData(gitFd, common, dir);
+  } finally { for (const fd of fds) closeSync(fd); closeSync(rootFd); }
+  refuseExecutingConfig(dir, expected);
+}
+/** HEAD selects a branch, never code; still demand the pinned shape. */
+function headMatches(pin: GitPin, head: string | null): boolean {
+  if (head === null) return false;
+  if (pin.head !== null) return head === pin.head;
+  const shape = pin.kind === 'linked' ? /^[a-f0-9]{40,64}\s*$/ : /^(ref: refs\/\S+|[a-f0-9]{40,64})\s*$/;
+  return shape.test(head);
+}
+/** Refs, packed-refs, shallow, info and the index: data, copied through the pinned descriptors; links refused. */
+function copyData(gitFd: number, common: number, dir: string): void {
+  const out = openSync(dir, DIR_FLAGS), budget = { entries: 0, bytes: 0 };
+  try {
+    for (const name of ['packed-refs', 'shallow']) copyFileAt(common, [name], out, name, budget);
+    copyFileAt(gitFd, ['index'], out, 'index', budget);
+    for (const name of ['refs', 'info']) {
+      mkdirSync(fdPath(out, name), { mode: 0o700 });
+      let src: number;
+      try { src = openUnder(common, [name], 'dir'); } catch (error) { if (isMissing(error)) continue; throw error; }
+      const dest = openUnder(out, [name], 'dir');
+      try { copyTreeAt(src, dest, budget, 0, 'refuse'); } finally { closeSync(dest); closeSync(src); }
+    }
+  } finally { closeSync(out); }
+}
+/** Step 3, with Git's own parser (BOMs, quoting, case) on the private copy. */
+function refuseExecutingConfig(dir: string, expected: GitPin): void {
+  const listed = spawnSync('git', ['config', '--file', join(dir, 'config'), '--no-includes', '--null', '--list'], { cwd: '/', env: cleanEnv(join(dir, 'home'), join(expected.common_dir, 'objects')) });
+  if (listed.error || listed.status !== 0) throw new Refusal('git_config_unparseable');
+  for (const entry of listed.stdout.toString('utf8').split('\0')) {
+    const key = entry.split('\n', 1)[0]!;
+    if (key && EXECUTES.test(key)) throw new Refusal(`git_config_executes_code: ${key}`);
+  }
+}
+/** Callers' argv, with external diff and textconv off for diff-family commands. */
+function guarded(args: string[]): string[] {
+  const [command, ...rest] = args;
+  return command !== undefined && DIFF_FAMILY.has(command) ? [command, '--no-ext-diff', '--no-textconv', ...rest] : args;
+}
+/** Run Git on a pinned snapshot; returns the raw result (no status check). */
 export function safeGitRun(root: string, pin: GitPin | null | undefined, args: string[], options: { maxBuffer?: number } = {}): SpawnSyncReturns<Buffer> {
-  const checked = checkGitPin(root, pin);
-  const result = spawnSync('git', ['-C', root, `--git-dir=${checked.git_dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...args], { env: env(), maxBuffer: options.maxBuffer ?? 256 * 1024 * 1024 });
-  if (result.error) throw result.error;
-  return result;
+  if (!pin) throw new Refusal('git_launch_pin_required');
+  const dir = privateDir(pin, root);
+  try {
+    snapshot(root, pin, dir);
+    const home = join(dir, 'home'); mkdirSync(home, { mode: 0o700 });
+    const result = spawnSync('git', ['-C', root, `--git-dir=${dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...guarded(args)], { env: cleanEnv(home, join(pin.common_dir, 'objects')), maxBuffer: options.maxBuffer ?? 256 * 1024 * 1024 });
+    if (result.error) throw result.error;
+    return result;
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 }
-/** Run Git after checking the pin; throws on nonzero exit; returns trimmed UTF-8. */
+/** Run Git on a pinned snapshot; throws on nonzero exit; returns trimmed UTF-8. */
 export function safeGit(root: string, pin: GitPin | null | undefined, args: string[]): string {
   return safeGitBuffer(root, pin, args).toString('utf8').trim();
 }

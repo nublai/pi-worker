@@ -73,7 +73,7 @@ export function readUnder(base: number, names: string[]): string | null {
  * link. Links are recreated verbatim; regular files are read through the exact
  * descriptor opened with O_NOFOLLOW, so a swap after readdir yields either the
  * original file or a refused link, never the link target's bytes. */
-export function copyTreeAt(source: number, dest: number, budget = { entries: 0, bytes: 0 }, depth = 0): void {
+export function copyTreeAt(source: number, dest: number, budget = { entries: 0, bytes: 0 }, depth = 0, links: 'recreate' | 'refuse' = 'recreate'): void {
   if (depth > 32) throw new Refusal('profile_copy_too_deep');
   for (const name of readdirSync(fdPath(source))) {
     if (++budget.entries > 10000) throw new Refusal('profile_copy_too_many_entries');
@@ -87,24 +87,37 @@ export function copyTreeAt(source: number, dest: number, budget = { entries: 0, 
         try { link = readlinkSync(fdPath(source, name)); } catch (again) { if (code(again) !== 'EINVAL') throw again; }
       }
     }
-    if (fd === undefined) { symlinkSync(link!, fdPath(dest, name)); continue; }
+    if (fd === undefined) {
+      if (links === 'refuse') throw new Refusal('pinned_copy_link_refused');
+      symlinkSync(link!, fdPath(dest, name)); continue;
+    }
     try {
       const st = fstatSync(fd);
       if (st.isDirectory()) {
         mkdirSync(fdPath(dest, name), { mode: (st.mode & 0o777) | 0o700 });
         const child = openSync(fdPath(dest, name), DIR_FLAGS);
-        try { copyTreeAt(fd, child, budget, depth + 1); } finally { closeSync(child); }
-      } else if (st.isFile()) {
-        const out = openSync(fdPath(dest, name), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, st.mode & 0o777);
-        try {
-          const buf = Buffer.alloc(64 * 1024);
-          for (;;) {
-            const n = readSync(fd, buf, 0, buf.length, null); if (!n) break;
-            budget.bytes += n; if (budget.bytes > 256 * 1024 * 1024) throw new Refusal('profile_copy_too_large');
-            let off = 0; while (off < n) off += writeSync(out, buf, off, n - off);
-          }
-        } finally { closeSync(out); }
-      } else throw new Refusal('profile_copy_special_file');
+        try { copyTreeAt(fd, child, budget, depth + 1, links); } finally { closeSync(child); }
+      } else if (st.isFile()) writeFdAt(fd, dest, name, st.mode & 0o777, budget);
+      else throw new Refusal('profile_copy_special_file');
     } finally { closeSync(fd); }
   }
+}
+/** Write the remaining bytes of open file `fd` to a new entry `name` in `dest`. */
+function writeFdAt(fd: number, dest: number, name: string, mode: number, budget: { bytes: number }): void {
+  const out = openSync(fdPath(dest, name), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, mode);
+  try {
+    const buf = Buffer.alloc(64 * 1024);
+    for (;;) {
+      const n = readSync(fd, buf, 0, buf.length, null); if (!n) break;
+      budget.bytes += n; if (budget.bytes > 256 * 1024 * 1024) throw new Refusal('profile_copy_too_large');
+      let off = 0; while (off < n) off += writeSync(out, buf, off, n - off);
+    }
+  } finally { closeSync(out); }
+}
+/** Copy the regular file `names` below `source` to `name` in `dest` through one
+ * O_NOFOLLOW descriptor. Returns false when the final entry is absent. */
+export function copyFileAt(source: number, names: string[], dest: number, name: string, budget = { entries: 0, bytes: 0 }): boolean {
+  let fd: number;
+  try { fd = openUnder(source, names, 'file'); } catch (error) { if (isMissing(error)) return false; throw error; }
+  try { writeFdAt(fd, dest, name, 0o600, budget); return true; } finally { closeSync(fd); }
 }

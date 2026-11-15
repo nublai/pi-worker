@@ -28,7 +28,7 @@ export type GitPin = {
 export type GitMount = { mode: 'bind' | 'ro-bind'; fd: number; dest: string };
 const inside = (root: string, path: string): boolean => path === root || path.startsWith(root === '/' ? '/' : root + sep);
 const real = (path: string, error: string) => { try { return realpathSync(path); } catch { throw new Refusal(error); } };
-function checkConfig(text: string | null): string {
+export function checkConfig(text: string | null): string {
   if (text === null) throw new Refusal('sandbox_git_config_missing');
   // An include can pull configuration from a sandbox-writable path, and
   // worktreeConfig makes the writable admin dir's config.worktree effective.
@@ -43,9 +43,11 @@ function samePin(a: GitPin | null, b: GitPin | null): boolean {
 export function assertPin(current: GitPin | null, expected: GitPin | null | undefined): void {
   if (expected !== undefined && !samePin(current, expected)) throw new Refusal('git_metadata_changed_since_launch');
 }
-type Inspection = { pin: GitPin | null; fds: number[]; dotGit?: number; admin?: number; common: number | undefined };
-/** Read Git pointers below an open root. `within` confines admin/common dirs. */
-function inspect(root: string, rootFd: number, within?: string): Inspection {
+export type Inspection = { pin: GitPin | null; fds: number[]; dotGit?: number; admin?: number; common: number | undefined };
+/** Read Git pointers below an open root. `within` confines admin/common dirs.
+ * The caller owns (and must close) `fds`; `dotGit`/`admin`/`common` are the
+ * exact directories the pin was read from. */
+export function inspect(root: string, rootFd: number, within?: string): Inspection {
   const fds: number[] = [];
   const keep = (fd: number) => { fds.push(fd); return fd; };
   try {
