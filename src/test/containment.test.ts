@@ -16,7 +16,7 @@ test('cleanup_pending is fsynced before kill; failed empty proof blocks resume a
   const unit = { root: '/fake', name: 'w-test', boot: 'fake' };
   const containment: Containment = { profile: 'test_cgroup', reserve: () => unit, spawn: () => { throw new Error('not used'); }, clean: async () => {
     cleanCalls++;
-    const records = readFileSync(join(dir, 'journal'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+    const records = readFileSync(join(dir, 'journal'), 'utf8').trim().split('\n').map(l => JSON.parse(l).record);
     const latest = records.filter(r => r.kind === 'worker').at(-1);
     assert.equal(latest.value.worker.status, 'cleanup_pending');
     return confirmed;
