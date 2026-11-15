@@ -8,7 +8,7 @@ import { requestHash } from '../../receipts.js';
 import type { Containment, CleanupUnit } from '../../containment.js';
 import type { Prompt } from '../../types.js';
 import type { PiRecord } from '../../host.js';
-import { Host, bind } from '../helpers.js';
+import { Host, bind, tick } from '../helpers.js';
 const [mode, root] = process.argv.slice(2) as [string, string];
 mkdirSync(root, { recursive: true });
 const effects = join(root, 'effects'), journalPath = join(root, 'journal'); let ordinal = 0;
@@ -29,7 +29,7 @@ const jail: Containment = {
   },
 };
 const journal = new Journal(journalPath); let host: Host;
-const supervisor = new Supervisor(root, journal, 'test', (c, dir, context) => {
+const supervisor = new Supervisor(join(root, 'state'), journal, 'test', (c, dir, context) => {
   assert.notEqual(mode, 'recover', 'recovery never spawns');
   assert.ok(context?.unit);
   const reserved = records().findLast(r => r.kind === 'worker' && (r.value.unit as CleanupUnit)?.name === context.unit!.name);
@@ -38,7 +38,7 @@ const supervisor = new Supervisor(root, journal, 'test', (c, dir, context) => {
   writeFileSync(join(root, context.unit.name), 'populated');
   const sid = 'native-' + context.unit.name, file = join(dir, sid + '.jsonl');
   writeFileSync(file, JSON.stringify({ type: 'session', id: sid }) + '\n');
-  effect({ kind: 'spawn', unit: context.unit, command_id: mode === 'seed' ? 'create' : 'relaunch' });
+  effect({ kind: 'spawn', unit: context.unit, command_id: c.command_id === 'sandbox-child' ? 'sandbox-child' : mode === 'seed' ? 'create' : 'relaunch', ...(context.parent ? { parent: context.parent } : {}) });
   host = new Host(dir, sid, file);
   const request = host.request.bind(host);
   host.request = async (c: PiRecord) => {
@@ -54,7 +54,7 @@ const supervisor = new Supervisor(root, journal, 'test', (c, dir, context) => {
 }, jail);
 if (mode === 'seed') {
   const cwd = join(root, 'worktree'); mkdirSync(cwd);
-  const c = await supervisor.create({ command_id: 'create', cwd, provider: 'p', model: 'm', thinking: 'off' }); assert.equal(c.state, 'delivered');
+  const c = await supervisor.create({ command_id: 'create', cwd, host: 'sdk', provider: 'p', model: 'm', thinking: 'off', launch_spec: { environment: { id: 'fixture', revision: 1, allowed_methods: ['children.report'] }, role: 'parent', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: ['children.report'], seed_mode: 'standalone' } }); assert.equal(c.state, 'delivered');
   const w = supervisor.get(c.worker_id!);
   const p = { ...bind(w, 'work'), message: 'work' };
   writeFileSync(join(root, 'request'), JSON.stringify({ id: w.worker_id, p }));
@@ -76,6 +76,12 @@ if (mode === 'seed') {
   assert.deepEqual(await supervisor.prompt(id, p), first);
   assert.equal(readFileSync(join(root, 'native-input'), 'utf8'), 'ONCE\n');
   host!.emit('event', { type: 'agent_settled' });
+  const parent = supervisor.get(id), childCwd = join(root, 'child-worktree'); mkdirSync(childCwd);
+  const childReceipt = await supervisor.create({ ...supervisor.require(id).create!, command_id: 'sandbox-child', cwd: childCwd, parent: { worker_id: id, worker_epoch: parent.worker_epoch, session_id: parent.session_id!, binding_revision: parent.binding_revision, execution_id: parent.execution!.execution_id, task_id: 'sandbox-task', generation_id: 'fixture' }, launch_spec: { ...parent.launch_spec!, role: 'child', environment: { ...parent.launch_spec!.environment, filesystem: 'bwrap', root: childCwd } } });
+  assert.equal(childReceipt.state, 'delivered');
+  host!.emit('report', { report_id: 'report', kind: 'result', message: 'unverified fixture report' }); await tick();
+  effect({ kind: 'report', command_id: `fd-${childReceipt.worker_id}-report` });
+  explicitCommand = 'stop-child'; assert.equal((await supervisor.stop(childReceipt.worker_id!, bind(supervisor.get(childReceipt.worker_id!), 'stop-child'))).state, 'delivered');
   explicitCommand = 'stop'; assert.equal((await supervisor.stop(id, bind(supervisor.get(id), 'stop'))).state, 'delivered');
   console.log(JSON.stringify({ effects: ordinal, done: true })); journal.close();
 } else {

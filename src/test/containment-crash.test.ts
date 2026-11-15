@@ -26,6 +26,10 @@ function check(root: string) {
       const w = at.findLast(r => r.kind === 'worker' && (r.value.unit as { name: string })?.name === e.unit.name);
       assert.ok(w, 'EVERY spawn/kill requires its exact durable domain, not just workers that happen to have it');
       if (e.kind === 'kill') assert.equal((w.value.worker as Worker).status, 'cleanup_pending', 'pending precedes native kill');
+      if (e.parent) {
+        assert.deepEqual((w.value.worker as Worker).parent, e.parent, 'sandbox spawn cannot lose lineage');
+        assert.equal((w.value.worker as Worker).launch_spec?.environment.filesystem, 'bwrap', 'confinement declaration precedes spawn');
+      }
     }
     if (e.command_id !== 'recovery') {
       const r = at.findLast(r => r.kind === 'receipt' && r.value.command_id === e.command_id);
@@ -33,12 +37,20 @@ function check(root: string) {
     }
   }
   const after = JSON.parse(run('recover', root).stdout) as { workers: Worker[]; receipts: Receipt[] };
+  const ownerKeep = records.some(r => r.kind === 'worker' && (r.value.worker as Worker).resolutions?.some(x => x.command_id === 'work' && x.disposition === 'keep'));
+  const priorWork = records.findLast(r => r.kind === 'receipt' && r.value.command_id === 'work')?.value;
+  if (ownerKeep && priorWork && ['intent_recovered', 'intent_ready'].includes(String(priorWork.state))) assert.equal(after.receipts.find(r => r.command_id === 'work')?.state, 'intent_ready', 'durable owner tombstone repairs readiness after a crash');
   for (const e of effects) if (['spawn', 'switch', 'prompt'].includes(e.kind)) {
     const r = after.receipts.find(r => r.command_id === e.command_id);
     assert.ok(r && r.effect !== 'no_effect', `${e.kind} effect cannot recover no_effect`);
   }
   if (effects.some(e => e.kind === 'prompt') && !records.some(r => r.kind === 'settlement' && r.value.command_id === 'work')) {
     assert.ok(after.workers.some(w => w.fence?.uncertain_command_ids?.includes('work')), 'post-owner-resolution dispatch still fences after crash');
+  }
+  for (const e of effects.filter(e => e.parent)) {
+    const child = after.workers.find(w => w.parent?.task_id === e.parent.task_id); assert.ok(child);
+    const reported = after.receipts.some(r => r.worker_id === child.worker_id && r.operation === 'children.report' && r.state === 'delivered' && r.result?.kind === 'result');
+    if (!reported) assert.ok(after.workers.find(w => w.worker_id === e.parent.worker_id)?.fence?.uncertain_command_ids?.includes('sandbox-child'), 'unreported sandbox spawn fences its parent');
   }
   const count = effects.filter(e => e.kind === 'prompt').length; assert.ok(count <= 1);
   if (existsSync(join(root, 'native-input'))) assert.equal(readFileSync(join(root, 'native-input'), 'utf8'), 'ONCE\n');
@@ -47,7 +59,24 @@ function check(root: string) {
   assert.deepEqual(again.workers.map(w => w.fence), after.workers.map(w => w.fence));
 }
 
-test('slice 5: SIGKILL after every recovery/resolve/relaunch/prompt/stop fsync and native lifecycle effect', () => {
+test('slice 5: contained initial create reserves its domain before every spawn and survives all fsync/effect cuts', () => {
+  let root = mkdtempSync(join(tmpdir(), 'a0s5-create-cut-')), count: number;
+  try {
+    const baseline = run('seed', root, { A0_TRACE_FSYNC: '1' }); assert.equal(baseline.signal, 'SIGKILL');
+    count = baseline.stderr.trim().split('\n').filter(l => l.startsWith('{"fsync":')).length;
+  } finally { rmSync(root, { recursive: true, force: true }); }
+  for (let i = 1; i <= count!; i++) {
+    root = mkdtempSync(join(tmpdir(), 'a0s5-create-cut-'));
+    try { assert.equal(run('seed', root, { A0_CRASH_INDEX: String(i) }).signal, 'SIGKILL'); check(root); }
+    finally { rmSync(root, { recursive: true, force: true }); }
+  }
+  root = mkdtempSync(join(tmpdir(), 'a0s5-create-cut-'));
+  try { assert.equal(run('seed', root, { A0_CRASH_EFFECT: '1' }).signal, 'SIGKILL'); check(root); }
+  finally { rmSync(root, { recursive: true, force: true }); }
+  console.log(JSON.stringify({ slice5_create_fsync_cuts: count!, slice5_create_effect_cuts: 1 }));
+});
+
+test('slice 5: SIGKILL after every recovery/resolve/relaunch/sandbox/report/stop fsync and native lifecycle effect', () => {
   let root = fresh(); let count: number, effectCount: number;
   try {
     const baseline = run('scenario', root, { A0_TRACE_FSYNC: '1' }); assert.equal(baseline.status, 0);
