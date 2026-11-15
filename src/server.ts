@@ -6,6 +6,7 @@ import { readFileSync, lstatSync, chmodSync, unlinkSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Refusal, type Binding, type Create, type Prompt, type Cursor } from './types.js';
 import { Supervisor } from './supervisor.js';
+import type { DurableHost } from './durable-host.js';
 function loadSpec(): { components: { schemas: Record<string, Schema> } } {
   try { return JSON.parse(readFileSync(new URL('../openapi.json', import.meta.url), 'utf8')) as { components: { schemas: Record<string, Schema> } }; }
   catch (cause) { throw new Error('cannot load checked-in OpenAPI spec; refusing startup', { cause }); }
@@ -55,7 +56,7 @@ function cursor(req: IncomingMessage, url: URL): Cursor | null {
   }
   return value as Cursor | null;
 }
-export function router(supervisor: Supervisor): Server {
+export function router(supervisor: Supervisor | DurableHost): Server {
   return createServer((req, res) => {
     void (async () => {
       const url = new URL(req.url ?? '/', 'http://a0-unix-socket');
@@ -81,7 +82,7 @@ export function router(supervisor: Supervisor): Server {
         if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Refusal('invalid_history_limit');
         const watermark = url.searchParams.get('watermark');
         supervisor.get(id);
-        const page = live.index.page(watermark ? { watermark, after: url.searchParams.get('after') } : null, limit);
+        const page = await live.index.page(watermark ? { watermark, after: url.searchParams.get('after') } : null, limit);
         if ('error' in page) throw new Refusal(page.error);
         return json(res, page);
       }

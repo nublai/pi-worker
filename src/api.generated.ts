@@ -144,8 +144,8 @@ export interface components {
         HistoryMarker: {
             last_entry_id: string | null;
             lag: boolean;
-            /** @constant */
-            evidence: "pi_session_file";
+            /** @enum {unknown} */
+            evidence: "pi_session_file" | "durable_storage";
         };
         Binding: {
             command_id: string;
@@ -186,7 +186,7 @@ export interface components {
             supervisor_epoch: string;
             session_id: string | null;
             /** @enum {unknown} */
-            session_identity_evidence: "pi_rpc_header_id" | "pi_session_file";
+            session_identity_evidence: "pi_rpc_header_id" | "pi_session_file" | "durable_conversation_id";
             binding_revision: number;
             leaf_id: string | null;
             cwd: string;
@@ -214,8 +214,8 @@ export interface components {
             stage: "reserved" | "recovery_pending" | "dispatch_recorded" | "forwarded" | "termination_observed" | "refused" | "unknown";
             /** @enum {unknown} */
             effect: "no_effect" | "unknown" | "observed";
-            /** @constant */
-            evidence: "supervisor_journal_fsynced";
+            /** @enum {unknown} */
+            evidence: "supervisor_journal_fsynced" | "durable_storage";
             created_at: string;
             worker_id?: string;
             execution_id?: string;
@@ -260,8 +260,8 @@ export interface components {
             next: components["schemas"]["HistoryCursor"] | null;
             leafId: string | null;
             truncated: boolean;
-            /** @constant */
-            evidence: "pi_session_file";
+            /** @enum {unknown} */
+            evidence: "pi_session_file" | "durable_storage";
         };
         Snapshot: {
             /** @constant */

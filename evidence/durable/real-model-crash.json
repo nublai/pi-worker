@@ -1,0 +1,41 @@
+{
+  "root": "/tmp/a0d/real-crash-3D6F1Q",
+  "partial": {
+    "event": "real_partial",
+    "pid": 3214,
+    "chars": 91
+  },
+  "requests": [
+    {
+      "pid": 3214,
+      "at": 1794724135674
+    },
+    {
+      "pid": 3226,
+      "at": 1794724137638
+    }
+  ],
+  "settled": {
+    "event": "settled",
+    "pid": 3226,
+    "outcome": {
+      "conversationId": 1,
+      "requestId": "real-model-cut",
+      "type": "input",
+      "status": "done",
+      "entry": 7,
+      "id": 8,
+      "answer": 10
+    },
+    "userEntries": 1,
+    "assistants": [
+      {
+        "id": 10,
+        "stopReason": "stop",
+        "chars": 7610,
+        "finalMarker": true
+      }
+    ]
+  },
+  "allChildrenStopped": true
+}

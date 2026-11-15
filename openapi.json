@@ -612,7 +612,7 @@
             "type": "boolean"
           },
           "evidence": {
-            "const": "pi_session_file"
+            "enum": ["pi_session_file", "durable_storage"]
           }
         },
         "required": [
@@ -785,7 +785,8 @@
           "session_identity_evidence": {
             "enum": [
               "pi_rpc_header_id",
-              "pi_session_file"
+              "pi_session_file",
+              "durable_conversation_id"
             ]
           },
           "binding_revision": {
@@ -930,7 +931,7 @@
             ]
           },
           "evidence": {
-            "const": "supervisor_journal_fsynced"
+            "enum": ["supervisor_journal_fsynced", "durable_storage"]
           },
           "created_at": {
             "type": "string"
@@ -1104,7 +1105,7 @@
             "type": "boolean"
           },
           "evidence": {
-            "const": "pi_session_file"
+            "enum": ["pi_session_file", "durable_storage"]
           }
         },
         "required": [

@@ -1,0 +1,228 @@
+
+> @nublai/pi-worker-a0@0.0.0-throwaway test
+> npm run build && node --test dist/test/*.test.js
+
+
+> @nublai/pi-worker-a0@0.0.0-throwaway build
+> tsc -p tsconfig.json
+
+TAP version 13
+# Subtest: Durable B2: atomic receipt/submission, concurrent duplicate, conflicts, snapshot, pinned history and stop
+ok 1 - Durable B2: atomic receipt/submission, concurrent duplicate, conflicts, snapshot, pinned history and stop
+  ---
+  duration_ms: 82.808896
+  type: 'test'
+  ...
+# Subtest: native requestId deduplicates even different content; host must retain conflict comparison
+ok 2 - native requestId deduplicates even different content; host must retain conflict comparison
+  ---
+  duration_ms: 7.069097
+  type: 'test'
+  ...
+# Subtest: submit(tx) rollback stores neither submission nor control record
+ok 3 - submit(tx) rollback stores neither submission nor control record
+  ---
+  duration_ms: 10.17856
+  type: 'test'
+  ...
+# Subtest: supervisor dispatch marker with execution ID is fsynced before the host receives prompt (M2)
+ok 4 - supervisor dispatch marker with execution ID is fsynced before the host receives prompt (M2)
+  ---
+  duration_ms: 47.846855
+  type: 'test'
+  ...
+# Subtest: HTTP pi prompt response timeout: unknown and durable fence before response headers (M1, M6)
+ok 5 - HTTP pi prompt response timeout: unknown and durable fence before response headers (M1, M6)
+  ---
+  duration_ms: 36.464739
+  type: 'test'
+  ...
+# Subtest: HTTP stdin write failed: unknown and durable fence before response headers (M1, M6)
+ok 6 - HTTP stdin write failed: unknown and durable fence before response headers (M1, M6)
+  ---
+  duration_ms: 26.232979
+  type: 'test'
+  ...
+# Subtest: Pi exit fences an admitted run durably without rewriting delivered admission (M9)
+ok 7 - Pi exit fences an admitted run durably without rewriting delivered admission (M9)
+  ---
+  duration_ms: 25.37765
+  type: 'test'
+  ...
+# Subtest: unknown stop never replaces the prompt fence; two restarts preserve fence and delivered receipt
+ok 8 - unknown stop never replaces the prompt fence; two restarts preserve fence and delivered receipt
+  ---
+  duration_ms: 45.570869
+  type: 'test'
+  ...
+# Subtest: journal failure in a Pi event faults only that worker and keeps inventory readable
+ok 9 - journal failure in a Pi event faults only that worker and keeps inventory readable
+  ---
+  duration_ms: 46.584813
+  type: 'test'
+  ...
+# Subtest: header failure in a Pi event faults only that worker and keeps inventory readable
+ok 10 - header failure in a Pi event faults only that worker and keeps inventory readable
+  ---
+  duration_ms: 63.461041
+  type: 'test'
+  ...
+# Subtest: validation refusals consume no durable storage, ordinary capacity never blocks termination
+ok 11 - validation refusals consume no durable storage, ordinary capacity never blocks termination
+  ---
+  duration_ms: 3073.434776
+  type: 'test'
+  ...
+# Subtest: failed create preserves the same group-only cleanup and cwd reservation as stop (m-1)
+ok 12 - failed create preserves the same group-only cleanup and cwd reservation as stop (m-1)
+  ---
+  duration_ms: 17.642275
+  type: 'test'
+  ...
+# Subtest: unsupported UI dialogs auto-cancel without resolver-consumed claims (m-2)
+ok 13 - unsupported UI dialogs auto-cancel without resolver-consumed claims (m-2)
+  ---
+  duration_ms: 23.062325
+  type: 'test'
+  ...
+# Subtest: pending unsupported interactions close on tool_execution_end (m-2)
+ok 14 - pending unsupported interactions close on tool_execution_end (m-2)
+  ---
+  duration_ms: 14.58014
+  type: 'test'
+  ...
+# Subtest: pending unsupported interactions close on agent_settled (m-2)
+ok 15 - pending unsupported interactions close on agent_settled (m-2)
+  ---
+  duration_ms: 12.071629
+  type: 'test'
+  ...
+# Subtest: pending unsupported interactions close on expiry (m-2)
+ok 16 - pending unsupported interactions close on expiry (m-2)
+  ---
+  duration_ms: 29.887151
+  type: 'test'
+  ...
+# Subtest: pending unsupported dialogs are bounded and cancellation failure faults closed (m-2)
+ok 17 - pending unsupported dialogs are bounded and cancellation failure faults closed (m-2)
+  ---
+  duration_ms: 68.600686
+  type: 'test'
+  ...
+# Subtest: socket directory rejects symlink, public mode and foreign ownership before listening (M5)
+ok 18 - socket directory rejects symlink, public mode and foreign ownership before listening (M5)
+  ---
+  duration_ms: 3.064166
+  type: 'test'
+  ...
+# Subtest: B2 SSE closes a slow subscriber when the response queue exceeds 1 MiB (M4)
+ok 19 - B2 SSE closes a slow subscriber when the response queue exceeds 1 MiB (M4)
+  ---
+  duration_ms: 35.266552
+  type: 'test'
+  ...
+# Subtest: RPC host keeps LF framing across Unicode separators and split UTF8; drains events independently
+ok 20 - RPC host keeps LF framing across Unicode separators and split UTF8; drains events independently
+  ---
+  duration_ms: 50.325603
+  type: 'test'
+  ...
+# Subtest: unsupported UI cancellation uses the native ID and no RPC response waiter
+ok 21 - unsupported UI cancellation uses the native ID and no RPC response waiter
+  ---
+  duration_ms: 35.296156
+  type: 'test'
+  ...
+# Subtest: RPC timeout is an error, never a resend; process exit rejects pending requests
+ok 22 - RPC timeout is an error, never a resend; process exit rejects pending requests
+  ---
+  duration_ms: 60.973821
+  type: 'test'
+  ...
+# Subtest: canonical idempotency ignores transport id, not operation content
+ok 23 - canonical idempotency ignores transport id, not operation content
+  ---
+  duration_ms: 6.721722
+  type: 'test'
+  ...
+# Subtest: intent and dispatch are durable before effect; duplicate attempts dispatch once
+ok 24 - intent and dispatch are durable before effect; duplicate attempts dispatch once
+  ---
+  duration_ms: 8.211604
+  type: 'test'
+  ...
+# Subtest: refusal versus uncertain timeout, plus no eviction at capacity
+ok 25 - refusal versus uncertain timeout, plus no eviction at capacity
+  ---
+  duration_ms: 6.906696
+  type: 'test'
+  ...
+# Subtest: recovery separates undispatched intent from dispatch; neither is replayed
+ok 26 - recovery separates undispatched intent from dispatch; neither is replayed
+  ---
+  duration_ms: 6.535836
+  type: 'test'
+  ...
+# Subtest: journal admission reserves full result room and never begins an effect without it
+ok 27 - journal admission reserves full result room and never begins an effect without it
+  ---
+  duration_ms: 1.547997
+  type: 'test'
+  ...
+# Subtest: journal truncates a torn final record, rejects complete corruption or sequence gaps
+ok 28 - journal truncates a torn final record, rejects complete corruption or sequence gaps
+  ---
+  duration_ms: 3.801921
+  type: 'test'
+  ...
+# Subtest: SSE attach barrier: snapshot is first, no duplicate or missing event under reentrant emission
+ok 29 - SSE attach barrier: snapshot is first, no duplicate or missing event under reentrant emission
+  ---
+  duration_ms: 23.502418
+  type: 'test'
+  ...
+# Subtest: public HTTP/CLI client: identity, duplicate, stale binding, admission distinct from settlement, history, detach, stop
+ok 30 - public HTTP/CLI client: identity, duplicate, stale binding, admission distinct from settlement, history, detach, stop
+  ---
+  duration_ms: 61.874137
+  type: 'test'
+  ...
+# Subtest: crash after admission while running: journal unknown/fence, no prompt replay, rejected future write
+ok 31 - crash after admission while running: journal unknown/fence, no prompt replay, rejected future write
+  ---
+  duration_ms: 36.639669
+  type: 'test'
+  ...
+# Subtest: execution reservation cut before dispatch stays no_effect on recovery
+ok 32 - execution reservation cut before dispatch stays no_effect on recovery
+  ---
+  duration_ms: 43.318658
+  type: 'test'
+  ...
+# Subtest: supervisor projects admission, settlement, fence and stop to an already connected watcher
+ok 33 - supervisor projects admission, settlement, fence and stop to an already connected watcher
+  ---
+  duration_ms: 49.114166
+  type: 'test'
+  ...
+# Subtest: transport epoch changes across supervisor restart even when new seq catches the old cursor
+ok 34 - transport epoch changes across supervisor restart even when new seq catches the old cursor
+  ---
+  duration_ms: 22.78894
+  type: 'test'
+  ...
+# Subtest: history pages pin a branch watermark and ignore partial final JSONL
+ok 35 - history pages pin a branch watermark and ignore partial final JSONL
+  ---
+  duration_ms: 8.163952
+  type: 'test'
+  ...
+1..35
+# tests 35
+# suites 0
+# pass 35
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4443.320532

@@ -1,0 +1,173 @@
+{
+  "method": "Top-level bullets under Breaking Changes in npm 1.5.2 CHANGELOG; upgrade from 1.4.0 excludes its own six bullets",
+  "counts": {
+    "1.5.0": 34,
+    "1.4.0": 6
+  },
+  "bullets": {
+    "1.5.0": [
+      {
+        "line": 27,
+        "lead": "- Tool schemas are JSON Schema typed through `@earendil-works/pi-schema`: `defineTool()` and `ToolRegistration` take any JSON Schema object as `parameters` and `structuredOutputSch"
+      },
+      {
+        "line": 28,
+        "lead": "- `SqliteExecutor` (re-exported from Chord) gains `runCounted(sql, "
+      },
+      {
+        "line": 29,
+        "lead": "- `Storage"
+      },
+      {
+        "line": 64,
+        "lead": "- `Storage"
+      },
+      {
+        "line": 65,
+        "lead": "- Watches use Chord's `WatchHandle` and `WatchEnd` (Durable re-exports both, with `WatchChange` and `NativeWatchChange`)"
+      },
+      {
+        "line": 66,
+        "lead": "- Watch listeners take one change object before the context: `watch"
+      },
+      {
+        "line": 67,
+        "lead": "- Document watches follow their address (kind, scope, and key) instead of one incarnation: `DocumentWatch<T>` is `WatchHandle<Readonly<T>>` (no `null`)"
+      },
+      {
+        "line": 68,
+        "lead": "- Document, conversation view, and task graph watches deliver the commits made while their listener runs (or before `start()`) in one callback: the newest value, the commits' opera"
+      },
+      {
+        "line": 69,
+        "lead": "- Removed the Chord state getters `Session"
+      },
+      {
+        "line": 70,
+        "lead": "- Partial answers and running tool output are stored later than they are shown: their throttled commits are deferred (`CommitPersistence`, spec \u00a74"
+      },
+      {
+        "line": 71,
+        "lead": "- The change type of `FileSystem"
+      },
+      {
+        "line": 72,
+        "lead": "- `HostCallback` gains `\"telemetry\"`: a `host_error` report about a telemetry adapter that threw while a commit was published"
+      },
+      {
+        "line": 73,
+        "lead": "- `ConversationView"
+      },
+      {
+        "line": 74,
+        "lead": "- `Conversation"
+      },
+      {
+        "line": 75,
+        "lead": "- `pi"
+      },
+      {
+        "line": 76,
+        "lead": "- Removed `watchEvents()` and its types `AgentEvent`, `AgentEventStream`, `SnapshotEvent`, `MessageChange`, and `ToolEventCall`, and spec \u00a79"
+      },
+      {
+        "line": 138,
+        "lead": "- Restart-limited tasks no longer park: a task cut off `settings"
+      },
+      {
+        "line": 139,
+        "lead": "- A generation whose model request was in flight when the host died no longer resends it on open: the attempt counts as failed under `settings"
+      },
+      {
+        "line": 140,
+        "lead": "- Watch listeners and synchronous observers take Chord's tagged watch shapes"
+      },
+      {
+        "line": 141,
+        "lead": "- `Observer<T>` (`observeDoc()`, `observeConversation()`, `observeTaskGraph()`) has the watch's shapes: `advance(call: WatchCall<T>, context)` (always a `value` call) and `end(end:"
+      },
+      {
+        "line": 142,
+        "lead": "- `subscribeCommits(listener)` is `observeCommits(observer)` with the observer shape: `{ advance(publication, context), end(end) }`, returning `{ detach() }`"
+      },
+      {
+        "line": 143,
+        "lead": "- `HarnessOptions"
+      },
+      {
+        "line": 144,
+        "lead": "- `DocumentCommitChange` is tagged: a document change is `{ type: \"document\", kind: \"change\", record, conversationId, version, value, ops }` and a retirement `{ type: \"document\", k"
+      },
+      {
+        "line": 145,
+        "lead": "- `CompactionStatus"
+      },
+      {
+        "line": 146,
+        "lead": "- `TaskInspection"
+      },
+      {
+        "line": 147,
+        "lead": "- `FileChange` (`FileSystem"
+      },
+      {
+        "line": 148,
+        "lead": "- `SessionEnd` (`Session"
+      },
+      {
+        "line": 149,
+        "lead": "- `ReportFrom`, the second argument of a task's `runtime"
+      },
+      {
+        "line": 150,
+        "lead": "- `afterTool` runs on every result a tool task writes, not only on an executed call's: also on the error results the Harness writes itself, for a tool that does not resolve (`tool_"
+      },
+      {
+        "line": 151,
+        "lead": "- A call to a tool its request did not offer gets a `pi"
+      },
+      {
+        "line": 152,
+        "lead": "- `SubmissionRecord` gains a `type: \"continue\"` variant (`placed` without `entry`, `done` with `answer`, `unanswered`), so narrowing a record by `status` alone no longer guarantees"
+      },
+      {
+        "line": 153,
+        "lead": "- `RunFailureReason` (`pi"
+      },
+      {
+        "line": 154,
+        "lead": "- `pi"
+      },
+      {
+        "line": 156,
+        "lead": "- A Session's close ends synchronous observers (`observeDoc()`, `observeConversation()`, `observeTaskGraph()`, `observeCommits()`) `failed` with the error \"session closed\" instead "
+      }
+    ],
+    "1.4.0": [
+      {
+        "line": 213,
+        "lead": "- `TaskRuntime"
+      },
+      {
+        "line": 214,
+        "lead": "- Tasks have a `sleeping` status, so code that handles every `TaskState`, `TaskGraphState`, or `TaskInspection` state needs a case for it"
+      },
+      {
+        "line": 215,
+        "lead": "- Opening a SQLite storage migrates it to schema version 2 automatically, rebuilding its task table"
+      },
+      {
+        "line": 216,
+        "lead": "- `TaskRuntime` has `sleepUntil()` and `setTimer()`, and `ToolExecutionApi` has `now()`: code that builds either object by hand, such as a test fake or a tool wrapper that does not"
+      },
+      {
+        "line": 217,
+        "lead": "- A task cut off by a crash 5 times in a row without committing a new state is parked instead of run again (see the crash-loop guard under Added); set `settings"
+      },
+      {
+        "line": 218,
+        "lead": "- `defineDoc()` and `defineDocFamily()` require an explicit `checkpointWhen` predicate on every definition; there is no default"
+      }
+    ]
+  }
+}

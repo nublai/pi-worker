@@ -1,0 +1,97 @@
+{
+  "jsonl": {
+    "first": {
+      "event": "opened",
+      "mode": "writer",
+      "backend": "jsonl",
+      "root": 1,
+      "pid": 2672
+    },
+    "second": {
+      "event": "opened",
+      "mode": "writer",
+      "backend": "jsonl",
+      "root": 1,
+      "pid": 2683
+    },
+    "bothWritableOpensSucceeded": true,
+    "concurrentWritesNotTested": true
+  },
+  "sqlite": {
+    "first": {
+      "event": "opened",
+      "mode": "writer",
+      "backend": "sqlite",
+      "root": 1,
+      "pid": 2694
+    },
+    "second": {
+      "event": "opened",
+      "mode": "writer",
+      "backend": "sqlite",
+      "root": 1,
+      "pid": 2705
+    },
+    "bothWritableOpensSucceeded": true,
+    "concurrentWritesNotTested": true
+  },
+  "approval": {
+    "before": {
+      "event": "approval_wait",
+      "document": {
+        "status": "pending",
+        "task": 12,
+        "visits": 1,
+        "artifact": "fixture-v1",
+        "policy": 1
+      },
+      "pid": 2716
+    },
+    "recovered": {
+      "event": "recovered_document",
+      "document": {
+        "status": "pending",
+        "task": 12,
+        "visits": 1,
+        "artifact": "fixture-v1",
+        "policy": 1
+      }
+    },
+    "again": {
+      "event": "approval_wait",
+      "document": {
+        "status": "pending",
+        "task": 12,
+        "visits": 2,
+        "artifact": "fixture-v1",
+        "policy": 1
+      },
+      "pid": 2727
+    },
+    "settled": {
+      "event": "settled",
+      "settled": {
+        "conversationId": 1,
+        "requestId": "approval-input",
+        "type": "input",
+        "status": "done",
+        "entry": 7,
+        "id": 8,
+        "answer": 15
+      },
+      "document": {
+        "status": "approved",
+        "task": 12,
+        "visits": 2,
+        "artifact": "fixture-v1",
+        "policy": 1
+      }
+    },
+    "effects": 1,
+    "noTypedSignals": true
+  },
+  "cleanup": {
+    "root": "/tmp/a0d/probes-ZT0nF2",
+    "allChildrenStopped": true
+  }
+}

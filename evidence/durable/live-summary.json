@@ -1,0 +1,681 @@
+{
+  "hello": {
+    "protocol": {
+      "major": 0,
+      "minor": 1
+    },
+    "prototype": true,
+    "supervisor_id": "a0-durable-throwaway",
+    "supervisor_epoch": "b726c57e-0079-44a3-8b25-83a116e7989b",
+    "pi_version": "@earendil-works/pi-durable 1.5.2",
+    "capabilities": [
+      "workers.create",
+      "workers.list",
+      "workers.get",
+      "sessions.prompt",
+      "events.subscribe",
+      "history.page",
+      "workers.stop",
+      "receipts.get",
+      "host.durable"
+    ],
+    "resource_profile": "Explicit CodingTools only; no coding-agent discovery. Gateway adapter or deterministic faux provider.",
+    "cleanup_profile": "abort joins durable tasks, NOT proof escaped or crash-orphaned OS processes stopped",
+    "limits": {
+      "throwaway": true,
+      "contract_conformant": false,
+      "recovery": "resume automatically retries model requests, interrupts unsafe tools, continues run/queue; no fence",
+      "evidence": "durable_storage = JSONL fsync:true; live partials deferred up to 1s, event envelopes remain observed_memory",
+      "settlement": "agent_settled is an adapter event from pi.live.run removal, NOT native coding-agent agent_settled",
+      "receipt_retention": "all until scratch deletion; unbounded prototype control document",
+      "same_os_user_not_isolated": true,
+      "byo_machine_loss": true,
+      "linux_not_macos": true,
+      "peer_check": "filesystem owner/mode only",
+      "history_format": "pi-durable entries, NOT coding-agent JSONL; bounded pages but no byte-cap adaptation",
+      "approval": "no B2 interaction endpoint",
+      "stop": "abort then control commit; crash between these leaves command outcome unrecorded",
+      "queued_input": "prompt while busy is a durable follow-up (deliberate semantic difference)",
+      "socket_mode": "0600"
+    }
+  },
+  "gateway": {
+    "first": {
+      "command_id": "gateway-prompt",
+      "operation": "sessions.prompt",
+      "request_hash": "3a771b282513de3fcfa24c7fd2c4d715c4225331dcf4c64406ff31ef54c9d9c3",
+      "worker_id": "b9587946-6039-4f25-b0e7-fe5530a57351",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "durable_storage",
+      "created_at": "2026-11-15T06:22:05.176Z",
+      "execution_id": "10",
+      "admission": "accepted",
+      "disposition": "started",
+      "result": {
+        "submission_id": 10,
+        "request_id": "gateway-prompt"
+      }
+    },
+    "duplicateIdentical": true,
+    "events": [
+      "snapshot",
+      "durable_view",
+      "durable_view",
+      "agent_settled"
+    ],
+    "history": {
+      "watermark": "13",
+      "evidence": "durable_storage",
+      "entries": [
+        {
+          "id": 9,
+          "kind": "pi.user",
+          "model": [
+            {
+              "role": "user",
+              "content": "Reply exactly A0D_GATEWAY_OK. Do not call tools.",
+              "timestamp": 1794723725176
+            }
+          ],
+          "data": null
+        },
+        {
+          "id": 13,
+          "kind": "pi.assistant",
+          "model": [
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A0D_GATEWAY_OK"
+                }
+              ],
+              "api": "anthropic-messages",
+              "provider": "exe-dev-anthropic",
+              "model": "claude-sonnet-4-6",
+              "usage": {
+                "input": 3,
+                "output": 11,
+                "cacheRead": 0,
+                "cacheWrite": 1277,
+                "totalTokens": 1291,
+                "cost": {
+                  "input": 9e-06,
+                  "output": 0.000165,
+                  "cacheRead": 0,
+                  "cacheWrite": 0.00478875,
+                  "total": 0.004962749999999999,
+                  "totalFromProvider": false
+                },
+                "cacheWrite1h": 0
+              },
+              "stopReason": "stop",
+              "timestamp": 1794723725249,
+              "responseId": "msg_011Ch4ERGZsycSKU1qmt25aC",
+              "rawStopReason": "end_turn",
+              "durationMs": 850,
+              "thinkingLevel": "off"
+            }
+          ],
+          "data": null
+        }
+      ]
+    },
+    "stop": {
+      "command_id": "stop-gateway",
+      "operation": "workers.stop",
+      "request_hash": "d5b323642a0bec67cba7d098f7f7075393dbeee82c4c5b56ff2c7968dcd101c1",
+      "worker_id": "b9587946-6039-4f25-b0e7-fe5530a57351",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "durable_storage",
+      "created_at": "2026-11-15T06:22:06.254Z",
+      "result": {
+        "termination": "durable_tasks_idle",
+        "os_descendants": "unproven"
+      }
+    }
+  },
+  "host-second-writer": {
+    "refused": true,
+    "message": true
+  },
+  "model-cut": {
+    "receipt": {
+      "command_id": "model-cut",
+      "operation": "sessions.prompt",
+      "request_hash": "c16d9f98d4474c9fbd6338f43e3c5c327dcd9463b345a8dc3d2b3063a5e28947",
+      "worker_id": "8652dd39-3616-4c82-82a5-3d0aeb7398dc",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "durable_storage",
+      "created_at": "2026-11-15T06:22:06.507Z",
+      "execution_id": "21",
+      "admission": "accepted",
+      "disposition": "started",
+      "result": {
+        "submission_id": 21,
+        "request_id": "model-cut"
+      }
+    },
+    "queued": {
+      "command_id": "queued",
+      "operation": "sessions.prompt",
+      "request_hash": "7dbb7e37d77eddbda33cd4f8b0642cd05dfdd6faf40cb394f0636af3379c6cf9",
+      "worker_id": "8652dd39-3616-4c82-82a5-3d0aeb7398dc",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "durable_storage",
+      "created_at": "2026-11-15T06:22:06.586Z",
+      "execution_id": "24",
+      "admission": "accepted",
+      "disposition": "queued",
+      "result": {
+        "submission_id": 24,
+        "request_id": "queued"
+      }
+    },
+    "afterEvents": [
+      "snapshot",
+      "durable_view",
+      "durable_view",
+      "durable_view",
+      "durable_view",
+      "agent_settled"
+    ],
+    "attempts": [
+      {
+        "pid": 2946,
+        "scenario": "MODEL_CUT",
+        "lastRole": "user"
+      },
+      {
+        "pid": 3034,
+        "scenario": "MODEL_CUT",
+        "lastRole": "user"
+      },
+      {
+        "pid": 3034,
+        "scenario": "QUEUED_INPUT",
+        "lastRole": "user"
+      }
+    ],
+    "history": {
+      "watermark": "28",
+      "evidence": "durable_storage",
+      "entries": [
+        {
+          "id": 20,
+          "kind": "pi.user",
+          "model": [
+            {
+              "role": "user",
+              "content": "MODEL_CUT",
+              "timestamp": 1794723726508
+            }
+          ],
+          "data": null
+        },
+        {
+          "id": 25,
+          "kind": "pi.assistant",
+          "model": [
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "FAUX_OK MODEL_CUT"
+                }
+              ],
+              "api": "faux:1794723726734:0p67euvpmhhd",
+              "provider": "a0-faux",
+              "model": "deterministic",
+              "usage": {
+                "input": 0,
+                "output": 5,
+                "cacheRead": 0,
+                "cacheWrite": 724,
+                "totalTokens": 729,
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "total": 0
+                }
+              },
+              "stopReason": "stop",
+              "timestamp": 1794723726892,
+              "durationMs": 1,
+              "thinkingLevel": "off"
+            }
+          ],
+          "data": null
+        },
+        {
+          "id": 26,
+          "kind": "pi.user",
+          "model": [
+            {
+              "role": "user",
+              "content": "QUEUED_INPUT",
+              "timestamp": 1794723726894
+            }
+          ],
+          "data": null
+        },
+        {
+          "id": 28,
+          "kind": "pi.assistant",
+          "model": [
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "FAUX_OK QUEUED_INPUT"
+                }
+              ],
+              "api": "faux:1794723726734:0p67euvpmhhd",
+              "provider": "a0-faux",
+              "model": "deterministic",
+              "usage": {
+                "input": 0,
+                "output": 5,
+                "cacheRead": 724,
+                "cacheWrite": 12,
+                "totalTokens": 741,
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "total": 0
+                }
+              },
+              "stopReason": "stop",
+              "timestamp": 1794723726915,
+              "durationMs": 0,
+              "thinkingLevel": "off"
+            }
+          ],
+          "data": null
+        }
+      ]
+    },
+    "worker": {
+      "worker_id": "8652dd39-3616-4c82-82a5-3d0aeb7398dc",
+      "worker_epoch": "688ea7b6-57f5-408b-aae8-e46df067bff7",
+      "supervisor_epoch": "fd3da4e7-6d09-4887-903a-28f365f50bfa",
+      "session_id": "14",
+      "session_identity_evidence": "durable_conversation_id",
+      "binding_revision": 1,
+      "leaf_id": null,
+      "cwd": "/tmp/a0d/live-q36xmo/model-cut",
+      "status": "ready",
+      "foreground": "idle",
+      "execution": {
+        "execution_id": "24",
+        "command_id": "queued",
+        "state": "settled"
+      },
+      "fence": null,
+      "history": {
+        "last_entry_id": "28",
+        "lag": false,
+        "evidence": "durable_storage"
+      },
+      "cleanup": "durable_tasks_only",
+      "pending_interactions": []
+    }
+  },
+  "bash-cut": {
+    "oldPid": 3034,
+    "shellPid": 3102,
+    "receipt": {
+      "command_id": "bash-cut",
+      "operation": "sessions.prompt",
+      "request_hash": "145602945925d3da57d34aa1842569e063d005713c6c63238e9b389bc5823317",
+      "worker_id": "ffa7d400-c6ad-4bfe-922b-d871c5d73a79",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "durable_storage",
+      "created_at": "2026-11-15T06:22:07.377Z",
+      "execution_id": "36",
+      "admission": "accepted",
+      "disposition": "started",
+      "result": {
+        "submission_id": 36,
+        "request_id": "bash-cut"
+      }
+    },
+    "queued": {
+      "command_id": "bash-queued",
+      "operation": "sessions.prompt",
+      "request_hash": "aec55e4e8c726659eda379a340c25bbb1b7608d9a4e7ccd14e0469c3a32eb271",
+      "worker_id": "ffa7d400-c6ad-4bfe-922b-d871c5d73a79",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "durable_storage",
+      "created_at": "2026-11-15T06:22:07.465Z",
+      "execution_id": "41",
+      "admission": "accepted",
+      "disposition": "queued",
+      "result": {
+        "submission_id": 41,
+        "request_id": "bash-queued"
+      }
+    },
+    "history": {
+      "watermark": "47",
+      "evidence": "durable_storage",
+      "entries": [
+        {
+          "id": 35,
+          "kind": "pi.user",
+          "model": [
+            {
+              "role": "user",
+              "content": "BASH_CUT",
+              "timestamp": 1794723727377
+            }
+          ],
+          "data": null
+        },
+        {
+          "id": 39,
+          "kind": "pi.assistant",
+          "model": [
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "toolCall",
+                  "id": "a0-bash-call",
+                  "name": "bash",
+                  "arguments": {
+                    "command": "printf 'ONCE\\n' >> '/tmp/a0d/live-q36xmo/state/bash-start'; echo $$ > '/tmp/a0d/live-q36xmo/state/bash-pid'; echo BASH_STARTED; sleep 6; printf 'FINISHED\\n' >> '/tmp/a0d/live-q36xmo/state/bash-finish'",
+                    "timeout": 20
+                  }
+                }
+              ],
+              "api": "faux:1794723726734:0p67euvpmhhd",
+              "provider": "a0-faux",
+              "model": "deterministic",
+              "usage": {
+                "input": 0,
+                "output": 59,
+                "cacheRead": 0,
+                "cacheWrite": 724,
+                "totalTokens": 783,
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "total": 0
+                }
+              },
+              "stopReason": "toolUse",
+              "timestamp": 1794723727396,
+              "durationMs": 1,
+              "thinkingLevel": "off"
+            }
+          ],
+          "data": null
+        },
+        {
+          "id": 42,
+          "kind": "pi.tool-result",
+          "model": [
+            {
+              "role": "toolResult",
+              "toolCallId": "a0-bash-call",
+              "toolName": "bash",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "BASH_STARTED\n"
+                },
+                {
+                  "type": "text",
+                  "text": "<harness>\n[error] Tool bash was interrupted and may have partially run\n</harness>"
+                }
+              ],
+              "isError": true,
+              "timestamp": 1794723727672
+            }
+          ],
+          "data": {
+            "diagnostics": [
+              {
+                "severity": "error",
+                "code": "interrupted",
+                "message": "Tool bash was interrupted and may have partially run"
+              }
+            ]
+          }
+        },
+        {
+          "id": 44,
+          "kind": "pi.assistant",
+          "model": [
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "TOOL_RESULT_OBSERVED"
+                }
+              ],
+              "api": "faux:1794723727608:7ely2t4q9ju",
+              "provider": "a0-faux",
+              "model": "deterministic",
+              "usage": {
+                "input": 0,
+                "output": 5,
+                "cacheRead": 0,
+                "cacheWrite": 813,
+                "totalTokens": 818,
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "total": 0
+                }
+              },
+              "stopReason": "stop",
+              "timestamp": 1794723727701,
+              "durationMs": 1,
+              "thinkingLevel": "off"
+            }
+          ],
+          "data": null
+        },
+        {
+          "id": 45,
+          "kind": "pi.user",
+          "model": [
+            {
+              "role": "user",
+              "content": "AFTER_BASH_QUEUE",
+              "timestamp": 1794723727703
+            }
+          ],
+          "data": null
+        },
+        {
+          "id": 47,
+          "kind": "pi.assistant",
+          "model": [
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "FAUX_OK AFTER_BASH_QUEUE"
+                }
+              ],
+              "api": "faux:1794723727608:7ely2t4q9ju",
+              "provider": "a0-faux",
+              "model": "deterministic",
+              "usage": {
+                "input": 0,
+                "output": 6,
+                "cacheRead": 813,
+                "cacheWrite": 14,
+                "totalTokens": 833,
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "total": 0
+                }
+              },
+              "stopReason": "stop",
+              "timestamp": 1794723727724,
+              "durationMs": 0,
+              "thinkingLevel": "off"
+            }
+          ],
+          "data": null
+        }
+      ]
+    },
+    "startEffects": 1,
+    "oldShellFinished": true,
+    "stop": {
+      "command_id": "stop-bash",
+      "operation": "workers.stop",
+      "request_hash": "e69b1c5a296d4402f83e5a0614ed8282b983cdf3c612c7d57b4095693fc0b344",
+      "worker_id": "ffa7d400-c6ad-4bfe-922b-d871c5d73a79",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "durable_storage",
+      "created_at": "2026-11-15T06:22:13.528Z",
+      "result": {
+        "termination": "durable_tasks_idle",
+        "os_descendants": "unproven"
+      }
+    },
+    "worker": {
+      "worker_id": "ffa7d400-c6ad-4bfe-922b-d871c5d73a79",
+      "worker_epoch": "5009963f-963c-4f16-94ff-9adab091c449",
+      "supervisor_epoch": "cc399319-db34-4221-a56a-78b2ce784682",
+      "session_id": "29",
+      "session_identity_evidence": "durable_conversation_id",
+      "binding_revision": 1,
+      "leaf_id": null,
+      "cwd": "/tmp/a0d/live-q36xmo/bash-cut",
+      "status": "stopped",
+      "foreground": "idle",
+      "execution": {
+        "execution_id": "41",
+        "command_id": "bash-queued",
+        "state": "settled"
+      },
+      "fence": null,
+      "history": {
+        "last_entry_id": "47",
+        "lag": false,
+        "evidence": "durable_storage"
+      },
+      "cleanup": "durable_tasks_only",
+      "pending_interactions": []
+    }
+  },
+  "inventory": [
+    {
+      "worker_id": "b9587946-6039-4f25-b0e7-fe5530a57351",
+      "worker_epoch": "3a5b951e-6463-4410-9b4f-fd1291f06c9b",
+      "supervisor_epoch": "cc399319-db34-4221-a56a-78b2ce784682",
+      "session_id": "2",
+      "session_identity_evidence": "durable_conversation_id",
+      "binding_revision": 1,
+      "leaf_id": null,
+      "cwd": "/tmp/a0d/live-q36xmo/gateway",
+      "status": "stopped",
+      "foreground": "idle",
+      "execution": {
+        "execution_id": "10",
+        "command_id": "gateway-prompt",
+        "state": "settled"
+      },
+      "fence": null,
+      "history": {
+        "last_entry_id": "13",
+        "lag": false,
+        "evidence": "durable_storage"
+      },
+      "cleanup": "durable_tasks_only",
+      "pending_interactions": []
+    },
+    {
+      "worker_id": "8652dd39-3616-4c82-82a5-3d0aeb7398dc",
+      "worker_epoch": "688ea7b6-57f5-408b-aae8-e46df067bff7",
+      "supervisor_epoch": "cc399319-db34-4221-a56a-78b2ce784682",
+      "session_id": "14",
+      "session_identity_evidence": "durable_conversation_id",
+      "binding_revision": 1,
+      "leaf_id": null,
+      "cwd": "/tmp/a0d/live-q36xmo/model-cut",
+      "status": "stopped",
+      "foreground": "idle",
+      "execution": {
+        "execution_id": "24",
+        "command_id": "queued",
+        "state": "settled"
+      },
+      "fence": null,
+      "history": {
+        "last_entry_id": "28",
+        "lag": false,
+        "evidence": "durable_storage"
+      },
+      "cleanup": "durable_tasks_only",
+      "pending_interactions": []
+    },
+    {
+      "worker_id": "ffa7d400-c6ad-4bfe-922b-d871c5d73a79",
+      "worker_epoch": "5009963f-963c-4f16-94ff-9adab091c449",
+      "supervisor_epoch": "cc399319-db34-4221-a56a-78b2ce784682",
+      "session_id": "29",
+      "session_identity_evidence": "durable_conversation_id",
+      "binding_revision": 1,
+      "leaf_id": null,
+      "cwd": "/tmp/a0d/live-q36xmo/bash-cut",
+      "status": "stopped",
+      "foreground": "idle",
+      "execution": {
+        "execution_id": "41",
+        "command_id": "bash-queued",
+        "state": "settled"
+      },
+      "fence": null,
+      "history": {
+        "last_entry_id": "47",
+        "lag": false,
+        "evidence": "durable_storage"
+      },
+      "cleanup": "durable_tasks_only",
+      "pending_interactions": []
+    }
+  ],
+  "cleanup": {
+    "root": "/tmp/a0d/live-q36xmo",
+    "hostStopped": true,
+    "lockAbsent": true
+  }
+}

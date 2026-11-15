@@ -1,0 +1,43 @@
+{
+  "dir": "/tmp/a0d/ecosystem-GYOXrb",
+  "auto": {
+    "nativeExtensionInvoked": false,
+    "tools": [
+      "read",
+      "write",
+      "edit",
+      "bash"
+    ],
+    "agentsDiscovered": false,
+    "pstackDiscovered": false,
+    "modelsJsonDiscovered": false,
+    "mcpStarted": false
+  },
+  "packageAttempts": [
+    {
+      "pkg": "pi-herdr-agents",
+      "version": "3.11.0",
+      "result": {
+        "imported": false,
+        "code": "ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING",
+        "message": "Stripping types is currently unsupported for files under node_modules, for \"file:///home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts\""
+      }
+    },
+    {
+      "pkg": "pi-herdr-pstack",
+      "version": "1.0.0",
+      "result": {
+        "imported": false,
+        "code": "ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING",
+        "message": "Stripping types is currently unsupported for files under node_modules, for \"file:///home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts\""
+      }
+    }
+  ],
+  "manual": {
+    "agentsSection": true,
+    "pstackSection": true,
+    "mcpToolResult": true,
+    "modelsAdapter": "src/durable-models.ts; real gateway verified separately"
+  },
+  "limitations": "Synthetic MCP stdio server, not production server/auth; raw package import is not a Pi loader; no package workflow invoked."
+}

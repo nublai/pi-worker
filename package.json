@@ -1,14 +1,31 @@
 {
-  "name": "@nublai/pi-worker-a0", "version": "0.0.0-throwaway", "private": true, "type": "module",
+  "name": "@nublai/pi-worker-a0",
+  "version": "0.0.0-throwaway",
+  "private": true,
+  "type": "module",
   "description": "THROWAWAY A0 evidence, not a production worker",
-  "engines": {"node": ">=22"},
-  "bin": {"a0": "dist/cli.js"},
+  "engines": {
+    "node": ">=22.19"
+  },
+  "bin": {
+    "a0": "dist/cli.js"
+  },
   "scripts": {
     "generate": "openapi-typescript openapi.json -o src/api.generated.ts",
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test dist/test/*.test.js",
     "check:generated": "npm run generate && git diff --exit-code -- src/api.generated.ts",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "start:durable": "node dist/durable-main.js"
   },
-  "devDependencies": {"@types/node": "^22.0.0", "typescript": "^5.9.0", "openapi-typescript": "^7.10.0"}
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "openapi-typescript": "^7.10.0",
+    "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "@earendil-works/chord": "1.5.2",
+    "@earendil-works/pi-ai": "1.5.2",
+    "@earendil-works/pi-durable": "1.5.2"
+  }
 }
