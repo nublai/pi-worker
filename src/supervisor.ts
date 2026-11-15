@@ -93,9 +93,9 @@ export class Supervisor {
   }
   hello(): Hello {
     return { protocol: { major: 0, minor: 1 }, prototype: true, supervisor_id: this.id, supervisor_epoch: this.epoch, pi_version: this.piVersion,
-      capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt'],
+      capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt', 'workers.create.typed_child', 'children.report.fd'],
       limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; no privileged-tool-release gate in slice 2', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination, cancel/interrupt, resolution and child reports bypass count quota; journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed requires exact agent_settled evidence in the session file or fsynced settlement record, never external-effect completion', tree_navigation: 'Pi 1.5.2 RPC has get_tree but no navigate command; refused no_effect', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
-      resource_profile: 'normal CLI discovery; exact loaded extension/tool inventory unverified', cleanup_profile: 'linux_process_group; no adoption or resume; escaped descendants unproven' };
+      resource_profile: 'legacy: normal CLI discovery; launch_spec: explicit extension/skill/tool CLI profile, no discovered resources/MCP/project context; exact loaded inventory still unverified', cleanup_profile: 'linux_process_group; no adoption or resume; escaped descendants unproven' };
   }
   private persist(live: Live): void {
     if (live.worker.session_id && live.sessionFile) this.sessionFiles.set(live.worker.session_id, { file: live.sessionFile, worker_id: live.worker.worker_id });
@@ -222,6 +222,9 @@ export class Supervisor {
   }
   private onExit(live: Live): void {
     if (live.exited) return;
+    // killGroup may observe termination before Node delivers the exit callback.
+    // Never downgrade that independent confirmed-stop evidence to leader-only.
+    if (live.worker.status === 'stopped' && live.pid === null) { live.exited = true; return; }
     live.exited = true;
     if (live.worker.execution && live.worker.execution.state !== 'settled') {
       const id = live.worker.execution.command_id;
@@ -455,6 +458,7 @@ export class Supervisor {
       return { state: 'queued', stage: 'reserved', effect: 'no_effect', admission: 'queued', worker_id: id };
     }, () => {
       live = this.require(id); this.writable(live); this.binding(live, request);
+      if (kind === 'child' && live.worker.launch_spec) throw new Refusal('typed_children_use_workers_create');
       if (live.worker.status !== 'ready' || !live.host) throw new Refusal('worker_not_ready');
       if (request.execution_id !== live.worker.execution?.execution_id) throw new Refusal('stale_execution');
       if ((live.pending?.size ?? 0) >= 32) throw new Refusal('pending_capacity');

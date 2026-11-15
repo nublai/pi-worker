@@ -5,6 +5,17 @@ import { join } from 'node:path';
 import { fixture, bind, tick } from './helpers.js';
 import type { Create, Worker } from '../types.js';
 
+test('late native exit cannot downgrade a confirmed stop', async () => {
+  const f = fixture();
+  try {
+    const w = await f.create();
+    f.hosts[0]!.stop = async () => true; // OS probe wins before Node exit event.
+    const receipt = await f.supervisor.stop(w.worker_id, bind(w, 'stop'));
+    assert.equal(receipt.state, 'delivered');
+    f.hosts[0]!.emit('exit');
+    assert.equal(f.supervisor.get(w.worker_id).status, 'stopped');
+  } finally { f.cleanup(); }
+});
 export const spec: NonNullable<Create['launch_spec']> = { environment: { id: 'test', revision: 1, allowed_methods: ['workers.create', 'children.report'] }, role: 'writer', tools: ['read', 'write', 'caller_ping'], denied_tools: ['bash'], resources: { extensions: [], skills: [] }, grant_methods: ['workers.create', 'children.report'], seed_mode: 'standalone' };
 async function parent(f: ReturnType<typeof fixture>): Promise<Worker> {
   const cwd = join(f.dir, 'parent'); mkdirSync(cwd);
@@ -21,11 +32,13 @@ test('typed child lineage exists before spawn, narrows authority and reports a c
   const f = fixture();
   try {
     const p = await parent(f), c = child(f, p);
+    await assert.rejects(() => f.supervisor.launchChild(p.worker_id, { ...bind(p, 'legacy-bypass'), execution_id: p.execution!.execution_id, launch: { ...c, parent: undefined, launch_spec: undefined } }), /typed_children_use_workers_create/);
     const created = await f.supervisor.create(c); const w = f.supervisor.get(created.worker_id!);
     assert.deepEqual(w.parent, c.parent); assert.equal(w.parent_launch_command_id, 'child');
     let reports = 0;
     const close = f.supervisor.events.subscribe(() => f.supervisor.list(), null, e => { if (e.type === 'child_report') reports++; }).close;
     const report = { report_id: 'first', kind: 'help', message: 'which file?' };
+    f.hosts[1]!.emit('report', report);
     f.hosts[1]!.emit('report', report); await tick(); await tick();
     f.hosts[1]!.emit('report', report); await tick(); await tick();
     assert.equal(reports, 1); assert.equal(f.supervisor.get(w.worker_id).child_reports!.length, 1);

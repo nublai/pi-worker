@@ -20,6 +20,10 @@ function check(root: string): void {
       assert.notEqual(after.receipts.find(r => r.command_id === effect.command_id)?.effect, 'no_effect');
       assert.ok(after.receipts.find(r => r.command_id === effect.command_id));
     }
+    if (effect.kind === 'stop') {
+      const receipt = after.receipts.find(r => r.command_id === effect.command_id);
+      assert.ok(receipt); assert.notEqual(receipt.effect, 'no_effect', 'stop effect cannot recover as no_effect');
+    }
     if (effect.kind === 'report_delivery') assert.equal(after.receipts.filter(r => r.operation === 'children.report' && r.state === 'delivered').length, 1);
   }
   const child = after.workers.find(w => w.parent);
@@ -41,7 +45,7 @@ test('slice4 typed child launch/report: every fsync and native spawn/FD/delivery
     const points = full.stderr.split('\n').filter(l => l.startsWith('{"fsync"')).map(l => JSON.parse(l).fsync as { index: number; label: string });
     assert.ok(points.some(p => p.label === 'receipt.children.report.delivered'));
     assert.ok(points.some(p => p.label === 'receipt.workers.create.accepted'));
-    const effects = bytes(join(baseline, 'effects')).trim().split('\n'); assert.equal(effects.length, 4);
+    const effects = bytes(join(baseline, 'effects')).trim().split('\n'); assert.equal(effects.length, 5);
     for (const p of points) {
       const root = mkdtempSync(join(tmpdir(), 'a0s4-cut-'));
       try { const cut = run(root, 'scenario', p.index); assert.equal(cut.signal, 'SIGKILL', p.label + cut.stderr); check(root); }

@@ -17,7 +17,13 @@ const s = new Supervisor(root, journal, '1.5.2', c => {
   const file = join(root, `native-${hosts.length}.jsonl`), id = `sid-${hosts.length}`;
   writeFileSync(file, JSON.stringify({ type: 'session', id }) + '\n');
   effect({ kind: 'spawn', command_id: c.command_id, file, session_id: id, parent: c.parent });
-  const host = new Host(root, id, file); hosts.push(host); return host;
+  const host = new class extends Host {
+    override async stop(): Promise<boolean> {
+      const gone = await super.stop();
+      effect({ kind: 'stop', command_id: 'stop-child', session_id: this.sid });
+      return gone;
+    }
+  }(root, id, file); hosts.push(host); return host;
 });
 if (mode === 'scenario') {
   const spec: NonNullable<Create['launch_spec']> = { environment: { id: root, revision: 1, allowed_methods: ['children.report'] }, role: 'test', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: ['children.report'], seed_mode: 'standalone' };
