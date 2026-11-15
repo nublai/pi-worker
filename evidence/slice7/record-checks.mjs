@@ -4,10 +4,12 @@ import {readFileSync,writeFileSync,readdirSync,copyFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {join} from 'node:path';
 import {artifactSubject} from '../../dist/artifact.js';
+import {readGitPin} from '../../dist/git-safe.js';
+const ownerPin=readGitPin(process.cwd()); // owner source checkout
 const out='evidence/slice7',scratch='/tmp/a0s7',vm=scratch+'/vm-out2',count=216;
 const hash=b=>createHash('sha256').update(b).digest('hex');
 function parse(s){try{return JSON.parse(s);}catch(cause){throw new Error('Invalid task evidence JSON',{cause});}}
-const subject=artifactSubject(process.cwd(),'fd99c8992941f16187e8b54affd8f9d2f6a6b3dd');
+const subject=artifactSubject(process.cwd(),'fd99c8992941f16187e8b54affd8f9d2f6a6b3dd',undefined,ownerPin);
 const job=parse(readFileSync(vm+'/verification.json','utf8')).subject;
 assert.equal(job.base_id,subject.commit_id);
 const checks=[];
@@ -29,10 +31,10 @@ for(const host of ['local','vm']){
   const file=host+'-final-audit.json',audit=parse(readFileSync(scratch+'/'+file,'utf8'));assert.deepEqual(audit.subject,subject);assert.deepEqual(audit.source_files,source);assert.deepEqual(audit.loaded_a0_units,[]);copyFileSync(scratch+'/'+file,out+'/'+file);
 }
 writeFileSync(out+'/checks.json',JSON.stringify({producer:'slice7-owner-evidence-packager',subject,checks,live_job_base_subject:subject,lsp:'active probes returned zero findings but were inconclusive; strict tsc is definitive type evidence',independent_review:'not run: build-leaf prohibition on subagents'},null,2)+'\n');
-const results=parse(readFileSync(scratch+'/reversions/results.json','utf8'));results.producer='slice7-isolated-copy-reversion-runner';results.subject=subject;results.base_subject=artifactSubject(process.cwd(),'b461253');
+const results=parse(readFileSync(scratch+'/reversions/results.json','utf8'));results.producer='slice7-isolated-copy-reversion-runner';results.subject=subject;results.base_subject=artifactSubject(process.cwd(),'b461253',undefined,ownerPin);
 results.baseline_limit='The new portable broker fixture uses the per-parent router absent on b461253 and is omitted only from that old-base comparison. It separately failed twice by assertion on 249be1b before fd99c89, including the real sandbox probe. All final tests run in the full suites.';
 for(const row of results.results){const file=row.name+'.log';copyFileSync(scratch+'/reversions/'+file,out+'/reversion-'+file);row.log={path:'reversion-'+file,sha256:hash(readFileSync(scratch+'/reversions/'+file))};assert.equal(row.build_exit,0);assert.equal(row.pass,true);}
-results.profile_broker_red_green={before_source:artifactSubject(process.cwd(),'249be1b'),after_source:subject,before:{assertion_failures:2,log:'broker-before.log',sha256:hash(readFileSync(out+'/broker-before.log'))},after:{pass:2,log:'broker-after.log',sha256:hash(readFileSync(out+'/broker-after.log'))}};
+results.profile_broker_red_green={before_source:artifactSubject(process.cwd(),'249be1b',undefined,ownerPin),after_source:subject,before:{assertion_failures:2,log:'broker-before.log',sha256:hash(readFileSync(out+'/broker-before.log'))},after:{pass:2,log:'broker-after.log',sha256:hash(readFileSync(out+'/broker-after.log'))}};
 writeFileSync(out+'/reversions.json',JSON.stringify(results,null,2)+'\n');
 for(const name of readdirSync(vm))if(name.endsWith('.json')||name.endsWith('.log'))copyFileSync(vm+'/'+name,out+'/'+name);
 for(const name of ['native-audit','cleanup','attention','platform','privacy']){
