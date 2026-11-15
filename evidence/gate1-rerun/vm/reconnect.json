@@ -1,0 +1,345 @@
+{
+  "clock": "2026-11-15T21:26:57.090Z",
+  "disconnected_seconds": 408.499,
+  "snapshot": {
+    "type": "snapshot",
+    "workers": [
+      {
+        "worker_id": "fcf84d86-a049-409f-9fc4-937102d1fc39",
+        "worker_epoch": "510282f7-0fb8-4136-b305-ed296a3dded8",
+        "host": "sdk",
+        "supervisor_epoch": "bc18bfac-72df-47ab-8c42-5380f5836391",
+        "session_id": "01a1e114-e872-7033-a0dd-dd09f9303d0a",
+        "session_identity_evidence": "pi_session_file",
+        "binding_revision": 1,
+        "leaf_id": "9c24bb93",
+        "cwd": "/tmp/a0g1/run/workspace",
+        "status": "ready",
+        "foreground": "idle",
+        "execution": {
+          "execution_id": "9b98cd72-4812-46ed-b722-93c33629bb10",
+          "command_id": "gate1-job",
+          "state": "settled",
+          "disposition": "started"
+        },
+        "fence": null,
+        "history": {
+          "last_entry_id": "9c24bb93",
+          "lag": false,
+          "evidence": "pi_session_file"
+        },
+        "cleanup": "live_cgroup",
+        "pending_interactions": [],
+        "launch_spec": {
+          "environment": {
+            "id": "/tmp/a0g1/run/workspace",
+            "revision": 1,
+            "base_sha": "4474a9a8eecda33ba5d0af2c0259554dd56fb431",
+            "filesystem": "bwrap",
+            "root": "/tmp/a0g1/run/workspace",
+            "allowed_methods": [
+              "workers.create",
+              "children.report"
+            ]
+          },
+          "role": "pstack tiny job coordinator",
+          "tools": [
+            "read",
+            "bash",
+            "edit",
+            "write",
+            "subagent",
+            "subagent_send",
+            "subagent_cancel",
+            "caller_ping"
+          ],
+          "denied_tools": [],
+          "resources": {
+            "extensions": [
+              "/tmp/a0g1/run/workspace/.a0-agent/extensions/exe-dev/index.ts",
+              "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts"
+            ],
+            "skills": [
+              "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode"
+            ]
+          },
+          "grant_methods": [
+            "workers.create",
+            "children.report"
+          ],
+          "seed_mode": "standalone"
+        },
+        "grant_source_id": "orchestrator",
+        "git_pin": {
+          "kind": "ordinary",
+          "dot_git": "directory",
+          "git_dir": "/tmp/a0g1/run/workspace/.git",
+          "common_dir": "/tmp/a0g1/run/workspace/.git",
+          "gitdir_file": null,
+          "commondir_file": null,
+          "head": null,
+          "config_sha256": "226cb88c1d998ab44359a72999fda5079164c7ef3173dfb1ba9ffe628ebb74ef",
+          "alternates": null
+        },
+        "resources": {
+          "extensions": [
+            "/tmp/a0g1/run/workspace/.a0-agent/extensions/exe-dev/index.ts",
+            "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+            "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts",
+            "<inline:1>",
+            "<inline:2>"
+          ],
+          "extension_errors": [],
+          "skills": [
+            {
+              "name": "poteto-mode",
+              "path": "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/SKILL.md"
+            }
+          ],
+          "tools": [
+            {
+              "name": "read",
+              "sourceInfo": {
+                "path": "builtin:read",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "bash",
+              "sourceInfo": {
+                "path": "builtin:bash",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "edit",
+              "sourceInfo": {
+                "path": "builtin:edit",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "write",
+              "sourceInfo": {
+                "path": "builtin:write",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "subagent",
+              "sourceInfo": {
+                "path": "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+                "source": "cli",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "subagent_cancel",
+              "sourceInfo": {
+                "path": "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+                "source": "cli",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "subagent_send",
+              "sourceInfo": {
+                "path": "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+                "source": "cli",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            }
+          ],
+          "active_tools": [
+            "read",
+            "bash",
+            "edit",
+            "write",
+            "subagent",
+            "subagent_send",
+            "subagent_cancel"
+          ]
+        }
+      },
+      {
+        "worker_id": "2448195e-2217-409a-af39-e7362389a73f",
+        "worker_epoch": "d4b50b6e-5e2c-4458-bcfd-88a4ad3dca51",
+        "host": "sdk",
+        "supervisor_epoch": "bc18bfac-72df-47ab-8c42-5380f5836391",
+        "session_id": null,
+        "session_identity_evidence": "pi_rpc_header_id",
+        "binding_revision": 1,
+        "leaf_id": null,
+        "cwd": "/tmp/a0g1/run/workspace/.a0-worktrees/739bceb0-03f3-41eb-8daa-5eac39f170ac",
+        "status": "starting",
+        "foreground": "idle",
+        "execution": null,
+        "fence": null,
+        "history": {
+          "last_entry_id": null,
+          "lag": false,
+          "evidence": "pi_session_file"
+        },
+        "cleanup": "not_started",
+        "pending_interactions": [],
+        "launch_spec": {
+          "environment": {
+            "id": "/tmp/a0g1/run/workspace/.a0-worktrees/739bceb0-03f3-41eb-8daa-5eac39f170ac",
+            "revision": 1,
+            "base_sha": "4474a9a8eecda33ba5d0af2c0259554dd56fb431",
+            "allowed_methods": [
+              "children.report"
+            ],
+            "filesystem": "bwrap",
+            "root": "/tmp/a0g1/run/workspace/.a0-worktrees/739bceb0-03f3-41eb-8daa-5eac39f170ac"
+          },
+          "role": "bare delegated writer",
+          "tools": [
+            "read",
+            "bash",
+            "edit",
+            "write",
+            "caller_ping"
+          ],
+          "denied_tools": [],
+          "resources": {
+            "extensions": [
+              "/tmp/a0g1/run/workspace/.a0-worktrees/739bceb0-03f3-41eb-8daa-5eac39f170ac/.a0-agent/extensions/exe-dev/index.ts",
+              "/tmp/a0g1/run/workspace/.a0-worktrees/739bceb0-03f3-41eb-8daa-5eac39f170ac/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "/tmp/a0g1/run/workspace/.a0-worktrees/739bceb0-03f3-41eb-8daa-5eac39f170ac/.a0-agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts"
+            ],
+            "skills": [
+              "/tmp/a0g1/run/workspace/.a0-worktrees/739bceb0-03f3-41eb-8daa-5eac39f170ac/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode"
+            ]
+          },
+          "grant_methods": [
+            "children.report"
+          ],
+          "seed_mode": "standalone"
+        },
+        "grant_source_id": "channel-fcf84d86-a049-409f-9fc4-937102d1fc39",
+        "parent": {
+          "worker_id": "fcf84d86-a049-409f-9fc4-937102d1fc39",
+          "worker_epoch": "510282f7-0fb8-4136-b305-ed296a3dded8",
+          "session_id": "01a1e114-e872-7033-a0dd-dd09f9303d0a",
+          "binding_revision": 1,
+          "execution_id": "9b98cd72-4812-46ed-b722-93c33629bb10",
+          "task_id": "739bceb0-03f3-41eb-8daa-5eac39f170ac",
+          "generation_id": "a9d17a4e-8063-43b3-bb6e-c6bad602e73f"
+        },
+        "parent_worker_id": "fcf84d86-a049-409f-9fc4-937102d1fc39",
+        "parent_launch_command_id": "db712edf-2c61-4bf5-9e34-8827b155e3c4",
+        "git_pin": {
+          "kind": "linked",
+          "dot_git": "gitdir: /tmp/a0g1/run/workspace/.git/worktrees/739bceb0-03f3-41eb-8daa-5eac39f170ac\n",
+          "git_dir": "/tmp/a0g1/run/workspace/.git/worktrees/739bceb0-03f3-41eb-8daa-5eac39f170ac",
+          "common_dir": "/tmp/a0g1/run/workspace/.git",
+          "gitdir_file": "/tmp/a0g1/run/workspace/.a0-worktrees/739bceb0-03f3-41eb-8daa-5eac39f170ac/.git\n",
+          "commondir_file": "../..\n",
+          "head": "ref: refs/heads/g1-note/task\n",
+          "config_sha256": "226cb88c1d998ab44359a72999fda5079164c7ef3173dfb1ba9ffe628ebb74ef",
+          "alternates": null
+        },
+        "child_reports": []
+      },
+      {
+        "worker_id": "38f2088a-ba7e-44e5-9fce-e065a94569e1",
+        "worker_epoch": "8e834790-d2a8-4bc9-bcae-82489124106e",
+        "host": "sdk",
+        "supervisor_epoch": "bc18bfac-72df-47ab-8c42-5380f5836391",
+        "session_id": null,
+        "session_identity_evidence": "pi_rpc_header_id",
+        "binding_revision": 1,
+        "leaf_id": null,
+        "cwd": "/tmp/a0g1/run/workspace/.a0-worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9",
+        "status": "starting",
+        "foreground": "idle",
+        "execution": null,
+        "fence": null,
+        "history": {
+          "last_entry_id": null,
+          "lag": false,
+          "evidence": "pi_session_file"
+        },
+        "cleanup": "not_started",
+        "pending_interactions": [],
+        "launch_spec": {
+          "environment": {
+            "id": "/tmp/a0g1/run/workspace/.a0-worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9",
+            "revision": 1,
+            "base_sha": "4474a9a8eecda33ba5d0af2c0259554dd56fb431",
+            "allowed_methods": [
+              "children.report"
+            ],
+            "filesystem": "bwrap",
+            "root": "/tmp/a0g1/run/workspace/.a0-worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9"
+          },
+          "role": "bare delegated writer",
+          "tools": [
+            "read",
+            "bash",
+            "edit",
+            "write",
+            "caller_ping"
+          ],
+          "denied_tools": [],
+          "resources": {
+            "extensions": [
+              "/tmp/a0g1/run/workspace/.a0-worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9/.a0-agent/extensions/exe-dev/index.ts",
+              "/tmp/a0g1/run/workspace/.a0-worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "/tmp/a0g1/run/workspace/.a0-worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9/.a0-agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts"
+            ],
+            "skills": [
+              "/tmp/a0g1/run/workspace/.a0-worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode"
+            ]
+          },
+          "grant_methods": [
+            "children.report"
+          ],
+          "seed_mode": "standalone"
+        },
+        "grant_source_id": "channel-fcf84d86-a049-409f-9fc4-937102d1fc39",
+        "parent": {
+          "worker_id": "fcf84d86-a049-409f-9fc4-937102d1fc39",
+          "worker_epoch": "510282f7-0fb8-4136-b305-ed296a3dded8",
+          "session_id": "01a1e114-e872-7033-a0dd-dd09f9303d0a",
+          "binding_revision": 1,
+          "execution_id": "9b98cd72-4812-46ed-b722-93c33629bb10",
+          "task_id": "982fb246-cd1b-483a-b766-4c96799ea7a9",
+          "generation_id": "07c12187-1121-43cd-8a40-b9fb47928bf4"
+        },
+        "parent_worker_id": "fcf84d86-a049-409f-9fc4-937102d1fc39",
+        "parent_launch_command_id": "fd01df87-17a9-485e-b6e1-125d4c7870b0",
+        "git_pin": {
+          "kind": "linked",
+          "dot_git": "gitdir: /tmp/a0g1/run/workspace/.git/worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9\n",
+          "git_dir": "/tmp/a0g1/run/workspace/.git/worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9",
+          "common_dir": "/tmp/a0g1/run/workspace/.git",
+          "gitdir_file": "/tmp/a0g1/run/workspace/.a0-worktrees/982fb246-cd1b-483a-b766-4c96799ea7a9/.git\n",
+          "commondir_file": "../..\n",
+          "head": "ref: refs/heads/g1-check/task\n",
+          "config_sha256": "226cb88c1d998ab44359a72999fda5079164c7ef3173dfb1ba9ffe628ebb74ef",
+          "alternates": null
+        },
+        "child_reports": []
+      }
+    ],
+    "cursor": {
+      "worker_epoch": "bc18bfac-72df-47ab-8c42-5380f5836391",
+      "seq": 2743
+    },
+    "resync_reason": "gap"
+  }
+}

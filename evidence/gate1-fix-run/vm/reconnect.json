@@ -1,0 +1,509 @@
+{
+  "clock": "2026-11-15T22:16:55.995Z",
+  "disconnected_seconds": 314.477,
+  "snapshot": {
+    "type": "snapshot",
+    "workers": [
+      {
+        "worker_id": "6e131190-86db-46ef-9d8b-214bcff8d2c2",
+        "worker_epoch": "ac23a632-fbbe-4ea0-a968-7e1802dc5ed9",
+        "host": "sdk",
+        "supervisor_epoch": "81842844-c0bd-4c00-a5ad-02eedab20ce6",
+        "session_id": "01a1e144-1a41-7146-a642-f83b038dde65",
+        "session_identity_evidence": "pi_session_file",
+        "binding_revision": 1,
+        "leaf_id": "72b96b59",
+        "cwd": "/tmp/a0g1b/run/workspace",
+        "status": "ready",
+        "foreground": "idle",
+        "execution": {
+          "execution_id": "fc621f0d-cb8b-4d62-b4ec-cd72ec62a188",
+          "command_id": "gate1-job",
+          "state": "settled",
+          "disposition": "started"
+        },
+        "fence": null,
+        "history": {
+          "last_entry_id": "72b96b59",
+          "lag": false,
+          "evidence": "pi_session_file"
+        },
+        "cleanup": "live_cgroup",
+        "pending_interactions": [],
+        "launch_spec": {
+          "environment": {
+            "id": "/tmp/a0g1b/run/workspace",
+            "revision": 1,
+            "base_sha": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+            "filesystem": "bwrap",
+            "root": "/tmp/a0g1b/run/workspace",
+            "allowed_methods": [
+              "workers.create",
+              "children.report"
+            ]
+          },
+          "role": "pstack tiny job coordinator",
+          "tools": [
+            "read",
+            "bash",
+            "edit",
+            "write",
+            "subagent",
+            "subagent_send",
+            "subagent_cancel",
+            "caller_ping"
+          ],
+          "denied_tools": [],
+          "resources": {
+            "extensions": [
+              "/tmp/a0g1b/run/workspace/.a0-agent/extensions/exe-dev/index.ts",
+              "/tmp/a0g1b/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "/tmp/a0g1b/run/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts"
+            ],
+            "skills": [
+              "/tmp/a0g1b/run/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode"
+            ]
+          },
+          "grant_methods": [
+            "workers.create",
+            "children.report"
+          ],
+          "seed_mode": "standalone"
+        },
+        "grant_source_id": "orchestrator",
+        "git_pin": {
+          "kind": "ordinary",
+          "dot_git": "directory",
+          "git_dir": "/tmp/a0g1b/run/workspace/.git",
+          "common_dir": "/tmp/a0g1b/run/workspace/.git",
+          "gitdir_file": null,
+          "commondir_file": null,
+          "head": null,
+          "config_sha256": "079264b03a72f785b6f6f67dce547a401e3c95618b48da3e79d52fb5257c7d4a",
+          "alternates": null
+        },
+        "resources": {
+          "extensions": [
+            "/tmp/a0g1b/run/workspace/.a0-agent/extensions/exe-dev/index.ts",
+            "/tmp/a0g1b/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+            "/tmp/a0g1b/run/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts",
+            "<inline:1>",
+            "<inline:2>"
+          ],
+          "extension_errors": [],
+          "skills": [
+            {
+              "name": "poteto-mode",
+              "path": "/tmp/a0g1b/run/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/SKILL.md"
+            }
+          ],
+          "tools": [
+            {
+              "name": "read",
+              "sourceInfo": {
+                "path": "builtin:read",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "bash",
+              "sourceInfo": {
+                "path": "builtin:bash",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "edit",
+              "sourceInfo": {
+                "path": "builtin:edit",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "write",
+              "sourceInfo": {
+                "path": "builtin:write",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "subagent",
+              "sourceInfo": {
+                "path": "/tmp/a0g1b/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+                "source": "cli",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "subagent_cancel",
+              "sourceInfo": {
+                "path": "/tmp/a0g1b/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+                "source": "cli",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "subagent_send",
+              "sourceInfo": {
+                "path": "/tmp/a0g1b/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+                "source": "cli",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            }
+          ],
+          "active_tools": [
+            "read",
+            "bash",
+            "edit",
+            "write",
+            "subagent",
+            "subagent_send",
+            "subagent_cancel"
+          ]
+        }
+      },
+      {
+        "worker_id": "6dab319d-d967-4c87-8e53-b0c2ab6b5416",
+        "worker_epoch": "0d009c20-59a7-4676-86b2-6d9efd578ae2",
+        "host": "sdk",
+        "supervisor_epoch": "81842844-c0bd-4c00-a5ad-02eedab20ce6",
+        "session_id": "01a1e144-c73a-7450-8f78-8f775813619c",
+        "session_identity_evidence": "pi_session_file",
+        "binding_revision": 1,
+        "leaf_id": "7d5da5d5",
+        "cwd": "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7",
+        "status": "stopped",
+        "foreground": "idle",
+        "execution": {
+          "execution_id": "d7517149-ec45-47de-9d30-ccca9192bcb0",
+          "command_id": "617f2dd4-d088-4a5c-bd9d-336d61f54178",
+          "state": "settled",
+          "disposition": "started"
+        },
+        "fence": null,
+        "history": {
+          "last_entry_id": "7d5da5d5",
+          "lag": false,
+          "evidence": "pi_session_file"
+        },
+        "cleanup": "cgroup_empty_removed",
+        "pending_interactions": [],
+        "launch_spec": {
+          "environment": {
+            "id": "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7",
+            "revision": 1,
+            "base_sha": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+            "allowed_methods": [
+              "children.report"
+            ],
+            "filesystem": "bwrap",
+            "root": "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7"
+          },
+          "role": "bare delegated writer",
+          "tools": [
+            "read",
+            "bash",
+            "edit",
+            "write",
+            "caller_ping"
+          ],
+          "denied_tools": [],
+          "resources": {
+            "extensions": [
+              "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7/.a0-agent/extensions/exe-dev/index.ts",
+              "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7/.a0-agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts"
+            ],
+            "skills": [
+              "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode"
+            ]
+          },
+          "grant_methods": [
+            "children.report"
+          ],
+          "seed_mode": "standalone"
+        },
+        "grant_source_id": "channel-6e131190-86db-46ef-9d8b-214bcff8d2c2",
+        "parent": {
+          "worker_id": "6e131190-86db-46ef-9d8b-214bcff8d2c2",
+          "worker_epoch": "ac23a632-fbbe-4ea0-a968-7e1802dc5ed9",
+          "session_id": "01a1e144-1a41-7146-a642-f83b038dde65",
+          "binding_revision": 1,
+          "execution_id": "fc621f0d-cb8b-4d62-b4ec-cd72ec62a188",
+          "task_id": "71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7",
+          "generation_id": "ec423786-208f-481e-a69d-b60a6e77f9f0"
+        },
+        "parent_worker_id": "6e131190-86db-46ef-9d8b-214bcff8d2c2",
+        "parent_launch_command_id": "25bc9c8f-1b6a-46d1-9b32-6ccb913eeeae",
+        "git_pin": {
+          "kind": "linked",
+          "dot_git": "gitdir: /tmp/a0g1b/run/workspace/.git/worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7\n",
+          "git_dir": "/tmp/a0g1b/run/workspace/.git/worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7",
+          "common_dir": "/tmp/a0g1b/run/workspace/.git",
+          "gitdir_file": "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7/.git\n",
+          "commondir_file": "../..\n",
+          "head": "ref: refs/heads/g1-note/task\n",
+          "config_sha256": "079264b03a72f785b6f6f67dce547a401e3c95618b48da3e79d52fb5257c7d4a",
+          "alternates": null
+        },
+        "resources": {
+          "extensions": [
+            "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7/.a0-agent/extensions/exe-dev/index.ts",
+            "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+            "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7/.a0-agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts",
+            "<inline:1>",
+            "<inline:2>"
+          ],
+          "extension_errors": [],
+          "skills": [
+            {
+              "name": "poteto-mode",
+              "path": "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/SKILL.md"
+            }
+          ],
+          "tools": [
+            {
+              "name": "read",
+              "sourceInfo": {
+                "path": "builtin:read",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "bash",
+              "sourceInfo": {
+                "path": "builtin:bash",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "edit",
+              "sourceInfo": {
+                "path": "builtin:edit",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "write",
+              "sourceInfo": {
+                "path": "builtin:write",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "caller_ping",
+              "sourceInfo": {
+                "path": "/tmp/a0g1b/run/workspace/.a0-worktrees/71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+                "source": "cli",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            }
+          ],
+          "active_tools": [
+            "read",
+            "bash",
+            "edit",
+            "write",
+            "caller_ping"
+          ]
+        },
+        "child_reports": [
+          {
+            "command_id": "fd-6dab319d-d967-4c87-8e53-b0c2ab6b5416-63667c97-a4c2-4416-b2a4-c69134d15908",
+            "kind": "result",
+            "message": "Done. Here's the summary:\n\n**Commit hash:** `8a2cc13`\n\n**Changed files:**\n- `README.md` (1 insertion)\n\nThe bullet was added as the last item in the \"Semantics and limits\" section, immediately before the closing paragraph that begins with `` `hello` ``, using the same `- ` markdown format as the other bullets in that section.",
+            "claim_not_verified": true
+          }
+        ]
+      },
+      {
+        "worker_id": "87f8f8e2-a047-4558-bd01-03051e47a459",
+        "worker_epoch": "bb909f14-75e0-4fb0-af88-7537ab31309a",
+        "host": "sdk",
+        "supervisor_epoch": "81842844-c0bd-4c00-a5ad-02eedab20ce6",
+        "session_id": "01a1e144-c790-7053-99d9-7f29819d7cd2",
+        "session_identity_evidence": "pi_session_file",
+        "binding_revision": 1,
+        "leaf_id": "0da5bbb2",
+        "cwd": "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8",
+        "status": "stopped",
+        "foreground": "idle",
+        "execution": {
+          "execution_id": "fe8b5388-e445-4a42-9d27-ddd04fd9052e",
+          "command_id": "8e298f65-7cd6-4379-b791-fb727bc1e5ac",
+          "state": "settled",
+          "disposition": "started"
+        },
+        "fence": null,
+        "history": {
+          "last_entry_id": "0da5bbb2",
+          "lag": false,
+          "evidence": "pi_session_file"
+        },
+        "cleanup": "cgroup_empty_removed",
+        "pending_interactions": [],
+        "launch_spec": {
+          "environment": {
+            "id": "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8",
+            "revision": 1,
+            "base_sha": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+            "allowed_methods": [
+              "children.report"
+            ],
+            "filesystem": "bwrap",
+            "root": "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8"
+          },
+          "role": "bare delegated writer",
+          "tools": [
+            "read",
+            "bash",
+            "edit",
+            "write",
+            "caller_ping"
+          ],
+          "denied_tools": [],
+          "resources": {
+            "extensions": [
+              "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8/.a0-agent/extensions/exe-dev/index.ts",
+              "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8/.a0-agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts"
+            ],
+            "skills": [
+              "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode"
+            ]
+          },
+          "grant_methods": [
+            "children.report"
+          ],
+          "seed_mode": "standalone"
+        },
+        "grant_source_id": "channel-6e131190-86db-46ef-9d8b-214bcff8d2c2",
+        "parent": {
+          "worker_id": "6e131190-86db-46ef-9d8b-214bcff8d2c2",
+          "worker_epoch": "ac23a632-fbbe-4ea0-a968-7e1802dc5ed9",
+          "session_id": "01a1e144-1a41-7146-a642-f83b038dde65",
+          "binding_revision": 1,
+          "execution_id": "fc621f0d-cb8b-4d62-b4ec-cd72ec62a188",
+          "task_id": "7429237d-4029-4aa2-89c8-0f1ed9c26ed8",
+          "generation_id": "8b12f0cc-d737-412e-9e8a-edd896a90aa8"
+        },
+        "parent_worker_id": "6e131190-86db-46ef-9d8b-214bcff8d2c2",
+        "parent_launch_command_id": "8323dce0-01a1-45b0-ad6c-d25f3ed70e08",
+        "git_pin": {
+          "kind": "linked",
+          "dot_git": "gitdir: /tmp/a0g1b/run/workspace/.git/worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8\n",
+          "git_dir": "/tmp/a0g1b/run/workspace/.git/worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8",
+          "common_dir": "/tmp/a0g1b/run/workspace/.git",
+          "gitdir_file": "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8/.git\n",
+          "commondir_file": "../..\n",
+          "head": "ref: refs/heads/g1-check/task\n",
+          "config_sha256": "079264b03a72f785b6f6f67dce547a401e3c95618b48da3e79d52fb5257c7d4a",
+          "alternates": null
+        },
+        "resources": {
+          "extensions": [
+            "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8/.a0-agent/extensions/exe-dev/index.ts",
+            "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+            "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8/.a0-agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts",
+            "<inline:1>",
+            "<inline:2>"
+          ],
+          "extension_errors": [],
+          "skills": [
+            {
+              "name": "poteto-mode",
+              "path": "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/SKILL.md"
+            }
+          ],
+          "tools": [
+            {
+              "name": "read",
+              "sourceInfo": {
+                "path": "builtin:read",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "bash",
+              "sourceInfo": {
+                "path": "builtin:bash",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "edit",
+              "sourceInfo": {
+                "path": "builtin:edit",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "write",
+              "sourceInfo": {
+                "path": "builtin:write",
+                "source": "builtin",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            },
+            {
+              "name": "caller_ping",
+              "sourceInfo": {
+                "path": "/tmp/a0g1b/run/workspace/.a0-worktrees/7429237d-4029-4aa2-89c8-0f1ed9c26ed8/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+                "source": "cli",
+                "scope": "temporary",
+                "origin": "top-level"
+              }
+            }
+          ],
+          "active_tools": [
+            "read",
+            "bash",
+            "edit",
+            "write",
+            "caller_ping"
+          ]
+        },
+        "child_reports": [
+          {
+            "command_id": "fd-87f8f8e2-a047-4558-bd01-03051e47a459-b1479e90-aeb4-44d3-b3d3-e6247a08098a",
+            "kind": "result",
+            "message": "---\n\n### Summary\n\n**Commit hash:** `030328d`\n\n**Changed files:** 1 file changed, 13 insertions(+)\n- `evidence/gate1-job/verify.mjs` — created (`create mode 100644`)\n\n**Red-check evidence (assertion failure on base, exit code 1):**\n```\nAssertionError [ERR_ASSERTION]: README.md does not contain the required owner-git-snapshot note\n    at file:///…/evidence/gate1-job/verify.mjs:6:8\n    …\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '=='\n}\nNode.js v26.13.0\nexit code: 1\n```\n\nThe script correctly throws and exits non-zero when the required line is absent from `README.md`, confirming the checker is wired to the right string. When the note is eventually added to the README, the same script will print `OWNER_GIT_SNAPSHOT_NOTE_VERIFIED` and exit 0.",
+            "claim_not_verified": true
+          }
+        ]
+      }
+    ],
+    "cursor": {
+      "worker_epoch": "81842844-c0bd-4c00-a5ad-02eedab20ce6",
+      "seq": 1861
+    },
+    "resync_reason": "gap"
+  }
+}

@@ -1,0 +1,13 @@
+diff --git 1/home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/src/supervisor.ts 2/tmp/a0g1f/rev/d2-no-cleanup/src/supervisor.ts
+index 7f8d874..6f99b7e 100644
+--- 1/home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/src/supervisor.ts
++++ 2/tmp/a0g1f/rev/d2-no-cleanup/src/supervisor.ts
+@@ -452,7 +452,7 @@ export class Supervisor {
+     } catch (error) {
+       const reason = error instanceof Refusal ? error.message : `profile_staging_failed:${(error as NodeJS.ErrnoException).code ?? 'error'}`;
+       if (!created) throw new ProvenNoEffect(reason, 'nothing_staged');
+-      try { this.stagingCleanup(rootFd); } catch { /* the descriptor check below decides */ }
++      /* reverted: no cleanup */
+       if (absentAt(rootFd, '.a0-agent')) throw new ProvenNoEffect(reason, 'staged_profile_removed_verified_absent');
+       throw new Refusal(reason, 'unknown');
+     } finally { if (source !== undefined) closeSync(source); }

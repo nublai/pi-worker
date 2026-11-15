@@ -1,0 +1,11 @@
+{
+  "kind": "ordinary",
+  "dot_git": "directory",
+  "git_dir": "/tmp/a0g1/run/workspace/.git",
+  "common_dir": "/tmp/a0g1/run/workspace/.git",
+  "gitdir_file": null,
+  "commondir_file": null,
+  "head": null,
+  "config_sha256": "226cb88c1d998ab44359a72999fda5079164c7ef3173dfb1ba9ffe628ebb74ef",
+  "alternates": null
+}

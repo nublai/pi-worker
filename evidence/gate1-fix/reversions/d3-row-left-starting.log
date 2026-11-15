@@ -1,0 +1,58 @@
+BUILD exit 0
+
+✔ D1: a real-size profile (20k+ entries, node_modules shape) stages small and binds its dependency tree read-only by descriptor (157.325966ms)
+✔ D1: the copied part keeps its entry budget; a refusal after dispatch leaves nothing staged (290.079168ms)
+✖ D2+D3: a staging failure after dispatch is cleaned, verified and reported no_effect; the child row ends failed and frees its root (17.221718ms)
+✖ D2: an unverified staging cleanup is outcome_unknown and fences the parent (7.921166ms)
+✔ D2: after the dispatch record a plain Refusal is outcome_unknown; only ProvenNoEffect is rejected/no_effect (0.709139ms)
+✔ kernel D1: a sandboxed parent launches a channel child with a 20k+ entry profile; the child loads code from the read-only dependency bind (823.495979ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 4
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1360.332398
+
+✖ failing tests:
+
+test at dist/test/gate1-fix.test.js:132:1
+✖ D2+D3: a staging failure after dispatch is cleaned, verified and reported no_effect; the child row ends failed and frees its root (17.221718ms)
+  AssertionError [ERR_ASSERTION]: {"worker_id":"697a9aac-6bb8-476a-a979-40b9c6ed77d9","worker_epoch":"d604847a-2f95-4c0a-88d9-37202dbf0b96","host":"sdk","supervisor_epoch":"fb07348a-2961-478d-a854-6fb160290a03","session_id":null,"session_identity_evidence":"pi_rpc_header_id","binding_revision":1,"leaf_id":null,"cwd":"/tmp/a0g1f/tmp/a0g1f-oBVPmM/parent/.a0-worktrees/fifo","status":"starting","foreground":"idle","execution":null,"fence":null,"history":{"last_entry_id":null,"lag":false,"evidence":"pi_session_file"},"cleanup":"not_started","pending_interactions":[],"launch_spec":{"environment":{"id":"/tmp/a0g1f/tmp/a0g1f-oBVPmM/parent/.a0-worktrees/fifo","revision":1,"allowed_methods":["children.report"],"filesystem":"bwrap","root":"/tmp/a0g1f/tmp/a0g1f-oBVPmM/parent/.a0-worktrees/fifo"},"role":"child","tools":["read"],"denied_tools":[],"resources":{"extensions":[],"skills":[]},"grant_methods":["children.report"],"seed_mode":"standalone"},"grant_source_id":"channel-cc987259-af64-4437-9056-6292d9b26fb0","parent":{"worker_id":"cc987259-af64-4437-9056-6292d9b26fb0","worker_epoch":"056f6349-c562-4010-abd5-3647ed90caea","session_id":"session-0","binding_revision":1,"execution_id":"run","task_id":"task-fifo","generation_id":"gen"},"parent_worker_id":"cc987259-af64-4437-9056-6292d9b26fb0","parent_launch_command_id":"fifo","git_pin":null,"child_reports":[]}
+  + actual - expected
+  
+  + 'starting'
+  - 'failed'
+  
+      at TestContext.<anonymous> (file:///tmp/a0g1f/rev/d3-row-left-starting/dist/test/gate1-fix.test.js:151:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'starting',
+    expected: 'failed',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-fix.test.js:167:1
+✖ D2: an unverified staging cleanup is outcome_unknown and fences the parent (7.921166ms)
+  AssertionError [ERR_ASSERTION]: {"worker_id":"187db721-4a9f-4791-bdf6-aaddf581c2f8","worker_epoch":"a9aab2e8-127d-4ee1-b3f9-d5f4822d8a31","host":"sdk","supervisor_epoch":"7c8f3ecd-3802-4c9a-80d1-4667845f848c","session_id":null,"session_identity_evidence":"pi_rpc_header_id","binding_revision":1,"leaf_id":null,"cwd":"/tmp/a0g1f/tmp/a0g1f-m6zwNu/parent/.a0-worktrees/leftover","status":"starting","foreground":"idle","execution":null,"fence":null,"history":{"last_entry_id":null,"lag":false,"evidence":"pi_session_file"},"cleanup":"not_started","pending_interactions":[],"launch_spec":{"environment":{"id":"/tmp/a0g1f/tmp/a0g1f-m6zwNu/parent/.a0-worktrees/leftover","revision":1,"allowed_methods":["children.report"],"filesystem":"bwrap","root":"/tmp/a0g1f/tmp/a0g1f-m6zwNu/parent/.a0-worktrees/leftover"},"role":"child","tools":["read"],"denied_tools":[],"resources":{"extensions":[],"skills":[]},"grant_methods":["children.report"],"seed_mode":"standalone"},"grant_source_id":"channel-ce205930-2234-4e71-a849-f72b7a18c7d4","parent":{"worker_id":"ce205930-2234-4e71-a849-f72b7a18c7d4","worker_epoch":"20cfc653-7f53-417c-b994-d2dc4a0e0078","session_id":"session-0","binding_revision":1,"execution_id":"run","task_id":"task-leftover","generation_id":"gen"},"parent_worker_id":"ce205930-2234-4e71-a849-f72b7a18c7d4","parent_launch_command_id":"leftover","git_pin":null,"child_reports":[]}
+  + actual - expected
+  
+  + 'starting'
+  - 'failed'
+  
+      at TestContext.<anonymous> (file:///tmp/a0g1f/rev/d3-row-left-starting/dist/test/gate1-fix.test.js:185:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'starting',
+    expected: 'failed',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

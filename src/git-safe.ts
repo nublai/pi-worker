@@ -9,8 +9,9 @@
  *     compares the launch-time pin (gitfile, gitdir, commondir, symbolic HEAD,
  *     config hash, alternates) through those descriptors;
  *  2. copies HEAD, config (re-hashed against the pin), refs, packed-refs,
- *     shallow, info and the index from the SAME descriptors into a fresh
- *     mode-0700 directory the supervisor owns, outside every sandbox mount;
+ *     shallow, info and the index (keeping its mtime, so racily-clean entries
+ *     stay racy) from the SAME descriptors into a fresh mode-0700 directory
+ *     the supervisor owns, outside every sandbox mount;
  *  3. refuses a config that names a program Git could run (filters, diff
  *     drivers, textconv, includes, aliases, ...): `-c` cannot neutralise a
  *     driver it does not know the name of, and worktree `.gitattributes` (agent
@@ -114,7 +115,11 @@ function copyData(gitFd: number, common: number, dir: string): void {
   const out = openSync(dir, DIR_FLAGS), budget = { entries: 0, bytes: 0 };
   try {
     for (const name of ['packed-refs', 'shallow']) copyFileAt(common, [name], out, name, budget);
-    copyFileAt(gitFd, ['index'], out, 'index', budget);
+    // Keep the index mtime: Git treats an entry as racily clean (and compares
+    // content) when its mtime is not older than the index file's. A fresh copy
+    // time would make a same-second, same-size edit look clean. Rounding down
+    // only widens the racy set, so it can add content checks, never skip one.
+    copyFileAt(gitFd, ['index'], out, 'index', budget, true);
     for (const name of ['refs', 'info']) {
       mkdirSync(fdPath(out, name), { mode: 0o700 });
       let src: number;

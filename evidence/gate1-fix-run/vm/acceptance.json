@@ -1,0 +1,21 @@
+{
+  "actor": "gate1-authorized-owner-driver",
+  "job_id": "gate1-owner-git-snapshot-note",
+  "policy_revision": "gate1-owner-v1",
+  "subject": {
+    "commit_id": "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6",
+    "tree_id": "8876bd099d0fa7ec2831142f59a1c57f1dab3390",
+    "base_id": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+    "diff_digest": {
+      "advisory": true,
+      "git_version": "git version 2.43.0",
+      "algorithm": "sha256",
+      "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+      "value": "35eb959fdba872f1389548f1298e0d08ae67fd89c287e69f8fdd48d0c7e632d0"
+    }
+  },
+  "scope": "verified local artifact retained for root review only; no push, PR, merge, release or deploy",
+  "expiry": "2026-11-16T12:00:00Z",
+  "revocation_condition": "any artifact or policy revision change invalidates acceptance",
+  "accepted_at": "2026-11-15T22:31:42.165Z"
+}

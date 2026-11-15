@@ -1,0 +1,33 @@
+{
+  "producer": "gate1-fix-integration-check",
+  "parent_commits": [
+    {
+      "commit": "6e45d182d58186f4ef21a6ae64182ee99b634bab",
+      "author_subject": "A0 worker|docs: add owner-side Git snapshot note to Semantics and limits",
+      "same_diff_as": "refs/heads/g1-note/task"
+    },
+    {
+      "commit": "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6",
+      "author_subject": "A0 worker|evidence: add gate1 owner-git-snapshot checker",
+      "same_diff_as": "refs/heads/g1-check/task"
+    }
+  ],
+  "child_commits": [
+    {
+      "ref": "refs/heads/g1-note/task",
+      "commit": "8a2cc13b382c6160d8bc9257ce00d1257b80f846",
+      "files": [
+        "README.md"
+      ]
+    },
+    {
+      "ref": "refs/heads/g1-check/task",
+      "commit": "030328d3e51b4a28315b8f8680a2d1d6bb00b663",
+      "files": [
+        "evidence/gate1-job/verify.mjs"
+      ]
+    }
+  ],
+  "parent_edit_or_write_paths": [],
+  "parent_bash_git_commit_calls": 0
+}

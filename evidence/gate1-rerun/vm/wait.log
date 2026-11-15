@@ -1,0 +1,10 @@
+file:///tmp/a0g1/live.mjs:49
+    const timer=setTimeout(()=>{q.destroy();reject(new Error('job wait deadline; no auto cancel or retry'));},900000);
+                                                   ^
+
+Error: job wait deadline; no auto cancel or retry
+    at Timeout._onTimeout (file:///tmp/a0g1/live.mjs:49:52)
+    at listOnTimeout (node:internal/timers:685:17)
+    at process.processTimers (node:internal/timers:618:7)
+
+Node.js v26.13.0

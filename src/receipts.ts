@@ -4,7 +4,7 @@
  */
 import { createHash } from 'node:crypto';
 import { Journal } from './journal.js';
-import { Refusal, type Receipt, type Worker } from './types.js';
+import { Refusal, ProvenNoEffect, type Receipt, type Worker } from './types.js';
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
   if (value !== null && typeof value === 'object') return '{' + Object.entries(value).filter(([,v]) => v !== undefined)
@@ -95,7 +95,9 @@ export class ReceiptStore {
         if (this.journal.failed) throw new Refusal('journal_failed_after_intent', 'unknown', command_id);
         const current = this.all.get(command_id)!;
         if (['delivered', 'rejected', 'outcome_unknown'].includes(current.state)) return current;
-        const noEffect = (error instanceof Refusal && error.effect === 'no_effect') || current.state === 'intent';
+        // Before the dispatch record nothing ran. After it, only explicit proof
+        // (ProvenNoEffect) is no_effect; a default Refusal is not that proof.
+        const noEffect = current.state === 'intent' || error instanceof ProvenNoEffect;
         return this.update(command_id, { state: noEffect ? 'rejected' : 'outcome_unknown', stage: noEffect ? 'refused' : 'unknown', effect: noEffect ? 'no_effect' : 'unknown', ...(noEffect ? { admission: 'rejected' as const } : {}), ...(error instanceof Refusal && error.uncertain_command_id ? { uncertain_command_id: error.uncertain_command_id } : {}), error: error instanceof Error ? error.message.slice(0, 1024) : 'unknown failure' });
       }
     }).finally(() => { this.inFlight.delete(command_id); });

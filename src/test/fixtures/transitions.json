@@ -1,7 +1,7 @@
 {
   "prototype": true,
   "fixture_schema": 1,
-  "contract_revision": 6,
+  "contract_revision": 8,
   "setup": "fresh idle worker and controller grant; fixture-only host lifecycle controls, never inferred model effects",
   "macros": {
     "unknown": [

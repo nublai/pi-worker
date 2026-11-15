@@ -1,0 +1,38 @@
+BUILD exit 0
+
+✔ D1: a real-size profile (20k+ entries, node_modules shape) stages small and binds its dependency tree read-only by descriptor (154.226908ms)
+✔ D1: the copied part keeps its entry budget; a refusal after dispatch leaves nothing staged (290.439654ms)
+✔ D2+D3: a staging failure after dispatch is cleaned, verified and reported no_effect; the child row ends failed and frees its root (19.364654ms)
+✖ D2: an unverified staging cleanup is outcome_unknown and fences the parent (9.571138ms)
+✔ D2: after the dispatch record a plain Refusal is outcome_unknown; only ProvenNoEffect is rejected/no_effect (0.955491ms)
+✔ kernel D1: a sandboxed parent launches a channel child with a 20k+ entry profile; the child loads code from the read-only dependency bind (809.440876ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 5
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1348.859556
+
+✖ failing tests:
+
+test at dist/test/gate1-fix.test.js:167:1
+✖ D2: an unverified staging cleanup is outcome_unknown and fences the parent (9.571138ms)
+  AssertionError [ERR_ASSERTION]: {"command_id":"leftover","operation":"workers.create","request_hash":"327b8e2d750215fdbfe8e2620c1e98b43b786fe6fe8bfc5c7fede1849b7379a8","state":"rejected","stage":"refused","effect":"no_effect","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T21:58:55.932Z","worker_id":"6eea7074-e549-48f7-b275-6bf0ec20224f","admission":"rejected","error":"profile_copy_special_file"}
+  + actual - expected
+  
+  + 'rejected'
+  - 'outcome_unknown'
+  
+      at TestContext.<anonymous> (file:///tmp/a0g1f/rev/d2-no-verification/dist/test/gate1-fix.test.js:179:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'rejected',
+    expected: 'outcome_unknown',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

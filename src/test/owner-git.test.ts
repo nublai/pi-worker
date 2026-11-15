@@ -162,6 +162,25 @@ test('owner Git: results match plain Git on an untouched checkout (snapshot is f
   } finally { rmSync(f.base, { recursive: true, force: true }); }
 });
 
+test('owner Git: a racily-clean same-second, same-size edit is reported modified, as plain Git does (snapshot keeps the index mtime)', () => {
+  const base = realpathSync(mkdtempSync(join(tmpdir(), 'a0og-racy-'))), repo = join(base, 'repo'); mkdirSync(repo);
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', env: { ...cleanEnv, GIT_OPTIONAL_LOCKS: '0' } }).trim();
+  try {
+    git('init', '-q'); git('config', 'user.name', 'A0 fixture'); git('config', 'user.email', 'a0@example.invalid');
+    // Deterministic same-second case: compare only whole-second mtime and size
+    // (no ctime, inode or nsec), and pin the file and index mtimes to one second.
+    git('config', 'core.trustctime', 'false'); git('config', 'core.checkStat', 'minimal');
+    const note = join(repo, 'note'), index = join(repo, '.git', 'index'), T = 1_000_000_000;
+    writeFileSync(note, 'base\n'); utimesSync(note, T, T);
+    git('add', 'note'); git('commit', '-qm', 'base');
+    writeFileSync(note, 'dirt\n'); utimesSync(note, T, T); // same size, same recorded mtime
+    utimesSync(index, T, T); // index written in the same second: the entry is racily clean
+    const pin = readGitPin(repo);
+    assert.equal(safeGit(repo, pin, ['status', '--porcelain']), 'M note', 'owner Git must not trust stat data of a racily-clean entry');
+    assert.equal(git('status', '--porcelain'), 'M note', 'fixture: plain Git sees the racy edit');
+  } finally { rmSync(base, { recursive: true, force: true }); }
+});
+
 // ---- kernel (real bwrap): the writer is a sandboxed parent ----
 const kernel = { skip: process.env.A0_TEST_BWRAP !== '1' };
 const parent = { worker_id: 'p', worker_epoch: 'e', session_id: 's', binding_revision: 1, execution_id: 'run', task_id: 'task', generation_id: 'gen' };

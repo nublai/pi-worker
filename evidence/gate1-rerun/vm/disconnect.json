@@ -1,0 +1,9 @@
+{
+  "clock": "2026-11-15T21:20:08.592Z",
+  "cursor": {
+    "worker_epoch": "bc18bfac-72df-47ab-8c42-5380f5836391",
+    "seq": 17
+  },
+  "parent_epoch": "510282f7-0fb8-4136-b305-ed296a3dded8",
+  "session_id": "01a1e114-e872-7033-a0dd-dd09f9303d0a"
+}

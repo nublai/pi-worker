@@ -1,0 +1,6 @@
+{
+  "base": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+  "note": "Owner-side Git runs on a private snapshot of the launch-pinned Git metadata, so it never re-opens an agent-writable path that could select code to run.",
+  "command_id": "gate1-job",
+  "marker": "A0_GATE1_JOB_COMPLETE"
+}

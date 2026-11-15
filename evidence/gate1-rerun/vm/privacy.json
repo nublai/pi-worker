@@ -1,0 +1,19 @@
+{
+  "producer": "gate1-final-in-memory-private-value-and-pattern-scanner",
+  "subject": {
+    "commit_id": "4474a9a8eecda33ba5d0af2c0259554dd56fb431",
+    "tree_id": "cabd514c0962de15324a4e2b1f15767a44ee3666"
+  },
+  "clock": "2026-11-15T21:44:14.910Z",
+  "scope": "gate1 rerun whitelisted VM evidence export",
+  "files": 17,
+  "bytes": 85924,
+  "known_private_values_compared_in_memory": true,
+  "no_credential_value_or_hash_logged": true,
+  "credential_patterns_checked": true,
+  "pass": true,
+  "limitations": [
+    "exact-value and pattern scans do not detect every possible transformed/unknown secret",
+    "private raw profiles/grants/transcripts not exported"
+  ]
+}

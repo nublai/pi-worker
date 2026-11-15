@@ -1,0 +1,29 @@
+{
+  "producer": "gate1-rerun-failure-stop",
+  "clock": "2026-11-15T21:43:21.897Z",
+  "stop": {
+    "state": "delivered",
+    "effect": "observed",
+    "stage": "termination_observed"
+  },
+  "workers": [
+    {
+      "worker_id": "fcf84d86-a049-409f-9fc4-937102d1fc39",
+      "parent_worker_id": null,
+      "status": "stopped",
+      "cleanup": "cgroup_empty_removed"
+    },
+    {
+      "worker_id": "2448195e-2217-409a-af39-e7362389a73f",
+      "parent_worker_id": "fcf84d86-a049-409f-9fc4-937102d1fc39",
+      "status": "starting",
+      "cleanup": "not_started"
+    },
+    {
+      "worker_id": "38f2088a-ba7e-44e5-9fce-e065a94569e1",
+      "parent_worker_id": "fcf84d86-a049-409f-9fc4-937102d1fc39",
+      "status": "starting",
+      "cleanup": "not_started"
+    }
+  ]
+}

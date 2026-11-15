@@ -517,6 +517,11 @@ export interface components {
             fence: components["schemas"]["Fence"] | null;
             history: components["schemas"]["HistoryMarker"];
             cleanup: string;
+            /** @description Why a launch ended the row in status failed. The launch receipt keeps its own effect label. */
+            failure?: {
+                command_id: string;
+                reason: string;
+            };
             pending_interactions: (components["schemas"]["Interaction"] | {
                 native_id: string;
                 kind: string;

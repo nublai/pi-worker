@@ -17,16 +17,18 @@ import { killGroup } from './process.js';
 import { ProcessGroupContainment, type Containment, type CleanupUnit } from './containment.js';
 import { sandboxRoot, readConfined, sandboxSessionDir, openSandboxRoot } from './sandbox.js';
 import { gitPinAt, assertPin } from './git-sandbox.js';
-import { copyTreeAt, fdPath, isMissing, openPinned, openUnder } from './pinned-fs.js';
-import { Refusal, type Binding, type Create, type Prompt, type Worker, type Receipt, type Hello, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
-/** `within`: a channel child's root must stay one real directory below this base. */
-type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null; unit?: CleanupUnit; create?: Create; within?: string; intentBindings?: Record<string, Binding & { relaunch_epoch?: string }> };
+import { fdPath, isMissing, openPinned, openUnder, removeTreeAt, stageProfileAt, type DependencyBind } from './pinned-fs.js';
+import { Refusal, ProvenNoEffect, type Binding, type Create, type Prompt, type Worker, type Receipt, type Hello, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
+/** `within`: a channel child's root must stay one real directory below this base.
+ * `profileBinds`: its staged profile's dependency mount points (below `.a0-agent`). */
+type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null; unit?: CleanupUnit; create?: Create; within?: string; profileBinds?: string[][]; intentBindings?: Record<string, Binding & { relaunch_epoch?: string }> };
 export type CreateOptions = { channelParent?: string };
 const PARENT_CHANNEL_METHODS = ['hello', 'workers.list', 'workers.get', 'workers.create', 'sessions.prompt', 'workers.stop', 'events.subscribe', 'history.page', 'receipts.get'];
 /** Errno failures of a descriptor walk are refusals: nothing was created. */
 function pinned<T>(refusal: string, action: () => T): T {
   try { return action(); } catch (error) { if (error instanceof Refusal) throw error; throw new Refusal(refusal); }
 }
+const reasonOf = (error: unknown): string => error instanceof Error ? error.message.slice(0, 256) : 'launch_failed';
 type Pending = { kind: 'follow_up' | 'child'; request: FollowUp | ChildLaunch; guard: () => void };
 type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; exited?: boolean; rebinding?: boolean; nativeRebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout>; inventoryReady?: () => void; channel?: { server: Server; socket: string; config: string }; moveTimer?: NodeJS.Timeout };
 export type HostFactory = (create: Create, sessionDir: string, context?: HostContext) => SessionHost;
@@ -41,6 +43,9 @@ export class Supervisor {
   /** A native move that announces itself but never binds (Pi threw after
    * invalidation) is reconciled from host state after this delay. */
   nativeMoveTimeoutMs = 15000;
+  /** Removes a failed launch's staged profile. A seam only so tests can prove
+   * the descriptor check, not this function, decides `no_effect`. */
+  stagingCleanup = (rootFd: number): void => removeTreeAt(rootFd, '.a0-agent');
   private sessionFiles = new Map<string, { file: string; worker_id: string }>();
   private sessionReservations = new Map<string, string>();
   private reportNotifications = new Set<string>();
@@ -168,7 +173,7 @@ export class Supervisor {
   }
   private persist(live: Live): void {
     if (live.worker.session_id && live.sessionFile) this.sessionFiles.set(live.worker.session_id, { file: live.sessionFile, worker_id: live.worker.worker_id });
-    this.journal.append('worker', { worker: live.worker, sessionFile: live.sessionFile, pid: live.pid, token: live.token, ...(live.unit ? { unit: live.unit } : {}), ...(live.create ? { create: live.create } : {}), ...(live.intentBindings ? { intentBindings: live.intentBindings } : {}) });
+    this.journal.append('worker', { worker: live.worker, sessionFile: live.sessionFile, pid: live.pid, token: live.token, ...(live.unit ? { unit: live.unit } : {}), ...(live.create ? { create: live.create } : {}), ...(live.within ? { within: live.within } : {}), ...(live.profileBinds ? { profileBinds: live.profileBinds } : {}), ...(live.intentBindings ? { intentBindings: live.intentBindings } : {}) });
     live.hub.publish('worker_changed', { worker: structuredClone(live.worker) }, live.worker.execution?.execution_id ?? null, 'supervisor', true);
   }
   private fence(live: Live, command_id: string, memoryOnly = false): void {
@@ -432,6 +437,45 @@ export class Supervisor {
     }
     return fd;
   }
+  /** Stage the parent's profile into a fresh `ROOT/.a0-agent` (see
+   * stageProfileAt): config files copied, dependency trees returned as opened
+   * descriptors for read-only binds. A failure is `no_effect` only when this
+   * launch created nothing. Once `.a0-agent` was made, the partial copy is
+   * removed best-effort and the failure is always `unknown` (the caller fences
+   * a channel parent): the root is parent-writable, so the parent can rename the
+   * created directory aside, and an absent name proves nothing about the inode. */
+  private stageProfile(parentRoot: string, rootFd: number): DependencyBind[] {
+    let source: number | undefined, created = false;
+    try {
+      source = openPinned(join(parentRoot, '.a0-agent'), 'dir');
+      mkdirSync(fdPath(rootFd, '.a0-agent'), { mode: 0o700 }); created = true;
+      const dest = openUnder(rootFd, ['.a0-agent'], 'dir');
+      try { return stageProfileAt(source, dest); } finally { closeSync(dest); }
+    } catch (error) {
+      const reason = error instanceof Refusal ? error.message : `profile_staging_failed:${(error as NodeJS.ErrnoException).code ?? 'error'}`;
+      if (!created) throw new ProvenNoEffect(reason, 'nothing_staged');
+      try { this.stagingCleanup(rootFd); } catch { /* best effort; the outcome is unknown either way */ }
+      throw new Refusal(reason, 'unknown');
+    } finally { if (source !== undefined) closeSync(source); }
+  }
+  /** Reopen a channel child's dependency trees from its parent's profile for a
+   * fresh launch, by the same O_NOFOLLOW walk. The caller closes them. */
+  private reopenDependencies(parentRoot: string, binds: string[][]): DependencyBind[] {
+    const deps: DependencyBind[] = [];
+    const source = pinned('profile_dependency_unavailable', () => openPinned(join(parentRoot, '.a0-agent'), 'dir'));
+    try { for (const dest of binds) deps.push({ fd: pinned('profile_dependency_unavailable', () => openUnder(source, dest, 'dir')), dest }); return deps; }
+    catch (error) { for (const dep of deps) closeSync(dep.fd); throw error; }
+    finally { closeSync(source); }
+  }
+  /** A launch that failed before any host existed ends `failed` with its reason. */
+  private async launchFailed(live: Live, command_id: string, error: unknown): Promise<void> {
+    const gone = live.unit ? await this.cleanup(live) : true, w = live.worker;
+    w.status = gone ? 'failed' : 'cleanup_pending';
+    w.cleanup = gone ? live.unit ? 'cgroup_empty_removed' : 'no_process_started' : 'unresolved';
+    if (gone) live.pid = null;
+    w.failure = { command_id, reason: reasonOf(error) };
+    this.persist(live);
+  }
   /** Directory check for the parent channel, run before any grant/scope check. */
   checkChannelChildRoot(parentId: string, cwd: string): void {
     closeSync(this.openRoot(cwd, join(this.require(parentId).worker.cwd, '.a0-worktrees'), true));
@@ -446,6 +490,7 @@ export class Supervisor {
       this.dispatchGuard(); // Refusal must precede even local worker/cwd reservation.
       this.validateLaunch(c);
       const rootFd = bwrap ? openChildRoot() : undefined;
+      let deps: DependencyBind[] = [];
       try {
       const gitPin = rootFd === undefined ? undefined : pinned('sandbox_git_metadata_unreadable', () => gitPinAt(cwd, rootFd, channelParent?.cwd));
       const worker_id = randomUUID(), worker_epoch = randomUUID();
@@ -458,20 +503,21 @@ export class Supervisor {
       this.workers.set(worker_id, live);
       this.persist(live);
       this.receipts.dispatch(c.command_id, { worker_id });
-      // Stage only after every validation, through descriptors that never follow
-      // a link: a parent swap yields the original file or a verbatim link.
-      if (channelParent && rootFd !== undefined) {
-        const source = openPinned(join(channelParent.cwd, '.a0-agent'), 'dir');
-        try {
-          mkdirSync(fdPath(rootFd, '.a0-agent'), { mode: 0o700 });
-          const dest = openUnder(rootFd, ['.a0-agent'], 'dir');
-          try { copyTreeAt(source, dest); } finally { closeSync(dest); }
-        } finally { closeSync(source); }
+      let host: SessionHost;
+      try {
+        // Stage only after every validation, through descriptors that never follow
+        // a link: a parent swap yields the original file or a verbatim link.
+        if (channelParent && rootFd !== undefined) { deps = this.stageProfile(channelParent.cwd, rootFd); live.profileBinds = deps.map(d => d.dest); }
+        const dir = this.sessionDir(live);
+        const context = await this.hostContext(live, c, c.command_id);
+        if (rootFd !== undefined) context.sandbox = { rootFd, within, gitPin: gitPin ?? null, dependencies: deps };
+        host = this.factory({ ...c, cwd }, dir, context); live.host = host;
+      } catch (error) {
+        // No host was constructed. The row ends terminal (never live); the
+        // receipt's label comes from the error: unknown unless proven.
+        await this.launchFailed(live, c.command_id, error);
+        throw error;
       }
-      const dir = this.sessionDir(live);
-      const context = await this.hostContext(live, c, c.command_id);
-      if (rootFd !== undefined) context.sandbox = { rootFd, within, gitPin: gitPin ?? null };
-      const host = this.factory({ ...c, cwd }, dir, context); live.host = host;
       live.pid = host.pid ?? null; live.token = host.token; this.persist(live);
       this.wireHost(live, host);
       try {
@@ -494,9 +540,10 @@ export class Supervisor {
         this.clearInteractions(live);
         w.cleanup = gone ? live.unit ? 'cgroup_empty_removed' : 'process_group_observed_gone; escaped_descendants_unproven' : 'unresolved';
         if (gone) live.pid = null;
+        w.failure = { command_id: c.command_id, reason: reasonOf(error) };
         this.persist(live); throw error;
       }
-      } finally { if (rootFd !== undefined) closeSync(rootFd); }
+      } finally { if (rootFd !== undefined) closeSync(rootFd); for (const dep of deps) closeSync(dep.fd); }
     }, () => {
       if (channelParent) closeSync(openChildRoot());
       this.validateLaunch(c);
@@ -522,7 +569,7 @@ export class Supervisor {
       if (live.faulted) throw new Error('worker fault during prompt');
       if (!response.success) {
         w.execution = null; w.foreground = 'idle'; this.persist(live);
-        throw new Refusal('pi_rejected_prompt');
+        throw new ProvenNoEffect('pi_rejected_prompt', 'host_negative_prompt_response');
       }
       const disposition = String(response.data?.disposition);
       if (disposition !== 'started' && disposition !== 'handled') throw new Error('unexpected prompt disposition');
@@ -566,14 +613,16 @@ export class Supervisor {
       const c = live.create!, originalFile = live.sessionFile!, originalId = w.session_id;
       const dir = this.sessionDir(live);
       live.rebinding = true;
-      let rootFd: number | undefined;
+      let rootFd: number | undefined, deps: DependencyBind[] = [];
       try {
         const context = await this.hostContext(live, c, b.command_id);
         if (w.launch_spec?.environment.filesystem === 'bwrap') {
           // Mount decisions come from the LAUNCH-time pin, never a HEAD or
           // pointer the sandbox may have rewritten since.
           rootFd = pinned('sandbox_root_not_real_directory', () => openSandboxRoot(w.cwd, live.within));
-          context.sandbox = { rootFd, within: live.within, gitPin: w.git_pin };
+          // A channel child's dependency trees come from its parent's profile again.
+          if (live.within && live.profileBinds?.length) deps = this.reopenDependencies(dirname(live.within), live.profileBinds);
+          context.sandbox = { rootFd, within: live.within, gitPin: w.git_pin, dependencies: deps };
         }
         const host = this.factory(c, dir, context);
         live.host = host; live.pid = host.pid ?? null; live.token = host.token; this.persist(live);
@@ -599,7 +648,7 @@ export class Supervisor {
         this.persist(live);
         return { state: 'delivered', stage: 'forwarded', effect: 'observed', result: { worker_id: id, worker_epoch: w.worker_epoch, session_id: w.session_id, binding_revision: w.binding_revision, prompted: false } };
       } catch (error) { await this.cleanup(live); throw error; }
-      finally { live.rebinding = false; if (rootFd !== undefined) closeSync(rootFd); }
+      finally { live.rebinding = false; if (rootFd !== undefined) closeSync(rootFd); for (const dep of deps) closeSync(dep.fd); }
     }, () => {
       live = this.require(id); this.binding(live, b);
       if (live.worker.launch_spec?.environment.filesystem === 'bwrap' && live.worker.git_pin !== undefined) {

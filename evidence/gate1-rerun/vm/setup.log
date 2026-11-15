@@ -1,0 +1,7 @@
+From /tmp/a0g1/runtime.bundle
+ * branch            prototype/a0 -> FETCH_HEAD
+HEAD is now at 4474a9a merge: A0 slice 7, Gate 1 gaps closed (reviewed by Claude Opus; security reviewed by Grok three times)
+Cloning into '/tmp/a0g1/run/workspace'...
+warning: remote HEAD refers to nonexistent ref, unable to checkout
+Switched to a new branch 'job/gate1'
+Running as unit: a0-g1-supervisor.service; invocation ID: 6e8024d04b8a4f75a5ceea01574bd5fa

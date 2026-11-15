@@ -1,0 +1,96 @@
+{
+  "worker_id": "fcf84d86-a049-409f-9fc4-937102d1fc39",
+  "worker_epoch": "510282f7-0fb8-4136-b305-ed296a3dded8",
+  "session_id": "01a1e114-e872-7033-a0dd-dd09f9303d0a",
+  "base": "4474a9a8eecda33ba5d0af2c0259554dd56fb431",
+  "resources": {
+    "extensions": [
+      "/tmp/a0g1/run/workspace/.a0-agent/extensions/exe-dev/index.ts",
+      "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+      "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts",
+      "<inline:1>",
+      "<inline:2>"
+    ],
+    "extension_errors": [],
+    "skills": [
+      {
+        "name": "poteto-mode",
+        "path": "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/SKILL.md"
+      }
+    ],
+    "tools": [
+      {
+        "name": "read",
+        "sourceInfo": {
+          "path": "builtin:read",
+          "source": "builtin",
+          "scope": "temporary",
+          "origin": "top-level"
+        }
+      },
+      {
+        "name": "bash",
+        "sourceInfo": {
+          "path": "builtin:bash",
+          "source": "builtin",
+          "scope": "temporary",
+          "origin": "top-level"
+        }
+      },
+      {
+        "name": "edit",
+        "sourceInfo": {
+          "path": "builtin:edit",
+          "source": "builtin",
+          "scope": "temporary",
+          "origin": "top-level"
+        }
+      },
+      {
+        "name": "write",
+        "sourceInfo": {
+          "path": "builtin:write",
+          "source": "builtin",
+          "scope": "temporary",
+          "origin": "top-level"
+        }
+      },
+      {
+        "name": "subagent",
+        "sourceInfo": {
+          "path": "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+          "source": "cli",
+          "scope": "temporary",
+          "origin": "top-level"
+        }
+      },
+      {
+        "name": "subagent_cancel",
+        "sourceInfo": {
+          "path": "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+          "source": "cli",
+          "scope": "temporary",
+          "origin": "top-level"
+        }
+      },
+      {
+        "name": "subagent_send",
+        "sourceInfo": {
+          "path": "/tmp/a0g1/run/workspace/.a0-agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+          "source": "cli",
+          "scope": "temporary",
+          "origin": "top-level"
+        }
+      }
+    ],
+    "active_tools": [
+      "read",
+      "bash",
+      "edit",
+      "write",
+      "subagent",
+      "subagent_send",
+      "subagent_cancel"
+    ]
+  }
+}

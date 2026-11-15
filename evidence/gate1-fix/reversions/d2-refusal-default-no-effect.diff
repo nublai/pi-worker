@@ -1,0 +1,13 @@
+diff --git 1/home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/src/receipts.ts 2/tmp/a0g1f/rev/d2-refusal-default-no-effect/src/receipts.ts
+index c08ec33..a7ac711 100644
+--- 1/home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/src/receipts.ts
++++ 2/tmp/a0g1f/rev/d2-refusal-default-no-effect/src/receipts.ts
+@@ -97,7 +97,7 @@ export class ReceiptStore {
+         if (['delivered', 'rejected', 'outcome_unknown'].includes(current.state)) return current;
+         // Before the dispatch record nothing ran. After it, only explicit proof
+         // (ProvenNoEffect) is no_effect; a default Refusal is not that proof.
+-        const noEffect = current.state === 'intent' || error instanceof ProvenNoEffect;
++        const noEffect = current.state === 'intent' || (error instanceof Refusal && error.effect === 'no_effect');
+         return this.update(command_id, { state: noEffect ? 'rejected' : 'outcome_unknown', stage: noEffect ? 'refused' : 'unknown', effect: noEffect ? 'no_effect' : 'unknown', ...(noEffect ? { admission: 'rejected' as const } : {}), ...(error instanceof Refusal && error.uncertain_command_id ? { uncertain_command_id: error.uncertain_command_id } : {}), error: error instanceof Error ? error.message.slice(0, 1024) : 'unknown failure' });
+       }
+     }).finally(() => { this.inFlight.delete(command_id); });

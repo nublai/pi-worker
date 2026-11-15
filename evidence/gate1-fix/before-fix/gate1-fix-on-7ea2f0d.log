@@ -1,0 +1,132 @@
+✖ D1: a real-size profile (20k+ entries, node_modules shape) stages small and binds its dependency tree read-only by descriptor (306.629633ms)
+✖ D1: the copied part keeps its entry budget; a refusal after dispatch leaves nothing staged (211.918802ms)
+✖ D2+D3: a staging failure after dispatch is cleaned, verified and reported no_effect; the child row ends failed and frees its root (17.815144ms)
+✖ D2: an unverified staging cleanup is outcome_unknown and fences the parent (8.609018ms)
+✖ D2: after the dispatch record a plain Refusal is outcome_unknown; only ProvenNoEffect is rejected/no_effect (0.593051ms)
+✖ kernel D1: a sandboxed parent launches a channel child with a 20k+ entry profile; the child loads code from the read-only dependency bind (622.53904ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 0
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1232.10281
+
+✖ failing tests:
+
+test at dist/test/gate1-fix.test.js:87:1
+✖ D1: a real-size profile (20k+ entries, node_modules shape) stages small and binds its dependency tree read-only by descriptor (306.629633ms)
+  AssertionError [ERR_ASSERTION]: {"command_id":"big","operation":"workers.create","request_hash":"2d9d27cc0a232b2b56b60886a91eac99f1c1823df014d1e7c91e99fee1b89f8f","state":"rejected","stage":"refused","effect":"no_effect","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T21:53:35.913Z","worker_id":"c30597a8-9b5a-4b03-9b14-4e7e8dc12471","admission":"rejected","error":"profile_copy_too_many_entries"}
+  + actual - expected
+  
+  + 'rejected'
+  - 'delivered'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/dist/test/gate1-fix.test.js:94:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'rejected',
+    expected: 'delivered',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-fix.test.js:114:1
+✖ D1: the copied part keeps its entry budget; a refusal after dispatch leaves nothing staged (211.918802ms)
+  AssertionError [ERR_ASSERTION]: every staged entry was removed before replying no_effect
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/dist/test/gate1-fix.test.js:125:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-fix.test.js:132:1
+✖ D2+D3: a staging failure after dispatch is cleaned, verified and reported no_effect; the child row ends failed and frees its root (17.815144ms)
+  AssertionError [ERR_ASSERTION]: no partial profile is left behind a no_effect reply
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/dist/test/gate1-fix.test.js:145:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-fix.test.js:167:1
+✖ D2: an unverified staging cleanup is outcome_unknown and fences the parent (8.609018ms)
+  AssertionError [ERR_ASSERTION]: {"command_id":"leftover","operation":"workers.create","request_hash":"7a72643658630befa297d0eb3c06f24197f054cd490685cd1a92f7ac72cf0f71","state":"rejected","stage":"refused","effect":"no_effect","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T21:53:36.362Z","worker_id":"35d10782-23e9-4c32-8123-30764782ca09","admission":"rejected","error":"profile_copy_special_file"}
+  + actual - expected
+  
+  + 'rejected'
+  - 'outcome_unknown'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/dist/test/gate1-fix.test.js:179:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'rejected',
+    expected: 'outcome_unknown',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-fix.test.js:192:1
+✖ D2: after the dispatch record a plain Refusal is outcome_unknown; only ProvenNoEffect is rejected/no_effect (0.593051ms)
+  AssertionError [ERR_ASSERTION]: a default Refusal after dispatch is not proof of no effect
+  + actual - expected
+  
+  + 'rejected'
+  - 'outcome_unknown'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/dist/test/gate1-fix.test.js:200:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'rejected',
+    expected: 'outcome_unknown',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-fix.test.js:215:1
+✖ kernel D1: a sandboxed parent launches a channel child with a 20k+ entry profile; the child loads code from the read-only dependency bind (622.53904ms)
+  AssertionError [ERR_ASSERTION]: {"status":200,"body":{"command_id":"d1-child","operation":"workers.create","request_hash":"6e8738d8919abf98bedf81950e3d24e2d8692eb69f3e1002db2ccd14018c7053","state":"rejected","stage":"refused","effect":"no_effect","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T21:53:36.790Z","worker_id":"39d3d6fd-ee0b-4532-bc75-ad3cd32ce0f9","admission":"rejected","error":"profile_copy_too_many_entries"}}
+  + actual - expected
+  
+  + 'rejected'
+  - 'delivered'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/dist/test/gate1-fix.test.js:272:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'rejected',
+    expected: 'delivered',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

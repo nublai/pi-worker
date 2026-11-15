@@ -1,0 +1,262 @@
+{
+  "producer": "gate1-fix-round-owner-evidence-packager",
+  "runtime_subject": {
+    "commit_id": "24e1de26bc131d56a1773db006cb5a8b6aee8552",
+    "tree_id": "2de6251f9d60da1e85348084ca3a8833c15230b5",
+    "note": "fixed runtime bundled to the VM (branch a0/gate1-rerun); code identical to 2a3ba08 fix commit plus docs/harness/evidence"
+  },
+  "local": [
+    {
+      "host": "local",
+      "command": "npm test (TMPDIR=/tmp/a0g1f/tmp)",
+      "log": "evidence/gate1-fix/local-default.log",
+      "sha256": "7a74d4062880c8b15a7dfdc8ab84369761c23d5b1f5df96f1f96c99cc5e18081",
+      "counts": {
+        "tests": 245,
+        "pass": 231,
+        "fail": 0,
+        "skipped": 14
+      }
+    },
+    {
+      "host": "local",
+      "command": "systemd-run --user --unit=a0-g1f-kernel --property=Delegate=yes ... evidence/gate1-rerun/kernel.sh (A0_TEST_BWRAP=1, A0_TEST_CGROUP_DIR)",
+      "log": "evidence/gate1-fix/local-kernel.log",
+      "sha256": "b0cf4a3945d525d94e8c4054917a5637af0887b4787e8541ecd77431cb6b686a",
+      "counts": {
+        "tests": 245,
+        "pass": 245,
+        "fail": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "host": "local",
+      "command": "npm run check:generated",
+      "log": "evidence/gate1-fix/local-generated.log",
+      "sha256": "1256035434d8aad9d677b5e6dcbf843301d586382d4f5b457bd457d7884e6a81"
+    }
+  ],
+  "before_fix": {
+    "log": "evidence/gate1-fix/before-fix/gate1-fix-on-7ea2f0d.log",
+    "sha256": "3157d7372307a465e798bb4cbc2d1a38ef2f2d3f9701b9834efdf55d23072803",
+    "counts": {
+      "tests": 6,
+      "pass": 0,
+      "fail": 6,
+      "skipped": 0
+    },
+    "note": "all 6 new tests fail by assertion on the unfixed runtime (A0_TEST_BWRAP=1)"
+  },
+  "reversions": {
+    "killed": 6,
+    "total": 6,
+    "file": "evidence/gate1-fix/reversions.json"
+  },
+  "vm": [
+    {
+      "host": "a0-worker",
+      "command": "npm test (/tmp/a0g1b/runtime)",
+      "log": "evidence/gate1-fix-run/vm/vm-default.log",
+      "sha256": "db8d2c055de038cab3ade9b6aa0f555605e1d84bb9b83e98ce4af629a789179c",
+      "counts": {
+        "tests": 245,
+        "pass": 231,
+        "fail": 0,
+        "skipped": 14
+      }
+    },
+    {
+      "host": "a0-worker",
+      "command": "kernel suite, first run",
+      "log": "evidence/gate1-fix-run/vm/vm-kernel-run1-flake.log",
+      "sha256": "2b450c554419803ed1d256f7723803f3ac4ea764de7f9143ec645eda8472c453",
+      "counts": {
+        "tests": 245,
+        "pass": 244,
+        "fail": 1,
+        "skipped": 0
+      },
+      "result": "1 failure: owner Git snapshot-faithful test (pre-existing racy-git flake, see report)"
+    },
+    {
+      "host": "a0-worker",
+      "command": "systemd-run --user --unit=a0-g1b-suite-kernel --property=Delegate=yes ... kernel.sh, second run",
+      "log": "evidence/gate1-fix-run/vm/vm-kernel.log",
+      "sha256": "b0fb07a836b2b1cf4a270727067187cccfde1605c9e9554de4848a1110ffc04a",
+      "counts": {
+        "tests": 245,
+        "pass": 245,
+        "fail": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "host": "a0-worker",
+      "command": "npm run check:generated",
+      "log": "evidence/gate1-fix-run/vm/vm-generated.log",
+      "sha256": "edc0d005418122315efbdb30c459f951272146f5af7bb555010f753a96a83bad"
+    }
+  ],
+  "model_driven_job": {
+    "pass": true,
+    "steps": [
+      "vm-setup.sh",
+      "live.mjs start",
+      "live.mjs wait",
+      "live.mjs freeze",
+      "audit.mjs",
+      "integration-check.mjs",
+      "verify.mjs",
+      "finish.mjs",
+      "final-audit.mjs",
+      "privacy-scan.mjs"
+    ],
+    "artifact_subject": {
+      "commit_id": "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6",
+      "tree_id": "8876bd099d0fa7ec2831142f59a1c57f1dab3390",
+      "base_id": "24e1de26bc131d56a1773db006cb5a8b6aee8552"
+    },
+    "verification": "verified",
+    "launch_attempts": [
+      {
+        "name": "note-writer",
+        "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+        "thinking": "off",
+        "branch": "g1-note/task"
+      },
+      {
+        "name": "check-author",
+        "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+        "thinking": "off",
+        "branch": "g1-check/task"
+      }
+    ],
+    "delivery_counts": {
+      "7429237d-4029-4aa2-89c8-0f1ed9c26ed8:result": 1,
+      "7429237d-4029-4aa2-89c8-0f1ed9c26ed8:termination": 1,
+      "71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7:result": 1,
+      "71501f7e-f2aa-40dc-9df7-f2e9fbdf7ec7:termination": 1
+    },
+    "changed_refs": [
+      {
+        "ref": "refs/heads/g1-check/task",
+        "commit_id": "030328d3e51b4a28315b8f8680a2d1d6bb00b663"
+      },
+      {
+        "ref": "refs/heads/g1-note/task",
+        "commit_id": "8a2cc13b382c6160d8bc9257ce00d1257b80f846"
+      },
+      {
+        "ref": "refs/heads/job/gate1",
+        "commit_id": "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6"
+      }
+    ],
+    "parent_tool_counts": {
+      "bash": 9,
+      "read": 4,
+      "subagent": 2
+    },
+    "parent_did_child_work": false,
+    "integration": {
+      "parent_commits_equal_child_diffs": [
+        {
+          "commit": "6e45d182d58186f4ef21a6ae64182ee99b634bab",
+          "same_diff_as": "refs/heads/g1-note/task"
+        },
+        {
+          "commit": "cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6",
+          "same_diff_as": "refs/heads/g1-check/task"
+        }
+      ],
+      "parent_edit_or_write_calls": 0,
+      "parent_git_commit_calls": 0
+    },
+    "reconnect": {
+      "disconnected_seconds": 314.477,
+      "resync_reason": "gap",
+      "parent_epoch_unchanged": true,
+      "session_id_unchanged": true
+    },
+    "native_calls_during_disconnect": 15,
+    "staged_child_profile_entries": {
+      "parent_profile": 18801,
+      "each_child": 23,
+      "child_node_modules_mount_point_entries_on_host": 0
+    },
+    "fresh_checkout_checks": [
+      {
+        "command": "--no-local /tmp/a0g1b/run/workspace /tmp/a0g1b/verify/head",
+        "pass": true,
+        "counts": {}
+      },
+      {
+        "command": "checkout --detach cd8b6f1b0912bb3615ee0507ec17ddbb7f2e03b6",
+        "pass": true,
+        "counts": {}
+      },
+      {
+        "command": "npm ci --ignore-scripts",
+        "pass": true,
+        "counts": {}
+      },
+      {
+        "command": "npm test",
+        "pass": true,
+        "counts": {
+          "tests": 245,
+          "pass": 231,
+          "fail": 0,
+          "skipped": 14
+        }
+      },
+      {
+        "command": "npm run check:generated",
+        "pass": true,
+        "counts": {}
+      },
+      {
+        "command": "--setenv=npm_config_cache=/tmp/a0g1b/npm-cache /bin/bash /tmp/a0g1b/kernel.sh",
+        "pass": true,
+        "counts": {
+          "tests": 245,
+          "pass": 245,
+          "fail": 0,
+          "skipped": 0
+        }
+      }
+    ],
+    "harness_attempts_not_counted_as_passes": [
+      "audit.mjs run before freeze (ordering error; parent still ready)",
+      "audit.mjs used safeGit worktree list, which cannot see linked worktrees on the private snapshot; replaced by an O_NOFOLLOW check of <admin>/locked",
+      "verify.mjs clone refused by SAFE_GIT_CONFIG protocol.allow=never; re-allowed only protocol.file for the clone",
+      "verify.mjs attempt 2: artifact kernel suite hit the same racy-git owner-Git flake; attempt 3 passed"
+    ]
+  },
+  "attention": {
+    "authorization_interventions": 2,
+    "prompts": 1,
+    "answers": 0,
+    "acceptances": 1,
+    "owner_write_actions": 5,
+    "elapsed_minutes_prompt_to_acceptance": 20.011166666666668,
+    "founder_live_touches": 0,
+    "verified_changes": 1,
+    "verified_prs": 0
+  },
+  "stray_supervisor": {
+    "pid": 1269,
+    "command": "node dist/main.js",
+    "cwd": "/tmp/a0/repo",
+    "cgroup": "0::/init.scope",
+    "ppid": 1,
+    "children": 0,
+    "started": "2026-11-15T05:05:37Z (VM local clock)",
+    "stopped": "SIGTERM at 2026-11-15T22:32:13Z, gone within 1 s",
+    "only_process_stopped": true
+  },
+  "final_a0_units": {
+    "local": 0,
+    "vm": 0
+  }
+}

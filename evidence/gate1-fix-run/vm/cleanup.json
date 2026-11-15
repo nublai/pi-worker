@@ -1,0 +1,28 @@
+{
+  "clock": "2026-11-15T22:31:42.258Z",
+  "supervisor_pid": 485613,
+  "supervisor_absent": true,
+  "stopped_units": [
+    "a0-g1b-supervisor.service",
+    "a0-507b2747e9387a63d5b6.service"
+  ],
+  "loaded_a0_units": [],
+  "grant_revoked": true,
+  "terminal_trap_absent_during_job": true,
+  "terminal_positive_controls_after_freeze": [
+    {
+      "command": "herdr",
+      "exit_code": 97
+    },
+    {
+      "command": "hc",
+      "exit_code": 97
+    },
+    {
+      "command": "herdr-core",
+      "exit_code": 97
+    }
+  ],
+  "all_worker_domains_removed": true,
+  "retention": "both locked child worktrees and all private profiles/journals/native sessions retained on VM"
+}
