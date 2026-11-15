@@ -1,6 +1,22 @@
 # A0 Gate 1 rerun: model-driven job on the fixed code
 
 > **Fix round and second run (2026-11-15): the model-driven job PASSED on the fixed runtime `24e1de2`.** D1, D2 and D3 are fixed. Each has a regression test that fails on `7ea2f0d`, and 6 of 6 isolated reversions are killed. The first run, below, is kept unchanged as history. See [Fix round](#fix-round-d1d3) and [Second run](#second-run-job-passed).
+>
+> **Follow-up (2026-11-15, after the security review): D2's `no_effect` proof was bypassable and is removed; the owner-Git flake is fixed.** Once staging has created `.a0-agent`, a staging failure is now always `outcome_unknown` and fences the parent. The safe Git snapshot now keeps the index mtime. See [Follow-up](#follow-up-d2-rename-aside-and-owner-git-racy-index). The second run's job pass was on `24e1de2`; the follow-up was not rerun on the VM.
+
+## Follow-up: D2 rename-aside and owner-Git racy index
+
+Evidence is in [`evidence/gate1-followup/`](evidence/gate1-followup/). Both new regression tests [fail by assertion on `859b51e`](evidence/gate1-followup/before-fix/new-tests-on-859b51e.log). They failed 3 of 3 runs ([log](evidence/gate1-followup/before-fix/new-tests-on-859b51e-x3-assertions.log)).
+
+**D2 rename-aside (security review, confirmed).** The child root is inside the parent's read-write worktree. The old rule removed `.a0-agent` and then proved `no_effect` by finding the *name* absent. A sandboxed parent could rename the created directory aside, for example to `.kept`, before cleanup opened it. `removeTreeAt` treated the missing name as already removed, `absentAt` saw `ENOENT`, and the receipt said `rejected/no_effect` with no fence, while the copied files stayed under `.kept`.
+- **Rule now (`Supervisor.stageProfile`):** `no_effect` only when the launch created nothing, meaning the source open or `mkdir` failed. Once `.a0-agent` exists, cleanup is best effort and the failure is always `outcome_unknown`, which fences a channel parent. `absentAt` is removed.
+- **Not taken:** proving removal by `nlink == 0` on held descriptors. That would need a descriptor for every created inode, not just the top directory. A file or subdirectory renamed out of `.a0-agent` leaves the top directory removable. It also depends on filesystem `nlink` semantics. The always-unknown rule is simpler and has no race.
+- **Cost:** an ordinary staging refusal after files were copied, such as the 10,000-entry budget or a fifo in the profile, now fences the parent until the owner resolves it. Before, it did not.
+- **Tests:** a new test, `D2: a parent that renames the partial .a0-agent aside before cleanup cannot get rejected/no_effect`, renames the directory aside through the cleanup seam and then runs the real `removeTreeAt`. Before the fix: `rejected`. After: `outcome_unknown`, the parent is fenced, and the row is `failed`. Two existing tests asserted the old unsound label (`no_effect`, no fence). They now assert `unknown` plus the fence, and every other assertion is kept. The D2+D3 test resolves the fence (`abandon`) before it relaunches the same root.
+
+**Owner-Git racy index (the flake above, now fixed).** `copyData` copies the index with `copyFileAt(..., keepMtime)`. The copy takes the source's mtime from the same pinned descriptor, rounded down to whole seconds. Rounding down can only make more entries racy, which adds content checks and never skips one. A new test forces the same-second case: `core.checkStat=minimal`, `core.trustctime=false`, and the file and index mtimes pinned to one second. Before the fix, `safeGit status` returned `''` while plain Git reported `M note`. After the fix both report `M note`. With the fix, the original flaky test and the new test passed 40 of 40 repeated local runs.
+
+**Suites (local, Node 26.13.0, Git 2.53.0, bwrap 0.11.1):** `npm test` **247 tests, 233 pass, 14 kernel skips, 0 failures** ([log](evidence/gate1-followup/local-default.log)). Kernel suite (`evidence/gate1-rerun/kernel.sh`, `A0_TEST_BWRAP=1`, `A0_TEST_CGROUP_DIR`) in the delegated user unit `a0-g1g-kernel`: **247/247, 0 skips** ([log](evidence/gate1-followup/local-kernel.log)). `check:generated` is clean. Two tests were added and none were removed. 0 `a0-*` units remain.
 
 ## Fix round (D1–D3)
 
@@ -17,7 +33,7 @@ The fix is commit `2a3ba08`, and the tests are commit `b0b9bcb`. Evidence is in 
 
 **D2: one rule.** After the dispatch record, a failure is `outcome_unknown` unless it is thrown as the new `ProvenNoEffect` (`src/types.ts`). That class is used only with evidence. `ReceiptStore.run` no longer treats a default `Refusal` after dispatch as `no_effect`. For staging, `Supervisor.stageProfile` works as follows:
 - If the launch created nothing, it reports `no_effect`.
-- Otherwise it removes the `.a0-agent` it created with a descriptor-relative `removeTreeAt`, then checks by `O_NOFOLLOW` open that the directory is absent. Only then does it report `rejected/no_effect`.
+- Otherwise it removes the `.a0-agent` it created with a descriptor-relative `removeTreeAt`, then checks by `O_NOFOLLOW` open that the directory is absent. Only then does it report `rejected/no_effect`. *(Superseded: a rename-aside bypasses this name check. Any failure after `.a0-agent` is created is now always `unknown`. See [Follow-up](#follow-up-d2-rename-aside-and-owner-git-racy-index).)*
 - If anything remains, the receipt is `outcome_unknown` and the parent is fenced.
 - Both paths are tested. The unknown-path test uses a cleanup seam that removes nothing, so the descriptor check, not the cleanup function, decides the label.
 
@@ -25,7 +41,7 @@ The other `Refusal` throws after dispatch were reviewed:
 
 | Site | Before | Now |
 | --- | --- | --- |
-| `create`: staging (`copyTreeAt` budget, special-file and link refusals; source open; `mkdir`) | `rejected/no_effect` with partial files (D2) | Removed and verified → `no_effect`; otherwise `unknown` plus parent fence |
+| `create`: staging (`copyTreeAt` budget, special-file and link refusals; source open; `mkdir`) | `rejected/no_effect` with partial files (D2) | Removed and verified → `no_effect`; otherwise `unknown` plus parent fence. *Follow-up: nothing created → `no_effect`; anything created → always `unknown` plus parent fence.* |
 | `create`: `sessionDir` and `sandboxLaunch` inside the host factory (`sandbox_credential_not_regular_file`, Git pin/plan refusals, `sandbox_parent_channel_required`, new `sandbox_dependency_mount_point_invalid`). These run after staging and session-dir creation. | `no_effect` (same mistake) | `unknown` (fences a channel parent). The row is `failed`. |
 | `create`: `noOtherWriter` → `session_already_bound`, after a Pi process ran and was cleaned up | `no_effect` (same mistake) | `unknown` |
 | `relaunch`: `openSandboxRoot` and sandbox refusals, after the worker epoch changed | `no_effect` (same mistake) | `unknown`. Relaunch still does not fence; that is unchanged. |
@@ -69,7 +85,7 @@ Evidence is in [`evidence/gate1-fix-run/`](evidence/gate1-fix-run/): [checks.jso
 3. The `verify.mjs` clone was refused, because `SAFE_GIT_CONFIG` sets `protocol.allow=never`. Only `protocol.file.allow=always` was re-allowed, for that one clone.
 4. On `verify.mjs` attempt 2, the artifact's kernel suite hit the same owner-Git flake. Attempt 3 passed.
 
-**Pre-existing flake found (not fixed; outside D1–D3).** `owner Git: results match plain Git on an untouched checkout` fails intermittently on the VM's Git 2.43. Cause:
+**Pre-existing flake found (outside D1–D3; fixed in the [Follow-up](#follow-up-d2-rename-aside-and-owner-git-racy-index)).** `owner Git: results match plain Git on an untouched checkout` fails intermittently on the VM's Git 2.43. Cause:
 - The fixture writes a same-size change within the same second as the index.
 - Plain Git treats that entry as racily clean and compares content, so it sees ` M note`.
 - `safeGit` copies the index into its snapshot with a new mtime, so the entry no longer looks racy, and Git trusts the stat data and reports clean.

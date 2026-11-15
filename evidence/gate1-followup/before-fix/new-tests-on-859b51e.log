@@ -1,0 +1,51 @@
+✖ D2: a parent that renames the partial .a0-agent aside before cleanup cannot get rejected/no_effect (26.663439ms)
+✖ owner Git: a racily-clean same-second, same-size edit is reported modified, as plain Git does (snapshot keeps the index mtime) (20.959119ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 88.442287
+
+✖ failing tests:
+
+test at dist/test/gate1-fix.test.js:192:1
+✖ D2: a parent that renames the partial .a0-agent aside before cleanup cannot get rejected/no_effect (26.663439ms)
+  AssertionError [ERR_ASSERTION]: {"command_id":"aside","operation":"workers.create","request_hash":"e0316d0a95b809a1097b9fc9669ea9559c7d53536dbcf1816e6fc00c9c09f365","state":"rejected","stage":"refused","effect":"no_effect","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T23:05:26.052Z","worker_id":"44d3cb4d-1b75-4ab0-89f8-bf6634bd29ca","admission":"rejected","error":"profile_copy_special_file"}
+  + actual - expected
+  
+  + 'rejected'
+  - 'outcome_unknown'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/dist/test/gate1-fix.test.js:212:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'rejected',
+    expected: 'outcome_unknown',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/owner-git.test.js:211:1
+✖ owner Git: a racily-clean same-second, same-size edit is reported modified, as plain Git does (snapshot keeps the index mtime) (20.959119ms)
+  AssertionError [ERR_ASSERTION]: owner Git must not trust stat data of a racily-clean entry
+  
+  '' !== 'M note'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/dist/test/owner-git.test.js:232:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '',
+    expected: 'M note',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -1,0 +1,15 @@
+  + actual - expected
+    actual: 'rejected',
+    expected: 'outcome_unknown',
+    actual: '',
+    expected: 'M note',
+  + actual - expected
+    actual: 'rejected',
+    expected: 'outcome_unknown',
+    actual: '',
+    expected: 'M note',
+  + actual - expected
+    actual: 'rejected',
+    expected: 'outcome_unknown',
+    actual: '',
+    expected: 'M note',
