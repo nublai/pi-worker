@@ -1,0 +1,4 @@
+{"completed":"rpc","dialogs":7,"startup":{"stage":2,"native_answer_received":false,"worker_ready":true},"navigation":{"receipt":"rejected","effect":"no_effect","error":"pi_1_5_2_rpc_tree_navigation_unavailable"}}
+{"completed":"sdk","dialogs":7,"startup":{"stage":3,"native_answer_received":true,"worker_ready":true},"navigation":{"receipt":"delivered","revision":2,"leaf":"9c13460a","native_leaf":"9c13460a","stale_interaction":"interrupted","stale_answer_refusal":"stale_binding"}}
+{"completed":"acp","dialogs":7,"startup":{"stage":3,"native_answer_received":true,"worker_ready":true},"navigation":{"receipt":"delivered","revision":2,"leaf":"bc5db8af","native_leaf":"bc5db8af","stale_interaction":"interrupted","stale_answer_refusal":"stale_binding"}}
+{"complete":true,"summary":"/tmp/a0s3fix/live-dncG0S/summary.json"}

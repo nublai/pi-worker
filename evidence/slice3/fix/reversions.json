@@ -1,0 +1,112 @@
+{
+  "root": "/tmp/a0s3fix/reversions-SeySF0",
+  "rows": [
+    {
+      "name": "review-baseline",
+      "builds": true,
+      "expected_failure": true,
+      "assertion_observed": true,
+      "exit": 1,
+      "output": "/tmp/a0s3fix/reversions-SeySF0/review-baseline/test-output.txt"
+    },
+    {
+      "name": "review-n1",
+      "builds": true,
+      "expected_failure": true,
+      "assertion_observed": true,
+      "exit": 1,
+      "output": "/tmp/a0s3fix/reversions-SeySF0/review-n1/test-output.txt"
+    },
+    {
+      "name": "fixed",
+      "builds": true,
+      "expected_failure": false,
+      "assertion_observed": false,
+      "exit": 0,
+      "output": "/tmp/a0s3fix/reversions-SeySF0/fixed/test-output.txt"
+    },
+    {
+      "name": "review-race-probe",
+      "result": "pass",
+      "value": {
+        "nav_state": "delivered",
+        "nav_revision": 2,
+        "binding_before": 1,
+        "binding_after": 2,
+        "cancelled_during_rebind": [
+          "native-q"
+        ],
+        "answer_state": "outcome_unknown",
+        "answer_stage": 1,
+        "answer_effect": "unknown",
+        "interaction_status": "interrupted",
+        "interaction_stage": 1,
+        "interaction_binding": 1,
+        "worker_binding": 2
+      }
+    },
+    {
+      "name": "review-gate-race-probe",
+      "result": "pass",
+      "value": {
+        "answer_stage": 3,
+        "nav_state": "delivered",
+        "binding": 2,
+        "cancelled": [
+          "appr"
+        ],
+        "gate_error": false,
+        "worker_status": "ready",
+        "cleanup": "live_process_group"
+      }
+    },
+    {
+      "name": "missing-answer-recheck",
+      "builds": true,
+      "expected_failure": true,
+      "assertion_observed": true,
+      "exit": 1,
+      "output": "/tmp/a0s3fix/reversions-SeySF0/missing-answer-recheck/test-output.txt"
+    },
+    {
+      "name": "missing-accepted-cancellation",
+      "builds": true,
+      "expected_failure": true,
+      "assertion_observed": true,
+      "exit": 1,
+      "output": "/tmp/a0s3fix/reversions-SeySF0/missing-accepted-cancellation/test-output.txt"
+    },
+    {
+      "name": "fenced-release-dispatched",
+      "builds": true,
+      "expected_failure": true,
+      "assertion_observed": true,
+      "exit": 1,
+      "output": "/tmp/a0s3fix/reversions-SeySF0/fenced-release-dispatched/test-output.txt"
+    },
+    {
+      "name": "dispatch-after-clear_queue",
+      "builds": true,
+      "expected_failure": true,
+      "assertion_observed": true,
+      "exit": 1,
+      "output": "/tmp/a0s3fix/reversions-SeySF0/dispatch-after-clear_queue/test-output.txt"
+    },
+    {
+      "name": "dispatch-after-abort",
+      "builds": true,
+      "expected_failure": true,
+      "assertion_observed": true,
+      "exit": 1,
+      "output": "/tmp/a0s3fix/reversions-SeySF0/dispatch-after-abort/test-output.txt"
+    },
+    {
+      "name": "dispatch-after-stop",
+      "builds": true,
+      "expected_failure": true,
+      "assertion_observed": true,
+      "exit": 1,
+      "output": "/tmp/a0s3fix/reversions-SeySF0/dispatch-after-stop/test-output.txt"
+    }
+  ]
+}

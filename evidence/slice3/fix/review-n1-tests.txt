@@ -1,0 +1,175 @@
+{"effect_kind":"prompt","cuts":5,"result":"pass"}
+{"effect_kind":"rebind","cuts":3,"result":"pass"}
+{"effect_kind":"create","cuts":3,"result":"pass"}
+{"effect_kind":"child launch","cuts":1,"result":"pass"}
+✔ effect cut prompt: native evidence forbids no_effect and recovered buckets require fences (536.440761ms)
+✔ effect cut rebind: native evidence forbids no_effect and recovered buckets require fences (318.106955ms)
+✔ effect cut create: native evidence forbids no_effect and recovered buckets require fences (331.489959ms)
+✔ effect cut child launch: native evidence forbids no_effect and recovered buckets require fences (141.165274ms)
+✖ effect cut cancel clear_queue: native evidence forbids no_effect and recovered buckets require fences (110.491029ms)
+✖ effect cut cancel abort: native evidence forbids no_effect and recovered buckets require fences (112.020666ms)
+✖ effect cut interrupt clear_queue: native evidence forbids no_effect and recovered buckets require fences (113.522832ms)
+✖ effect cut interrupt abort: native evidence forbids no_effect and recovered buckets require fences (113.840117ms)
+✖ effect cut stop: native evidence forbids no_effect and recovered buckets require fences (104.484461ms)
+✖ SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect (9364.173146ms)
+✔ supervisor dispatch marker with execution ID is fsynced before the host receives prompt (M2) (8.688916ms)
+✔ HTTP pi prompt response timeout: unknown and durable fence before response headers (M1, M6) (10.107435ms)
+✔ HTTP stdin write failed: unknown and durable fence before response headers (M1, M6) (2.360124ms)
+✔ Pi exit fences an admitted run durably without rewriting delivered admission (M9) (1.376019ms)
+✔ unknown stop never replaces the prompt fence; two restarts preserve fence and delivered receipt (2.407843ms)
+✔ journal failure in a Pi event faults only that worker and keeps inventory readable (1.997164ms)
+✔ header failure in a Pi event faults only that worker and keeps inventory readable (1.779986ms)
+✔ validation refusals consume no durable storage, ordinary capacity never blocks termination (148.331516ms)
+✔ failed create preserves the same group-only cleanup and cwd reservation as stop (m-1) (1.222001ms)
+✔ unsupported UI dialogs auto-cancel without resolver-consumed claims (m-2) (4.998719ms)
+✔ pending unsupported interactions close on tool_execution_end (m-2) (2.418703ms)
+✔ pending unsupported interactions close on agent_settled (m-2) (0.763391ms)
+✔ pending unsupported interactions close on expiry (m-2) (21.876685ms)
+✔ pending unsupported dialogs are bounded and cancellation failure faults closed (m-2) (2.432189ms)
+✔ socket directory rejects symlink, public mode and foreign ownership before listening (M5) (0.903904ms)
+✔ reads publish derived history in memory without journal writes or stopping workers (N-1) (0.997299ms)
+✔ fault after settlement never fences the settled execution (N-2) (1.690939ms)
+✔ restart 1 and restart 2 cannot reuse transport epochs (T-1) (1.863984ms)
+✔ B2 SSE ends a slow subscriber with explicit overflow after bounded queue (M4) (12.88957ms)
+{"interaction_scenario_fsync_cuts":77,"interaction_recovery_fsync_cuts":7,"result":"pass"}
+{"interaction_effect_cuts":9,"result":"pass"}
+✔ new interactions: SIGKILL at every scenario and recovery fsync occurrence, no answer replay, native effect oracle (7734.542349ms)
+✔ new interactions: cut at each answer/cancel/gate/navigation effect before reply, independent native evidence (881.275222ms)
+✔ resolve keep: latch, generation, binding, final receipt and durable tombstone (10.389394ms)
+✔ resolve abandon: latch, generation, binding, final receipt and durable tombstone (1.808009ms)
+✔ resolve observed: latch, generation, binding, final receipt and durable tombstone (2.146183ms)
+✔ observed refuses mere memory and unknown dispatch, accepts exact session settlement only (1.4512ms)
+✔ multiple uncertainties retained, generation monotonic after partial resolution and refence (1.529066ms)
+✔ queued follow-up and pending child pause under fence then keep (5.897665ms)
+✔ queued follow-up and pending child pause under fence then abandon (2.344364ms)
+✔ new/fork/resume change same-process binding; stale delayed prompt and duplicate open name cause (4.132906ms)
+✔ recovered intent only dispatches once after owner resolution and exact retry (3.558941ms)
+✔ child recovery without fsynced report preserves parent launch uncertainty (2.373038ms)
+✔ child recovery with fsynced report preserves parent launch uncertainty (4.087822ms)
+✔ abandon drops a recovered queue and its durable no-dispatch intent (1.494661ms)
+✔ resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation (1.384445ms)
+✔ cancel, interrupt and evidence reports allowed under fence without lifting it (1.332046ms)
+ℹ tests 45
+ℹ suites 0
+ℹ pass 39
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11288.599795
+
+✖ failing tests:
+
+test at ../../../../../../tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:112:5
+✖ effect cut cancel clear_queue: native evidence forbids no_effect and recovered buckets require fences (110.491029ms)
+  AssertionError [ERR_ASSERTION]: native effect clear_queue:keep-cancel recovered intent_recovered/no_effect
+      at checkRecovery (file:///tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:67:20)
+      at TestContext.<anonymous> (file:///tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:126:21)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'no_effect',
+    expected: 'no_effect',
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../../tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:112:5
+✖ effect cut cancel abort: native evidence forbids no_effect and recovered buckets require fences (112.020666ms)
+  AssertionError [ERR_ASSERTION]: native effect clear_queue:keep-cancel recovered intent_recovered/no_effect
+      at checkRecovery (file:///tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:67:20)
+      at TestContext.<anonymous> (file:///tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:126:21)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'no_effect',
+    expected: 'no_effect',
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../../tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:112:5
+✖ effect cut interrupt clear_queue: native evidence forbids no_effect and recovered buckets require fences (113.522832ms)
+  AssertionError [ERR_ASSERTION]: native effect clear_queue:keep-interrupt recovered intent_recovered/no_effect
+      at checkRecovery (file:///tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:67:20)
+      at TestContext.<anonymous> (file:///tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:126:21)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'no_effect',
+    expected: 'no_effect',
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../../tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:112:5
+✖ effect cut interrupt abort: native evidence forbids no_effect and recovered buckets require fences (113.840117ms)
+  AssertionError [ERR_ASSERTION]: native effect clear_queue:keep-interrupt recovered intent_recovered/no_effect
+      at checkRecovery (file:///tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:67:20)
+      at TestContext.<anonymous> (file:///tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:126:21)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'no_effect',
+    expected: 'no_effect',
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../../tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:112:5
+✖ effect cut stop: native evidence forbids no_effect and recovered buckets require fences (104.484461ms)
+  AssertionError [ERR_ASSERTION]: native effect stop:stop-a recovered intent_recovered/no_effect
+      at checkRecovery (file:///tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:67:20)
+      at TestContext.<anonymous> (file:///tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:126:21)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'no_effect',
+    expected: 'no_effect',
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../../tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:138:1
+✖ SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect (9364.173146ms)
+  AssertionError [ERR_ASSERTION]: native effect clear_queue:keep-cancel recovered intent_recovered/no_effect
+      at checkRecovery (file:///tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:67:20)
+      at TestContext.<anonymous> (file:///tmp/a0s3fix/reversions-SeySF0/review-n1/dist/test/crash-matrix.test.js:151:44)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'no_effect',
+    expected: 'no_effect',
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }

@@ -1,0 +1,13 @@
+LIVE_FAILED /tmp/a0s3fix/live-bn73UW AssertionError [ERR_ASSERTION]: navigate must abort child resolvers even without parent cancellation
+
+true !== false
+
+    at file:///tmp/a0s3fix/live-reversions-q3badS/missing-child-abort/evidence/slice3/fix/live.mjs:151:14
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: true,
+  expected: false,
+  operator: 'strictEqual',
+  diff: 'simple'
+}

@@ -1,0 +1,160 @@
+✖ in-flight input, consumed=false: navigate cancels accepted resolver and refuses stale success (10.277544ms)
+✖ in-flight input, consumed=true: navigate cancels accepted resolver and refuses stale success (1.354679ms)
+✖ in-flight tool_approval, consumed=false: navigate cancels accepted resolver and refuses stale success (1.145637ms)
+✖ in-flight tool_approval, consumed=true: navigate cancels accepted resolver and refuses stale success (1.095383ms)
+✖ in-flight answer rechecks epoch even without a revision move (1.544265ms)
+✖ in-flight answer rechecks fence even without a revision move (0.868068ms)
+✖ in-flight answer rechecks rebinding even without a revision move (0.803646ms)
+✖ already-consumed approval is cancelled by navigate; late gate check does not fault or release (6.10849ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 0
+ℹ fail 8
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60.101391
+
+✖ failing tests:
+
+test at dist/test/binding-answer-race.test.js:9:9
+✖ in-flight input, consumed=false: navigate cancels accepted resolver and refuses stale success (10.277544ms)
+  AssertionError [ERR_ASSERTION]: cancelUI must include accepted interactions before navigate
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice3-hosting/dist/test/binding-answer-race.test.js:31:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/binding-answer-race.test.js:9:9
+✖ in-flight input, consumed=true: navigate cancels accepted resolver and refuses stale success (1.354679ms)
+  AssertionError [ERR_ASSERTION]: cancelUI must include accepted interactions before navigate
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice3-hosting/dist/test/binding-answer-race.test.js:31:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/binding-answer-race.test.js:9:9
+✖ in-flight tool_approval, consumed=false: navigate cancels accepted resolver and refuses stale success (1.145637ms)
+  AssertionError [ERR_ASSERTION]: cancelUI must include accepted interactions before navigate
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice3-hosting/dist/test/binding-answer-race.test.js:31:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/binding-answer-race.test.js:9:9
+✖ in-flight tool_approval, consumed=true: navigate cancels accepted resolver and refuses stale success (1.095383ms)
+  AssertionError [ERR_ASSERTION]: cancelUI must include accepted interactions before navigate
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice3-hosting/dist/test/binding-answer-race.test.js:31:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/binding-answer-race.test.js:51:5
+✖ in-flight answer rechecks epoch even without a revision move (1.544265ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'delivered'
+  - 'outcome_unknown'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice3-hosting/dist/test/binding-answer-race.test.js:70:20)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'delivered',
+    expected: 'outcome_unknown',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/binding-answer-race.test.js:51:5
+✖ in-flight answer rechecks fence even without a revision move (0.868068ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'delivered'
+  - 'outcome_unknown'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice3-hosting/dist/test/binding-answer-race.test.js:70:20)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'delivered',
+    expected: 'outcome_unknown',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/binding-answer-race.test.js:51:5
+✖ in-flight answer rechecks rebinding even without a revision move (0.803646ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'delivered'
+  - 'outcome_unknown'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice3-hosting/dist/test/binding-answer-race.test.js:70:20)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'delivered',
+    expected: 'outcome_unknown',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/binding-answer-race.test.js:79:1
+✖ already-consumed approval is cancelled by navigate; late gate check does not fault or release (6.10849ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(h.cancelled.includes('native'))
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice3-hosting/dist/test/binding-answer-race.test.js:94:16)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

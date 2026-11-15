@@ -1,0 +1,10 @@
+
+> @nublai/pi-worker-a0@0.0.0-throwaway check:generated
+> npm run generate && git diff --exit-code -- src/api.generated.ts
+
+
+> @nublai/pi-worker-a0@0.0.0-throwaway generate
+> openapi-typescript openapi.json -o src/api.generated.ts
+
+✨ openapi-typescript 7.13.0
+🚀 openapi.json → src/api.generated.ts [36.2ms]

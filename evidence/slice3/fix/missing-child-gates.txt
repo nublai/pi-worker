@@ -1,0 +1,13 @@
+{"completed":"sdk","dialogs":7,"startup":{"stage":3,"native_answer_received":true,"worker_ready":true},"navigation":{"receipt":"delivered","revision":2,"leaf":"d74718fa","native_leaf":"d74718fa","stale_interaction":"interrupted","stale_answer_refusal":"stale_binding"}}
+LIVE_FAILED /tmp/a0s3fix/live-KHeyGW AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+true !== false
+
+    at file:///tmp/a0s3fix/live-reversions-q3badS/missing-child-gate-denial/evidence/slice3/fix/live.mjs:205:19 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: true,
+  expected: false,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
