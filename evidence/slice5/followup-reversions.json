@@ -1,0 +1,126 @@
+{
+  "source_commit": "6ee4c83e426cedb1954265dc695fc050e78dfb55",
+  "isolation": "disposable source copies; shared read-only node_modules symlink; no kernel flags or services",
+  "results": [
+    {
+      "name": "n1-cleanup",
+      "path": "src/supervisor.ts",
+      "original_sha256": "c8749b4cb0a3ad6c5b6e010f8bcdbc4c7838c11f4eb71f6e3f8f26b1cd9f9a5c",
+      "mutant_sha256": "7bd8fb9a7bf7fcb09d8ae79a0829c4276330a1979ec67d884fbcbedd783f5a03",
+      "build_exit": 0,
+      "test_exit": 1,
+      "failures": 6,
+      "assertion_failures": 6
+    },
+    {
+      "name": "n1-stop",
+      "path": "src/supervisor.ts",
+      "original_sha256": "c8749b4cb0a3ad6c5b6e010f8bcdbc4c7838c11f4eb71f6e3f8f26b1cd9f9a5c",
+      "mutant_sha256": "ffc6e569a342b088f70fa3e6b04c95b8ccad8f57fa0e9fbdad6d2e358b6cb653",
+      "build_exit": 0,
+      "test_exit": 1,
+      "failures": 4,
+      "assertion_failures": 4
+    },
+    {
+      "name": "n1-fault",
+      "path": "src/supervisor.ts",
+      "original_sha256": "c8749b4cb0a3ad6c5b6e010f8bcdbc4c7838c11f4eb71f6e3f8f26b1cd9f9a5c",
+      "mutant_sha256": "c65cb2df44ec5b5ad90617889816e36264c8c76bd41e64493fa6d4922d145d8f",
+      "build_exit": 0,
+      "test_exit": 1,
+      "failures": 2,
+      "assertion_failures": 2
+    },
+    {
+      "name": "n2-eager-target",
+      "path": "src/supervisor.ts",
+      "original_sha256": "c8749b4cb0a3ad6c5b6e010f8bcdbc4c7838c11f4eb71f6e3f8f26b1cd9f9a5c",
+      "mutant_sha256": "26b54c13c1cdb16adfc8d5e35f582847602ae3cbaf498f393a5aec68a2822ad2",
+      "build_exit": 0,
+      "test_exit": 1,
+      "failures": 4,
+      "assertion_failures": 4
+    },
+    {
+      "name": "n2-retarget-success",
+      "path": "src/supervisor.ts",
+      "original_sha256": "c8749b4cb0a3ad6c5b6e010f8bcdbc4c7838c11f4eb71f6e3f8f26b1cd9f9a5c",
+      "mutant_sha256": "a71b4a3715fe028b1f356786446c6682f6bfbffcb970f38d6928ee86098f7b6f",
+      "build_exit": 0,
+      "test_exit": 1,
+      "failures": 1,
+      "assertion_failures": 1
+    },
+    {
+      "name": "n3-old-protected-set",
+      "path": "src/sandbox.ts",
+      "original_sha256": "5a32fd7bd158e182123a56346e71b2333819c57a70af60f95a3b2c43ce59bfdc",
+      "mutant_sha256": "8bad67d85b70367a964b803c17788ceba7fbc1ca58e6678fe584aa3c0164fff5",
+      "build_exit": 0,
+      "test_exit": 1,
+      "failures": 7,
+      "assertion_failures": 7
+    },
+    {
+      "name": "n3-no-containing-root-check",
+      "path": "src/sandbox.ts",
+      "original_sha256": "5a32fd7bd158e182123a56346e71b2333819c57a70af60f95a3b2c43ce59bfdc",
+      "mutant_sha256": "9b2c2497239186fce7c2c9738c6d047ee29c456d9edcfd52219e656b0f26f4e2",
+      "build_exit": 0,
+      "test_exit": 1,
+      "failures": 4,
+      "assertion_failures": 4
+    },
+    {
+      "name": "n3-no-nested-root-check",
+      "path": "src/sandbox.ts",
+      "original_sha256": "5a32fd7bd158e182123a56346e71b2333819c57a70af60f95a3b2c43ce59bfdc",
+      "mutant_sha256": "93d731ae02c6bc3b34c022f968c62daeea228c9e6dae5d3101fe9a6298f1315a",
+      "build_exit": 0,
+      "test_exit": 1,
+      "failures": 2,
+      "assertion_failures": 2
+    },
+    {
+      "name": "n3-no-fixed-runtime",
+      "path": "src/sandbox.ts",
+      "original_sha256": "5a32fd7bd158e182123a56346e71b2333819c57a70af60f95a3b2c43ce59bfdc",
+      "mutant_sha256": "b201604cb146723fbc9a0f1f00933661ae9ad880e532e0c2e88306905b0f4b5b",
+      "build_exit": 0,
+      "test_exit": 1,
+      "failures": 1,
+      "assertion_failures": 1
+    },
+    {
+      "name": "n3-no-xdg-runtime",
+      "path": "src/sandbox.ts",
+      "original_sha256": "5a32fd7bd158e182123a56346e71b2333819c57a70af60f95a3b2c43ce59bfdc",
+      "mutant_sha256": "5f45a334b70aaa8a0e3a179193f0f2f220f683b9bffc2366c1a5f6a1974e4dbd",
+      "build_exit": 0,
+      "test_exit": 1,
+      "failures": 6,
+      "assertion_failures": 6
+    },
+    {
+      "name": "n3-no-bus-target",
+      "path": "src/sandbox.ts",
+      "original_sha256": "5a32fd7bd158e182123a56346e71b2333819c57a70af60f95a3b2c43ce59bfdc",
+      "mutant_sha256": "0bd2c973723c793fd11f0bb814f215577c30e37d0490020f4cddd7fa5aef4d50",
+      "build_exit": 0,
+      "test_exit": 1,
+      "failures": 2,
+      "assertion_failures": 2
+    },
+    {
+      "name": "n3-no-private-kernel-mounts",
+      "path": "src/sandbox.ts",
+      "original_sha256": "5a32fd7bd158e182123a56346e71b2333819c57a70af60f95a3b2c43ce59bfdc",
+      "mutant_sha256": "8d53060ff08f74601711d03bb6cd7ea050363db356d97277a03a8138f861a676",
+      "build_exit": 0,
+      "test_exit": 1,
+      "failures": 1,
+      "assertion_failures": 1
+    }
+  ]
+}

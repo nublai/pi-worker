@@ -109,6 +109,7 @@ export class Supervisor {
       resource_profile: 'per-worker resources inventories actually registered tools/commands; SDK/ACP also exact loaded extension paths and skills. Project resources require create.project_trusted=true. SDK builtins added explicitly for untyped launches; launch_spec uses explicit resources/tools with no discovered resources/MCP/project context; no MCP connection parity claim', cleanup_profile: this.containment.profile };
   }
   private async cleanup(live: Live): Promise<boolean> {
+    const unit = live.unit;
     live.worker.status = 'cleanup_pending'; live.worker.cleanup = 'unresolved';
     const execution = live.worker.execution;
     if (execution && execution.state !== 'settled' && this.receipts.all.get(execution.command_id)?.effect !== 'no_effect') {
@@ -119,7 +120,10 @@ export class Supervisor {
     let durable = true;
     try { this.persist(live); } catch { durable = false; } // storage failure must not suppress a safety kill
     let gone = false;
-    try { gone = live.unit ? await this.containment.clean(live.unit) : false; } catch { /* remain pending */ }
+    try { gone = unit ? await this.containment.clean(unit) : false; } catch { /* remain pending */ }
+    // Another cleanup may already have released this generation for relaunch.
+    // Its late completion is evidence about the old domain, never the new one.
+    if (live.unit !== unit) return gone && durable;
     if (gone && durable) {
       live.pid = null; live.worker.status = 'stopped'; live.worker.cleanup = 'cgroup_empty_removed';
       try { this.persist(live); return true; } catch { /* unrecorded cleanup is not confirmation */ }
@@ -196,7 +200,9 @@ export class Supervisor {
     report();
     // Never rethrow from a child EventEmitter callback. Cleanup errors leave
     // this worker closed and its environment reserved; other workers stay up.
-    void (live.unit ? this.cleanup(live) : live.host ? live.host.stop() : Promise.resolve(false)).then(gone => {
+    const unit = live.unit;
+    void (unit ? this.cleanup(live) : live.host ? live.host.stop() : Promise.resolve(false)).then(gone => {
+      if (live.unit !== unit) return;
       w.status = gone ? 'failed' : 'cleanup_pending';
       w.cleanup = gone ? live.unit ? 'cgroup_empty_removed' : 'process_group_observed_gone; escaped_descendants_unproven' : 'worker_fault; cleanup_unproven';
       if (gone) live.pid = null;
@@ -428,7 +434,7 @@ export class Supervisor {
       const w = live.worker, old = { worker_epoch: w.worker_epoch, session_id: w.session_id!, binding_revision: w.binding_revision };
       w.worker_epoch = randomUUID();
       (live.intentBindings ??= {});
-      for (const r of this.receipts.all.values()) if (r.worker_id === id && ['intent_recovered', 'intent_ready'].includes(r.state) && r.operation === 'sessions.prompt') live.intentBindings[r.command_id] ??= { ...old, command_id: r.command_id, relaunch_epoch: w.worker_epoch };
+      for (const r of this.receipts.all.values()) if (r.worker_id === id && ['intent_recovered', 'intent_ready'].includes(r.state) && r.operation === 'sessions.prompt') live.intentBindings[r.command_id] ??= { ...old, command_id: r.command_id };
       w.status = 'starting'; w.cleanup = 'not_started';
       w.execution = null; w.foreground = 'idle'; live.exited = false; live.faulted = false;
       live.unit = this.containment.reserve(w.worker_epoch); live.pid = null; live.token = null;
@@ -455,7 +461,11 @@ export class Supervisor {
           w.resources = inventory.data;
         }
         w.status = 'ready'; w.cleanup = 'live_cgroup'; live.observedIdle = true;
-        this.refresh(live); this.persist(live);
+        this.refresh(live);
+        // Failed attempts retain the original exact binding, but do not consume
+        // its one target epoch. Only a verified successful launch binds it.
+        for (const kept of Object.values(live.intentBindings)) if (!kept.relaunch_epoch && kept.session_id === w.session_id && kept.binding_revision === w.binding_revision) kept.relaunch_epoch = w.worker_epoch;
+        this.persist(live);
         return { state: 'delivered', stage: 'forwarded', effect: 'observed', result: { worker_id: id, worker_epoch: w.worker_epoch, session_id: w.session_id, binding_revision: w.binding_revision, prompted: false } };
       } catch (error) { await this.cleanup(live); throw error; }
       finally { live.rebinding = false; }
@@ -677,13 +687,16 @@ export class Supervisor {
     return this.receipts.run(b.command_id, 'workers.stop', { ...b, worker_id: id }, async () => {
       this.dispatchGuard();
       this.receipts.dispatch(b.command_id, { worker_id: id });
-      if (!live.unit) { live.worker.status = 'cleanup_pending'; this.persist(live); }
-      const gone = live.unit ? await this.cleanup(live) : live.host ? await live.host.stop() : live.pid !== null ? await killGroup(live.pid, live.token) : live.worker.cleanup === 'not_started';
-      live.worker.status = gone ? 'stopped' : 'cleanup_pending';
-      live.worker.cleanup = gone ? live.unit ? 'cgroup_empty_removed' : 'process_group_observed_gone; escaped_descendants_unproven' : 'unresolved';
-      if (gone) live.pid = null;
-      this.persist(live);
-      return { state: gone ? 'delivered' : 'outcome_unknown', stage: gone ? 'termination_observed' : 'unknown', effect: gone ? 'observed' : 'unknown', result: { termination: gone ? 'observed_stopped' : 'unknown', profile: live.unit ? 'cgroup_v2' : 'process_group_only' } };
+      const unit = live.unit;
+      if (!unit) { live.worker.status = 'cleanup_pending'; this.persist(live); }
+      const gone = unit ? await this.cleanup(live) : live.host ? await live.host.stop() : live.pid !== null ? await killGroup(live.pid, live.token) : live.worker.cleanup === 'not_started';
+      if (live.unit === unit) {
+        live.worker.status = gone ? 'stopped' : 'cleanup_pending';
+        live.worker.cleanup = gone ? unit ? 'cgroup_empty_removed' : 'process_group_observed_gone; escaped_descendants_unproven' : 'unresolved';
+        if (gone) live.pid = null;
+        this.persist(live);
+      }
+      return { state: gone ? 'delivered' : 'outcome_unknown', stage: gone ? 'termination_observed' : 'unknown', effect: gone ? 'observed' : 'unknown', result: { termination: gone ? 'observed_stopped' : 'unknown', profile: unit ? 'cgroup_v2' : 'process_group_only' } };
     }, () => { live = this.require(id); this.binding(live, b); });
   }
   async shutdown(): Promise<void> {

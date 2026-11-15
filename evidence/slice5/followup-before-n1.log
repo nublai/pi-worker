@@ -1,0 +1,124 @@
+✖ late exit cleanup cannot retire a relaunched generation (gone=true) (11.224218ms)
+✖ late exit cleanup cannot retire a relaunched generation (gone=false) (3.119694ms)
+✖ late stop cleanup cannot retire a relaunched generation (gone=true) (1.984037ms)
+✖ late stop cleanup cannot retire a relaunched generation (gone=false) (1.814178ms)
+✖ late fault cleanup cannot retire a relaunched generation (gone=true) (2.611662ms)
+✖ late fault cleanup cannot retire a relaunched generation (gone=false) (2.078674ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 0
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60.243295
+
+✖ failing tests:
+
+test at dist/test/slice5-followups.test.js:26:9
+✖ late exit cleanup cannot retire a relaunched generation (gone=true) (11.224218ms)
+  AssertionError [ERR_ASSERTION]: old domain completion must not mark the live replacement stopped or pending
+  
+  'stopped' !== 'ready'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:57:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'stopped',
+    expected: 'ready',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/slice5-followups.test.js:26:9
+✖ late exit cleanup cannot retire a relaunched generation (gone=false) (3.119694ms)
+  AssertionError [ERR_ASSERTION]: old domain completion must not mark the live replacement stopped or pending
+  + actual - expected
+  
+  + 'cleanup_pending'
+  - 'ready'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:57:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'cleanup_pending',
+    expected: 'ready',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/slice5-followups.test.js:26:9
+✖ late stop cleanup cannot retire a relaunched generation (gone=true) (1.984037ms)
+  AssertionError [ERR_ASSERTION]: old domain completion must not mark the live replacement stopped or pending
+  
+  'stopped' !== 'ready'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:57:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'stopped',
+    expected: 'ready',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/slice5-followups.test.js:26:9
+✖ late stop cleanup cannot retire a relaunched generation (gone=false) (1.814178ms)
+  AssertionError [ERR_ASSERTION]: old domain completion must not mark the live replacement stopped or pending
+  + actual - expected
+  
+  + 'cleanup_pending'
+  - 'ready'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:57:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'cleanup_pending',
+    expected: 'ready',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/slice5-followups.test.js:26:9
+✖ late fault cleanup cannot retire a relaunched generation (gone=true) (2.611662ms)
+  AssertionError [ERR_ASSERTION]: old domain completion must not mark the live replacement stopped or pending
+  
+  'failed' !== 'ready'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:57:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'failed',
+    expected: 'ready',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/slice5-followups.test.js:26:9
+✖ late fault cleanup cannot retire a relaunched generation (gone=false) (2.078674ms)
+  AssertionError [ERR_ASSERTION]: old domain completion must not mark the live replacement stopped or pending
+  + actual - expected
+  
+  + 'cleanup_pending'
+  - 'ready'
+  
+      at TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:57:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'cleanup_pending',
+    expected: 'ready',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

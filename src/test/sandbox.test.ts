@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
@@ -93,6 +93,44 @@ test('sandbox launch refuses mismatched roots, parent state exposure, non-child 
     const widened = structuredClone(c); widened.launch_spec!.resources.extensions = [external];
     assert.throws(() => sandboxRoot(widened, state), /resource_outside_root/);
   } finally { f.cleanup(); }
+});
+
+for (const relation of ['equal', 'ancestor', 'descendant', 'bus', 'bus-ancestor', 'symlink'] as const) test(`sandbox refuses user runtime control paths (${relation})`, () => {
+  const f = fixture(), state = join(f.dir, 'state'), control = join(f.dir, 'control'), runtime = join(control, 'runtime');
+  mkdirSync(state); mkdirSync(control); mkdirSync(runtime); mkdirSync(join(runtime, 'nested'));
+  const busDir = join(f.dir, 'bus-dir'); mkdirSync(busDir);
+  const bus = join(busDir, 'bus'); writeFileSync(bus, 'test bus path, not a live manager');
+  symlinkSync(bus, join(runtime, 'bus')); // Protect a bus socket's canonical target too.
+  const alias = join(f.dir, 'runtime-alias'); symlinkSync(runtime, alias);
+  const saved = process.env.XDG_RUNTIME_DIR;
+  try {
+    process.env.XDG_RUNTIME_DIR = relation === 'symlink' ? alias : runtime;
+    const root = relation === 'ancestor' ? control : relation === 'descendant' ? join(runtime, 'nested') : relation === 'bus' ? bus : relation === 'bus-ancestor' ? busDir : runtime;
+    const c: Create = { command_id: 'root', cwd: root, host: 'sdk', provider: 'p', model: 'm', thinking: 'off', parent: { worker_id: 'p', worker_epoch: 'e', session_id: 's', binding_revision: 1, execution_id: 'run', task_id: 'task', generation_id: 'gen' }, launch_spec: { environment: { id: 'root', revision: 1, allowed_methods: [], filesystem: 'bwrap', root }, role: 'child', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: [], seed_mode: 'standalone' } };
+    assert.throws(() => sandboxRoot(c, state), /overlaps_protected_control_path/);
+  } finally {
+    if (saved === undefined) delete process.env.XDG_RUNTIME_DIR; else process.env.XDG_RUNTIME_DIR = saved;
+    f.cleanup();
+  }
+});
+
+test('sandbox refuses default user runtime, private kernel mounts and nested cgroup/socket roots', () => {
+  const f = fixture(), state = join(f.dir, 'state'), sockets = join(f.dir, 'sockets'); mkdirSync(state); mkdirSync(sockets); mkdirSync(join(sockets, 'nested'));
+  const savedRuntime = process.env.XDG_RUNTIME_DIR, savedSocket = process.env.PI_WORKER_SOCKET;
+  try {
+    // The fixed UID path must remain protected without XDG_RUNTIME_DIR.
+    delete process.env.XDG_RUNTIME_DIR; process.env.PI_WORKER_SOCKET = join(sockets, 'worker.sock');
+    const userRuntime = `/run/user/${process.getuid!()}`;
+    const cgroup = join('/sys/fs/cgroup', readFileSync('/proc/self/cgroup', 'utf8').trim().split('::')[1]!);
+    for (const root of [...[userRuntime, join(userRuntime, 'bus'), cgroup].filter(existsSync), '/run', '/proc', '/proc/self', '/dev', '/dev/shm', join(sockets, 'nested')]) {
+      const c: Create = { command_id: 'root', cwd: root, host: 'sdk', provider: 'p', model: 'm', thinking: 'off', parent: { worker_id: 'p', worker_epoch: 'e', session_id: 's', binding_revision: 1, execution_id: 'run', task_id: 'task', generation_id: 'gen' }, launch_spec: { environment: { id: 'root', revision: 1, allowed_methods: [], filesystem: 'bwrap', root }, role: 'child', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: [], seed_mode: 'standalone' } };
+      assert.throws(() => sandboxRoot(c, state), /overlaps_protected_control_path/, `root ${root} must not expose host controls`);
+    }
+  } finally {
+    if (savedRuntime === undefined) delete process.env.XDG_RUNTIME_DIR; else process.env.XDG_RUNTIME_DIR = savedRuntime;
+    if (savedSocket === undefined) delete process.env.PI_WORKER_SOCKET; else process.env.PI_WORKER_SOCKET = savedSocket;
+    f.cleanup();
+  }
 });
 
 test('sandbox host uses environment allowlist and a private PID namespace', async () => {

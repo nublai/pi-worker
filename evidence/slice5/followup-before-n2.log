@@ -1,0 +1,81 @@
+✔ late exit cleanup cannot retire a relaunched generation (gone=true) (12.163458ms)
+✔ late exit cleanup cannot retire a relaunched generation (gone=false) (2.91965ms)
+✔ late stop cleanup cannot retire a relaunched generation (gone=true) (1.650923ms)
+✔ late stop cleanup cannot retire a relaunched generation (gone=false) (1.513986ms)
+✔ late fault cleanup cannot retire a relaunched generation (gone=true) (2.641669ms)
+✔ late fault cleanup cannot retire a relaunched generation (gone=false) (2.174193ms)
+✖ owner-kept prompt binds to the successful retry after spawn failure (restart=false) (4.209176ms)
+✖ owner-kept prompt binds to the successful retry after spawn failure (restart=true) (3.033063ms)
+✖ owner-kept prompt binds to the successful retry after get_state failure (restart=false) (2.320057ms)
+✖ owner-kept prompt binds to the successful retry after get_state failure (restart=true) (3.080581ms)
+✔ a second successful relaunch does not rebind an undispatched owner-kept prompt (1.737284ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 7
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 80.985285
+
+✖ failing tests:
+
+test at dist/test/slice5-followups.test.js:78:9
+✖ owner-kept prompt binds to the successful retry after spawn failure (restart=false) (4.209176ms)
+  AssertionError [ERR_ASSERTION]: exact owner-kept retry refused: Error: stale_binding: expected revision 1, received 1
+      at file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:115:93
+      at async TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:115:30)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'fail',
+    diff: 'simple'
+  }
+
+test at dist/test/slice5-followups.test.js:78:9
+✖ owner-kept prompt binds to the successful retry after spawn failure (restart=true) (3.033063ms)
+  AssertionError [ERR_ASSERTION]: exact owner-kept retry refused: Error: stale_binding: expected revision 1, received 1
+      at file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:115:93
+      at async TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:115:30)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'fail',
+    diff: 'simple'
+  }
+
+test at dist/test/slice5-followups.test.js:78:9
+✖ owner-kept prompt binds to the successful retry after get_state failure (restart=false) (2.320057ms)
+  AssertionError [ERR_ASSERTION]: exact owner-kept retry refused: Error: stale_binding: expected revision 1, received 1
+      at file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:115:93
+      at async TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:115:30)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'fail',
+    diff: 'simple'
+  }
+
+test at dist/test/slice5-followups.test.js:78:9
+✖ owner-kept prompt binds to the successful retry after get_state failure (restart=true) (3.080581ms)
+  AssertionError [ERR_ASSERTION]: exact owner-kept retry refused: Error: stale_binding: expected revision 1, received 1
+      at file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:115:93
+      at async TestContext.<anonymous> (file:///home/g/.herdr/worktrees/pi-worker/a0-slice5-followups/dist/test/slice5-followups.test.js:115:30)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'fail',
+    diff: 'simple'
+  }

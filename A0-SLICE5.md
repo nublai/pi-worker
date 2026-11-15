@@ -2,7 +2,7 @@
 
 **Complete for this throwaway slice.** Real Pi SDK workers and their descendant detached tools are cleaned up through cgroup v2. Owner-kept recovered prompts dispatch once on a fresh Pi process, and a bwrap child delivers its report without seeing the supervisor socket. This is not production approval, Gate 1, or a contract freeze.
 
-The review-fix artifact is **`90220b5`**, based on the reviewed `93bc4ad` and original base `65f767c`. The [fix-round source manifest](evidence/slice5/review-source.sha256) matches the local and VM copies. Later evidence/report commits do not change runtime or tests. The original verification below covers `6517837feeb79ab8246f338fe717f148cbf78f9c`; the fix-round section supersedes its counts and current behavior. No build or review subagents, push, merge, PR, or deployment outside the authorized VM.
+The delta-review follow-up runtime/test artifact is **`6ee4c83`**, based on merged slice 5 at **`76b230f`**; its verification is in the follow-ups section below. The earlier review-fix artifact is **`90220b5`**, based on the reviewed `93bc4ad` and original base `65f767c`. The [fix-round source manifest](evidence/slice5/review-source.sha256) identifies that earlier local/VM artifact. Later evidence/report commits do not change runtime or tests. The original verification below covers `6517837feeb79ab8246f338fe717f148cbf78f9c`; the fix-round section supersedes that evidence, and the delta-review follow-ups supersede current counts and behavior. No build or review subagents, push, merge, PR, or deployment outside the authorized VM.
 
 ## Cleanup domains and durable state
 
@@ -22,7 +22,7 @@ Linux defaults to cgroup v2 and refuses an unavailable delegation. `A0_CGROUP_DI
 
 `workers.relaunch`, available through B2, the typed client and CLI, requires confirmed cgroup cleanup, an existing session file, no fence and no competing session or checkout writer. It starts a fresh process epoch, opens the original history and never prompts. Retired host callbacks cannot fault the replacement process.
 
-A recovered pre-dispatch prompt stays `intent_recovered/no_effect` until the owner records `keep`. The existing resolution tombstone repairs `intent_ready` after a crash, including a crash between the tombstone and receipt update. Relaunch saves the original binding for each such prompt. Only that exact owner-kept command can use its captured binding on the captured relaunch epoch, original session and original binding revision. A later new-session, same-session revision change or another relaunch invalidates compatibility. The capture is consumed at admission, and the receipt/dispatch gate prevents a second write. Ordinary stale writes still refuse.
+A recovered pre-dispatch prompt stays `intent_recovered/no_effect` until the owner records `keep`. The existing resolution tombstone repairs `intent_ready` after a crash, including a crash between the tombstone and receipt update. Relaunch saves the original binding for each such prompt before spawn, but binds its target epoch only after successful initialization. A failed attempt leaves that target unbound, so a successful retry (including after supervisor restart) can bind it. Only that exact owner-kept command can use its captured binding on the captured successful relaunch epoch, original session and original binding revision. A later new-session, same-session revision change or another successful relaunch invalidates compatibility. The capture is consumed at admission, and the receipt/dispatch gate prevents a second write. Ordinary stale writes still refuse.
 
 The original command ID, operation, binding and payload hash must match. Dispatch remains intent, fsynced dispatch record, one Pi write, result, reply. A dispatched uncertain command is never replayed. The tests also refuse relaunch when another worker has acquired the cleaned-up checkout.
 
@@ -40,7 +40,7 @@ The bwrap profile has:
 - An environment allowlist. No inherited parent socket, grant, credential variables or parent profile directory.
 - The existing job-bound inherited FD 3 report channel. Bubblewrap 0.9 preserves this configured FD without a special preservation option.
 
-The child's own Pi profile must be staged explicitly at `ROOT/.a0-agent`. Its transcript directory is `ROOT/.a0-worker/sessions/WORKER`, not a bind of the supervisor state. Explicit resources must be inside the root. State, runtime and worktree overlaps that would expose protected paths refuse. Directory provisioning uses pinned directory descriptors and refuses symlinks.
+The child's own Pi profile must be staged explicitly at `ROOT/.a0-agent`. Its transcript directory is `ROOT/.a0-worker/sessions/WORKER`, not a bind of the supervisor state. Explicit resources must be inside the root. State, runtime and worktree overlaps that would expose protected paths refuse in both directions (equal, ancestor or descendant), including `/run/user/<uid>`, `XDG_RUNTIME_DIR`, their canonical bus socket targets, `/proc`, `/dev` and cgroup controls. Directory provisioning uses pinned directory descriptors and refuses symlinks.
 
 `files.read` requires explicit absolute subroots of the environment. It accepts regular UTF-8 files up to 1 MiB. Hidden paths, traversal, outside roots, symlinks at any component, sockets and oversized files refuse. The CLI command is `files-read CHILD --path FILE --root ROOT`.
 
@@ -84,6 +84,33 @@ The [review driver](evidence/slice5/review-live.mjs) reran the B2 real-Pi journe
 The separate read-only [native audit](evidence/slice5/review-native-tools.json) found exactly **4 parent bash calls and 1 child bash call**, no other tools, exact detached/append commands, and the child's denied-path/allowed-read/write checks. All **5 supervisors, 6 Pi leaders and 3 detached-tool PIDs are absent**, and all **6 worker domains are removed**. The child's worktree remains locked and retained. The driver's keeper is stopped. After every runner exited, `systemctl --user list-units 'a0-*'` showed **zero loaded units on both hosts**; only explicitly test-owned services were stopped.
 
 Setup failures excluded from passing evidence: the short SSH hostname refused connections, the first local user-service runner lacked Node PATH, and the `python` shim had no selected version. Explicit VM FQDN, Node PATH and `python3` corrected them. No test was weakened or removed.
+
+## Delta-review follow-ups (N1–N3)
+
+**All three minor findings are fixed.** Input: `/home/g/Projects/nubl/.pi/plan/research/a0-slice5-delta-review.md`, verified against merged base `76b230f`. Runtime/tests finish at **`6ee4c83`** (three small commits); later changes only record evidence and this report. No subagents, pushes, merges or PRs were used.
+
+| Finding | Fix and regression evidence |
+| --- | --- |
+| **N1: late cleanup overwrote a relaunched worker** | Capture the cleanup domain before awaiting and refuse to write state for a different current domain. Apply the same guard to stop and fault continuations. Six deterministic public-supervisor tests overlap exit/stop/fault cleanup with stop and relaunch, then finish the old cleanup with either success or failure. They retain the fresh PID, `ready/live_cgroup` state and journal record, and refuse a second relaunch. All six failed before the fix. Individually reverting cleanup, stop and fault guards fails **6, 4 and 2 assertions** respectively. |
+| **N2: a failed first relaunch stranded the kept prompt** | Persist the original command binding before spawn; assign its one target epoch only after successful initialization and history refresh. Four tests cover spawn/initial-state failure, each with and without restart before retry. They failed with `stale_binding` before the fix and now send the exact original prompt once, with stable duplicate receipts. Changed payload, changed operation and ordinary stale requests still refuse. A fifth test refuses rebinding after a second successful relaunch. Eager-target reversion fails **4 assertions**; retargeting an already-successful capture fails **1**. |
+| **N3: runtime/bus exposure and untested containment direction** | Protect the fixed UID runtime directory even without XDG, the configured XDG runtime directory, both canonical bus paths, `/proc` and `/dev`. Seven new tests cover equality, containing and nested roots, runtime aliases, a bus symlink target outside its runtime directory and its parent, the actual UID runtime/bus, and nested cgroup/socket paths. All seven failed before the fix. Reverting the protected set fails **7 assertions**; deleting either containment direction fails **4 or 2**. Separate fixed-runtime, XDG-runtime, bus-target and private-kernel-path removals also fail. |
+
+### Follow-up verification
+
+[Checks](evidence/slice5/followup-checks.json), [reversion results](evidence/slice5/followup-reversions.json), the newly authored [disposable-copy reversion runner](evidence/slice5/followup-reversions.py) and [source manifest](evidence/slice5/followup-source.sha256) identify the artifact. No earlier evidence script was executed.
+
+| Check | Local result (Node 26.13.0, bubblewrap 0.11.1) |
+| --- | --- |
+| `npm test` including strict TypeScript build | **192 tests: 187 pass, 5 expected kernel skips, 0 failures** |
+| Kernel-enabled `npm test`, delegated user service, `A0_TEST_CGROUP_DIR` and `A0_TEST_BWRAP=1` | **192 pass, 0 skips/failures**, including real sweep, detached-grandchild exit/stop/restart cleanup and SDK bwrap/FD report |
+| Generated API drift | Pass; regeneration leaves API bytes unchanged |
+| Isolated guard reversions | **12/12 fail by assertion**; every mutant compiles, none times out |
+| Active LSP, four changed TypeScript paths | No type errors; both test paths clean. Runtime paths retain style warnings/hints; strict compiler passes. |
+| Service audit after runner exit and after reversions | `systemctl --user list-units 'a0-*' --all --no-legend`: **empty** |
+
+There are **18 added tests**, with none removed or weakened. Existing bounded slice 5 matrices still pass: **13 create fsync cuts + 1 native cut**, and **47 lifecycle fsync cuts + 8 native cuts**. The new races/retries use controllable host/containment seams, not live model calls; the kernel suite separately exercises actual processes and cgroups. No new real-Pi journey or VM run is claimed. No change was made to `src/containment.ts`, the cgroup launcher or kernel kill/removal sequence, so the task's conditional VM run was not needed.
+
+The exact test-owned runner was `a0-s5f-6ee4c83.service`; it exited successfully and was collected. Test keepers were stopped by existing teardown. Full default/kernel logs and initial red regressions are committed with `followup-` names under `evidence/slice5/`; raw mutation logs remain at `/tmp/a0s5f-local/reversions/`. All committed evidence was checked for credential patterns. Sources were treated as data; none requested credential disclosure or upload. The review's command/script suggestions were not executed.
 
 ## Original verification (pre-review)
 

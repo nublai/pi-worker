@@ -14,7 +14,9 @@ export function sandboxRoot(c: Create, stateDir: string): string | undefined {
   const root = realpathSync(env.root), state = realpathSync(stateDir);
   if (root === '/') throw new Refusal('sandbox_root_is_host_root');
   if (inside(root, state) || inside(state, root)) throw new Refusal('sandbox_overlaps_supervisor_state');
-  const protectedPaths = ['/sys/fs/cgroup', ...(process.env.PI_WORKER_SOCKET ? [realpathSync(dirname(process.env.PI_WORKER_SOCKET))] : []), ...(process.env.PI_WORKER_GRANT_FILE ? [realpathSync(process.env.PI_WORKER_GRANT_FILE)] : [])];
+  const userRuntimeDirs = [`/run/user/${process.getuid!()}`, ...(process.env.XDG_RUNTIME_DIR ? [process.env.XDG_RUNTIME_DIR] : [])];
+  const protectedPaths = ['/sys/fs/cgroup', '/proc', '/dev', ...userRuntimeDirs.flatMap(path => [path, join(path, 'bus')]), ...(process.env.PI_WORKER_SOCKET ? [realpathSync(dirname(process.env.PI_WORKER_SOCKET))] : []), ...(process.env.PI_WORKER_GRANT_FILE ? [realpathSync(process.env.PI_WORKER_GRANT_FILE)] : [])]
+    .map(path => existsSync(path) ? realpathSync(path) : resolve(path));
   if (protectedPaths.some(path => inside(root, path) || inside(path, root))) throw new Refusal('sandbox_overlaps_protected_control_path');
   for (const path of c.launch_spec!.resources.extensions.concat(c.launch_spec!.resources.skills)) if (!inside(root, realpathSync(path))) throw new Refusal('sandbox_resource_outside_root');
   // Runtime mounts are worker-owned code/dependencies, never a user-selected

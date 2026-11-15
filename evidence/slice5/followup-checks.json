@@ -1,0 +1,86 @@
+{
+  "runtime_test_commit": "6ee4c83e426cedb1954265dc695fc050e78dfb55",
+  "base_commit": "76b230f",
+  "node": "v26.13.0",
+  "bubblewrap": "bubblewrap 0.11.1",
+  "default": {
+    "exit": 0,
+    "tests": 192,
+    "pass": 187,
+    "fail": 0,
+    "skipped": 5,
+    "log": "followup-default.log"
+  },
+  "kernel": {
+    "exit": 0,
+    "tests": 192,
+    "pass": 192,
+    "fail": 0,
+    "skipped": 0,
+    "log": "followup-kernel.log",
+    "runner": "a0-s5f-6ee4c83.service",
+    "flags": [
+      "A0_TEST_CGROUP_DIR=<runner delegated cgroup>",
+      "A0_TEST_BWRAP=1"
+    ]
+  },
+  "generated_api": {
+    "exit": 0,
+    "changed": false,
+    "log": "followup-generated.log"
+  },
+  "pre_fix_regressions": {
+    "N1": {
+      "fail_before_fix": 6,
+      "assertion": "replacement stopped/pending/failed instead of ready",
+      "log": "followup-before-n1.log"
+    },
+    "N2": {
+      "fail_before_fix": 4,
+      "assertion": "exact owner-kept retry refused with stale_binding",
+      "log": "followup-before-n2.log"
+    },
+    "N3": {
+      "fail_before_fix": 7,
+      "assertion": "missing protected-path refusal, including /run/user/<uid>",
+      "log": "followup-before-n3.log"
+    }
+  },
+  "reversions": {
+    "cases": 12,
+    "killed_by_assertion": 12,
+    "build_failures": 0,
+    "timeouts": 0,
+    "summary": "followup-reversions.json"
+  },
+  "lsp": {
+    "paths": [
+      "src/supervisor.ts",
+      "src/sandbox.ts",
+      "src/test/slice5-followups.test.ts",
+      "src/test/sandbox.test.ts"
+    ],
+    "errors": 0,
+    "clean_test_paths": 2,
+    "runtime_paths_with_style_warnings_or_hints": 2
+  },
+  "service_audit": {
+    "command": [
+      "systemctl",
+      "--user",
+      "list-units",
+      "a0-*",
+      "--all",
+      "--no-legend"
+    ],
+    "exit": 0,
+    "loaded_units": 0,
+    "stdout": ""
+  },
+  "vm": {
+    "run": false,
+    "reason": "No change to cgroup launcher or kernel kill/removal implementation."
+  },
+  "limits": "New race/retry tests use controlled host/containment seams; existing full kernel suite runs actual processes. No new model calls or live-Pi journey.",
+  "privacy_scan": "No credential-pattern matches in committed logs, reversion summaries, runner or report; manual review of logs also performed."
+}
