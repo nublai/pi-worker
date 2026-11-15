@@ -1,0 +1,62 @@
+/** Tiny HTTP/Unix client. All request/response types come from OpenAPI generation. */
+import { request } from 'node:http';
+import type { operations } from './api.generated.js';
+import type { Cursor, Snapshot, WorkerEvent } from './types.js';
+type Op = keyof operations;
+type Response<O extends Op> = operations[O] extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
+type Body<O extends Op> = operations[O] extends { requestBody: { content: { 'application/json': infer B } } } ? B : never;
+const routes = {
+  hello: ['GET', '/v0/hello'], 'workers.create': ['POST', '/v0/workers'], 'workers.list': ['GET', '/v0/workers'],
+  'workers.get': ['GET', '/v0/workers/:id'], 'sessions.prompt': ['POST', '/v0/workers/:id/prompt'],
+  'workers.stop': ['POST', '/v0/workers/:id/stop'], 'history.page': ['GET', '/v0/workers/:id/history'],
+  'events.subscribe': ['GET', '/v0/workers/:id/events'], 'receipts.get': ['GET', '/v0/receipts/:id'],
+} as const satisfies Record<Op, readonly [string, string]>;
+export class Client {
+  constructor(readonly socketPath: string) {}
+  call<O extends Op>(op: O, options: { id?: string; body?: Body<O>; query?: Record<string, string> } = {}): Promise<Response<O>> {
+    const [method, template] = routes[op];
+    const path = template.replace(':id', encodeURIComponent(options.id ?? '')) + (options.query ? '?' + new URLSearchParams(options.query) : '');
+    const data = options.body ? JSON.stringify(options.body) : undefined;
+    return new Promise((resolve, reject) => {
+      const req = request({ socketPath: this.socketPath, method, path, headers: data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {} }, res => {
+        const chunks: Buffer[] = []; let bytes = 0;
+        res.on('data', (b: Buffer) => { bytes += b.length; if (bytes > 2 * 1024 * 1024) { res.destroy(new Error('response too large')); return; } chunks.push(b); });
+        res.on('error', reject);
+        res.on('end', () => {
+          try {
+            const value: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+            if (res.statusCode !== 200) reject(new Error(JSON.stringify(value))); else resolve(value as Response<O>);
+          } catch (error) { reject(error); }
+        });
+      });
+      req.setTimeout(60000, () => req.destroy(new Error('HTTP timeout; reconcile command_id, never blind replay')));
+      req.on('error', reject); req.end(data);
+    });
+  }
+  watch(id: string, onFrame: (frame: Snapshot | WorkerEvent) => boolean, since?: Cursor): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let done = false;
+      const req = request({ socketPath: this.socketPath, path: '/v0/workers/' + encodeURIComponent(id) + '/events', headers: since ? { 'Last-Event-ID': JSON.stringify(since) } : {} }, res => {
+        if (res.statusCode !== 200) { res.resume(); reject(new Error(`SSE HTTP ${res.statusCode}`)); return; }
+        let pending = ''; res.setEncoding('utf8');
+        res.on('data', (chunk: string) => {
+          pending += chunk;
+          for (;;) {
+            const end = pending.indexOf('\n\n'); if (end < 0 || done) break;
+            const record = pending.slice(0, end); pending = pending.slice(end + 2);
+            const data = record.split('\n').filter(l => l.startsWith('data: ')).map(l => l.slice(6)).join('\n');
+            if (!data) continue;
+            try {
+              const frame = JSON.parse(data) as Snapshot | WorkerEvent;
+              if (!onFrame(frame)) { done = true; req.destroy(); resolve(); }
+            } catch (error) { done = true; req.destroy(); reject(error); }
+          }
+          if (pending.length > 1024 * 1024) { done = true; req.destroy(); reject(new Error('SSE frame too large')); }
+        });
+        res.on('error', error => { if (!done) reject(error); });
+        res.on('end', () => { if (!done) reject(new Error('SSE disconnected; attach fresh snapshot before controls')); });
+      });
+      req.on('error', error => { if (!done) reject(error); }); req.end();
+    });
+  }
+}

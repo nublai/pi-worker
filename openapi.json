@@ -1,0 +1,1219 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "THROWAWAY nubl A0 slice 1 B2",
+    "version": "0.1.0",
+    "description": "Private Unix socket HTTP only. OS owner access, no grants/peer UID API in this slice. Unsupported methods fail explicitly. Not production, not contract freeze."
+  },
+  "servers": [
+    {
+      "url": "http://a0-unix-socket"
+    }
+  ],
+  "paths": {
+    "/v0/hello": {
+      "get": {
+        "operationId": "hello",
+        "parameters": [],
+        "responses": {
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Hello"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers": {
+      "post": {
+        "operationId": "workers.create",
+        "parameters": [],
+        "responses": {
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Create"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "workers.list",
+        "parameters": [],
+        "responses": {
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Worker"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}": {
+      "get": {
+        "operationId": "workers.get",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Worker"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}/prompt": {
+      "post": {
+        "operationId": "sessions.prompt",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Prompt"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}/stop": {
+      "post": {
+        "operationId": "workers.stop",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Binding"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}/events": {
+      "get": {
+        "operationId": "events.subscribe",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "worker_epoch",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "seq",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "SSE: snapshot (complete state + barrier + history marker), then only events strictly after barrier. Every reconnect receives a new snapshot; old events are not replayed. SSE id is JSON Cursor. On overflow connection closes; reconnect resets controls.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "x-sse-schemas": [
+              {
+                "$ref": "#/components/schemas/Snapshot"
+              },
+              {
+                "$ref": "#/components/schemas/Event"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "/v0/workers/{worker_id}/history": {
+      "get": {
+        "operationId": "history.page",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "watermark",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/receipts/{command_id}": {
+      "get": {
+        "operationId": "receipts.get",
+        "parameters": [
+          {
+            "name": "command_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Refusal; never implies cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or fence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unknown; reconcile, never retry blindly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Cursor": {
+        "type": "object",
+        "properties": {
+          "worker_epoch": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "worker_epoch",
+          "seq"
+        ],
+        "additionalProperties": false
+      },
+      "HistoryMarker": {
+        "type": "object",
+        "properties": {
+          "last_entry_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lag": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "const": "pi_session_file"
+          }
+        },
+        "required": [
+          "last_entry_id",
+          "lag",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "Binding": {
+        "type": "object",
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "worker_epoch": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision"
+        ],
+        "additionalProperties": false
+      },
+      "Create": {
+        "type": "object",
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "thinking": {
+            "enum": [
+              "off",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        },
+        "required": [
+          "command_id",
+          "cwd",
+          "provider",
+          "model",
+          "thinking"
+        ],
+        "additionalProperties": false
+      },
+      "Prompt": {
+        "type": "object",
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "worker_epoch": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "Execution": {
+        "type": "object",
+        "properties": {
+          "execution_id": {
+            "type": "string"
+          },
+          "command_id": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "admitted",
+              "started",
+              "settled",
+              "outcome_unknown"
+            ]
+          },
+          "disposition": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "execution_id",
+          "command_id",
+          "state"
+        ],
+        "additionalProperties": false
+      },
+      "Fence": {
+        "type": "object",
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "fence_generation": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "command_id",
+          "fence_generation"
+        ],
+        "additionalProperties": false
+      },
+      "Worker": {
+        "type": "object",
+        "properties": {
+          "worker_id": {
+            "type": "string"
+          },
+          "worker_epoch": {
+            "type": "string"
+          },
+          "supervisor_epoch": {
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "session_identity_evidence": {
+            "enum": [
+              "pi_rpc_header_id",
+              "pi_session_file"
+            ]
+          },
+          "binding_revision": {
+            "type": "integer"
+          },
+          "leaf_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "starting",
+              "ready",
+              "stopped",
+              "cleanup_pending",
+              "failed"
+            ]
+          },
+          "foreground": {
+            "enum": [
+              "idle",
+              "running",
+              "unknown"
+            ]
+          },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Execution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Fence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history": {
+            "$ref": "#/components/schemas/HistoryMarker"
+          },
+          "cleanup": {
+            "type": "string"
+          },
+          "pending_interactions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "native_id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "native_id",
+                "kind"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "worker_id",
+          "worker_epoch",
+          "supervisor_epoch",
+          "session_id",
+          "session_identity_evidence",
+          "binding_revision",
+          "leaf_id",
+          "cwd",
+          "status",
+          "foreground",
+          "execution",
+          "fence",
+          "history",
+          "cleanup",
+          "pending_interactions"
+        ],
+        "additionalProperties": false
+      },
+      "Receipt": {
+        "type": "object",
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "operation": {
+            "enum": [
+              "workers.create",
+              "sessions.prompt",
+              "workers.stop"
+            ]
+          },
+          "request_hash": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "intent",
+              "accepted",
+              "delivered",
+              "rejected",
+              "outcome_unknown"
+            ]
+          },
+          "stage": {
+            "enum": [
+              "reserved",
+              "dispatch_recorded",
+              "forwarded",
+              "termination_observed",
+              "refused",
+              "unknown"
+            ]
+          },
+          "effect": {
+            "enum": [
+              "no_effect",
+              "unknown",
+              "observed"
+            ]
+          },
+          "evidence": {
+            "const": "supervisor_journal_fsynced"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "worker_id": {
+            "type": "string"
+          },
+          "execution_id": {
+            "type": "string"
+          },
+          "admission": {
+            "enum": [
+              "accepted",
+              "rejected"
+            ]
+          },
+          "disposition": {
+            "type": "string"
+          },
+          "history_lag": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "command_id",
+          "operation",
+          "request_hash",
+          "state",
+          "stage",
+          "effect",
+          "evidence",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "Hello": {
+        "type": "object",
+        "properties": {
+          "protocol": {
+            "type": "object",
+            "properties": {
+              "major": {
+                "const": 0
+              },
+              "minor": {
+                "const": 1
+              }
+            },
+            "required": [
+              "major",
+              "minor"
+            ],
+            "additionalProperties": false
+          },
+          "prototype": {
+            "const": true
+          },
+          "supervisor_id": {
+            "type": "string"
+          },
+          "supervisor_epoch": {
+            "type": "string"
+          },
+          "pi_version": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "resource_profile": {
+            "type": "string"
+          },
+          "cleanup_profile": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "protocol",
+          "prototype",
+          "supervisor_id",
+          "supervisor_epoch",
+          "pi_version",
+          "capabilities",
+          "limits",
+          "resource_profile",
+          "cleanup_profile"
+        ],
+        "additionalProperties": false
+      },
+      "HistoryCursor": {
+        "type": "object",
+        "properties": {
+          "watermark": {
+            "type": "string"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "watermark",
+          "after"
+        ],
+        "additionalProperties": false
+      },
+      "HistoryPage": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "watermark": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HistoryCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leafId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "const": "pi_session_file"
+          }
+        },
+        "required": [
+          "entries",
+          "watermark",
+          "next",
+          "leafId",
+          "truncated",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "Snapshot": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "snapshot"
+          },
+          "worker": {
+            "$ref": "#/components/schemas/Worker"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "history": {
+            "$ref": "#/components/schemas/HistoryMarker"
+          },
+          "resync_reason": {
+            "enum": [
+              "fresh",
+              "current",
+              "gap",
+              "epoch",
+              "ahead",
+              "evicted"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "worker",
+          "cursor",
+          "history",
+          "resync_reason"
+        ],
+        "additionalProperties": false
+      },
+      "Event": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "type": "string"
+          },
+          "producer": {
+            "enum": [
+              "pi",
+              "supervisor"
+            ]
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "enum": [
+              "observed_memory",
+              "supervisor_journal_fsynced"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "effect": {
+            "enum": [
+              "no_effect",
+              "unknown"
+            ]
+          },
+          "uncertain_command_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "effect"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}
