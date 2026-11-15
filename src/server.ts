@@ -6,6 +6,7 @@ import { readFileSync, lstatSync, chmodSync, unlinkSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Refusal, type Binding, type Create, type Prompt, type Cursor, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
 import { Supervisor } from './supervisor.js';
+import type { Answer } from './interactions.js';
 function loadSpec(): { components: { schemas: Record<string, Schema> } } {
   try { return JSON.parse(readFileSync(new URL('../openapi.json', import.meta.url), 'utf8')) as { components: { schemas: Record<string, Schema> } }; }
   catch (cause) { throw new Error('cannot load checked-in OpenAPI spec; refusing startup', { cause }); }
@@ -31,7 +32,7 @@ function validate(schema: Schema, value: unknown): boolean {
   }
   return true;
 }
-async function body(req: IncomingMessage, name: 'Create' | 'Prompt' | 'Binding' | 'Resolve' | 'Rebind' | 'FollowUp' | 'Control' | 'ChildLaunch' | 'Report'): Promise<Record<string, unknown>> {
+async function body(req: IncomingMessage, name: 'Create' | 'Prompt' | 'Binding' | 'Resolve' | 'Rebind' | 'FollowUp' | 'Control' | 'ChildLaunch' | 'Report' | 'Answer'): Promise<Record<string, unknown>> {
   if (req.headers['content-type']?.split(';')[0] !== 'application/json') throw new Refusal('content_type_must_be_json');
   let bytes = 0; const chunks: Buffer[] = [];
   for await (const chunk of req) {
@@ -110,6 +111,11 @@ export function router(supervisor: Supervisor): Server {
       if (parts[0] !== 'v0' || parts[1] !== 'workers' || !parts[2]) throw new Refusal('unsupported_method');
       const id = parts[2]; const live = supervisor.require(id);
       if (parts.length === 3 && req.method === 'GET') return json(res, run('workers.get', () => supervisor.get(id), id));
+      if (parts[3] === 'interactions') {
+        if (parts.length === 4 && req.method === 'GET') return json(res, run('interactions.list', () => supervisor.interactions.list(id), id));
+        if (parts.length === 5 && parts[4] === 'status' && req.method === 'GET') return json(res, run('interactions.status', () => supervisor.interactions.status(id, url.searchParams.get('interaction_id') ?? ''), id));
+        if (parts.length === 5 && parts[4] === 'answer_if_current' && req.method === 'POST') { const a = await body(req, 'Answer') as Answer; return json(res, await run('interactions.answer_if_current', () => supervisor.answer(id, a), id)); }
+      }
       if (parts.length !== 4) throw new Refusal('unsupported_method');
       if (parts[3] === 'prompt' && req.method === 'POST') { const p = await body(req, 'Prompt') as Prompt; return json(res, await run('sessions.prompt', () => supervisor.prompt(id, p), id)); }
       if (parts[3] === 'stop' && req.method === 'POST') { const b = await body(req, 'Binding') as Binding; return json(res, await run('workers.stop', () => supervisor.stop(id, b), id)); }

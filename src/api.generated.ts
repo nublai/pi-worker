@@ -4,6 +4,54 @@
  */
 
 export interface paths {
+    "/v0/workers/{id}/interactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["interactions.list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v0/workers/{id}/interactions/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["interactions.status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v0/workers/{id}/interactions/answer_if_current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["interactions.answer_if_current"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v0/hello": {
         parameters: {
             query?: never;
@@ -259,6 +307,25 @@ export interface components {
             /** @constant */
             evidence: "pi_session_file";
         };
+        Answer: {
+            command_id: string;
+            worker_epoch: string;
+            session_id: string;
+            binding_revision: number;
+            answer_id: string;
+            interaction_id: string;
+            revision: number;
+            /** @enum {unknown} */
+            kind: "select" | "confirm" | "input" | "editor" | "tool_approval";
+            /** @enum {unknown} */
+            outcome: "answer" | "cancel";
+            value?: string | boolean;
+            option_id?: string;
+        };
+        Interaction: {
+            [key: string]: unknown;
+        };
+        Interactions: components["schemas"]["Interaction"][];
         Binding: {
             command_id: string;
             worker_epoch: string;
@@ -272,6 +339,8 @@ export interface components {
             model: string;
             /** @enum {unknown} */
             thinking: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            /** @enum {unknown} */
+            host?: "rpc" | "sdk" | "acp";
         };
         Prompt: {
             command_id: string;
@@ -330,16 +399,21 @@ export interface components {
             }[];
             parent_worker_id?: string;
             parent_launch_command_id?: string;
+            /** @enum {unknown} */
+            host?: "rpc" | "sdk" | "acp";
+            resources?: {
+                [key: string]: unknown;
+            };
         };
         Receipt: {
             command_id: string;
             /** @enum {unknown} */
-            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.follow_up" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt";
+            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.follow_up" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release";
             request_hash: string;
             /** @enum {unknown} */
             state: "intent" | "intent_recovered" | "accepted" | "delivered" | "rejected" | "outcome_unknown" | "queued" | "queue_ready" | "intent_ready";
             /** @enum {unknown} */
-            stage: "reserved" | "recovery_pending" | "dispatch_recorded" | "forwarded" | "termination_observed" | "refused" | "unknown" | "resolved" | "requested";
+            stage: "reserved" | "recovery_pending" | "dispatch_recorded" | "forwarded" | "termination_observed" | "refused" | "unknown" | "resolved" | "requested" | "answer_accepted" | "resolver_consumed" | "tool_released";
             /** @enum {unknown} */
             effect: "no_effect" | "unknown" | "observed";
             /** @constant */
@@ -356,6 +430,7 @@ export interface components {
             result?: {
                 [key: string]: unknown;
             };
+            answer_stage?: number;
         };
         Hello: {
             protocol: {
@@ -487,6 +562,76 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "interactions.list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Interactions"];
+                };
+            };
+        };
+    };
+    "interactions.status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Interaction"];
+                };
+            };
+        };
+    };
+    "interactions.answer_if_current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Answer"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+        };
+    };
     hello: {
         parameters: {
             query?: never;

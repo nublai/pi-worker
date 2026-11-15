@@ -3,7 +3,7 @@ import { openSync, closeSync, readFileSync, writeSync, ftruncateSync, fstatSync,
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
 import { syncPoint } from './fsync.js';
-export type JournalRecord = { seq: number; kind: 'receipt' | 'worker' | 'supervisor' | 'settlement'; value: Record<string, unknown> };
+export type JournalRecord = { seq: number; kind: 'receipt' | 'worker' | 'supervisor' | 'settlement' | 'interaction' | 'interaction_effect'; value: Record<string, unknown> };
 const digest = (text: string) => createHash('sha256').update(text).digest('hex');
 export function parseJournal(bytes: Buffer): { records: JournalRecord[]; validBytes: number } {
   const records: JournalRecord[] = [];
@@ -14,7 +14,7 @@ export function parseJournal(bytes: Buffer): { records: JournalRecord[]; validBy
     const text = bytes.subarray(start, end).toString('utf8');
     try {
       const { record, checksum } = JSON.parse(text) as { record: JournalRecord; checksum: string };
-      if (record.seq !== records.length + 1 || !['receipt', 'worker', 'supervisor', 'settlement'].includes(record.kind)
+      if (record.seq !== records.length + 1 || !['receipt', 'worker', 'supervisor', 'settlement', 'interaction', 'interaction_effect'].includes(record.kind)
         || !record.value || typeof record.value !== 'object' || digest(JSON.stringify(record)) !== checksum) throw new Error('invalid record');
       records.push(record);
     } catch { throw new Error(`journal corruption at byte ${start}; refusing startup`); }

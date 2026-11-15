@@ -9,6 +9,9 @@ type Op = keyof operations;
 type Response<O extends Op> = operations[O] extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
 type Body<O extends Op> = operations[O] extends { requestBody: { content: { 'application/json': infer B } } } ? B : never;
 const routes = {
+  'interactions.list': ['GET', '/v0/workers/:id/interactions'],
+  'interactions.status': ['GET', '/v0/workers/:id/interactions/status'],
+  'interactions.answer_if_current': ['POST', '/v0/workers/:id/interactions/answer_if_current'],
   hello: ['GET', '/v0/hello'], 'workers.create': ['POST', '/v0/workers'], 'workers.list': ['GET', '/v0/workers'],
   'workers.get': ['GET', '/v0/workers/:id'], 'sessions.prompt': ['POST', '/v0/workers/:id/prompt'],
   'workers.stop': ['POST', '/v0/workers/:id/stop'], 'history.page': ['GET', '/v0/workers/:id/history'],

@@ -11,6 +11,97 @@
     }
   ],
   "paths": {
+    "/v0/workers/{id}/interactions": {
+      "get": {
+        "operationId": "interactions.list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interactions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{id}/interactions/status": {
+      "get": {
+        "operationId": "interactions.status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interaction"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/workers/{id}/interactions/answer_if_current": {
+      "post": {
+        "operationId": "interactions.answer_if_current",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Answer"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v0/hello": {
       "get": {
         "operationId": "hello",
@@ -1106,6 +1197,84 @@
         ],
         "additionalProperties": false
       },
+      "Answer": {
+        "type": "object",
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "worker_epoch": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "answer_id": {
+            "type": "string"
+          },
+          "interaction_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "enum": [
+              "select",
+              "confirm",
+              "input",
+              "editor",
+              "tool_approval"
+            ]
+          },
+          "outcome": {
+            "enum": [
+              "answer",
+              "cancel"
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "option_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "answer_id",
+          "interaction_id",
+          "revision",
+          "kind",
+          "outcome"
+        ],
+        "additionalProperties": false
+      },
+      "Interaction": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "Interactions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Interaction"
+        }
+      },
       "Binding": {
         "type": "object",
         "properties": {
@@ -1155,6 +1324,13 @@
               "high",
               "xhigh",
               "max"
+            ]
+          },
+          "host": {
+            "enum": [
+              "rpc",
+              "sdk",
+              "acp"
             ]
           }
         },
@@ -1420,6 +1596,17 @@
           },
           "parent_launch_command_id": {
             "type": "string"
+          },
+          "host": {
+            "enum": [
+              "rpc",
+              "sdk",
+              "acp"
+            ]
+          },
+          "resources": {
+            "type": "object",
+            "additionalProperties": true
           }
         },
         "required": [
@@ -1458,7 +1645,9 @@
               "children.launch",
               "children.report",
               "executions.cancel",
-              "executions.interrupt"
+              "executions.interrupt",
+              "interactions.answer_if_current",
+              "interactions.release"
             ]
           },
           "request_hash": {
@@ -1487,7 +1676,10 @@
               "refused",
               "unknown",
               "resolved",
-              "requested"
+              "requested",
+              "answer_accepted",
+              "resolver_consumed",
+              "tool_released"
             ]
           },
           "effect": {
@@ -1531,6 +1723,11 @@
           "result": {
             "type": "object",
             "additionalProperties": true
+          },
+          "answer_stage": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
           }
         },
         "required": [

@@ -33,6 +33,9 @@ export class SessionIndex {
   private offset = 0;
   private ino = -1;
   private leaf: string | null = null;
+  private activeLeaf: string | null | undefined;
+  /** Native SDK selection is authoritative; appending is not navigation. */
+  setActiveLeaf(id: string | null): void { this.activeLeaf = id; }
   private messages = 0;
   private readonly rawLimit: number;
   file: string | null;
@@ -44,7 +47,7 @@ export class SessionIndex {
   }
 
   get leafId(): string | null {
-    return this.leaf;
+    return this.activeLeaf === undefined ? this.leaf : this.activeLeaf;
   }
   /** Message entries indexed so far (persisted `message_end`s). */
   get messageEntries(): number {
@@ -186,8 +189,8 @@ export class SessionIndex {
    */
   page(cursor: HistoryCursor | null, limit: number): HistoryPage | { error: string } {
     this.refresh();
-    const watermark = cursor === null ? this.leaf : cursor.watermark;
-    const leafId = this.leaf;
+    const watermark = cursor === null ? this.leafId : cursor.watermark;
+    const leafId = this.leafId;
     if (watermark === null) return { entries: [], watermark: null, next: null, leafId, truncated: false, evidence: 'pi_session_file' };
     const path = this.path(watermark);
     if (path === null) return { error: `unknown watermark ${watermark}` };

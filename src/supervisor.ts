@@ -7,6 +7,8 @@ import { Journal } from './journal.js';
 import { GrantStore } from './grants.js';
 import { ReceiptStore } from './receipts.js';
 import { RpcHost, type SessionHost, type PiRecord } from './host.js';
+import { SdkHost, AcpHost } from './library-host.js';
+import { Interactions, type Answer } from './interactions.js';
 import { SessionIndex } from './session.js';
 import { EventHub, type EventScope } from './events.js';
 import { killGroup } from './process.js';
@@ -20,6 +22,7 @@ export class Supervisor {
   readonly events = new EventHub(this.epoch);
   readonly receipts: ReceiptStore;
   readonly grants: GrantStore;
+  readonly interactions: Interactions;
   readonly workers = new Map<string, Live>();
   readonly id: string;
   private sessionFiles = new Map<string, { file: string; worker_id: string }>();
@@ -32,6 +35,7 @@ export class Supervisor {
     this.id = (journal.records.find(r => r.kind === 'supervisor')?.value.supervisor_id as string | undefined) ?? randomUUID();
     journal.append('supervisor', { supervisor_id: this.id, supervisor_epoch: this.epoch });
     this.receipts = new ReceiptStore(journal);
+    this.interactions = new Interactions(journal, this.receipts, id => { const live = this.require(id); live.worker.pending_interactions = this.interactions.summaries(id); this.persist(live); }, (id, command) => this.fence(this.require(id), command));
     for (const record of journal.records) if (record.kind === 'worker') {
       const persisted = structuredClone(record.value) as Persisted;
       if (persisted.worker.session_id && persisted.sessionFile) this.sessionFiles.set(persisted.worker.session_id, { file: persisted.sessionFile, worker_id: persisted.worker.worker_id });
@@ -39,13 +43,15 @@ export class Supervisor {
     }
   }
   static rpcFactory(executable: string): HostFactory {
-    return (c, dir) => new RpcHost(executable, c.cwd, dir, c.provider, c.model, c.thinking);
+    return (c, dir) => c.host === 'sdk' ? new SdkHost(c, dir) : c.host === 'acp' ? new AcpHost(c, dir) : new RpcHost(executable, c.cwd, dir, c.provider, c.model, c.thinking);
   }
   async recover(): Promise<void> {
     this.receipts.recover();
+    this.interactions.recover();
     for (const live of this.workers.values()) {
       const w = live.worker;
       w.supervisor_epoch = this.epoch;
+      if (w.host === 'sdk' || w.host === 'acp') live.index.setActiveLeaf(w.leaf_id);
       w.pending_interactions = []; // Old native resolvers no longer exist.
       const active = w.execution && w.execution.state !== 'settled';
       const resolved = new Map((w.resolutions ?? []).map(r => [r.command_id, r]));
@@ -64,7 +70,7 @@ export class Supervisor {
           this.fence(live, id);
         }
       }
-      for (const receipt of this.receipts.all.values()) if (receipt.worker_id === w.worker_id && ['sessions.prompt', 'sessions.follow_up', 'sessions.rebind', 'children.launch'].includes(receipt.operation) && receipt.state === 'outcome_unknown' && !resolved.has(receipt.command_id)) this.fence(live, receipt.command_id);
+      for (const receipt of this.receipts.all.values()) if (receipt.worker_id === w.worker_id && ['sessions.prompt', 'sessions.follow_up', 'sessions.rebind', 'children.launch', 'interactions.answer_if_current', 'interactions.release'].includes(receipt.operation) && receipt.state === 'outcome_unknown' && !resolved.has(receipt.command_id)) this.fence(live, receipt.command_id);
       if (live.pid !== null) {
         w.status = 'cleanup_pending'; this.persist(live);
         const gone = await killGroup(live.pid, live.token);
@@ -167,6 +173,7 @@ export class Supervisor {
     }).catch(() => { report(); });
   }
   private clearInteractions(live: Live): void {
+    this.interactions.invalidate(live.worker.worker_id, 'interrupted');
     for (const timer of live.interactionTimers?.values() ?? []) clearTimeout(timer);
     live.interactionTimers?.clear(); live.worker.pending_interactions = [];
   }
@@ -181,7 +188,23 @@ export class Supervisor {
   }
   private onEvent(live: Live, event: PiRecord): void {
     const w = live.worker;
-    if (event.type === 'extension_ui_request' && ['select', 'confirm', 'input', 'editor'].includes(String(event.method))) {
+    if (event.type === 'host_leaf' && (typeof event.leafId === 'string' || event.leafId === null)) { live.index.setActiveLeaf(event.leafId); this.refresh(live); }
+    if (event.type === 'host_identity' && typeof event.sessionId === 'string' && typeof event.sessionFile === 'string') {
+      if (w.session_id && w.session_id !== event.sessionId && !live.rebinding) throw new Error('unexpected_host_identity');
+      if (!w.session_id) { this.noOtherWriter(event.sessionId, w.worker_id); w.session_id = event.sessionId; live.sessionFile = event.sessionFile; live.index.file = live.sessionFile; this.persist(live); }
+    }
+    if (event.type === 'extension_ui_request' && event.method === 'notify' && typeof event.message === 'string') {
+      try {
+        if (event.message.startsWith('A0_RESOURCE_INVENTORY:')) { w.resources = JSON.parse(event.message.slice('A0_RESOURCE_INVENTORY:'.length)); this.persist(live); return; }
+        if (event.message.startsWith('A0_HOST_IDENTITY:')) { this.onEvent(live, { type: 'host_identity', ...JSON.parse(event.message.slice('A0_HOST_IDENTITY:'.length)) }); return; }
+      } catch { throw new Error('invalid_host_audit_record'); }
+      if (event.message === 'A0_UNSUPPORTED_CUSTOM_UI') { live.hub.publish('unsupported_ui', { kind: 'custom', reason: 'headless_form_required' }, null, 'supervisor'); return; }
+    }
+    if (event.type === 'resolver_closed') this.interactions.resolverClosed(w.worker_id, String(event.native_id), String(event.outcome));
+    if (event.type === 'gate_check') { void this.interactions.gate(w, event, () => this.writable(live)).catch(error => this.fault(live, error)); return; }
+    if (event.type === 'extension_ui_request' && ['select', 'confirm', 'input', 'editor', 'tool_approval'].includes(String(event.method)) && live.host?.answerUI) {
+      this.interactions.open(w, live.host, event);
+    } else if (event.type === 'extension_ui_request' && ['select', 'confirm', 'input', 'editor'].includes(String(event.method))) {
       const id = String(event.id);
       if (w.pending_interactions.length >= 32 || w.pending_interactions.some(x => x.native_id === id)) throw new Error('unsupported interaction capacity or duplicate');
       if (w.status === 'starting') live.startupDialog = true;
@@ -234,7 +257,7 @@ export class Supervisor {
     return this.receipts.run(c.command_id, 'workers.create', c, async () => {
       this.dispatchGuard(); // Refusal must precede even local worker/cwd reservation.
       const worker_id = randomUUID(), worker_epoch = randomUUID();
-      const w: Worker = { worker_id, worker_epoch, supervisor_epoch: this.epoch, session_id: null, session_identity_evidence: 'pi_rpc_header_id', binding_revision: 1, leaf_id: null, cwd, status: 'starting', foreground: 'idle', execution: null, fence: null, history: { last_entry_id: null, lag: false, evidence: 'pi_session_file' }, cleanup: 'not_started', pending_interactions: [] };
+      const w: Worker = { worker_id, worker_epoch, host: c.host ?? 'rpc', supervisor_epoch: this.epoch, session_id: null, session_identity_evidence: 'pi_rpc_header_id', binding_revision: 1, leaf_id: null, cwd, status: 'starting', foreground: 'idle', execution: null, fence: null, history: { last_entry_id: null, lag: false, evidence: 'pi_session_file' }, cleanup: 'not_started', pending_interactions: [] };
       const live: Live = { worker: w, sessionFile: null, pid: null, token: null, index: new SessionIndex(null), hub: this.events.scoped(worker_id), completedMessages: 0 };
       this.workers.set(worker_id, live);
       this.persist(live);
@@ -251,7 +274,8 @@ export class Supervisor {
         this.noOtherWriter(state.data.sessionId, worker_id);
         w.session_id = state.data.sessionId; live.sessionFile = state.data.sessionFile; live.index.file = live.sessionFile;
         this.refresh(live);
-        if (live.startupDialog) throw new Error('startup blocked by unsupported interaction');
+        if (live.startupDialog && !host.answerUI) throw new Error('startup blocked by unsupported interaction');
+        if (host.kind === 'sdk' || host.kind === 'acp') { const inventory = await host.request({ type: 'inventory' }); if (!inventory.success) throw new Error('resource_inventory_failed'); w.resources = inventory.data; }
         w.status = 'ready'; w.cleanup = 'live_process_group'; this.persist(live);
         return { state: 'delivered', stage: 'forwarded', effect: 'observed', worker_id, result: { worker_id, worker_epoch, session_id: w.session_id, binding_revision: 1 }, history_lag: w.history.lag };
       } catch (error) {
@@ -361,7 +385,7 @@ export class Supervisor {
         for (const interaction of w.pending_interactions) await live.host!.cancelUI(interaction.native_id);
         this.clearInteractions(live);
         this.dispatchGuard();
-        const response = await live.host!.request(b.action === 'new' ? { type: 'new_session' } : b.action === 'resume' ? { type: 'switch_session', sessionPath: target! } : { type: 'fork', entryId: b.entry_id! });
+        const response = await live.host!.request(b.action === 'new' ? { type: 'new_session' } : b.action === 'resume' ? { type: 'switch_session', sessionPath: target! } : b.action === 'navigate' ? { type: 'navigate', entryId: b.entry_id! } : { type: 'fork', entryId: b.entry_id! });
         if (!response.success || response.data?.cancelled) throw new Refusal('pi_binding_change_cancelled', 'unknown');
         const state = await live.host!.request({ type: 'get_state' });
         if (!state.success || typeof state.data?.sessionId !== 'string' || typeof state.data.sessionFile !== 'string') throw new Error('binding_identity_unavailable');
@@ -371,6 +395,7 @@ export class Supervisor {
         this.dropPending(live, 'binding_changed');
         w.session_id = state.data.sessionId; w.binding_revision++; w.session_identity_evidence = 'pi_rpc_header_id';
         live.sessionFile = state.data.sessionFile; live.index = new SessionIndex(live.sessionFile); live.completedMessages = 0;
+        if (live.host?.kind === 'sdk' || live.host?.kind === 'acp') live.index.setActiveLeaf(typeof state.data.leafId === 'string' ? state.data.leafId : null);
         w.leaf_id = null; w.execution = null; w.foreground = 'idle'; live.observedIdle = true;
         this.refresh(live); this.persist(live);
         live.hub.publish('session_rebound', { old, session_id: w.session_id, binding_revision: w.binding_revision, action: b.action }, null, 'supervisor', true);
@@ -380,9 +405,9 @@ export class Supervisor {
       live = this.require(id); const w = live.worker; this.writable(live); this.binding(live, b);
       if (w.status !== 'ready' || !live.host || live.faulted) throw new Refusal('cleanup_pending_or_worker_not_ready');
       if (w.foreground !== 'idle') throw new Refusal('binding_change_requires_idle');
-      if (b.action === 'navigate') throw new Refusal('pi_1_5_2_rpc_tree_navigation_unavailable');
+      if (b.action === 'navigate' && (!live.host?.kind || live.host.kind === 'rpc')) throw new Refusal('pi_1_5_2_rpc_tree_navigation_unavailable');
       this.refresh(live);
-      if (b.action === 'fork') {
+      if (b.action === 'fork' || b.action === 'navigate') {
         if (b.source_leaf_id === undefined || b.source_leaf_id !== w.leaf_id) throw new Refusal('stale_source_leaf');
         if (!b.entry_id || !live.index.hasEntry(b.entry_id)) throw new Refusal('unknown_fork_entry');
       }
@@ -402,6 +427,7 @@ export class Supervisor {
     }
     return receipt;
   }
+  answer(id: string, a: Answer): Promise<Receipt> { const live = this.require(id); return this.interactions.answer(live.worker, a, this.authority.getStore() ?? (() => {}), () => { this.writable(live); if (live.faulted || !live.host || !['starting', 'ready'].includes(live.worker.status)) throw new Refusal('worker_not_ready'); }); }
   followUp(id: string, request: FollowUp): Promise<Receipt> { return this.enqueue(id, 'follow_up', request); }
   launchChild(id: string, request: ChildLaunch): Promise<Receipt> { return this.enqueue(id, 'child', request); }
   private enqueue(id: string, kind: Pending['kind'], request: FollowUp | ChildLaunch): Promise<Receipt> {
