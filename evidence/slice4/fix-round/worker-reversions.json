@@ -1,0 +1,123 @@
+{
+  "W01_lineage_after_spawn": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 slice4 typed child launch/report: every fsync and native spawn/FD/delivery cut (4341.608075ms)",
+      "\u2716 failing tests:",
+      "\u2716 slice4 typed child launch/report: every fsync and native spawn/FD/delivery cut (4341.608075ms)"
+    ],
+    "mutation_sha256": "ec313865e523ff1dcd0a58f78e2f209d2bd38e977dd731f7dc09c01e2df97380"
+  },
+  "W04_help_counts_as_result": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 help-only durable report does not discharge the parent recovery fence (5.231506ms)",
+      "\u2716 failing tests:",
+      "\u2716 help-only durable report does not discharge the parent recovery fence (5.231506ms)"
+    ],
+    "mutation_sha256": "6541cc462a579912a102efe6d3fe81b54aaed0116bf2779d7034d03f4a0ea5ef"
+  },
+  "W06b_report_only_child_grant": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 FD report rechecks distinct parent-source revocation (2.63558ms)",
+      "\u2716 failing tests:",
+      "\u2716 FD report rechecks distinct parent-source revocation (2.63558ms)"
+    ],
+    "mutation_sha256": "d35581f1091dc05a738b572f4a0908d881e4257f73fd2561e55f1d104440ca9f"
+  },
+  "W06c_report_only_parent_grant": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 FD report rechecks distinct child-caller revocation (2.37453ms)",
+      "\u2716 failing tests:",
+      "\u2716 FD report rechecks distinct child-caller revocation (2.37453ms)"
+    ],
+    "mutation_sha256": "34b2b747c19999916f8947ed0390dd8da76b4d9d4b51d64e5fbd9d05ed5edf85"
+  },
+  "W07_report_not_granted_removed": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 FD report requires children.report in the child grant (1.880956ms)",
+      "\u2716 failing tests:",
+      "\u2716 FD report requires children.report in the child grant (1.880956ms)"
+    ],
+    "mutation_sha256": "0e0e62df673f3e6384dcde1869025f8551aef2ec7701912833672dfeb7206093"
+  },
+  "W08_caller_grant_not_checked": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 child methods respect distinct caller grant ceiling (2.550491ms)",
+      "\u2716 failing tests:",
+      "\u2716 child methods respect distinct caller grant ceiling (2.550491ms)"
+    ],
+    "mutation_sha256": "389659e872d28a469a584c2444debc73c36a921b304907b618cc370a2f8e64d2"
+  },
+  "W11b_skills_not_narrowed": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 typed child refuses skills before any spawn or checkout reservation (2.227405ms)",
+      "\u2716 failing tests:",
+      "\u2716 typed child refuses skills before any spawn or checkout reservation (2.227405ms)"
+    ],
+    "mutation_sha256": "ac30245157d2dd9c114bafcd7ad1a29bebdab590ea27bee2d38489248ba62274"
+  },
+  "W12b_parent_grant_methods_not_narrowed": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 child methods respect distinct parent grant ceiling (1.74978ms)",
+      "\u2716 failing tests:",
+      "\u2716 child methods respect distinct parent grant ceiling (1.74978ms)"
+    ],
+    "mutation_sha256": "27a04275e0be512894937421be001259aeed812a8b0b9fc0b397612233759d1c"
+  },
+  "W13_no_stale_parent_execution": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 typed child refuses execution before any spawn or checkout reservation (1.690749ms)",
+      "\u2716 failing tests:",
+      "\u2716 typed child refuses execution before any spawn or checkout reservation (1.690749ms)"
+    ],
+    "mutation_sha256": "8927c7d38956a55c622356875085fc46006f082f678718789cd29f3c1f843b83"
+  },
+  "W15_no_parent_grant_revocation_at_create": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 child create rechecks revoked parent source even with an active independent caller (1.807308ms)",
+      "\u2716 failing tests:",
+      "\u2716 child create rechecks revoked parent source even with an active independent caller (1.807308ms)"
+    ],
+    "mutation_sha256": "a51cd4c89e26c750708c6562ac3abf12efbca856fc7dad4e6da6e05bd0c1eed2"
+  },
+  "W17_no_fence_on_unknown_child_create": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 unknown child initialization fences the live parent before another launch (3.298633ms)",
+      "\u2716 failing tests:",
+      "\u2716 unknown child initialization fences the live parent before another launch (3.298633ms)"
+    ],
+    "mutation_sha256": "73772c4bbea83dfaf35ed1de6ddd0266316d9f666b7a06c793abc72ff827f125"
+  }
+}

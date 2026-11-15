@@ -1,0 +1,160 @@
+{
+  "root": "/tmp/a0s4fix/live-f7iKRv",
+  "profile": "/tmp/a0s4fix/live-f7iKRv/agent",
+  "base": "c32941008aac79fed65b4b6b948ac69ff581750b",
+  "pi": "1.5.2",
+  "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+  "thinking": "off",
+  "host_backend": "pi-worker",
+  "terminal_provider_calls": 0,
+  "outcome": "pass",
+  "direct_rpc_calls": [
+    {
+      "type": "get_available_models",
+      "purpose": "read-only authenticated model catalog check; bypasses B2"
+    },
+    {
+      "type": "prompt",
+      "purpose": "setup-only /poteto-mode on; B2 slice 2 does not support slash commands"
+    }
+  ],
+  "native_rpc_counts": {
+    "get_state": 4,
+    "get_available_models": 1,
+    "prompt": 6
+  },
+  "parent_grant": {
+    "grant_id": "orchestrator",
+    "methods": [
+      "workers.create",
+      "workers.get",
+      "workers.list",
+      "workers.stop",
+      "sessions.prompt",
+      "events.subscribe",
+      "children.report"
+    ],
+    "cwd_roots": [
+      "/tmp/a0s4fix/live-f7iKRv"
+    ],
+    "owner": false
+  },
+  "pstack_evidence": {
+    "reads": [
+      {
+        "entry_id": "df75c696",
+        "tool_call_id": "toolu_01KkjwxeWvpRx6cGSXj8QJGQ",
+        "path": "/tmp/a0s4fix/live-f7iKRv/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/SKILL.md",
+        "successful": true
+      },
+      {
+        "entry_id": "df75c696",
+        "tool_call_id": "toolu_012wT1udCBn8xQbqKXEcupGu",
+        "path": "/tmp/a0s4fix/live-f7iKRv/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/playbooks/prototype.md",
+        "successful": true
+      }
+    ],
+    "checklist_file": "/tmp/a0s4fix/live-f7iKRv/pstack-evidence.json"
+  },
+  "worktrees": [
+    {
+      "name": "writer-b",
+      "path": "/tmp/a0s4fix/live-f7iKRv/worktrees/d1001269-4ade-4482-9a3f-7b1fdb262b3e",
+      "base": "c32941008aac79fed65b4b6b948ac69ff581750b",
+      "locked": true,
+      "grant_source_id": "orchestrator",
+      "grant_methods": [
+        "children.report"
+      ],
+      "head": "1c7d9adba29ae0b3765e3d427c904514a5abf194",
+      "clean": true,
+      "content_verified": true,
+      "retained": true,
+      "report_id": "fd-c2ad589d-43e9-4458-9f93-d3c53b558ed1-21f7f491-4c45-4fc3-a4d2-af846bfea6cc"
+    },
+    {
+      "name": "writer-a",
+      "path": "/tmp/a0s4fix/live-f7iKRv/worktrees/e2ded256-3f3d-4991-be17-9b481ec720f5",
+      "base": "c32941008aac79fed65b4b6b948ac69ff581750b",
+      "locked": true,
+      "grant_source_id": "orchestrator",
+      "grant_methods": [
+        "children.report"
+      ],
+      "head": "93f24933a98b837dcfbbc63979f6abe1b8c9dd04",
+      "clean": true,
+      "content_verified": true,
+      "retained": true,
+      "report_id": "fd-143cdedc-b151-4fa1-996e-b9d114f35214-fc4129b9-1849-4987-a6e1-a8338b149577"
+    }
+  ],
+  "parent": {
+    "worker_id": "82f06348-d917-4660-bbd4-c4b077372123",
+    "session_id": "01a1deae-4cf6-75f1-b520-4c3b324c16e9",
+    "pstack_mode_persisted": true,
+    "still_ready_after_children": true
+  },
+  "delivery_counts": {
+    "e2ded256-3f3d-4991-be17-9b481ec720f5:help": 1,
+    "f32a9f22-64d3-4cf9-bab5-a6dca09d80c5:help": 1,
+    "d1001269-4ade-4482-9a3f-7b1fdb262b3e:result": 1,
+    "d1001269-4ade-4482-9a3f-7b1fdb262b3e:termination": 1,
+    "f32a9f22-64d3-4cf9-bab5-a6dca09d80c5:cancelled": 1,
+    "e2ded256-3f3d-4991-be17-9b481ec720f5:result": 1,
+    "e2ded256-3f3d-4991-be17-9b481ec720f5:termination": 1
+  },
+  "reports": [
+    {
+      "type": "child_report",
+      "worker_id": "143cdedc-b151-4fa1-996e-b9d114f35214",
+      "kind": "help"
+    },
+    {
+      "type": "child_report",
+      "worker_id": "c7f67ee5-7502-42c7-9377-286ac34a4724",
+      "kind": "help"
+    },
+    {
+      "type": "child_report",
+      "worker_id": "c2ad589d-43e9-4458-9f93-d3c53b558ed1",
+      "kind": "result"
+    },
+    {
+      "type": "child_report",
+      "worker_id": "143cdedc-b151-4fa1-996e-b9d114f35214",
+      "kind": "result"
+    }
+  ],
+  "cancel": {
+    "status": "confirmed",
+    "sibling_ready": true,
+    "locked": true,
+    "retained": true
+  },
+  "help_roundtrip": true,
+  "terminal_evidence": "instrumented legacy/Core provider constructors and PATH traps for herdr/hc/herdr-core never called; typed backend selected",
+  "child_count": 3,
+  "manifest_count": 3,
+  "process_check": [
+    {
+      "worker_id": "82f06348-d917-4660-bbd4-c4b077372123",
+      "pid": 56736,
+      "absent": true
+    },
+    {
+      "worker_id": "143cdedc-b151-4fa1-996e-b9d114f35214",
+      "pid": 56765,
+      "absent": true
+    },
+    {
+      "worker_id": "c2ad589d-43e9-4458-9f93-d3c53b558ed1",
+      "pid": 56766,
+      "absent": true
+    },
+    {
+      "worker_id": "c7f67ee5-7502-42c7-9377-286ac34a4724",
+      "pid": 56809,
+      "absent": true
+    }
+  ]
+}

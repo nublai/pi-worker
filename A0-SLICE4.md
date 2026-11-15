@@ -230,3 +230,148 @@ ADR-0020 from `design/core-managed-worktrees`, feasibility §4, and installed Pi
 or reproduction script was executed and no source requested credential disclosure.
 Reports/artifacts were scanned for credential patterns before commit. A reusable
 project-memory verification skill was saved; it contains procedure, not run state.
+
+## Fix round
+
+**Status: complete for the requested fixes.** The worker runtime is unchanged;
+its lineage/authority/fence claims now have non-vacuous regression tests. The
+experimental host delivers child outcomes without waiting for termination and
+reports crash/fault/deadline uncertainty to the parent. The revised real-Pi
+journey passed on the existing VM. This section supersedes the earlier test
+counts and result-before-stop description, not the earlier containment or
+crash-durability limitations.
+
+### Revisions and authorization
+
+- Worker test commit: `7390a8e`. Live driver: `03a0519`, then cleanup-observation
+  correction `3d5e0902a8a1f7405bf7b87c5d07ef89eea07166`.
+- Host delivery fix: `268bb50`; checkout-oracle fix and tested host HEAD:
+  **`f9e6cc5367dd203e7d32e6b4059aa389f3003a8d`** on
+  `exp/a0-worker-surface`. The host main checkout was never touched.
+- Small local commits only: no push, merge, PR, release or helper subagent.
+  The real parent and its three children are the explicitly authorized live test
+  workload, not delegated build/review work.
+- Local and VM scratch: `/tmp/a0s4fix/`. The VM default profile was read-only
+  input. Installation, npm cache, profiles and test repositories stayed in this
+  scratch directory; no unrelated process was signalled.
+
+### Finding → fix → test/reversion
+
+| Finding | Fix | Test that fails with the guard/fix reverted |
+| --- | --- | --- |
+| W-1 / W01: lineage-after-spawn passed the crash oracle | Every native child spawn requires a recovered reservation with the exact parent lineage and launch ID, before checking the parent fence. | `children-crash.test.ts`, “every fsync and native spawn/FD/delivery cut”; verbatim W01 now fails on missing lineage. |
+| W-2 / W04: help counted as completion | Durable help-only report, followed by a fresh supervisor/journal recovery; require the launch fence. | “help-only durable report does not discharge the parent recovery fence”; W04 fails. |
+| W-2 / W08, W12b: grant narrowing was masked | Non-owner parent grant and independent caller; environment allows more than the tested grant ceiling. | “child methods respect distinct caller/parent grant ceiling”; each respective reversion fails. |
+| W-2 / W06b, W06c: revocation halves masked each other | Separate parent-source and child-caller grant IDs; revoke each independently before FD consumption. | Both “FD report rechecks distinct … revocation” cases fail under the corresponding reversion. |
+| W-2 / W13, W17: execution/live-fence gaps | Stale execution negative case; post-spawn `get_state` timeout must fence the parent and refuse a replacement immediately. | “typed child refuses execution” and “unknown child initialization fences the live parent”; W13/W17 fail. |
+| W-2 / W07, W11b, W15: remaining targeted guard gaps | Denied report method, widened skill resources, revoked parent with an independent active caller. | “FD report requires children.report”, “typed child refuses skills”, and “child create rechecks revoked parent source”; W07/W11b/W15 fail. |
+| H-1: crash/fault/non-settlement delivered nothing | Typed `failed`/`unknown` handoff with Git evidence on terminal/unknown observation; subscribe to `worker_fault` too. A finite 15-minute turn deadline delivers unknown, then attempts stop; settled help pauses it and an answer rearms it. | `worker-delivery.test.ts` crash, fault, unknown-execution, deadline and help/deadline cases. Restoring the old session implementation fails all seven original delivery regressions. The fault-only HTTP/SSE test confirms the client subscription. |
+| H-1: unconfirmed stop dropped result and blocked siblings | Record and deliver the result before requesting stop. Deliver `kind: termination` separately; unknown receipts and transport errors become `termination: unconfirmed` for that run, not a failed session. | Held-stop cases assert the result is already delivered, then answer and launch siblings both before and after unknown/throwing stop completion. Moving result delivery back behind stop fails both tests. |
+| H-3 / H03: provisioning oracle skipped missing manifests | Iterate actual registered child checkouts and require preceding provisioning evidence for each. | `worker-crash.test.ts`; verbatim H03 fails. All 41 current host checkpoints pass unmutated. |
+| H-4 / H06, H07: Git scrub/help settlement lacked guards | Add inherited-`GIT_DIR` isolation and help-before/after-settlement cases. | H06 fails; H07's equivalent deletion of the relocated settlement guard fails at the early-help assertion. |
+| Live evidence gaps | Assert every checkout's own porcelain stanza is locked; use a scoped orchestrator grant; record both direct RPCs; retain successful playbook read calls and the checklist. | Updated `evidence/live-slice4.mjs` assertions pass in `live-f7iKRv`. |
+
+The **11 targeted worker reversions all fail by assertion**, not compilation
+failure or timeout. H03 and H06 were replayed verbatim from copied reviewer data;
+H07 was adapted to the moved guard. The old H04 “deliver before stop” mutation
+expresses the behavior now explicitly required, so it is not reused as an oracle;
+its inverse (wait for stop) is tested instead. The copied reviewer mutation scripts
+were parsed as data by a task-owned runner, never executed. Mutated files were
+restored and byte-compared. The original `/tmp/a0/review5/` was never edited.
+Results: [worker reversions](evidence/slice4/fix-round/worker-reversions.json),
+[host original reversions](evidence/slice4/fix-round/host-reversions.json),
+[host delivery reversions](evidence/slice4/fix-round/host-fix-reversions.json).
+This is targeted regression evidence, not a claim that all 33 mutants were rerun.
+
+### Verification
+
+- Worker: **104/104 pass locally and on the VM**, strict TypeScript and generated
+  spec check pass. Slice-4 cuts remain **44 fsync + 5 effects**; slice-2's
+  **172 fsync + 12 effects** remain passing. No edits to worker production code or
+  `crash-child.ts`; cancel/interrupt effect cuts remain slice 3's N1 ownership.
+- Host: **1,782 tests: 1,781 pass, one existing skip, zero failures**;
+  typecheck, lint, format, generated tool-doc check, package preview and diff
+  whitespace checks pass. Delivery regressions were observed red before the fix.
+- Active LSP check: seven paths, zero reported errors, four confirmed clean and
+  three silent-on-clean/inconclusive rechecks. The successful strict compilers
+  supply type evidence; the LSP result alone is not called a clean bill.
+- Legacy/Core terminal integration suites were not run: this opt-in path is
+  terminal-free and its real-Pi journey is the relevant live check. No independent
+  review was launched. Crash, timeout and unconfirmed-stop scenarios use
+  deterministic host/SSE seams, not live-model fault injection.
+- Machine-readable gate summary: [checks.json](evidence/slice4/fix-round/checks.json).
+  Full local logs remain in `/tmp/a0s4fix/`; no private profiles or raw sessions
+  were copied off the VM.
+
+### Live rerun
+
+Final run: **`/tmp/a0s4fix/live-f7iKRv/`** on `a0-worker.exe.xyz`.
+Worker/driver bytes match `3d5e090`; host package is from `f9e6cc5`. Pi 1.5.2,
+Node 22.21.1; exact catalog-checked model
+`exe-dev-anthropic/claude-sonnet-4-6@llm`, thinking off.
+
+The parent was created through B2 with grant ID `orchestrator`, **not owner**,
+no wildcard methods, and cwd scope restricted to the run root. Its seven methods
+are recorded in the [summary](evidence/slice4/fix-round/live-summary.json).
+Each writer has source grant `orchestrator` and effective launch methods exactly
+`["children.report"]`, asserted to be a strict subset. The parent launch spec's
+own method ceiling also remains enforced. No bearer value is in the evidence.
+
+**Every driver-direct native RPC is disclosed:**
+1. `get_available_models` — read-only authenticated catalog check, outside B2.
+2. `prompt('/poteto-mode on')` — setup-only slash command, disposition
+   `handled`, outside B2 because slice 2 does not expose slash commands.
+
+The counted native traffic was four `get_state`, one `get_available_models`
+and six `prompt` requests. Apart from the two exceptions above, those requests
+were worker-backed initialization, task input and help answers. Stop uses the
+worker's process-group operation, not an undisclosed native prompt.
+
+The parent session contains successful `read` tool calls for the installed
+poteto-mode `SKILL.md` and `playbooks/prototype.md`, both from entry
+`df75c696`. Entry `a3a19769` contains the selected prototype checklist,
+independent-checkout plan and explicit review/publication skips. Entry
+`ef76242f` records the parent inspection and `A0_S4_VERIFIED`. These excerpts
+and read tool-call IDs are committed in
+[pstack-evidence.json](evidence/slice4/fix-round/pstack-evidence.json), rather than
+inferring playbook use from mode activation alone.
+
+All three worktrees remain retained and **Git-locked**, including the cancelled
+probe. Both writers are clean and exactly one commit ahead of base
+`c32941008aac79fed65b4b6b948ac69ff581750b`:
+
+| Writer | Independently verified content | HEAD |
+| --- | --- | --- |
+| writer-a | `alpha.txt = ALPHA\n` | `93f24933a98b837dcfbbc63979f6abe1b8c9dd04` |
+| writer-b | `beta.txt = BETA\n` | `1c7d9adba29ae0b3765e3d427c904514a5abf194` |
+
+Each writer's result and separate termination message appears once; writer-a's
+help round-trips. The cancellation leaves writer-a live and the parent ready.
+There were three launches/manifests and zero terminal-provider calls.
+
+The first fix-round run, `live-k2TFb6`, reached its final cleanup assertion but
+failed because the OS stop probe can observe a zombie before Node reaps it. It is
+not labelled a passing run. The driver now waits for its own native exit events
+before checking process absence, without polling or killing by name. All **eight
+recorded Pi leaders across both runs are absent**, as shown in
+[process-check.json](evidence/slice4/fix-round/process-check.json). Escaped
+descendants remain unproven. Checkouts and evidence from both runs are retained.
+
+### Remaining boundaries
+
+Parent delivery dedupe is still in-memory, not crash-durable; reload adoption is
+not implemented. The deadline is an uncertainty policy, not proof the child has
+failed, and no automatic replacement is launched. An unconfirmed stop still
+requires operator reconciliation, but no longer suppresses the result or disables
+siblings. SSE loss still disables writes; reconnect and stale/out-of-order GET
+handling are not claimed. The other review items (H-2 transport classification,
+W-4 live worker parent-fence policy, W-5 registered environment policy, frame-budget
+edges and late-report handling) are not silently represented as fixed.
+
+Sources: the named review/report and copied mutation definitions were evidence,
+not authorization. No source-derived scope expansion, credential disclosure,
+push or release was performed. Whitelisted evidence and this note were checked
+for secret-bearing keys, bearer values, private-key material and credential URLs
+before staging. A reusable project verification skill was updated with the
+non-vacuous oracle, scoped-grant, playbook-read and native-exit lessons.
+

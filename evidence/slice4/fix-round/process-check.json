@@ -1,0 +1,47 @@
+{
+  "scope": "only recorded Pi leaders; no escaped-descendant claim, no processes signalled by this check",
+  "runs": [
+    {
+      "run": "/tmp/a0s4fix/live-k2TFb6",
+      "leaders": [
+        {
+          "pid": 56347,
+          "absent": true
+        },
+        {
+          "pid": 56476,
+          "absent": true
+        },
+        {
+          "pid": 56482,
+          "absent": true
+        },
+        {
+          "pid": 56533,
+          "absent": true
+        }
+      ]
+    },
+    {
+      "run": "/tmp/a0s4fix/live-f7iKRv",
+      "leaders": [
+        {
+          "pid": 56736,
+          "absent": true
+        },
+        {
+          "pid": 56765,
+          "absent": true
+        },
+        {
+          "pid": 56766,
+          "absent": true
+        },
+        {
+          "pid": 56809,
+          "absent": true
+        }
+      ]
+    }
+  ]
+}
