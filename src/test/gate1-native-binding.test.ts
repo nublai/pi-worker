@@ -26,6 +26,7 @@ export default pi => {
       const target=ctx.sessionManager.getEntries().find(e=>e.type==='message' && e.message.role==='assistant').id;
       if(args==='tree') await ctx.navigateTree(target,{summarize:false}); else await ctx.fork(target,{position:'at'});
     }
+    if(args === 'append') pi.appendEntry('native-append', {});
     if(args === 'new') await ctx.newSession();
     if(args === 'resume') await ctx.switchSession(readFileSync(ctx.cwd+'/seed-file','utf8'));
   }});
@@ -37,19 +38,20 @@ export default pi => {
     const receipt = await s.create({ command_id: 'create', cwd, host, provider: 'anthropic', model: 'claude-sonnet-4-5', thinking: 'off', launch_spec: { environment: { id: 'native', revision: 1, allowed_methods: [] }, role: 'test', tools: [], denied_tools: [], resources: { extensions: [extension], skills: [] }, grant_methods: [], seed_mode: 'standalone' } });
     assert.equal(receipt.state, 'delivered', JSON.stringify(receipt));
     const id = receipt.worker_id!, native = s.require(id).host!, pid = native.pid;
-    for (const action of ['seed', 'tree', 'fork', 'new', 'resume']) {
+    for (const action of ['seed', 'tree', 'append', 'fork', 'new', 'resume']) {
       const before = s.get(id);
       const reply = await native.request({ type: 'prompt', message: '/native ' + action });
       assert.equal(reply.success, true, 'native command runs without model call');
       await native.request({type:'get_state'}); // stdout barrier after the native command finishes
       const after = s.get(id);
       assert.equal(after.status, 'ready', action);
-      assert.equal(after.binding_revision, before.binding_revision + 1, action);
+      assert.equal(after.binding_revision, before.binding_revision + (action === 'append' ? 0 : 1), action);
       assert.equal(native.pid, pid);
-      await assert.rejects(s.prompt(id, { ...bind(before, 'stale-' + action), message: 'noop' }), /stale_binding/);
+      if (action !== 'append') await assert.rejects(s.prompt(id, { ...bind(before, 'stale-' + action), message: 'noop' }), /stale_binding/);
       const current = await native.request({type:'get_state'});
       assert.equal(after.session_id, current.data?.sessionId);
-      if (host !== 'rpc') assert.equal(after.leaf_id, current.data?.leafId);
+      const tree = host === 'rpc' ? await native.request({type:'get_tree'}) : current;
+      assert.equal(after.leaf_id, tree.data?.leafId);
     }
   } finally {
     await s.shutdown(); journal.close();

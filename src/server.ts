@@ -118,10 +118,12 @@ export function router(supervisor: Supervisor, channel?: ParentChannel): Server 
           if (channel) {
             if (c.parent?.worker_id !== channel.workerId || !c.launch_spec) throw new Refusal('parent_channel_requires_own_child');
             check('workers.create', channel.workerId, c.cwd);
+            if (parent!.fence) throw new Refusal('session_fenced', 'no_effect', parent!.fence.command_id);
+            if (c.parent.worker_epoch !== parent!.worker_epoch || c.parent.session_id !== parent!.session_id || c.parent.binding_revision !== parent!.binding_revision || c.parent.execution_id !== parent!.execution?.execution_id) throw new Refusal('stale_parent_binding');
             const profile = join(parent!.cwd, '.a0-agent'), childProfile = join(realpathSync(c.cwd), '.a0-agent');
             const remap = (path: string) => {
               if (!inside(profile, realpathSync(path))) throw new Refusal('parent_channel_resource_outside_profile');
-              return join(childProfile, relative(profile, path));
+              return join(childProfile, relative(realpathSync(profile), realpathSync(path)));
             };
             c.launch_spec.resources = { extensions: c.launch_spec.resources.extensions.map(remap), skills: c.launch_spec.resources.skills.map(remap) };
             cpSync(profile, childProfile, { recursive: true, dereference: true, errorOnExist: true, force: false });

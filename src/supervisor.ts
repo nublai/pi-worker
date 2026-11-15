@@ -262,6 +262,10 @@ export class Supervisor {
     const w = live.worker;
     if (event.type === 'host_binding_changing' && !live.rebinding) { live.nativeRebinding = true; this.clearInteractions(live); }
     if (event.type === 'host_binding') this.nativeBinding(live, event);
+    if (event.type === 'entry_appended' && live.host?.kind === 'rpc') {
+      const entry = event.entry as { id?: unknown } | undefined;
+      if (typeof entry?.id === 'string') live.index.setActiveLeaf(entry.id);
+    }
     if (event.type === 'host_leaf' && (typeof event.leafId === 'string' || event.leafId === null)) { live.index.setActiveLeaf(event.leafId); this.refresh(live); }
     if (event.type === 'host_identity' && typeof event.sessionId === 'string' && typeof event.sessionFile === 'string') {
       if (w.session_id && w.session_id !== event.sessionId && !live.rebinding) throw new Error('unexpected_host_identity');
