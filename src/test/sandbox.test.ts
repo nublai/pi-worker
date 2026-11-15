@@ -69,9 +69,9 @@ test('sandbox launch refuses mismatched roots, parent state exposure, non-child 
     const c: Create = { command_id: 'x', cwd: root, host: 'sdk', provider: 'p', model: 'm', thinking: 'off', parent: { worker_id: 'p', worker_epoch: 'e', session_id: 's', binding_revision: 1, execution_id: 'run', task_id: 'task', generation_id: 'gen' }, launch_spec: { environment: { id: 'x', revision: 1, allowed_methods: ['children.report'], filesystem: 'bwrap', root }, role: 'child', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: ['children.report'], seed_mode: 'standalone' } };
     const state = join(f.dir, 'state-only'); mkdirSync(state);
     assert.equal(sandboxRoot(c, state), root);
-    assert.equal(inside('/', state), true);
     const rooted = (path: string) => ({ ...c, cwd: path, launch_spec: { ...c.launch_spec!, environment: { ...c.launch_spec!.environment, root: path } } });
     assert.throws(() => sandboxRoot(rooted('/'), state), /sandbox_root_is_host_root/);
+    assert.equal(inside('/', state), true);
     assert.throws(() => sandboxRoot(rooted(f.dir), state), /overlaps_supervisor_state/);
     assert.throws(() => sandboxRoot(rooted(state), state), /overlaps_supervisor_state/);
     const socketDir = join(f.dir, 'socket-dir'); mkdirSync(socketDir);
@@ -106,7 +106,7 @@ test('sandbox host uses environment allowlist and a private PID namespace', asyn
     let captured = false;
     const jail: Containment = { profile: 'capture', reserve: () => undefined, clean: async () => true, spawn: (_unit, command, args, options) => {
       captured = true; assert.equal(command, 'bwrap'); assert.ok(args.includes('--unshare-pid'));
-      assert.deepEqual(options.env, profile.env, 'host must replace rather than merge the parent environment');
+      assert.deepEqual(Object.keys(options.env ?? {}).sort(), Object.keys(profile.env).sort(), 'host must replace rather than merge the parent environment; compare names only, never print inherited values');
       assert.equal(options.env?.A0_TEST_PRIVATE_SENTINEL, undefined);
       return spawn('/bin/true', [], { stdio: ['pipe', 'pipe', 'pipe', 'pipe'] });
     } };
