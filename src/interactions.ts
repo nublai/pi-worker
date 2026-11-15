@@ -6,9 +6,10 @@ import { ReceiptStore } from './receipts.js';
 import type { SessionHost, PiRecord } from './host.js';
 import { Refusal, type Worker, type Receipt } from './types.js';
 import type { DialogKind, UIAnswer } from './resolvers.js';
+export type AnswerGuard = (() => void) & { actor?: string; grant_id?: string; grant_state_dir?: string };
 export type Answer = { command_id: string; answer_id: string; worker_epoch: string; session_id: string; binding_revision: number; interaction_id: string; revision: number; kind: DialogKind } & UIAnswer;
-export type Interaction = { interaction_id: string; native_id: string; worker_id: string; worker_epoch: string; session_id: string | null; binding_revision: number; revision: number; kind: DialogKind; deadline: number; status: string; answer_id?: string; answer_command_id?: string; answer_stage?: number; outcome?: string; resolver_outcome?: string; approval?: Record<string, unknown>; release_command_id?: string };
-type Live = { record: Interaction; payload: Record<string, unknown>; options?: string[]; timer?: NodeJS.Timeout; guard?: () => void; host: SessionHost; worker: Worker; acceptedValue?: string };
+export type Interaction = { interaction_id: string; native_id: string; worker_id: string; worker_epoch: string; session_id: string | null; binding_revision: number; revision: number; kind: DialogKind; deadline: number; status: string; answer_id?: string; answer_command_id?: string; actor?: string; grant_id?: string; answer_stage?: number; outcome?: string; resolver_outcome?: string; approval?: Record<string, unknown>; release_command_id?: string };
+type Live = { record: Interaction; payload: Record<string, unknown>; options?: string[]; timer?: NodeJS.Timeout; guard?: AnswerGuard; host: SessionHost; worker: Worker; acceptedValue?: string };
 export class Interactions {
   readonly records = new Map<string, Interaction>();
   private live = new Map<string, Live>();
@@ -19,7 +20,7 @@ export class Interactions {
     for (const r of journal.records) if (r.kind === 'interaction') { const i = structuredClone(r.value) as Interaction; this.records.set(i.interaction_id, i); }
   }
   recover(): void {
-    for (const r of this.records.values()) if (['pending', 'accepted', 'forwarded', 'consumed'].includes(r.status)) { r.status = 'interrupted'; this.save(r); }
+    for (const r of this.records.values()) if ((['pending', 'accepted'].includes(r.status) || (r.kind === 'tool_approval' && ['forwarded', 'consumed'].includes(r.status)))) { r.status = 'interrupted'; this.save(r); }
   }
   private save(r: Interaction): void { this.journal.append('interaction', r); this.records.set(r.interaction_id, r); }
   private notify(l: Live): void { this.changed(l.record.worker_id); }
@@ -40,7 +41,7 @@ export class Interactions {
     if (options) payload.options = options.map((label, i) => ({ option_id: String(i), label }));
     const l: Live = { record, payload, options, host, worker }; this.live.set(record.interaction_id, l);
     this.save(record); this.notify(l);
-    l.timer = setTimeout(() => { try { this.close(l, 'timeout', true); } catch { this.fence(worker.worker_id, 'interaction-timeout-' + record.interaction_id); } }, Math.max(1, deadline - this.now())); l.timer.unref();
+    l.timer = setTimeout(() => { try { this.close(l, 'timeout', true); } catch { try { this.fence(worker.worker_id, 'interaction-timeout-' + record.interaction_id); } catch { /* Storage failure cannot throw from a timer. */ } } }, Math.max(1, deadline - this.now())); l.timer.unref();
   }
   summaries(workerId: string): { native_id: string; kind: string }[] { return [...this.live.values()].filter(l => l.record.worker_id === workerId && l.record.status === 'pending').map(l => ({ native_id: l.record.native_id, kind: l.record.kind })); }
   private close(l: Live, reason: string, cancel = false): void {
@@ -49,7 +50,7 @@ export class Interactions {
     if (cancel) {
       // Write-ahead cancellation marker. No consumption claim is made from a flush.
       this.journal.append('interaction_effect', { interaction_id: l.record.interaction_id, worker_id: l.record.worker_id, operation: 'cancel', reason });
-      void l.host.cancelUI(l.record.native_id).catch(() => this.fence(l.record.worker_id, 'interaction-cancel-' + l.record.interaction_id));
+      void l.host.cancelUI(l.record.native_id).catch(() => { try { this.fence(l.record.worker_id, 'interaction-cancel-' + l.record.interaction_id); } catch { /* Storage may already be closed; no durable claim. */ } });
     }
   }
   invalidate(workerId: string, reason: string): void {
@@ -64,7 +65,7 @@ export class Interactions {
     if (l.record.status === 'pending') this.close(l, outcome);
     else l.record.resolver_outcome = outcome;
   }
-  async answer(worker: Worker, a: Answer, guard: () => void, writable: () => void): Promise<Receipt> {
+  async answer(worker: Worker, a: Answer, guard: AnswerGuard, writable: () => void): Promise<Receipt> {
     const known = this.answers.get(a.answer_id);
     const signature = JSON.stringify({ outcome: a.outcome, value: a.value, option_id: a.option_id });
     if (known && known.signature !== signature) throw new Refusal('answer_id_conflict');
@@ -85,6 +86,7 @@ export class Interactions {
       guard(); writable();
       l.record.status = 'accepted'; l.record.answer_id = a.answer_id; l.record.answer_command_id = a.command_id; l.record.answer_stage = 1;
       this.answers.set(a.answer_id, { command: a.command_id, signature }); l.guard = guard;
+      l.record.actor = guard.actor; l.record.grant_id = guard.grant_id;
       clearTimeout(l.timer); this.save(l.record); this.notify(l);
       this.receipts.update(a.command_id, { stage: 'answer_accepted', answer_stage: 1 });
       guard(); writable();
@@ -113,7 +115,7 @@ export class Interactions {
       if (a.outcome !== 'answer' && a.outcome !== 'cancel') throw new Refusal('invalid_outcome');
       if (a.outcome === 'cancel') { if (a.value !== undefined || a.option_id !== undefined) throw new Refusal('cancel_has_value'); return; }
       if (a.kind === 'select') {
-        if (!/^\d+$/.test(a.option_id ?? '') || !l.options || !Number.isSafeInteger(Number(a.option_id)) || Number(a.option_id) >= l.options.length || a.value !== undefined) throw new Refusal('invalid_option');
+        if (!/^\d+$/.test(a.option_id ?? '') || String(Number(a.option_id)) !== a.option_id || !l.options || !Number.isSafeInteger(Number(a.option_id)) || Number(a.option_id) >= l.options.length || a.value !== undefined) throw new Refusal('invalid_option');
       } else if (a.kind === 'confirm' || a.kind === 'tool_approval') {
         if (typeof a.value !== 'boolean' || a.option_id !== undefined) throw new Refusal('invalid_boolean');
       } else if (typeof a.value !== 'string' || Buffer.byteLength(a.value) > 65536 || a.option_id !== undefined) throw new Refusal('invalid_text');
@@ -134,7 +136,7 @@ export class Interactions {
         if (['digest', 'policy_revision', 'expiry', 'operation', 'resource', 'environment', 'offered_scope'].some(k => b[k] !== event[k]) || this.now() >= Number(b.expiry)) throw new Refusal('approval_binding_invalid');
       } catch { allowed = false; }
       this.receipts.dispatch(command_id, { worker_id: worker.worker_id });
-      const reply = await l.host.request({ type: 'gate_release', gate_token: event.gate_token, digest: event.digest, allowed });
+      const reply = await l.host.request({ type: 'gate_release', gate_token: event.gate_token, digest: event.digest, allowed, release_grant: l.guard?.grant_state_dir && l.guard?.grant_id && l.guard?.actor ? { state_dir: l.guard.grant_state_dir, grant_id: l.guard.grant_id, actor: l.guard.actor, worker_id: worker.worker_id, cwd: worker.cwd } : undefined });
       // The child revalidates policy/artifact/expiry too; a successful transport
       // response is never enough to claim release without released===true.
       const released = reply.success && reply.data?.released === true;

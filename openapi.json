@@ -1241,7 +1241,9 @@
           "value": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 65536
               },
               {
                 "type": "boolean"
@@ -1332,7 +1334,8 @@
               "sdk",
               "acp"
             ]
-          }
+          },
+          "project_trusted": { "type": "boolean" }
         },
         "required": [
           "command_id",

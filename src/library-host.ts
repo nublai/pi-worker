@@ -5,13 +5,14 @@ import { RpcHost, type PiRecord } from './host.js';
 import type { Create } from './types.js';
 export class SdkHost extends RpcHost {
   constructor(c: Create, dir: string, kind: 'sdk' | 'acp' = 'sdk') {
-    super(process.execPath, c.cwd, dir, c.provider, c.model, c.thinking, 30000, { kind, args: [fileURLToPath(new URL('./sdk-child.js', import.meta.url)), kind, dir, c.provider, c.model, c.thinking] });
+    super(process.execPath, c.cwd, dir, c.provider, c.model, c.thinking, 30000, { kind, args: [fileURLToPath(new URL('./sdk-child.js', import.meta.url)), kind, dir, c.provider, c.model, c.thinking, String(c.project_trusted === true)] });
   }
 }
 export class AcpHost extends SdkHost {
   private initialized = false;
   private sessionId = '';
-  constructor(c: Create, dir: string) { super(c, dir, 'acp'); }
+  private readonly agentCwd: string;
+  constructor(c: Create, dir: string) { super(c, dir, 'acp'); this.agentCwd = c.cwd; }
   override async request(c: PiRecord) {
     if (!this.initialized && c.type === 'get_state') {
       const init = await super.request({ type: 'acp_initialize' });
@@ -30,7 +31,7 @@ export class AcpHost extends SdkHost {
       return { jsonrpc: '2.0', id: c.nativeId, result: { outcome: answer.outcome === 'cancel' ? { outcome: 'cancelled' } : { outcome: 'selected', optionId: answer.value === false ? 'deny' : 'allow' }, _meta: { piAnswer: c.answer, ackId: c.id } } };
     }
     if (c.type === 'acp_initialize') return { jsonrpc: '2.0', id: c.id, method: 'initialize', params: { protocolVersion: 1, clientCapabilities: {}, _meta: { piWorkerProfile: 1 } } };
-    if (c.type === 'acp_new') return { jsonrpc: '2.0', id: c.id, method: 'session/new', params: { cwd: process.cwd(), mcpServers: [] } };
+    if (c.type === 'acp_new') return { jsonrpc: '2.0', id: c.id, method: 'session/new', params: { cwd: this.agentCwd, mcpServers: [] } };
     if (c.type === 'prompt') return { jsonrpc: '2.0', id: c.id, method: 'session/prompt', params: { sessionId: this.sessionId, prompt: [{ type: 'text', text: c.message }] } };
     return { jsonrpc: '2.0', id: c.id, method: '_pi/command', params: { sessionId: this.sessionId, command: c } };
   }
@@ -41,6 +42,7 @@ export class AcpHost extends SdkHost {
       return { type: 'response', id: p.id, success: true, data: p.data };
     }
     if (r.method === '_pi/dialog' || r.method === 'session/request_permission') return (r.params as { _meta: { piEvent: PiRecord } })._meta.piEvent;
+    if (r.method === '_pi/event') return (r.params as { event: PiRecord }).event;
     if (r.method === 'session/update') return (r.params as { _meta?: { piEvent?: PiRecord } })._meta?.piEvent ?? null;
     if ('id' in r && ('result' in r || 'error' in r)) return { type: 'response', id: r.id, success: !r.error, data: r.result, error: r.error ? 'acp_error' : undefined };
     return null;

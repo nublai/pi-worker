@@ -30,9 +30,9 @@ export class RpcHost extends EventEmitter implements SessionHost {
   private stderr = '';
   readonly token: string | null;
   readonly kind: 'rpc' | 'sdk' | 'acp';
-  constructor(executable: string, cwd: string, sessionDir: string, provider: string, model: string, thinking: string, readonly timeoutMs = 30_000, launch?: { kind: 'sdk' | 'acp'; args: string[] }) {
+  constructor(executable: string, cwd: string, sessionDir: string, provider: string, model: string, thinking: string, readonly timeoutMs = 30_000, launch?: { kind: 'sdk' | 'acp'; args: string[] }, projectTrusted = false) {
     super(); this.kind = launch?.kind ?? 'rpc';
-    this.child = spawn(executable, launch?.args ?? ['--mode', 'rpc', '--session-dir', sessionDir, '--provider', provider, '--model', model, '--thinking', thinking, '-e', fileURLToPath(new URL('./rpc-audit.js', import.meta.url))], { cwd, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    this.child = spawn(executable, launch?.args ?? ['--mode', 'rpc', '--session-dir', sessionDir, '--provider', provider, '--model', model, '--thinking', thinking, projectTrusted ? '--approve' : '--no-approve', '-e', fileURLToPath(new URL('./rpc-audit.js', import.meta.url))], { cwd, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
     this.token = this.child.pid ? processToken(this.child.pid) : null;
     this.child.stderr.on('data', (b: Buffer) => { this.stderr = (this.stderr + b.toString('utf8')).slice(-4096); });
     this.child.stdout.on('data', (b: Buffer) => this.read(b));

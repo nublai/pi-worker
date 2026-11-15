@@ -18,11 +18,12 @@
     "start": "node dist/main.js"
   },
   "devDependencies": {
+    "@agentclientprotocol/sdk": "2.7.0",
     "@types/node": "^22.0.0",
     "openapi-typescript": "^7.10.0",
     "typescript": "^5.9.0"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^1.5.2"
+    "@earendil-works/pi-coding-agent": "1.5.2"
   }
 }

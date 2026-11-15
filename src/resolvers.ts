@@ -31,7 +31,7 @@ export class Resolvers {
       if (typeof answer.value !== 'boolean' || answer.option_id !== undefined) return { consumed: false, outcome: 'invalid_answer' };
     } else if (p.kind === 'select') {
       const i = Number(answer.option_id);
-      if (!/^\d+$/.test(answer.option_id ?? '') || !Number.isSafeInteger(i) || !p.options || i >= p.options.length || answer.value !== undefined) return { consumed: false, outcome: 'invalid_option' };
+      if (!/^\d+$/.test(answer.option_id ?? '') || String(i) !== answer.option_id || !Number.isSafeInteger(i) || !p.options || i >= p.options.length || answer.value !== undefined) return { consumed: false, outcome: 'invalid_option' };
       return this.finish(id, 'answered', p.options[i]);
     } else if (typeof answer.value !== 'string' || Buffer.byteLength(answer.value) > 65536 || answer.option_id !== undefined) return { consumed: false, outcome: 'invalid_text' };
     return this.finish(id, answer.value === false ? 'no' : 'answered', answer.value);

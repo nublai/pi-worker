@@ -12,7 +12,7 @@ function loadSpec(): { components: { schemas: Record<string, Schema> } } {
   catch (cause) { throw new Error('cannot load checked-in OpenAPI spec; refusing startup', { cause }); }
 }
 const spec = loadSpec();
-type Schema = { $ref?: string; anyOf?: Schema[]; const?: unknown; type?: string; items?: Schema; properties?: Record<string, Schema>; required?: string[]; additionalProperties?: boolean; enum?: unknown[]; minimum?: number; maximum?: number };
+type Schema = { $ref?: string; anyOf?: Schema[]; const?: unknown; type?: string; items?: Schema; properties?: Record<string, Schema>; required?: string[]; additionalProperties?: boolean; enum?: unknown[]; minimum?: number; maximum?: number; minLength?: number; maxLength?: number };
 function validate(schema: Schema, value: unknown): boolean {
   if (schema.$ref) return validate(spec.components.schemas[schema.$ref.split('/').at(-1)!]!, value);
   if (schema.anyOf) return schema.anyOf.some(s => validate(s, value));
@@ -21,7 +21,7 @@ function validate(schema: Schema, value: unknown): boolean {
   if (schema.type === 'boolean') return typeof value === 'boolean';
   if (schema.type === 'array') return Array.isArray(value) && value.every(v => !schema.items || validate(schema.items, v));
   if (schema.enum && !schema.enum.includes(value)) return false;
-  if (schema.type === 'string') return typeof value === 'string' && value.length > 0 && value.length <= 128 * 1024;
+  if (schema.type === 'string') return typeof value === 'string' && value.length >= (schema.minLength ?? 1) && value.length <= (schema.maxLength ?? 128 * 1024);
   if (schema.type === 'integer') return Number.isSafeInteger(value) && Number(value) >= (schema.minimum ?? -Infinity) && Number(value) <= (schema.maximum ?? Infinity);
   if (schema.type === 'object') {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -67,10 +67,10 @@ export function router(supervisor: Supervisor): Server {
     void (async () => {
       const url = new URL(req.url ?? '/', 'http://a0-unix-socket');
       const token = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined;
-      supervisor.grants.authenticate(token);
+      const caller = supervisor.grants.authenticate(token);
       let parts: string[];
       try { parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent); } catch { throw new Refusal('invalid_path_encoding'); }
-      const guard = (method: string, id?: string, cwd?: string) => () => { supervisor.grants.check(token, method, id ? supervisor.require(id).worker : undefined, cwd); };
+      const guard = (method: string, id?: string, cwd?: string) => Object.assign(() => { supervisor.grants.check(token, method, id ? supervisor.require(id).worker : undefined, cwd); }, { actor: caller.caller, grant_id: caller.grant_id, grant_state_dir: supervisor.stateDir });
       const run = <T>(method: string, action: () => T, id?: string, cwd?: string): T => {
         const check = guard(method, id, cwd); check(); return supervisor.authority.run(check, action);
       };

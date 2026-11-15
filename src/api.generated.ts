@@ -341,6 +341,7 @@ export interface components {
             thinking: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
             /** @enum {unknown} */
             host?: "rpc" | "sdk" | "acp";
+            project_trusted?: boolean;
         };
         Prompt: {
             command_id: string;

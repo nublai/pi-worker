@@ -8,14 +8,14 @@ import { GrantStore } from './grants.js';
 import { ReceiptStore } from './receipts.js';
 import { RpcHost, type SessionHost, type PiRecord } from './host.js';
 import { SdkHost, AcpHost } from './library-host.js';
-import { Interactions, type Answer } from './interactions.js';
+import { Interactions, type Answer, type AnswerGuard } from './interactions.js';
 import { SessionIndex } from './session.js';
 import { EventHub, type EventScope } from './events.js';
 import { killGroup } from './process.js';
 import { Refusal, type Binding, type Create, type Prompt, type Worker, type Receipt, type Hello, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
 type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null };
 type Pending = { kind: 'follow_up' | 'child'; request: FollowUp | ChildLaunch; guard: () => void };
-type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; exited?: boolean; rebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout> };
+type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; exited?: boolean; rebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout>; inventoryReady?: () => void };
 export type HostFactory = (create: Create, sessionDir: string) => SessionHost;
 export class Supervisor {
   readonly epoch = randomUUID();
@@ -28,7 +28,7 @@ export class Supervisor {
   private sessionFiles = new Map<string, { file: string; worker_id: string }>();
   private sessionReservations = new Map<string, string>();
   // Internal callers are trusted; the HTTP boundary supplies a per-request dispatch guard.
-  readonly authority = new AsyncLocalStorage<() => void>();
+  readonly authority = new AsyncLocalStorage<AnswerGuard>();
   private dispatchGuard(): void { this.authority.getStore()?.(); }
   constructor(readonly stateDir: string, readonly journal: Journal, readonly piVersion: string, readonly factory: HostFactory) {
     this.grants = new GrantStore(stateDir); this.grants.registerOwner();
@@ -43,7 +43,7 @@ export class Supervisor {
     }
   }
   static rpcFactory(executable: string): HostFactory {
-    return (c, dir) => c.host === 'sdk' ? new SdkHost(c, dir) : c.host === 'acp' ? new AcpHost(c, dir) : new RpcHost(executable, c.cwd, dir, c.provider, c.model, c.thinking);
+    return (c, dir) => c.host === 'sdk' ? new SdkHost(c, dir) : c.host === 'acp' ? new AcpHost(c, dir) : new RpcHost(executable, c.cwd, dir, c.provider, c.model, c.thinking, 30000, undefined, c.project_trusted === true);
   }
   async recover(): Promise<void> {
     this.receipts.recover();
@@ -97,9 +97,9 @@ export class Supervisor {
   }
   hello(): Hello {
     return { protocol: { major: 0, minor: 1 }, prototype: true, supervisor_id: this.id, supervisor_epoch: this.epoch, pi_version: this.piVersion,
-      capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt'],
-      limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; no privileged-tool-release gate in slice 2', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination, cancel/interrupt, resolution and child reports bypass count quota; journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed requires exact agent_settled evidence in the session file or fsynced settlement record, never external-effect completion', tree_navigation: 'Pi 1.5.2 RPC has get_tree but no navigate command; refused no_effect', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
-      resource_profile: 'normal CLI discovery; exact loaded extension/tool inventory unverified', cleanup_profile: 'linux_process_group; no adoption or resume; escaped descendants unproven' };
+      capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'host.sdk', 'host.acp', 'interactions.list', 'interactions.answer_if_current', 'interactions.status', 'interaction.select', 'interaction.confirm', 'interaction.input', 'interaction.editor', 'interaction.tool_approval.sdk_acp', 'answer_stage.rpc.2', 'answer_stage.sdk_acp.3', 'gate_stage.sdk_acp.4', 'custom_ui.refused', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt'],
+      limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; SDK/ACP test bash gate rechecks grant at release dispatch and child rechecks input digest/policy/expiry; not a production sandbox', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination, cancel/interrupt, resolution and child reports bypass count quota; journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed requires exact agent_settled evidence in the session file or fsynced settlement record, never external-effect completion', tree_navigation: 'SDK/ACP navigateTree supported; RPC refused no_effect. SDK leaf overrides append-order history.', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
+      resource_profile: 'per-worker resources inventories actually registered tools/commands; SDK/ACP also exact loaded extension paths and skills. Project resources require create.project_trusted=true. SDK builtins added explicitly; no MCP connection parity claim', cleanup_profile: 'linux_process_group; no adoption or resume; escaped descendants unproven' };
   }
   private persist(live: Live): void {
     if (live.worker.session_id && live.sessionFile) this.sessionFiles.set(live.worker.session_id, { file: live.sessionFile, worker_id: live.worker.worker_id });
@@ -195,7 +195,7 @@ export class Supervisor {
     }
     if (event.type === 'extension_ui_request' && event.method === 'notify' && typeof event.message === 'string') {
       try {
-        if (event.message.startsWith('A0_RESOURCE_INVENTORY:')) { w.resources = JSON.parse(event.message.slice('A0_RESOURCE_INVENTORY:'.length)); this.persist(live); return; }
+        if (event.message.startsWith('A0_RESOURCE_INVENTORY:')) { w.resources = JSON.parse(event.message.slice('A0_RESOURCE_INVENTORY:'.length)); this.persist(live); live.inventoryReady?.(); return; }
         if (event.message.startsWith('A0_HOST_IDENTITY:')) { this.onEvent(live, { type: 'host_identity', ...JSON.parse(event.message.slice('A0_HOST_IDENTITY:'.length)) }); return; }
       } catch { throw new Error('invalid_host_audit_record'); }
       if (event.message === 'A0_UNSUPPORTED_CUSTOM_UI') { live.hub.publish('unsupported_ui', { kind: 'custom', reason: 'headless_form_required' }, null, 'supervisor'); return; }
@@ -275,7 +275,11 @@ export class Supervisor {
         w.session_id = state.data.sessionId; live.sessionFile = state.data.sessionFile; live.index.file = live.sessionFile;
         this.refresh(live);
         if (live.startupDialog && !host.answerUI) throw new Error('startup blocked by unsupported interaction');
-        if (host.kind === 'sdk' || host.kind === 'acp') { const inventory = await host.request({ type: 'inventory' }); if (!inventory.success) throw new Error('resource_inventory_failed'); w.resources = inventory.data; }
+        if (host.kind === 'sdk' || host.kind === 'acp') { const inventory = await host.request({ type: 'inventory' }); if (!inventory.success || (inventory.data?.extension_errors as unknown[])?.length) throw new Error('resource_inventory_failed'); w.resources = inventory.data; }
+        if (host.kind === 'rpc' && !w.resources) await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => { live.inventoryReady = undefined; reject(new Error('rpc_audit_inventory_required')); }, 30000); timer.unref();
+          live.inventoryReady = () => { clearTimeout(timer); live.inventoryReady = undefined; resolve(); };
+        });
         w.status = 'ready'; w.cleanup = 'live_process_group'; this.persist(live);
         return { state: 'delivered', stage: 'forwarded', effect: 'observed', worker_id, result: { worker_id, worker_epoch, session_id: w.session_id, binding_revision: 1 }, history_lag: w.history.lag };
       } catch (error) {
@@ -528,6 +532,7 @@ export class Supervisor {
   }
   async shutdown(): Promise<void> {
     for (const live of this.workers.values()) {
+      this.clearInteractions(live);
       if (live.host) { await live.host.stop(); }
     }
   }

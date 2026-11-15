@@ -7,13 +7,14 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   createAgentSessionRuntime, createAgentSessionServices, createAgentSessionFromServices,
-  SessionManager, getAgentDir, createCodemodeExtension, createToolSearchExtension, createMcpExtension,
+  SessionManager, SettingsManager, getAgentDir, createCodemodeExtension, createToolSearchExtension, createMcpExtension,
   type ExtensionUIContext, type AgentSession, type ExtensionFactory,
 } from '@earendil-works/pi-coding-agent';
 import { Resolvers, type UIAnswer } from './resolvers.js';
 import { requestHash } from './receipts.js';
 import type { PiRecord } from './host.js';
-const [protocol, sessionDir, provider, modelId, thinking] = process.argv.slice(2);
+import { GrantStore } from './grants.js';
+const [protocol, sessionDir, provider, modelId, thinking, projectTrusted] = process.argv.slice(2);
 const acp = protocol === 'acp';
 const output = (value: unknown) => process.stdout.write(JSON.stringify(value) + '\n');
 console.log = (...args) => console.error(...args);
@@ -25,8 +26,10 @@ function emit(event: PiRecord): void {
   if (event.type === 'extension_ui_request' && ['select', 'confirm', 'input', 'editor', 'tool_approval'].includes(String(event.method))) {
     nativeKinds.set(String(event.id), String(event.method));
     output({ jsonrpc: '2.0', id: event.id, method: event.method === 'tool_approval' ? 'session/request_permission' : '_pi/dialog', params: { sessionId, ...(event.method === 'tool_approval' ? { toolCall: { toolCallId: event.id, title: 'bash approval', kind: 'execute', status: 'pending' }, options: [{ optionId: 'allow', name: 'Allow once', kind: 'allow_once' }, { optionId: 'deny', name: 'Deny once', kind: 'reject_once' }] } : {}), _meta: { piEvent: event } } });
+  } else if (event.type === 'message_update' && (event.assistantMessageEvent as { type?: string })?.type === 'text_delta') {
+    output({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: (event.assistantMessageEvent as { delta: string }).delta } }, _meta: { piEvent: event } } });
   } else {
-    output({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '' } }, _meta: { piEvent: event } } });
+    output({ jsonrpc: '2.0', method: '_pi/event', params: { sessionId, event } });
   }
 }
 const resolvers = new Resolvers(emit);
@@ -47,7 +50,8 @@ const uiMethods = {
 // are presentation-only no-ops in this headless profile, supplied by the Proxy.
 const ui = new Proxy(uiMethods, { get: (target, key) => key in target ? target[key as keyof typeof target] : key === 'theme' ? new Proxy({}, { get: () => (...args: unknown[]) => args.at(-1) }) : noOp }) as unknown as ExtensionUIContext;
 type Gate = { digest: string; policy_revision: string; expiry: number; gate_token: string; operation: string; resource: string; environment: string; offered_scope: string };
-const gates = new Map<string, { binding: Gate; resolve: (allowed: boolean) => void; acknowledge?: (data: Record<string, unknown>) => void }>();
+type ReleaseGrant = { state_dir: string; grant_id: string; actor: string; worker_id: string; cwd: string };
+const gates = new Map<string, { binding: Gate; proof?: ReleaseGrant; resolve: (allowed: boolean) => void; acknowledge?: (data: Record<string, unknown>) => void }>();
 function policy(): { revision: string; expiry: number; releaseDelayMs?: number } {
   try { const p = JSON.parse(readFileSync(join(process.cwd(), '.a0-gate-policy'), 'utf8')); if (typeof p.revision !== 'string' || !Number.isSafeInteger(p.expiry)) throw new Error('invalid_policy'); return p; }
   catch { throw new Error('gate_policy_unavailable'); }
@@ -67,7 +71,10 @@ const gateExtension: ExtensionFactory = pi => {
     });
     // Gate owns final artifact/policy/expiry validation, not the dialog title.
     let currentPolicy; try { currentPolicy = policy(); } catch { currentPolicy = undefined; }
-    const valid = Boolean(released && currentPolicy && binding.digest === requestHash(event.input) && binding.policy_revision === currentPolicy.revision && binding.expiry === currentPolicy.expiry && Date.now() < binding.expiry);
+    let grantValid = false;
+    const proof = gates.get(binding.gate_token)?.proof;
+    try { if (proof) { new GrantStore(proof.state_dir).checkIdentity(proof.grant_id, proof.actor, proof); grantValid = true; } } catch { /* Revocation/expiry at the exact release point denies. */ }
+    const valid = Boolean(released && grantValid && currentPolicy && binding.digest === requestHash(event.input) && binding.policy_revision === currentPolicy.revision && binding.expiry === currentPolicy.expiry && Date.now() < binding.expiry);
     const gate = gates.get(binding.gate_token); gates.delete(binding.gate_token);
     // No await between final validation, acknowledgement and returning permission.
     // Stage 4 is this gate's release, never the bash process or effect completion.
@@ -78,7 +85,7 @@ const gateExtension: ExtensionFactory = pi => {
   });
 };
 const runtimePromise = createAgentSessionRuntime(async options => {
-  const services = await createAgentSessionServices({ ...options, resourceLoaderOptions: { extensionFactories: [
+  const services = await createAgentSessionServices({ ...options, settingsManager: SettingsManager.create(options.cwd, options.agentDir, { projectTrusted: projectTrusted === 'true' }), resourceLoaderOptions: { extensionFactories: [
     { name: 'codemode', builtin: true, factory: createCodemodeExtension() },
     { name: 'tool_search', builtin: true, factory: createToolSearchExtension() },
     { name: 'mcp', builtin: true, factory: createMcpExtension() }, gateExtension,
@@ -107,7 +114,7 @@ async function command(c: PiRecord, reply: (data: Record<string, unknown>) => vo
     if (!gate) { reply({ released: false }); return; }
     let p; try { p = policy(); } catch { p = undefined; }
     const valid = c.allowed === true && p && gate.binding.policy_revision === p.revision && gate.binding.expiry === p.expiry && Date.now() < p.expiry && c.digest === gate.binding.digest;
-    gate.acknowledge = reply; gate.resolve(Boolean(valid)); return;
+    gate.proof = c.release_grant as ReleaseGrant | undefined; gate.acknowledge = reply; gate.resolve(Boolean(valid)); return;
   }
   if (c.type === 'abort') { resolvers.abortAll(); for (const gate of gates.values()) gate.resolve(false); gates.clear(); }
   const runtime = await ready, session = runtime.session;
@@ -115,7 +122,7 @@ async function command(c: PiRecord, reply: (data: Record<string, unknown>) => vo
     case 'get_state': reply({ sessionId: session.sessionId, sessionFile: session.sessionFile, leafId: session.sessionManager.getLeafId() }); break;
     case 'inventory': {
       const loader = runtime.services.resourceLoader;
-      reply({ extensions: loader.getExtensions().extensions.map(e => e.path), extension_errors: loader.getExtensions().errors.map(e => e.path), skills: loader.getSkills().skills.map(s => ({ name: s.name, path: s.filePath })), tools: session.getAllTools(), active_tools: session.getActiveToolNames() }); break;
+      reply({ extensions: loader.getExtensions().extensions.map(e => e.path), extension_errors: loader.getExtensions().errors.map(e => e.path), skills: loader.getSkills().skills.map(s => ({ name: s.name, path: s.filePath })), tools: session.getAllTools().map(t => ({ name: t.name, sourceInfo: t.sourceInfo })), active_tools: session.getActiveToolNames() }); break;
     }
     case 'prompt': await session.prompt(String(c.message), { preflightResult: disposition => reply({ disposition }) }); break;
     case 'abort': await session.abort(); reply({}); break;
@@ -151,14 +158,17 @@ async function handle(r: Record<string, unknown>): Promise<void> {
       initialized = true; result({ protocolVersion: 1, agentInfo: { name: 'a0-pi-sdk-adapter', version: '0.3.0' }, agentCapabilities: { loadSession: false, promptCapabilities: {}, mcpCapabilities: {} }, _meta: { piWorkerProfile: 1, resolverAck: true } }); return;
     }
     if (!initialized) throw new Error('initialize_required');
-    if (r.method === 'session/new') { const rt = await ready; result({ sessionId: rt.session.sessionId }); return; }
+    if (r.method === 'session/new') {
+      if (p.cwd !== process.cwd() || !Array.isArray(p.mcpServers) || p.mcpServers.length) throw new Error('fixed_cwd_no_client_mcp');
+      const rt = await ready; result({ sessionId: rt.session.sessionId }); return;
+    }
     if (r.method === 'session/prompt') {
       const rt = await ready;
       if (p.sessionId !== rt.session.sessionId || !Array.isArray(p.prompt) || p.prompt.some(x => x.type !== 'text')) throw new Error('invalid_prompt');
       await command({ type: 'prompt', message: p.prompt.map(x => x.text).join('\n') }, data => output({ jsonrpc: '2.0', method: '_pi/admitted', params: { id: r.id, data } }));
       result({ stopReason: 'end_turn' }); return;
     }
-    if (r.method === 'session/cancel') { await command({ type: 'abort' }, noOp); return; }
+    if (r.method === 'session/cancel') { if (p.sessionId !== current?.sessionId) throw new Error('wrong_session'); await command({ type: 'abort' }, noOp); return; }
     if (r.method === '_pi/command') { await command(p.command as PiRecord, result); return; }
     throw new Error('method_not_found');
   } catch { if ('id' in r) output({ jsonrpc: '2.0', id: r.id, error: { code: -32602, message: 'unsupported_or_invalid_a0_profile_request' } }); }

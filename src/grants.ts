@@ -53,7 +53,12 @@ export class GrantStore {
     let path: string; try { path = realpathSync(cwd); } catch { return false; }
     return grant.scope.cwd_roots.some(root => { try { const base = realpathSync(resolve(root)); return path === base || path.startsWith(base + sep); } catch { return false; } });
   }
-  allowsWorker(grant: Grant, worker: Worker): boolean { return grant.scope.worker_ids.includes('*') || grant.scope.worker_ids.includes(worker.worker_id) || this.allowsCwd(grant, worker.cwd); }
+  /** Trusted host-to-gate channel only; never an unauthenticated B2 entrypoint. */
+  checkIdentity(id: string, actor: string, worker: Pick<Worker, 'worker_id' | 'cwd'>): void {
+    const grant = this.read(id);
+    if (grant.revoked || grant.caller !== actor || (!grant.methods.includes('*') && !grant.methods.includes('interactions.answer_if_current')) || !this.allowsWorker(grant, worker)) throw new Refusal('release_grant_no_longer_valid');
+  }
+  allowsWorker(grant: Grant, worker: Pick<Worker, 'worker_id' | 'cwd'>): boolean { return grant.scope.worker_ids.includes('*') || grant.scope.worker_ids.includes(worker.worker_id) || this.allowsCwd(grant, worker.cwd); }
   check(token: string | undefined, method: string, worker?: Worker, cwd?: string): Grant {
     const grant = this.authenticate(token);
     if (!grant.methods.includes('*') && !grant.methods.includes(method)) throw new Refusal(`grant_method_denied: ${method}`);
