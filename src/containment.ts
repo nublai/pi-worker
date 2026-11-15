@@ -11,11 +11,12 @@ export interface Containment {
   reserve(epoch: string): CleanupUnit | undefined;
   spawn(unit: CleanupUnit, command: string, args: string[], options: SpawnOptions): ChildProcess;
   clean(unit: CleanupUnit): Promise<boolean>;
+  sweepUnknown?(known: CleanupUnit[]): Promise<void>;
 }
 export class CgroupContainment implements Containment {
   readonly profile = 'cgroup_v2_user_delegation; Linux; cgroup.kill + populated=0 + removed; no hostile-same-uid guarantee';
   readonly root: string;
-  constructor(root: string, readonly timeoutMs = 5000) {
+  constructor(root: string, readonly timeoutMs = 5000, readonly installationOwned = false) {
     this.root = realpathSync(root);
     if (!this.root.startsWith('/sys/fs/cgroup/')) throw new Error('delegation must be under cgroup v2 mount');
     const own = readFileSync('/proc/self/cgroup', 'utf8').trim();
@@ -30,6 +31,16 @@ export class CgroupContainment implements Containment {
     if (!existsSync(join(this.root, 'cgroup.kill'))) throw new Error('cgroup v2 kill unavailable');
     const controllers = readFileSync(join(this.root, 'cgroup.controllers'), 'utf8').split(/\s+/);
     if (!['memory', 'pids'].every(c => controllers.includes(c))) throw new Error('memory/pids not delegated');
+  }
+  async sweepUnknown(known: CleanupUnit[]): Promise<void> {
+    // Only openContainment's installation-hashed service is ours to sweep.
+    // A0_CGROUP_DIR can be shared by an operator and is never swept.
+    if (!this.installationOwned) return;
+    const recorded = new Set(known.filter(unit => unit.root === this.root).map(unit => unit.name));
+    for (const entry of readdirSync(this.root, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/^w-[a-zA-Z0-9-]+$/.test(entry.name) || recorded.has(entry.name)) continue;
+      if (!await this.clean({ root: this.root, name: entry.name, boot: bootId() })) throw new Error('orphan_cleanup_unproven');
+    }
   }
   reserve(epoch: string): CleanupUnit {
     if (!/^[a-zA-Z0-9-]+$/.test(epoch)) throw new Error('invalid cleanup generation');
@@ -93,5 +104,5 @@ export function openContainment(stateDir: string): Containment {
   }
   const group = run('systemctl', ['--user', 'show', unit, '--property=ControlGroup', '--value']);
   if (!group.startsWith('/user.slice/')) throw new Error('not a user delegation; refusing silent cleanup downgrade');
-  return new CgroupContainment(join('/sys/fs/cgroup', group));
+  return new CgroupContainment(join('/sys/fs/cgroup', group), 5000, true);
 }
