@@ -1,0 +1,18 @@
+{
+  "subject_runtime_revision": "6517837feeb79ab8246f338fe717f148cbf78f9c",
+  "base_revision": "65f767c",
+  "prototype_only": true,
+  "local": { "node": "26.13.0", "tests": 158, "pass": 155, "fail": 0, "skip": 3, "strict_build": "pass", "generated_drift": "pass", "logs": "/tmp/a0s5/accept-local-4B1X7g" },
+  "vm": { "name": "a0-worker", "node": "22.21.1", "pi_sdk": "1.5.2", "bubblewrap": "0.9.0", "systemd": "255", "tests": 158, "pass": 158, "fail": 0, "skip": 0, "strict_build": "pass", "generated_bytes_unchanged": true, "logs": "/tmp/a0s5/accept-vm-bUCQKQ", "live_run": "/tmp/a0s5/live-ug9ddB", "live_pass": true },
+  "new_slice5_cuts": { "contained_create_fsync": 13, "contained_create_effect": 1, "recovery_relaunch_sandbox_report_stop_fsync": 47, "recovery_relaunch_sandbox_report_stop_effect": 8, "fsync_total": 60, "effect_total": 9 },
+  "all_bounded_matrices": { "fsync_total": 364, "effect_total": 46, "additional_existing_queue_cuts": 2, "scope": "All fsync occurrences and native seam effects in the selected scenarios, not exhaustive state-space or physical power-loss testing." },
+  "guard_reversions": { "tested": 8, "assertion_killed": 8, "compilation_or_timeout_kills": 0 },
+  "lsp": { "final_changed_path_probe": 3, "reported_errors": 0, "confirmed_clean": 2, "inconclusive": 1, "prior_15_path_probe_errors": 0, "strict_compiler_supplies_complete_typecheck": true },
+  "native_tool_audit": { "parent_bash_calls": 3, "child_bash_calls": 1, "other_tool_calls": 0, "detached_and_recovered_commands_match_exactly": true },
+  "source_and_live_driver_hashes_match_vm": true,
+  "source_manifest": "source.sha256",
+  "cleanup": { "live_runs_audited": 5, "worker_leaders_absent": 25, "worker_leader_count_includes_bwrap_wrappers": true, "supervisors_absent": 24, "detached_tool_pids_absent": 10, "worker_units_removed": 25, "retained_locked_child_worktrees": 5, "delegate_keeper_invocations_stopped": 11, "unrelated_units_signalled": 0, "active_a0_delegate_services_remaining": 0 },
+  "independent_review": "not run; build leaf prohibited subagents",
+  "push_merge_or_pr": "none",
+  "credentials": "Private profiles, grants and raw sessions remain on the VM. Only whitelisted, scanned summaries and test logs were exported."
+}

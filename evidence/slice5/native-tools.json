@@ -1,0 +1,32 @@
+{
+  "run": "/tmp/a0s5/live-ug9ddB",
+  "parent_bash_calls": 3,
+  "child_bash_calls": 1,
+  "other_tool_calls": 0,
+  "checks": [
+    {
+      "kind": "stop",
+      "native_tool_count": 1,
+      "exact_requested_command": true,
+      "command_sha256": "09da97544d0821344d95f4e63c52d07a680a066088e7916c1db0555b553288ac"
+    },
+    {
+      "kind": "restart",
+      "native_tool_count": 1,
+      "exact_requested_command": true,
+      "command_sha256": "9003ef3b5671298df71a42cb426b9fe5f8a627fcb990fd4a8dd7a409fa6e4aae"
+    },
+    {
+      "kind": "recovered-append",
+      "native_tool_count": 1,
+      "exact_requested_command": true,
+      "command_sha256": "1f0938324c2f477bb31d05bb0b26e727f86a64278b738ba42ae4aa85f53ec9ac"
+    },
+    {
+      "kind": "sandbox-tool",
+      "native_tool_count": 1,
+      "denied_paths_and_allowed_read_write_present": true,
+      "command_sha256": "a3fa6470b634bed2fd7534ccbd4cd4b11e898ac5926e2258e76b7853591343cc"
+    }
+  ]
+}

@@ -83,6 +83,6 @@ node dist/cli.js files-read CHILD --path proof.txt --root /absolute/child-worktr
 
 ## Evidence
 
-See **[A0-SLICE3.md](A0-SLICE3.md)** for 105 tests on both machines, 256 scenario/recovery fsync cuts, 21 native-effect cuts, real-pi host comparisons and remaining gaps. **[A0-SLICE2.md](A0-SLICE2.md)** preserves the invariant/transition evidence and its superseding fix round (82 tests, 172 fsync cuts). The shared fixture table and replay format are in `src/test/fixtures/`. `A0_TRACE_FSYNC=1` emits point ordinals/labels; `A0_CRASH_INDEX=N` or `A0_CRASH_AT=LABEL` deliberately SIGKILLs after a real fsync. **Do not enable injection on valuable state.**
+See **[A0-SLICE5.md](A0-SLICE5.md)** for the current 158-test result, cgroup and bwrap evidence, fresh-process recovery, and limits. Earlier **[A0-SLICE3.md](A0-SLICE3.md)** records 105 tests on both machines, 256 scenario/recovery fsync cuts, 21 native-effect cuts, real-pi host comparisons and remaining gaps. **[A0-SLICE2.md](A0-SLICE2.md)** preserves the invariant/transition evidence and its superseding fix round (82 tests, 172 fsync cuts). The shared fixture table and replay format are in `src/test/fixtures/`. `A0_TRACE_FSYNC=1` emits point ordinals/labels; `A0_CRASH_INDEX=N` or `A0_CRASH_AT=LABEL` deliberately SIGKILLs after a real fsync. **Do not enable injection on valuable state.**
 
 Earlier evidence stays in `A0-SLICE1.md`. Intended license: MIT (nubl decision R21); add LICENSE before making this public.

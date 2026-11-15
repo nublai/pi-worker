@@ -1,0 +1,53 @@
+{
+  "baseline": "6517837",
+  "results": [
+    {
+      "mutation": "owner-tombstone-repair",
+      "killed": true,
+      "assertion_failure": true,
+      "test": "containment-crash"
+    },
+    {
+      "mutation": "history-root-open",
+      "killed": true,
+      "assertion_failure": true,
+      "test": "sandbox"
+    },
+    {
+      "mutation": "files-pinned-open",
+      "killed": true,
+      "assertion_failure": true,
+      "test": "sandbox"
+    },
+    {
+      "mutation": "ordinary-stale-binding",
+      "killed": true,
+      "assertion_failure": true,
+      "test": "relaunch"
+    },
+    {
+      "mutation": "cleanup-pending-before-kill",
+      "killed": true,
+      "assertion_failure": true,
+      "test": "containment-crash"
+    },
+    {
+      "mutation": "storage-failure-suppresses-kill",
+      "killed": true,
+      "assertion_failure": true,
+      "test": "containment"
+    },
+    {
+      "mutation": "active-execution-stop-fence",
+      "killed": true,
+      "assertion_failure": true,
+      "test": "relaunch"
+    },
+    {
+      "mutation": "durable-unit-reservation",
+      "killed": true,
+      "assertion_failure": true,
+      "test": "containment-crash"
+    }
+  ]
+}
