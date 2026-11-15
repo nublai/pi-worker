@@ -4,7 +4,7 @@ import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Create } from './types.js';
 import { Refusal } from './types.js';
-export const inside = (root: string, path: string): boolean => path === root || path.startsWith(root + '/');
+export const inside = (root: string, path: string): boolean => path === root || path.startsWith(root === '/' ? '/' : root + '/');
 const runtime = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '');
 export function sandboxRoot(c: Create, stateDir: string): string | undefined {
   const env = c.launch_spec?.environment;
@@ -12,7 +12,10 @@ export function sandboxRoot(c: Create, stateDir: string): string | undefined {
   if (process.platform !== 'linux' || !c.parent || !['sdk', 'acp'].includes(c.host ?? 'rpc')) throw new Refusal('bwrap_requires_linux_sdk_or_acp_child');
   if (!env.root || realpathSync(env.root) !== realpathSync(c.cwd)) throw new Refusal('sandbox_root_must_equal_cwd');
   const root = realpathSync(env.root), state = realpathSync(stateDir);
+  if (root === '/') throw new Refusal('sandbox_root_is_host_root');
   if (inside(root, state) || inside(state, root)) throw new Refusal('sandbox_overlaps_supervisor_state');
+  const protectedPaths = ['/sys/fs/cgroup', ...(process.env.PI_WORKER_SOCKET ? [realpathSync(dirname(process.env.PI_WORKER_SOCKET))] : []), ...(process.env.PI_WORKER_GRANT_FILE ? [realpathSync(process.env.PI_WORKER_GRANT_FILE)] : [])];
+  if (protectedPaths.some(path => inside(root, path) || inside(path, root))) throw new Refusal('sandbox_overlaps_protected_control_path');
   for (const path of c.launch_spec!.resources.extensions.concat(c.launch_spec!.resources.skills)) if (!inside(root, realpathSync(path))) throw new Refusal('sandbox_resource_outside_root');
   // Runtime mounts are worker-owned code/dependencies, never a user-selected
   // host directory. Refuse accidental exposure of state via any read-only bind.
