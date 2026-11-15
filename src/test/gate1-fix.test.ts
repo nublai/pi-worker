@@ -2,7 +2,7 @@
  * failures, D3 failed child rows). Portable unless marked kernel. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync, readdirSync, existsSync, realpathSync, statSync, fstatSync, lstatSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, renameSync, symlinkSync, readdirSync, existsSync, realpathSync, statSync, fstatSync, lstatSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { request } from 'node:http';
 import { join } from 'node:path';
@@ -98,7 +98,7 @@ test('D1: a real-size profile (20k+ entries, node_modules shape) stages small an
   } finally { await f.cleanup(); }
 });
 
-test('D1: the copied part keeps its entry budget; a refusal after dispatch leaves nothing staged', { timeout: 120000 }, async () => {
+test('D1: the copied part keeps its entry budget; a refusal after dispatch removes the partial copy and is outcome_unknown', { timeout: 120000 }, async () => {
   const f = await channelFixture();
   try {
     const big = join(f.root, '.a0-agent', 'extensions', 'big'); mkdirSync(big, { recursive: true });
@@ -106,13 +106,14 @@ test('D1: the copied part keeps its entry budget; a refusal after dispatch leave
     const cwd = f.worktree('over');
     const r = await call(f.socket, '/workers', f.child('over', cwd));
     assert.equal(r.body.error, 'profile_copy_too_many_entries', JSON.stringify(r.body));
-    assert.equal(r.body.effect, 'no_effect', JSON.stringify(r.body));
-    assert.equal(existsSync(join(cwd, '.a0-agent')), false, 'every staged entry was removed before replying no_effect');
-    assert.equal(f.s.get(f.w.worker_id).fence, null);
+    // Staging created files; an absent name is not proof the inode is gone.
+    assert.equal(r.body.effect, 'unknown', JSON.stringify(r.body));
+    assert.equal(existsSync(join(cwd, '.a0-agent')), false, 'every staged entry was removed (best effort) before replying');
+    assert.deepEqual(f.s.get(f.w.worker_id).fence?.uncertain_command_ids, ['over'], 'parent fenced on the uncertain launch');
   } finally { await f.cleanup(); }
 });
 
-test('D2+D3: a staging failure after dispatch is cleaned, verified and reported no_effect; the child row ends failed and frees its root', async () => {
+test('D2+D3: a staging failure after dispatch is cleaned and reported outcome_unknown (parent fenced); the child row ends failed and frees its root', async () => {
   const f = await channelFixture();
   try {
     const profile = join(f.root, '.a0-agent');
@@ -122,16 +123,19 @@ test('D2+D3: a staging failure after dispatch is cleaned, verified and reported 
     const r = await call(f.socket, '/workers', f.child('fifo', cwd));
     assert.equal(r.body.error, 'profile_copy_special_file', JSON.stringify(r.body));
     const receipt = f.s.receipts.all.get('fifo')!;
-    assert.equal(receipt.state, 'rejected'); assert.equal(receipt.effect, 'no_effect');
-    assert.equal(existsSync(join(cwd, '.a0-agent')), false, 'no partial profile is left behind a no_effect reply');
+    assert.equal(receipt.state, 'outcome_unknown'); assert.equal(receipt.effect, 'unknown');
+    assert.equal(existsSync(join(cwd, '.a0-agent')), false, 'the partial profile was removed (best effort)');
     assert.deepEqual(readdirSync(cwd), [], 'child root is exactly as before');
-    assert.equal(f.s.get(f.w.worker_id).fence, null, 'a proven no-effect failure does not fence');
+    const fenced = f.s.get(f.w.worker_id);
+    assert.deepEqual(fenced.fence?.uncertain_command_ids, ['fifo'], 'a staging failure after creating files fences the parent');
     assert.equal(f.hosts.length, 1, 'no child process was started');
     const [row] = children(f.s, f.w.worker_id);
     assert.ok(row, 'the dispatched child row is retained');
     assert.equal(row.status, 'failed', JSON.stringify(row));
     assert.deepEqual(failure(row), { command_id: 'fifo', reason: 'profile_copy_special_file' });
-    // A failed row is not live: the same root can be launched again.
+    // A failed row is not live: once the owner resolves the fence, the same root can be launched again.
+    const resolved = await f.s.resolveUnknown(fenced.worker_id, { ...bind(fenced, 'resolve-fifo'), uncertain_command_id: 'fifo', fence_generation: fenced.fence!.fence_generation, disposition: 'abandon' });
+    assert.equal(resolved.state, 'delivered', JSON.stringify(resolved));
     rmSync(join(profile, 'special'));
     const again = await call(f.socket, '/workers', f.child('fifo-again', cwd));
     assert.equal(again.body.state, 'delivered', JSON.stringify(again.body));
@@ -162,6 +166,33 @@ test('D2: an unverified staging cleanup is outcome_unknown and fences the parent
     const [row] = children(f.s, f.w.worker_id);
     assert.equal(row?.status, 'failed', JSON.stringify(row));
     assert.equal(failure(row!)?.reason, 'profile_copy_special_file');
+  } finally { await f.cleanup(); }
+});
+
+test('D2: a parent that renames the partial .a0-agent aside before cleanup cannot get rejected/no_effect', async () => {
+  const f = await channelFixture();
+  try {
+    const profile = join(f.root, '.a0-agent');
+    writeFileSync(join(profile, 'auth.json'), '{"fixture":"copied-credential-store"}');
+    for (let i = 0; i < 50; i++) writeFileSync(join(profile, 'f' + i), 'benign');
+    execFileSync('mkfifo', [join(profile, 'special')]);
+    const cwd = f.worktree('aside'), kept = join(cwd, '.kept');
+    // The sandboxed parent wins the race: it renames the staged directory (it
+    // can write the child root) just before the real cleanup opens the name.
+    const s = f.s as unknown as { stagingCleanup: (rootFd: number) => void }, real = s.stagingCleanup;
+    s.stagingCleanup = rootFd => { renameSync(join(cwd, '.a0-agent'), kept); real(rootFd); };
+    const r = await call(f.socket, '/workers', f.child('aside', cwd));
+    assert.equal(r.body.error, 'profile_copy_special_file', JSON.stringify(r.body));
+    assert.equal(existsSync(join(cwd, '.a0-agent')), false, 'fixture: the name is gone');
+    // The directory this launch created (and whatever was copied into it before
+    // the fifo, in readdir order) is still linked under another name.
+    assert.equal(statSync(kept).isDirectory(), true, 'fixture: the staged inode remains under another name');
+    const receipt = f.s.receipts.all.get('aside')!;
+    assert.equal(receipt.state, 'outcome_unknown', JSON.stringify(receipt));
+    assert.equal(receipt.effect, 'unknown');
+    assert.deepEqual(f.s.get(f.w.worker_id).fence?.uncertain_command_ids, ['aside'], 'parent fenced on the uncertain launch');
+    const [row] = children(f.s, f.w.worker_id);
+    assert.equal(row?.status, 'failed', JSON.stringify(row));
   } finally { await f.cleanup(); }
 });
 

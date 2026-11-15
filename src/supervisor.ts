@@ -17,7 +17,7 @@ import { killGroup } from './process.js';
 import { ProcessGroupContainment, type Containment, type CleanupUnit } from './containment.js';
 import { sandboxRoot, readConfined, sandboxSessionDir, openSandboxRoot } from './sandbox.js';
 import { gitPinAt, assertPin } from './git-sandbox.js';
-import { absentAt, fdPath, isMissing, openPinned, openUnder, removeTreeAt, stageProfileAt, type DependencyBind } from './pinned-fs.js';
+import { fdPath, isMissing, openPinned, openUnder, removeTreeAt, stageProfileAt, type DependencyBind } from './pinned-fs.js';
 import { Refusal, ProvenNoEffect, type Binding, type Create, type Prompt, type Worker, type Receipt, type Hello, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
 /** `within`: a channel child's root must stay one real directory below this base.
  * `profileBinds`: its staged profile's dependency mount points (below `.a0-agent`). */
@@ -440,8 +440,10 @@ export class Supervisor {
   /** Stage the parent's profile into a fresh `ROOT/.a0-agent` (see
    * stageProfileAt): config files copied, dependency trees returned as opened
    * descriptors for read-only binds. A failure is `no_effect` only when this
-   * launch created nothing, or removed everything it created and a descriptor
-   * check then finds `.a0-agent` absent. Otherwise it is `unknown`. */
+   * launch created nothing. Once `.a0-agent` was made, the partial copy is
+   * removed best-effort and the failure is always `unknown` (the caller fences
+   * a channel parent): the root is parent-writable, so the parent can rename the
+   * created directory aside, and an absent name proves nothing about the inode. */
   private stageProfile(parentRoot: string, rootFd: number): DependencyBind[] {
     let source: number | undefined, created = false;
     try {
@@ -452,8 +454,7 @@ export class Supervisor {
     } catch (error) {
       const reason = error instanceof Refusal ? error.message : `profile_staging_failed:${(error as NodeJS.ErrnoException).code ?? 'error'}`;
       if (!created) throw new ProvenNoEffect(reason, 'nothing_staged');
-      try { this.stagingCleanup(rootFd); } catch { /* the descriptor check below decides */ }
-      if (absentAt(rootFd, '.a0-agent')) throw new ProvenNoEffect(reason, 'staged_profile_removed_verified_absent');
+      try { this.stagingCleanup(rootFd); } catch { /* best effort; the outcome is unknown either way */ }
       throw new Refusal(reason, 'unknown');
     } finally { if (source !== undefined) closeSync(source); }
   }

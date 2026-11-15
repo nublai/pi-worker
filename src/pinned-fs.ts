@@ -139,10 +139,6 @@ export function removeTreeAt(parent: number, name: string, depth = 0): void {
   try { for (const entry of readdirSync(fdPath(fd))) removeTreeAt(fd, entry, depth + 1); } finally { closeSync(fd); }
   rmdirSync(fdPath(parent, name));
 }
-/** True only when entry `name` below `parent` is verifiably absent. */
-export function absentAt(parent: number, name: string): boolean {
-  try { closeSync(openUnder(parent, [name], 'any')); return false; } catch (error) { return isMissing(error); }
-}
 /** Write the remaining bytes of open file `fd` to a new entry `name` in `dest`. */
 function writeFdAt(fd: number, dest: number, name: string, mode: number, budget: { bytes: number }): void {
   const out = openSync(fdPath(dest, name), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, mode);
