@@ -1,0 +1,18 @@
+{
+  "clock": "2026-11-15T18:01:37.062Z",
+  "known_private_values_compared_in_memory": true,
+  "no_private_value_or_credential_hash_logged": true,
+  "export_files": 15,
+  "artifact_blobs": 2,
+  "credential_pattern_scan": true,
+  "pass": true,
+  "limitations": [
+    "exact-value and pattern scans are not a proof against transformed or unknown secrets",
+    "no raw profile, model-store, grant or transcript exported"
+  ],
+  "producer": "slice7-privacy-driver",
+  "subject": {
+    "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+    "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3"
+  }
+}

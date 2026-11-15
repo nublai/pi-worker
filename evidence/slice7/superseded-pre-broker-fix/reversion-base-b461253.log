@@ -1,0 +1,198 @@
+✖ linked-worktree sandbox refuses flat or shared branch write namespaces before spawn (16.559022ms)
+✖ bwrap linked worktree status/add/commit writes only its branch namespace and shared objects (19.551975ms)
+✖ sdk: extension native tree/new/fork/resume bumps binding without B2 rebind (550.629524ms)
+✖ acp: extension native tree/new/fork/resume bumps binding without B2 rebind (358.571642ms)
+✖ rpc: extension native tree/new/fork/resume bumps binding without B2 rebind (257.464197ms)
+✖ project extension reaches B2 unsandboxed; bwrap parent cannot read grants/state or reach B2, but can use its own channel (943.961655ms)
+✖ sibling agent_settled does not invalidate an accepted input answer (9.872513ms)
+✖ sibling agent_settled does not invalidate an accepted tool_approval answer (1.430678ms)
+✖ sibling tool_execution_end does not invalidate an accepted input answer (1.11634ms)
+✖ sibling tool_execution_end does not invalidate an accepted tool_approval answer (1.434526ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 0
+ℹ fail 10
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1218.609333
+
+✖ failing tests:
+
+test at dist/test/gate1-git.test.js:8:1
+✖ linked-worktree sandbox refuses flat or shared branch write namespaces before spawn (16.559022ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/base-xqf71m14/dist/test/gate1-git.test.js:21:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /requires_private_namespace/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-git.test.js:31:1
+✖ bwrap linked worktree status/add/commit writes only its branch namespace and shared objects (19.551975ms)
+  AssertionError [ERR_ASSERTION]: fatal: not a git repository: /tmp/a0s7/a0s7-git-bSusmi/repo/.git/worktrees/child
+  
+  
+  128 !== 0
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/base-xqf71m14/dist/test/gate1-git.test.js:60:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 128,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-native-binding.test.js:10:5
+✖ sdk: extension native tree/new/fork/resume bumps binding without B2 rebind (550.629524ms)
+  AssertionError [ERR_ASSERTION]: seed
+  
+  1 !== 2
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/base-xqf71m14/dist/test/gate1-native-binding.test.js:50:24)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-native-binding.test.js:10:5
+✖ acp: extension native tree/new/fork/resume bumps binding without B2 rebind (358.571642ms)
+  AssertionError [ERR_ASSERTION]: seed
+  
+  1 !== 2
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/base-xqf71m14/dist/test/gate1-native-binding.test.js:50:24)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-native-binding.test.js:10:5
+✖ rpc: extension native tree/new/fork/resume bumps binding without B2 rebind (257.464197ms)
+  Error: pi exited
+      at ChildProcess.<anonymous> (file:///tmp/a0s7/reversions/base-xqf71m14/dist/host.js:107:49)
+      at ChildProcess.wrapper (node:events:639:12)
+      at ChildProcess.emit (node:events:514:20)
+      at ChildProcess._handle.onexit (node:internal/child_process:323:12)
+
+test at dist/test/gate1-parent.test.js:12:1
+✖ project extension reaches B2 unsandboxed; bwrap parent cannot read grants/state or reach B2, but can use its own channel (943.961655ms)
+  AssertionError [ERR_ASSERTION]: sandboxed parent must start
+  + actual - expected
+  
+  + 'Error: bwrap_requires_linux_sdk_or_acp_child'
+  - 'delivered'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/base-xqf71m14/dist/test/gate1-parent.test.js:57:20)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'Error: bwrap_requires_linux_sdk_or_acp_child',
+    expected: 'delivered',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-sibling.test.js:6:9
+✖ sibling agent_settled does not invalidate an accepted input answer (9.872513ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'outcome_unknown'
+  - 'delivered'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/base-xqf71m14/dist/test/gate1-sibling.test.js:22:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'outcome_unknown',
+    expected: 'delivered',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-sibling.test.js:6:9
+✖ sibling agent_settled does not invalidate an accepted tool_approval answer (1.430678ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'outcome_unknown'
+  - 'delivered'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/base-xqf71m14/dist/test/gate1-sibling.test.js:22:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'outcome_unknown',
+    expected: 'delivered',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-sibling.test.js:6:9
+✖ sibling tool_execution_end does not invalidate an accepted input answer (1.11634ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'outcome_unknown'
+  - 'delivered'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/base-xqf71m14/dist/test/gate1-sibling.test.js:22:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'outcome_unknown',
+    expected: 'delivered',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-sibling.test.js:6:9
+✖ sibling tool_execution_end does not invalidate an accepted tool_approval answer (1.434526ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'outcome_unknown'
+  - 'delivered'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/base-xqf71m14/dist/test/gate1-sibling.test.js:22:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'outcome_unknown',
+    expected: 'delivered',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

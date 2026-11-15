@@ -1,0 +1,90 @@
+✖ sibling agent_settled does not invalidate an accepted input answer (10.446731ms)
+✖ sibling agent_settled does not invalidate an accepted tool_approval answer (1.934634ms)
+✖ sibling tool_execution_end does not invalidate an accepted input answer (1.103968ms)
+✖ sibling tool_execution_end does not invalidate an accepted tool_approval answer (1.04135ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 0
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 66.685076
+
+✖ failing tests:
+
+test at dist/test/gate1-sibling.test.js:6:9
+✖ sibling agent_settled does not invalidate an accepted input answer (10.446731ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'outcome_unknown'
+  - 'delivered'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/sibling-gehomxfe/dist/test/gate1-sibling.test.js:22:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'outcome_unknown',
+    expected: 'delivered',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-sibling.test.js:6:9
+✖ sibling agent_settled does not invalidate an accepted tool_approval answer (1.934634ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'outcome_unknown'
+  - 'delivered'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/sibling-gehomxfe/dist/test/gate1-sibling.test.js:22:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'outcome_unknown',
+    expected: 'delivered',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-sibling.test.js:6:9
+✖ sibling tool_execution_end does not invalidate an accepted input answer (1.103968ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'outcome_unknown'
+  - 'delivered'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/sibling-gehomxfe/dist/test/gate1-sibling.test.js:22:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'outcome_unknown',
+    expected: 'delivered',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-sibling.test.js:6:9
+✖ sibling tool_execution_end does not invalidate an accepted tool_approval answer (1.04135ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'outcome_unknown'
+  - 'delivered'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7/reversions/sibling-gehomxfe/dist/test/gate1-sibling.test.js:22:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'outcome_unknown',
+    expected: 'delivered',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

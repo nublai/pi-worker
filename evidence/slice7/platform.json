@@ -1,0 +1,39 @@
+{
+  "clock": "2026-11-15T18:01:37.044Z",
+  "node": "v22.21.1",
+  "git": "git version 2.43.0",
+  "pi": "1.5.2",
+  "herdr": "3.11.0",
+  "pstack": "1.0.0",
+  "worker_runtime_subject": {
+    "commit_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+    "tree_id": "efa1b492b8c713ab5888c66c27498111e6f9b18c"
+  },
+  "experimental_host_source_commit": "f9e6cc5367dd203e7d32e6b4059aa389f3003a8d",
+  "host_source_hashes": [
+    {
+      "path": "maestro/core/worker-execution.ts",
+      "sha256": "0249b43518424d07b4e808ab6de9c08ab5c41d07650533fda7f56019d42bf412"
+    },
+    {
+      "path": "maestro/adapters/pi/worker-client.ts",
+      "sha256": "fdd5cbd7ae6cd028371a64aa077b81fa20dc89d9ef936758a69c62a6ef6b51b0"
+    },
+    {
+      "path": "maestro/runtime/pi-worker-session.ts",
+      "sha256": "cde2265e1728517e6c636ec9823a9eec782c7af21209f6e19e704d7c68e61560"
+    },
+    {
+      "path": "pi-extension/subagents/worker-backend.ts",
+      "sha256": "7a6f3b6f03de4f46af7c66ecf1e25cb951bb94c62c86b43ce3a0d41d68027f89"
+    }
+  ],
+  "credential_exposure": "only VM-local models-store.json credential-bearing file deliberately staged read-only in each sandbox; no GitHub/host model credential transferred",
+  "provider_patch": "private profile only: removed /exe.dev existence guard after setup hostname check; /exe.dev is not mounted",
+  "no_github_credential": true,
+  "producer": "slice7-platform-driver",
+  "subject": {
+    "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+    "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3"
+  }
+}

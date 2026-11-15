@@ -1,0 +1,238 @@
+{
+  "schema": "a0-verification-evidence-v2",
+  "job_id": "slice7-daemon-limit-note",
+  "producer": {
+    "name": "slice7-owner-deterministic-verifier",
+    "kind": "fresh-checkout runner; exact README bytes and Git state inspected independently of agent text",
+    "model_family": null
+  },
+  "subject": {
+    "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+    "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3",
+    "base_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+    "diff_digest": {
+      "advisory": true,
+      "git_version": "git version 2.43.0",
+      "algorithm": "sha256",
+      "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+      "value": "b797e44ea0f9957169057c55982faf326c94b9620217509b3ac18df6ac4945db"
+    }
+  },
+  "checks": [
+    {
+      "producer": "slice7-owner-fresh-checkout-command-runner",
+      "subject": {
+        "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+        "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3",
+        "base_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "b797e44ea0f9957169057c55982faf326c94b9620217509b3ac18df6ac4945db"
+        }
+      },
+      "command": [
+        "git",
+        "clone",
+        "--no-local",
+        "/tmp/a0s7/run2/workspace",
+        "/tmp/a0s7/verify2/head"
+      ],
+      "cwd": "/tmp/a0s7/verify2",
+      "started_at": "2026-11-15T17:54:27.529Z",
+      "duration_seconds": 0.081,
+      "exit_code": 0,
+      "signal": null,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s7/out2/clone.log",
+        "sha256": "955d910167e547b4070abfd0a7707be7727f5d27370af3d6de112a2d0597aa16"
+      },
+      "counts": {}
+    },
+    {
+      "producer": "slice7-owner-fresh-checkout-command-runner",
+      "subject": {
+        "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+        "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3",
+        "base_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "b797e44ea0f9957169057c55982faf326c94b9620217509b3ac18df6ac4945db"
+        }
+      },
+      "command": [
+        "git",
+        "checkout",
+        "--detach",
+        "07832f232b8b97e5c06f074fac60074b38ee33a3"
+      ],
+      "cwd": "/tmp/a0s7/verify2/head",
+      "started_at": "2026-11-15T17:54:27.610Z",
+      "duration_seconds": 0.01,
+      "exit_code": 0,
+      "signal": null,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s7/out2/checkout.log",
+        "sha256": "4a5e9dabcfa0ee0280761838ce67f9c55423348f852078c7f66a366ee68067fa"
+      },
+      "counts": {}
+    },
+    {
+      "producer": "slice7-owner-fresh-checkout-command-runner",
+      "subject": {
+        "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+        "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3",
+        "base_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "b797e44ea0f9957169057c55982faf326c94b9620217509b3ac18df6ac4945db"
+        }
+      },
+      "command": [
+        "npm",
+        "ci",
+        "--ignore-scripts"
+      ],
+      "cwd": "/tmp/a0s7/verify2/head",
+      "started_at": "2026-11-15T17:54:27.620Z",
+      "duration_seconds": 2.855,
+      "exit_code": 0,
+      "signal": null,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s7/out2/npm-ci.log",
+        "sha256": "8c68e13c0e67cc6a7c758fbedf08bbb4a805332d387b4821b3f23bf4cb772af6"
+      },
+      "counts": {}
+    },
+    {
+      "producer": "slice7-owner-fresh-checkout-command-runner",
+      "subject": {
+        "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+        "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3",
+        "base_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "b797e44ea0f9957169057c55982faf326c94b9620217509b3ac18df6ac4945db"
+        }
+      },
+      "command": [
+        "npm",
+        "test"
+      ],
+      "cwd": "/tmp/a0s7/verify2/head",
+      "started_at": "2026-11-15T17:54:30.475Z",
+      "duration_seconds": 151.181,
+      "exit_code": 0,
+      "signal": null,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s7/out2/npm-test.log",
+        "sha256": "28e62679f20136cb1b5d93191680961f290b72ea0041f9d87577f9c0c5d379a2"
+      },
+      "counts": {
+        "tests": 216,
+        "pass": 209,
+        "fail": 0,
+        "skipped": 7
+      }
+    },
+    {
+      "producer": "slice7-owner-fresh-checkout-command-runner",
+      "subject": {
+        "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+        "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3",
+        "base_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "b797e44ea0f9957169057c55982faf326c94b9620217509b3ac18df6ac4945db"
+        }
+      },
+      "command": [
+        "npm",
+        "run",
+        "check:generated"
+      ],
+      "cwd": "/tmp/a0s7/verify2/head",
+      "started_at": "2026-11-15T17:57:01.656Z",
+      "duration_seconds": 0.788,
+      "exit_code": 0,
+      "signal": null,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s7/out2/generated.log",
+        "sha256": "d09127a9822b3b000d813f0568bb9ce3fb71ab0f6332c652fc19bc4878ecef77"
+      },
+      "counts": {}
+    },
+    {
+      "producer": "slice7-owner-fresh-checkout-command-runner",
+      "subject": {
+        "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+        "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3",
+        "base_id": "fd99c8992941f16187e8b54affd8f9d2f6a6b3dd",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "b797e44ea0f9957169057c55982faf326c94b9620217509b3ac18df6ac4945db"
+        }
+      },
+      "command": [
+        "systemd-run",
+        "--user",
+        "--unit=a0-s7-artifact-kernel",
+        "--wait",
+        "--pipe",
+        "--collect",
+        "--service-type=exec",
+        "--property=Delegate=yes",
+        "--setenv=PATH=/home/exedev/.local/node/bin:/home/exedev/.local/bin:/usr/bin:/bin",
+        "--setenv=A0_S7_REPO=/tmp/a0s7/verify2/head",
+        "--setenv=TMPDIR=/tmp/a0s7/tmp",
+        "--setenv=npm_config_cache=/tmp/a0s7/npm-cache",
+        "/bin/bash",
+        "/tmp/a0s7/kernel.sh"
+      ],
+      "cwd": "/tmp/a0s7/verify2/head",
+      "started_at": "2026-11-15T17:57:02.444Z",
+      "duration_seconds": 164.925,
+      "exit_code": 0,
+      "signal": null,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s7/out2/npm-test-kernel.log",
+        "sha256": "b28a2783fffa92a04cde2ae3277b599d8d9aa8bff3679c7a13790f968a37d188"
+      },
+      "counts": {
+        "tests": 216,
+        "pass": 216,
+        "fail": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "result": "verified",
+  "limitations": [
+    "No PR/push/merge; same-family check author is not independent-provider review.",
+    "Model-authored checker inspected, not executed by owner; parent execution separately audited.",
+    "Process/SIGKILL and bwrap Linux evidence, not physical power-loss, network confinement, or hostile same-UID proof."
+  ]
+}

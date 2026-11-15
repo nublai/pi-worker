@@ -1,0 +1,72 @@
+{
+  "actions": [
+    {
+      "clock": "2026-11-15T16:52:21.728Z",
+      "kind": "create",
+      "actor": "slice7-authorized-owner-driver",
+      "policy_revision": "slice7-owner-v1",
+      "command_id": "slice7-parent"
+    },
+    {
+      "clock": "2026-11-15T16:52:24.967Z",
+      "kind": "prompt",
+      "actor": "slice7-authorized-owner-driver",
+      "policy_revision": "slice7-owner-v1",
+      "command_id": "slice7-job",
+      "base": "89ad6a54a6d319c2f657ad2aa80bac6d783dc565"
+    },
+    {
+      "clock": "2026-11-15T16:58:36.373Z",
+      "kind": "freeze-stop",
+      "actor": "slice7-authorized-owner-driver",
+      "policy_revision": "slice7-owner-v1",
+      "worker_id": "574487c0-0686-40e7-bcbe-e11790424339"
+    },
+    {
+      "clock": "2026-11-15T17:13:23.611Z",
+      "kind": "acceptance",
+      "actor": "slice7-authorized-owner-driver",
+      "policy_revision": "slice7-owner-v1",
+      "subject": {
+        "commit_id": "9845f63fa32accf8f94d827e3ea39abd45b7ecf9",
+        "tree_id": "ccf329133e8c599f4c21ddbab40681e8a4b2c519",
+        "base_id": "89ad6a54a6d319c2f657ad2aa80bac6d783dc565",
+        "diff_digest": {
+          "advisory": true,
+          "git_version": "git version 2.43.0",
+          "algorithm": "sha256",
+          "definition": "git diff --no-ext-diff --no-textconv --binary BASE COMMIT; not artifact identity",
+          "value": "56a047513813f8df8e70645cae77bf90df782e8c29413a2a29cf5e7e97ee36cc"
+        }
+      }
+    },
+    {
+      "clock": "2026-11-15T17:13:23.622Z",
+      "kind": "cleanup",
+      "actor": "slice7-authorized-owner-driver",
+      "policy_revision": "slice7-owner-v1",
+      "units": [
+        "a0-s7-supervisor.service",
+        "a0-3b7c9ca1404b8cad9f3e.service"
+      ],
+      "grant_revoked": "orchestrator"
+    }
+  ],
+  "authorization_interventions": 2,
+  "prompts": 1,
+  "answers": 0,
+  "acceptances": 1,
+  "owner_write_actions": 5,
+  "elapsed_minutes_to_acceptance": 20.9774,
+  "founder_live_touches": 0,
+  "active_human_attention_minutes": null,
+  "verified_changes": 1,
+  "verified_prs": 0,
+  "minutes_per_verified_pr": null,
+  "note": "elapsed job/verification time is not active human attention; driver authoring, setup, audit, tests and cleanup are automated owner-side overhead",
+  "producer": "slice7-attention-driver",
+  "subject": {
+    "commit_id": "9845f63fa32accf8f94d827e3ea39abd45b7ecf9",
+    "tree_id": "ccf329133e8c599f4c21ddbab40681e8a4b2c519"
+  }
+}

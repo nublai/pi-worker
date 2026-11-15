@@ -1,0 +1,19 @@
+✔ evidence binds commit AND native tree; diff bytes are advisory with producing Git version (48.56815ms)
+✔ linked-worktree sandbox refuses flat or shared branch write namespaces before spawn (25.535187ms)
+✔ bwrap linked worktree status/add/commit writes only its branch namespace and shared objects (34.649221ms)
+✔ sdk: extension native tree/new/fork/resume bumps binding without B2 rebind (422.000313ms)
+✔ acp: extension native tree/new/fork/resume bumps binding without B2 rebind (417.448401ms)
+✔ rpc: extension native tree/new/fork/resume bumps binding without B2 rebind (285.135824ms)
+✔ project extension reaches B2 unsandboxed; bwrap parent cannot read grants/state or reach B2, but can use its own channel (1128.445728ms)
+✔ sibling agent_settled does not invalidate an accepted input answer (10.192733ms)
+✔ sibling agent_settled does not invalidate an accepted tool_approval answer (2.225356ms)
+✔ sibling tool_execution_end does not invalidate an accepted input answer (1.581ms)
+✔ sibling tool_execution_end does not invalidate an accepted tool_approval answer (1.387187ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1200.901129

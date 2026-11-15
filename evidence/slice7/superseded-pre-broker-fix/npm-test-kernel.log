@@ -1,0 +1,1306 @@
+
+> @nublai/pi-worker-a0@0.0.0-throwaway test
+> npm run build && node --test dist/test/*.test.js
+
+
+> @nublai/pi-worker-a0@0.0.0-throwaway build
+> tsc -p tsconfig.json
+
+TAP version 13
+# Subtest: ACP v1 initialize/new/prompt/permission answer frames match official pinned schemas
+ok 1 - ACP v1 initialize/new/prompt/permission answer frames match official pinned schemas
+  ---
+  duration_ms: 5.703321
+  type: 'test'
+  ...
+# Subtest: ACP profile preserves exact resolver ack, early admission and distinct native ids
+ok 2 - ACP profile preserves exact resolver ack, early admission and distinct native ids
+  ---
+  duration_ms: 0.591677
+  type: 'test'
+  ...
+# Subtest: in-flight input, consumed=false: navigate cancels accepted resolver and refuses stale success
+ok 3 - in-flight input, consumed=false: navigate cancels accepted resolver and refuses stale success
+  ---
+  duration_ms: 52.791899
+  type: 'test'
+  ...
+# Subtest: in-flight input, consumed=true: navigate cancels accepted resolver and refuses stale success
+ok 4 - in-flight input, consumed=true: navigate cancels accepted resolver and refuses stale success
+  ---
+  duration_ms: 36.201301
+  type: 'test'
+  ...
+# Subtest: in-flight tool_approval, consumed=false: navigate cancels accepted resolver and refuses stale success
+ok 5 - in-flight tool_approval, consumed=false: navigate cancels accepted resolver and refuses stale success
+  ---
+  duration_ms: 39.551456
+  type: 'test'
+  ...
+# Subtest: in-flight tool_approval, consumed=true: navigate cancels accepted resolver and refuses stale success
+ok 6 - in-flight tool_approval, consumed=true: navigate cancels accepted resolver and refuses stale success
+  ---
+  duration_ms: 42.706473
+  type: 'test'
+  ...
+# Subtest: in-flight answer rechecks epoch even without a revision move
+ok 7 - in-flight answer rechecks epoch even without a revision move
+  ---
+  duration_ms: 36.804214
+  type: 'test'
+  ...
+# Subtest: in-flight answer rechecks fence even without a revision move
+ok 8 - in-flight answer rechecks fence even without a revision move
+  ---
+  duration_ms: 46.435388
+  type: 'test'
+  ...
+# Subtest: in-flight answer rechecks rebinding even without a revision move
+ok 9 - in-flight answer rechecks rebinding even without a revision move
+  ---
+  duration_ms: 59.441745
+  type: 'test'
+  ...
+# Subtest: already-consumed approval is cancelled by navigate; late gate check does not fault or release
+ok 10 - already-consumed approval is cancelled by navigate; late gate check does not fault or release
+  ---
+  duration_ms: 36.282641
+  type: 'test'
+  ...
+# {"slice4_fsync_cuts":45,"slice4_effect_cuts":5,"result":"pass"}
+# Subtest: slice4 typed child launch/report: every fsync and native spawn/FD/delivery cut
+ok 11 - slice4 typed child launch/report: every fsync and native spawn/FD/delivery cut
+  ---
+  duration_ms: 12463.006175
+  type: 'test'
+  ...
+# Subtest: late native exit cannot downgrade a confirmed stop
+ok 12 - late native exit cannot downgrade a confirmed stop
+  ---
+  duration_ms: 30.261959
+  type: 'test'
+  ...
+# Subtest: help-only durable report does not discharge the parent recovery fence
+ok 13 - help-only durable report does not discharge the parent recovery fence
+  ---
+  duration_ms: 57.956483
+  type: 'test'
+  ...
+# Subtest: child methods respect distinct caller grant ceiling
+ok 14 - child methods respect distinct caller grant ceiling
+  ---
+  duration_ms: 24.631083
+  type: 'test'
+  ...
+# Subtest: child methods respect distinct parent grant ceiling
+ok 15 - child methods respect distinct parent grant ceiling
+  ---
+  duration_ms: 27.657108
+  type: 'test'
+  ...
+# Subtest: FD report rechecks distinct parent-source revocation
+ok 16 - FD report rechecks distinct parent-source revocation
+  ---
+  duration_ms: 40.027181
+  type: 'test'
+  ...
+# Subtest: FD report rechecks distinct child-caller revocation
+ok 17 - FD report rechecks distinct child-caller revocation
+  ---
+  duration_ms: 46.151067
+  type: 'test'
+  ...
+# Subtest: child create rechecks revoked parent source even with an active independent caller
+ok 18 - child create rechecks revoked parent source even with an active independent caller
+  ---
+  duration_ms: 26.643226
+  type: 'test'
+  ...
+# Subtest: FD report requires children.report in the child grant
+ok 19 - FD report requires children.report in the child grant
+  ---
+  duration_ms: 35.419532
+  type: 'test'
+  ...
+# Subtest: unknown child initialization fences the live parent before another launch
+ok 20 - unknown child initialization fences the live parent before another launch
+  ---
+  duration_ms: 38.302535
+  type: 'test'
+  ...
+# Subtest: typed child lineage exists before spawn, narrows authority and reports a claim exactly once
+ok 21 - typed child lineage exists before spawn, narrows authority and reports a claim exactly once
+  ---
+  duration_ms: 34.551246
+  type: 'test'
+  ...
+# Subtest: typed child refuses tools before any spawn or checkout reservation
+ok 22 - typed child refuses tools before any spawn or checkout reservation
+  ---
+  duration_ms: 21.658277
+  type: 'test'
+  ...
+# Subtest: typed child refuses denials before any spawn or checkout reservation
+ok 23 - typed child refuses denials before any spawn or checkout reservation
+  ---
+  duration_ms: 21.555326
+  type: 'test'
+  ...
+# Subtest: typed child refuses methods before any spawn or checkout reservation
+ok 24 - typed child refuses methods before any spawn or checkout reservation
+  ---
+  duration_ms: 27.94849
+  type: 'test'
+  ...
+# Subtest: typed child refuses environment before any spawn or checkout reservation
+ok 25 - typed child refuses environment before any spawn or checkout reservation
+  ---
+  duration_ms: 22.639552
+  type: 'test'
+  ...
+# Subtest: typed child refuses resources before any spawn or checkout reservation
+ok 26 - typed child refuses resources before any spawn or checkout reservation
+  ---
+  duration_ms: 30.794798
+  type: 'test'
+  ...
+# Subtest: typed child refuses skills before any spawn or checkout reservation
+ok 27 - typed child refuses skills before any spawn or checkout reservation
+  ---
+  duration_ms: 20.342178
+  type: 'test'
+  ...
+# Subtest: typed child refuses stale before any spawn or checkout reservation
+ok 28 - typed child refuses stale before any spawn or checkout reservation
+  ---
+  duration_ms: 21.496377
+  type: 'test'
+  ...
+# Subtest: typed child refuses execution before any spawn or checkout reservation
+ok 29 - typed child refuses execution before any spawn or checkout reservation
+  ---
+  duration_ms: 20.06679
+  type: 'test'
+  ...
+# Subtest: typed child refuses fence before any spawn or checkout reservation
+ok 30 - typed child refuses fence before any spawn or checkout reservation
+  ---
+  duration_ms: 31.57849
+  type: 'test'
+  ...
+# Subtest: FD reports recheck parent grant revocation; siblings and parent remain untouched on child stop
+ok 31 - FD reports recheck parent grant revocation; siblings and parent remain untouched on child stop
+  ---
+  duration_ms: 56.682784
+  type: 'test'
+  ...
+# Subtest: contract 0.1 fixture 01-binding
+ok 32 - contract 0.1 fixture 01-binding
+  ---
+  duration_ms: 55.082113
+  type: 'test'
+  ...
+# Subtest: contract 0.1 fixture 02-unknown
+ok 33 - contract 0.1 fixture 02-unknown
+  ---
+  duration_ms: 33.9469
+  type: 'test'
+  ...
+# Subtest: contract 0.1 fixture 03-fenced-write
+ok 34 - contract 0.1 fixture 03-fenced-write
+  ---
+  duration_ms: 29.665886
+  type: 'test'
+  ...
+# Subtest: contract 0.1 fixture 04-paused
+ok 35 - contract 0.1 fixture 04-paused
+  ---
+  duration_ms: 54.961223
+  type: 'test'
+  ...
+# Subtest: contract 0.1 fixture 05-keep
+ok 36 - contract 0.1 fixture 05-keep
+  ---
+  duration_ms: 94.620139
+  type: 'test'
+  ...
+# Subtest: contract 0.1 fixture 06-abandon
+ok 37 - contract 0.1 fixture 06-abandon
+  ---
+  duration_ms: 85.237785
+  type: 'test'
+  ...
+# Subtest: contract 0.1 fixture 07-observed
+ok 38 - contract 0.1 fixture 07-observed
+  ---
+  duration_ms: 54.593288
+  type: 'test'
+  ...
+# Subtest: contract 0.1 fixture 08-generation
+ok 39 - contract 0.1 fixture 08-generation
+  ---
+  duration_ms: 36.526723
+  type: 'test'
+  ...
+# Subtest: contract 0.1 fixture 09-restart
+ok 40 - contract 0.1 fixture 09-restart
+  ---
+  duration_ms: 43.504455
+  type: 'test'
+  ...
+# Subtest: contract 0.1 fixture 10-cleanup-resume
+ok 41 - contract 0.1 fixture 10-cleanup-resume
+  ---
+  duration_ms: 32.436612
+  type: 'test'
+  ...
+# Subtest: contract 0.1 fixture 11-control
+ok 42 - contract 0.1 fixture 11-control
+  ---
+  duration_ms: 63.893381
+  type: 'test'
+  ...
+# {"slice5_create_fsync_cuts":13,"slice5_create_effect_cuts":1}
+# {"slice5_fsync_cuts":47,"slice5_effect_cuts":8}
+# Subtest: slice 5: contained initial create reserves its domain before every spawn and survives all fsync/effect cuts
+ok 43 - slice 5: contained initial create reserves its domain before every spawn and survives all fsync/effect cuts
+  ---
+  duration_ms: 2773.144608
+  type: 'test'
+  ...
+# Subtest: slice 5: SIGKILL after every recovery/resolve/relaunch/sandbox/report/stop fsync and native lifecycle effect
+ok 44 - slice 5: SIGKILL after every recovery/resolve/relaunch/sandbox/report/stop fsync and native lifecycle effect
+  ---
+  duration_ms: 18567.157758
+  type: 'test'
+  ...
+# Subtest: cleanup_pending is fsynced before kill; failed empty proof blocks resume and replacement
+ok 45 - cleanup_pending is fsynced before kill; failed empty proof blocks resume and replacement
+  ---
+  duration_ms: 42.527818
+  type: 'test'
+  ...
+# Subtest: a failed journal still permits fault termination but never records cleanup as confirmed
+ok 46 - a failed journal still permits fault termination but never records cleanup as confirmed
+  ---
+  duration_ms: 16.843232
+  type: 'test'
+  ...
+# Subtest: fallback names weaker process-group semantics
+ok 47 - fallback names weaker process-group semantics
+  ---
+  duration_ms: 0.193257
+  type: 'test'
+  ...
+# Subtest: startup sweeps only unknown worker domains in its own installation service
+ok 48 - startup sweeps only unknown worker domains in its own installation service
+  ---
+  duration_ms: 1.759988
+  type: 'test'
+  ...
+# Subtest: recover awaits orphan sweep before permitting worker operations
+ok 49 - recover awaits orphan sweep before permitting worker operations
+  ---
+  duration_ms: 5.704434
+  type: 'test'
+  ...
+# Subtest: real startup sweeps orphaned domains but never another installation service
+ok 50 - real startup sweeps orphaned domains but never another installation service
+  ---
+  duration_ms: 118.904139
+  type: 'test'
+  ...
+# Subtest: real leader crash kills a detached grandchild without stop or restart
+ok 51 - real leader crash kills a detached grandchild without stop or restart
+  ---
+  duration_ms: 2259.79853
+  type: 'test'
+  ...
+# Subtest: real cgroup stop kills setsid/nohup grandchild and retires the pre-exec join target
+ok 52 - real cgroup stop kills setsid/nohup grandchild and retires the pre-exec join target
+  ---
+  duration_ms: 2233.152832
+  type: 'test'
+  ...
+# Subtest: real cgroup restart kills setsid/nohup grandchild and retires the pre-exec join target
+ok 53 - real cgroup restart kills setsid/nohup grandchild and retires the pre-exec join target
+  ---
+  duration_ms: 2232.128223
+  type: 'test'
+  ...
+# {"effect_kind":"prompt","cuts":5,"result":"pass"}
+# {"effect_kind":"rebind","cuts":3,"result":"pass"}
+# {"effect_kind":"create","cuts":3,"result":"pass"}
+# {"effect_kind":"child launch","cuts":1,"result":"pass"}
+# {"effect_kind":"cancel clear_queue","cuts":2,"result":"pass"}
+# {"effect_kind":"cancel abort","cuts":2,"result":"pass"}
+# {"effect_kind":"interrupt clear_queue","cuts":2,"result":"pass"}
+# {"effect_kind":"interrupt abort","cuts":2,"result":"pass"}
+# {"effect_kind":"stop","cuts":3,"result":"pass"}
+# {"fsync_cuts":175,"result":"pass"}
+# Subtest: effect cut prompt: native evidence forbids no_effect and recovered buckets require fences
+ok 54 - effect cut prompt: native evidence forbids no_effect and recovered buckets require fences
+  ---
+  duration_ms: 1786.56686
+  type: 'test'
+  ...
+# Subtest: effect cut rebind: native evidence forbids no_effect and recovered buckets require fences
+ok 55 - effect cut rebind: native evidence forbids no_effect and recovered buckets require fences
+  ---
+  duration_ms: 1017.497142
+  type: 'test'
+  ...
+# Subtest: effect cut create: native evidence forbids no_effect and recovered buckets require fences
+ok 56 - effect cut create: native evidence forbids no_effect and recovered buckets require fences
+  ---
+  duration_ms: 1078.251742
+  type: 'test'
+  ...
+# Subtest: effect cut child launch: native evidence forbids no_effect and recovered buckets require fences
+ok 57 - effect cut child launch: native evidence forbids no_effect and recovered buckets require fences
+  ---
+  duration_ms: 582.865169
+  type: 'test'
+  ...
+# Subtest: effect cut cancel clear_queue: native evidence forbids no_effect and recovered buckets require fences
+ok 58 - effect cut cancel clear_queue: native evidence forbids no_effect and recovered buckets require fences
+  ---
+  duration_ms: 963.391666
+  type: 'test'
+  ...
+# Subtest: effect cut cancel abort: native evidence forbids no_effect and recovered buckets require fences
+ok 59 - effect cut cancel abort: native evidence forbids no_effect and recovered buckets require fences
+  ---
+  duration_ms: 1163.204644
+  type: 'test'
+  ...
+# Subtest: effect cut interrupt clear_queue: native evidence forbids no_effect and recovered buckets require fences
+ok 60 - effect cut interrupt clear_queue: native evidence forbids no_effect and recovered buckets require fences
+  ---
+  duration_ms: 1117.608089
+  type: 'test'
+  ...
+# Subtest: effect cut interrupt abort: native evidence forbids no_effect and recovered buckets require fences
+ok 61 - effect cut interrupt abort: native evidence forbids no_effect and recovered buckets require fences
+  ---
+  duration_ms: 1204.011391
+  type: 'test'
+  ...
+# Subtest: effect cut stop: native evidence forbids no_effect and recovered buckets require fences
+ok 62 - effect cut stop: native evidence forbids no_effect and recovered buckets require fences
+  ---
+  duration_ms: 1445.636704
+  type: 'test'
+  ...
+# Subtest: SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect
+ok 63 - SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect
+  ---
+  duration_ms: 60053.611792
+  type: 'test'
+  ...
+# Subtest: supervisor dispatch marker with execution ID is fsynced before the host receives prompt (M2)
+ok 64 - supervisor dispatch marker with execution ID is fsynced before the host receives prompt (M2)
+  ---
+  duration_ms: 35.175692
+  type: 'test'
+  ...
+# Subtest: HTTP pi prompt response timeout: unknown and durable fence before response headers (M1, M6)
+ok 65 - HTTP pi prompt response timeout: unknown and durable fence before response headers (M1, M6)
+  ---
+  duration_ms: 37.382431
+  type: 'test'
+  ...
+# Subtest: HTTP stdin write failed: unknown and durable fence before response headers (M1, M6)
+ok 66 - HTTP stdin write failed: unknown and durable fence before response headers (M1, M6)
+  ---
+  duration_ms: 24.017435
+  type: 'test'
+  ...
+# Subtest: Pi exit fences an admitted run durably without rewriting delivered admission (M9)
+ok 67 - Pi exit fences an admitted run durably without rewriting delivered admission (M9)
+  ---
+  duration_ms: 23.249807
+  type: 'test'
+  ...
+# Subtest: unknown stop never replaces the prompt fence; two restarts preserve fence and delivered receipt
+ok 68 - unknown stop never replaces the prompt fence; two restarts preserve fence and delivered receipt
+  ---
+  duration_ms: 35.948136
+  type: 'test'
+  ...
+# Subtest: journal failure in a Pi event faults only that worker and keeps inventory readable
+ok 69 - journal failure in a Pi event faults only that worker and keeps inventory readable
+  ---
+  duration_ms: 31.896442
+  type: 'test'
+  ...
+# Subtest: header failure in a Pi event faults only that worker and keeps inventory readable
+ok 70 - header failure in a Pi event faults only that worker and keeps inventory readable
+  ---
+  duration_ms: 59.017355
+  type: 'test'
+  ...
+# Subtest: validation refusals consume no durable storage, ordinary capacity never blocks termination
+ok 71 - validation refusals consume no durable storage, ordinary capacity never blocks termination
+  ---
+  duration_ms: 3620.32523
+  type: 'test'
+  ...
+# Subtest: failed create preserves the same group-only cleanup and cwd reservation as stop (m-1)
+ok 72 - failed create preserves the same group-only cleanup and cwd reservation as stop (m-1)
+  ---
+  duration_ms: 17.782304
+  type: 'test'
+  ...
+# Subtest: unsupported UI dialogs auto-cancel without resolver-consumed claims (m-2)
+ok 73 - unsupported UI dialogs auto-cancel without resolver-consumed claims (m-2)
+  ---
+  duration_ms: 30.746327
+  type: 'test'
+  ...
+# Subtest: pending unsupported interactions close on tool_execution_end (m-2)
+ok 74 - pending unsupported interactions close on tool_execution_end (m-2)
+  ---
+  duration_ms: 13.85316
+  type: 'test'
+  ...
+# Subtest: pending unsupported interactions close on agent_settled (m-2)
+ok 75 - pending unsupported interactions close on agent_settled (m-2)
+  ---
+  duration_ms: 13.557122
+  type: 'test'
+  ...
+# Subtest: pending unsupported interactions close on expiry (m-2)
+ok 76 - pending unsupported interactions close on expiry (m-2)
+  ---
+  duration_ms: 34.741026
+  type: 'test'
+  ...
+# Subtest: pending unsupported dialogs are bounded and cancellation failure faults closed (m-2)
+ok 77 - pending unsupported dialogs are bounded and cancellation failure faults closed (m-2)
+  ---
+  duration_ms: 61.34902
+  type: 'test'
+  ...
+# Subtest: socket directory rejects symlink, public mode and foreign ownership before listening (M5)
+ok 78 - socket directory rejects symlink, public mode and foreign ownership before listening (M5)
+  ---
+  duration_ms: 5.746095
+  type: 'test'
+  ...
+# Subtest: reads publish derived history in memory without journal writes or stopping workers (N-1)
+ok 79 - reads publish derived history in memory without journal writes or stopping workers (N-1)
+  ---
+  duration_ms: 13.77826
+  type: 'test'
+  ...
+# Subtest: fault after settlement never fences the settled execution (N-2)
+ok 80 - fault after settlement never fences the settled execution (N-2)
+  ---
+  duration_ms: 27.790145
+  type: 'test'
+  ...
+# Subtest: restart 1 and restart 2 cannot reuse transport epochs (T-1)
+ok 81 - restart 1 and restart 2 cannot reuse transport epochs (T-1)
+  ---
+  duration_ms: 28.180524
+  type: 'test'
+  ...
+# Subtest: B2 SSE ends a slow subscriber with explicit overflow after bounded queue (M4)
+ok 82 - B2 SSE ends a slow subscriber with explicit overflow after bounded queue (M4)
+  ---
+  duration_ms: 41.657097
+  type: 'test'
+  ...
+# Subtest: evidence binds commit AND native tree; diff bytes are advisory with producing Git version
+ok 83 - evidence binds commit AND native tree; diff bytes are advisory with producing Git version
+  ---
+  duration_ms: 75.836912
+  type: 'test'
+  ...
+# Subtest: bwrap linked worktree status/add/commit writes only its branch namespace and shared objects
+ok 84 - bwrap linked worktree status/add/commit writes only its branch namespace and shared objects
+  ---
+  duration_ms: 66.422879
+  type: 'test'
+  ...
+# Subtest: sdk: extension native tree/new/fork/resume bumps binding without B2 rebind
+ok 85 - sdk: extension native tree/new/fork/resume bumps binding without B2 rebind
+  ---
+  duration_ms: 711.094878
+  type: 'test'
+  ...
+# Subtest: acp: extension native tree/new/fork/resume bumps binding without B2 rebind
+ok 86 - acp: extension native tree/new/fork/resume bumps binding without B2 rebind
+  ---
+  duration_ms: 662.11644
+  type: 'test'
+  ...
+# Subtest: rpc: extension native tree/new/fork/resume bumps binding without B2 rebind
+ok 87 - rpc: extension native tree/new/fork/resume bumps binding without B2 rebind
+  ---
+  duration_ms: 447.191617
+  type: 'test'
+  ...
+# Subtest: project extension reaches B2 unsandboxed; bwrap parent cannot read grants/state or reach B2, but can use its own channel
+ok 88 - project extension reaches B2 unsandboxed; bwrap parent cannot read grants/state or reach B2, but can use its own channel
+  ---
+  duration_ms: 1912.412296
+  type: 'test'
+  ...
+# Subtest: sibling agent_settled does not invalidate an accepted input answer
+ok 89 - sibling agent_settled does not invalidate an accepted input answer
+  ---
+  duration_ms: 46.494325
+  type: 'test'
+  ...
+# Subtest: sibling agent_settled does not invalidate an accepted tool_approval answer
+ok 90 - sibling agent_settled does not invalidate an accepted tool_approval answer
+  ---
+  duration_ms: 30.724494
+  type: 'test'
+  ...
+# Subtest: sibling tool_execution_end does not invalidate an accepted input answer
+ok 91 - sibling tool_execution_end does not invalidate an accepted input answer
+  ---
+  duration_ms: 27.58387
+  type: 'test'
+  ...
+# Subtest: sibling tool_execution_end does not invalidate an accepted tool_approval answer
+ok 92 - sibling tool_execution_end does not invalidate an accepted tool_approval answer
+  ---
+  duration_ms: 27.139311
+  type: 'test'
+  ...
+# Subtest: every OpenAPI method requires a bearer, including hello, history, SSE and receipts
+ok 93 - every OpenAPI method requires a bearer, including hello, history, SSE and receipts
+  ---
+  duration_ms: 44.646047
+  type: 'test'
+  ...
+# Subtest: registered caller/method/scope enforced and scoped inventory/SSE cannot disclose another worker
+ok 94 - registered caller/method/scope enforced and scoped inventory/SSE cannot disclose another worker
+  ---
+  duration_ms: 46.175453
+  type: 'test'
+  ...
+# Subtest: revocation between queue admission and dispatch blocks the actual Pi write
+ok 95 - revocation between queue admission and dispatch blocks the actual Pi write
+  ---
+  duration_ms: 48.612065
+  type: 'test'
+  ...
+# Subtest: child report is an inherited FD, not spoofable RPC stdout; no socket or grant environment inherited
+ok 96 - child report is an inherited FD, not spoofable RPC stdout; no socket or grant environment inherited
+  ---
+  duration_ms: 42.944415
+  type: 'test'
+  ...
+# Subtest: RPC host keeps LF framing across Unicode separators and split UTF8; drains events independently
+ok 97 - RPC host keeps LF framing across Unicode separators and split UTF8; drains events independently
+  ---
+  duration_ms: 42.749395
+  type: 'test'
+  ...
+# Subtest: unsupported UI cancellation uses the native ID and no RPC response waiter
+ok 98 - unsupported UI cancellation uses the native ID and no RPC response waiter
+  ---
+  duration_ms: 34.39949
+  type: 'test'
+  ...
+# Subtest: RPC answers honestly stop at stage 2 even without any native resolver acknowledgement
+ok 99 - RPC answers honestly stop at stage 2 even without any native resolver acknowledgement
+  ---
+  duration_ms: 28.153725
+  type: 'test'
+  ...
+# Subtest: RPC timeout is an error, never a resend; process exit rejects pending requests
+ok 100 - RPC timeout is an error, never a resend; process exit rejects pending requests
+  ---
+  duration_ms: 56.806689
+  type: 'test'
+  ...
+# {"interaction_scenario_fsync_cuts":77,"interaction_recovery_fsync_cuts":7,"result":"pass"}
+# {"interaction_effect_cuts":9,"result":"pass"}
+# Subtest: new interactions: SIGKILL at every scenario and recovery fsync occurrence, no answer replay, native effect oracle
+ok 101 - new interactions: SIGKILL at every scenario and recovery fsync occurrence, no answer replay, native effect oracle
+  ---
+  duration_ms: 21065.948069
+  type: 'test'
+  ...
+# Subtest: new interactions: cut at each answer/cancel/gate/navigation effect before reply, independent native evidence
+ok 102 - new interactions: cut at each answer/cancel/gate/navigation effect before reply, independent native evidence
+  ---
+  duration_ms: 2579.062507
+  type: 'test'
+  ...
+# Subtest: first valid answer wins, honest stage 2, invalid answer does not win
+ok 103 - first valid answer wins, honest stage 2, invalid answer does not win
+  ---
+  duration_ms: 67.738219
+  type: 'test'
+  ...
+# Subtest: first valid answer wins, honest stage 3, invalid answer does not win
+ok 104 - first valid answer wins, honest stage 3, invalid answer does not win
+  ---
+  duration_ms: 20.715491
+  type: 'test'
+  ...
+# Subtest: concurrent exact command with conflicting value refuses; private value and hash never persist
+ok 105 - concurrent exact command with conflicting value refuses; private value and hash never persist
+  ---
+  duration_ms: 17.632772
+  type: 'test'
+  ...
+# Subtest: deadline, timeout, stale kind/revision/worker binding, fence, and old interaction after recovery
+ok 106 - deadline, timeout, stale kind/revision/worker binding, fence, and old interaction after recovery
+  ---
+  duration_ms: 62.071111
+  type: 'test'
+  ...
+# Subtest: restart answer_id lookup returns outcome without revalidating private content or redispatching
+ok 107 - restart answer_id lookup returns outcome without revalidating private content or redispatching
+  ---
+  duration_ms: 27.063088
+  type: 'test'
+  ...
+# Subtest: SDK resolver atomically arbitrates answer/timeout/abort and distinguishes No, cancel, timeout
+ok 108 - SDK resolver atomically arbitrates answer/timeout/abort and distinguishes No, cancel, timeout
+  ---
+  duration_ms: 0.922257
+  type: 'test'
+  ...
+# Subtest: all four kinds, editor prefill, duplicate labels; exact resolver rejects invalid option/text/boolean
+ok 109 - all four kinds, editor prefill, duplicate labels; exact resolver rejects invalid option/text/boolean
+  ---
+  duration_ms: 0.356107
+  type: 'test'
+  ...
+# Subtest: two HTTP clients race through public B2 list/answer/status with method-scoped grants
+ok 110 - two HTTP clients race through public B2 list/answer/status with method-scoped grants
+  ---
+  duration_ms: 64.899222
+  type: 'test'
+  ...
+# Subtest: typed tool approval separates resolver consumption from gate release: none
+ok 111 - typed tool approval separates resolver consumption from gate release: none
+  ---
+  duration_ms: 33.126754
+  type: 'test'
+  ...
+# Subtest: typed tool approval separates resolver consumption from gate release: grant
+ok 112 - typed tool approval separates resolver consumption from gate release: grant
+  ---
+  duration_ms: 31.54407
+  type: 'test'
+  ...
+# Subtest: typed tool approval separates resolver consumption from gate release: policy
+ok 113 - typed tool approval separates resolver consumption from gate release: policy
+  ---
+  duration_ms: 29.507401
+  type: 'test'
+  ...
+# Subtest: typed tool approval separates resolver consumption from gate release: expiry
+ok 114 - typed tool approval separates resolver consumption from gate release: expiry
+  ---
+  duration_ms: 30.373544
+  type: 'test'
+  ...
+# Subtest: typed tool approval separates resolver consumption from gate release: digest
+ok 115 - typed tool approval separates resolver consumption from gate release: digest
+  ---
+  duration_ms: 29.365721
+  type: 'test'
+  ...
+# Subtest: typed tool approval separates resolver consumption from gate release: binding
+ok 116 - typed tool approval separates resolver consumption from gate release: binding
+  ---
+  duration_ms: 27.477312
+  type: 'test'
+  ...
+# Subtest: typed tool approval separates resolver consumption from gate release: fence
+ok 117 - typed tool approval separates resolver consumption from gate release: fence
+  ---
+  duration_ms: 24.876607
+  type: 'test'
+  ...
+# Subtest: deadline validation refuses at the boundary before the timeout callback can run
+ok 118 - deadline validation refuses at the boundary before the timeout callback can run
+  ---
+  duration_ms: 12.990542
+  type: 'test'
+  ...
+# Subtest: SDK refusal acknowledgement never claims stage 3 for an expired exact resolver
+ok 119 - SDK refusal acknowledgement never claims stage 3 for an expired exact resolver
+  ---
+  duration_ms: 30.270641
+  type: 'test'
+  ...
+# Subtest: a consumed answer with a dropped host acknowledgement is unknown/fenced, never blindly replayed
+ok 120 - a consumed answer with a dropped host acknowledgement is unknown/fenced, never blindly replayed
+  ---
+  duration_ms: 20.10738
+  type: 'test'
+  ...
+# Subtest: resolve keep: latch, generation, binding, final receipt and durable tombstone
+ok 121 - resolve keep: latch, generation, binding, final receipt and durable tombstone
+  ---
+  duration_ms: 51.808291
+  type: 'test'
+  ...
+# Subtest: resolve abandon: latch, generation, binding, final receipt and durable tombstone
+ok 122 - resolve abandon: latch, generation, binding, final receipt and durable tombstone
+  ---
+  duration_ms: 34.863969
+  type: 'test'
+  ...
+# Subtest: resolve observed: latch, generation, binding, final receipt and durable tombstone
+ok 123 - resolve observed: latch, generation, binding, final receipt and durable tombstone
+  ---
+  duration_ms: 38.288976
+  type: 'test'
+  ...
+# Subtest: observed refuses mere memory and unknown dispatch, accepts exact session settlement only
+ok 124 - observed refuses mere memory and unknown dispatch, accepts exact session settlement only
+  ---
+  duration_ms: 27.629077
+  type: 'test'
+  ...
+# Subtest: multiple uncertainties retained, generation monotonic after partial resolution and refence
+ok 125 - multiple uncertainties retained, generation monotonic after partial resolution and refence
+  ---
+  duration_ms: 47.272089
+  type: 'test'
+  ...
+# Subtest: queued follow-up and pending child pause under fence then keep
+ok 126 - queued follow-up and pending child pause under fence then keep
+  ---
+  duration_ms: 79.404038
+  type: 'test'
+  ...
+# Subtest: queued follow-up and pending child pause under fence then abandon
+ok 127 - queued follow-up and pending child pause under fence then abandon
+  ---
+  duration_ms: 34.386492
+  type: 'test'
+  ...
+# Subtest: new/fork/resume change same-process binding; stale delayed prompt and duplicate open name cause
+ok 128 - new/fork/resume change same-process binding; stale delayed prompt and duplicate open name cause
+  ---
+  duration_ms: 46.310484
+  type: 'test'
+  ...
+# Subtest: recovered intent only dispatches once after owner resolution and exact retry
+ok 129 - recovered intent only dispatches once after owner resolution and exact retry
+  ---
+  duration_ms: 35.825694
+  type: 'test'
+  ...
+# Subtest: child recovery without fsynced report preserves parent launch uncertainty
+ok 130 - child recovery without fsynced report preserves parent launch uncertainty
+  ---
+  duration_ms: 58.173604
+  type: 'test'
+  ...
+# Subtest: child recovery with fsynced report preserves parent launch uncertainty
+ok 131 - child recovery with fsynced report preserves parent launch uncertainty
+  ---
+  duration_ms: 45.308678
+  type: 'test'
+  ...
+# Subtest: abandon drops a recovered queue and its durable no-dispatch intent
+ok 132 - abandon drops a recovered queue and its durable no-dispatch intent
+  ---
+  duration_ms: 68.824469
+  type: 'test'
+  ...
+# Subtest: resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation
+ok 133 - resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation
+  ---
+  duration_ms: 33.445207
+  type: 'test'
+  ...
+# Subtest: cancel, interrupt and evidence reports allowed under fence without lifting it
+ok 134 - cancel, interrupt and evidence reports allowed under fence without lifting it
+  ---
+  duration_ms: 36.50382
+  type: 'test'
+  ...
+# Subtest: issue1: superseded stop (cleanup succeeded) reports superseded_generation_stopped, not observed_stopped
+ok 135 - issue1: superseded stop (cleanup succeeded) reports superseded_generation_stopped, not observed_stopped
+  ---
+  duration_ms: 66.302992
+  type: 'test'
+  ...
+# Subtest: issue1: superseded stop (cleanup failed) reports superseded_generation_unknown with outcome_unknown
+ok 136 - issue1: superseded stop (cleanup failed) reports superseded_generation_unknown with outcome_unknown
+  ---
+  duration_ms: 35.232044
+  type: 'test'
+  ...
+# Subtest: issue1: ordinary observed_stopped includes stopped_worker_epoch === current_worker_epoch
+ok 137 - issue1: ordinary observed_stopped includes stopped_worker_epoch === current_worker_epoch
+  ---
+  duration_ms: 19.168027
+  type: 'test'
+  ...
+# Subtest: issue1: superseded stop receipt is stable on duplicate submission
+ok 138 - issue1: superseded stop receipt is stable on duplicate submission
+  ---
+  duration_ms: 32.727423
+  type: 'test'
+  ...
+# Subtest: merged rpc tools=1: typed resources/tools, child lineage and job-bound FD report
+ok 139 - merged rpc tools=1: typed resources/tools, child lineage and job-bound FD report
+  ---
+  duration_ms: 974.996155
+  type: 'test'
+  ...
+# Subtest: merged rpc tools=0: typed resources/tools, child lineage and job-bound FD report
+ok 140 - merged rpc tools=0: typed resources/tools, child lineage and job-bound FD report
+  ---
+  duration_ms: 952.613914
+  type: 'test'
+  ...
+# Subtest: merged sdk tools=1: typed resources/tools, child lineage and job-bound FD report
+ok 141 - merged sdk tools=1: typed resources/tools, child lineage and job-bound FD report
+  ---
+  duration_ms: 1459.827155
+  type: 'test'
+  ...
+# Subtest: merged sdk tools=0: typed resources/tools, child lineage and job-bound FD report
+ok 142 - merged sdk tools=0: typed resources/tools, child lineage and job-bound FD report
+  ---
+  duration_ms: 1512.513858
+  type: 'test'
+  ...
+# Subtest: merged acp tools=1: typed resources/tools, child lineage and job-bound FD report
+ok 143 - merged acp tools=1: typed resources/tools, child lineage and job-bound FD report
+  ---
+  duration_ms: 1617.187777
+  type: 'test'
+  ...
+# Subtest: merged acp tools=0: typed resources/tools, child lineage and job-bound FD report
+ok 144 - merged acp tools=0: typed resources/tools, child lineage and job-bound FD report
+  ---
+  duration_ms: 1422.530191
+  type: 'test'
+  ...
+# Subtest: canonical idempotency ignores transport id, not operation content
+ok 145 - canonical idempotency ignores transport id, not operation content
+  ---
+  duration_ms: 7.413898
+  type: 'test'
+  ...
+# Subtest: intent and dispatch are durable before effect; duplicate attempts dispatch once
+ok 146 - intent and dispatch are durable before effect; duplicate attempts dispatch once
+  ---
+  duration_ms: 8.248815
+  type: 'test'
+  ...
+# Subtest: refusal versus uncertain timeout, plus no eviction at capacity
+ok 147 - refusal versus uncertain timeout, plus no eviction at capacity
+  ---
+  duration_ms: 20.891682
+  type: 'test'
+  ...
+# Subtest: recovery separates undispatched intent from dispatch; neither is replayed
+ok 148 - recovery separates undispatched intent from dispatch; neither is replayed
+  ---
+  duration_ms: 8.494029
+  type: 'test'
+  ...
+# Subtest: legacy intent_ready without an owner tombstone recovers as no_effect, not ready
+ok 149 - legacy intent_ready without an owner tombstone recovers as no_effect, not ready
+  ---
+  duration_ms: 3.847662
+  type: 'test'
+  ...
+# Subtest: journal admission reserves full result room and never begins an effect without it
+ok 150 - journal admission reserves full result room and never begins an effect without it
+  ---
+  duration_ms: 1.60561
+  type: 'test'
+  ...
+# Subtest: a late callback on a CLOSED journal cannot corrupt a newly opened journal via recycled fd
+ok 151 - a late callback on a CLOSED journal cannot corrupt a newly opened journal via recycled fd
+  ---
+  duration_ms: 5.089583
+  type: 'test'
+  ...
+# Subtest: journal truncates a torn final record, rejects complete corruption or sequence gaps
+ok 152 - journal truncates a torn final record, rejects complete corruption or sequence gaps
+  ---
+  duration_ms: 4.161378
+  type: 'test'
+  ...
+# Subtest: relaunch refuses a replacement checkout writer; fresh epoch rejects ordinary stale writes and ignores retired callbacks
+ok 153 - relaunch refuses a replacement checkout writer; fresh epoch rejects ordinary stale writes and ignores retired callbacks
+  ---
+  duration_ms: 75.645889
+  type: 'test'
+  ...
+# Subtest: owner-kept intent is session-bound and once only (move=none)
+ok 154 - owner-kept intent is session-bound and once only (move=none)
+  ---
+  duration_ms: 63.892139
+  type: 'test'
+  ...
+# Subtest: owner-kept intent is session-bound and once only (move=new)
+ok 155 - owner-kept intent is session-bound and once only (move=new)
+  ---
+  duration_ms: 47.699022
+  type: 'test'
+  ...
+# Subtest: owner-kept intent is session-bound and once only (move=resume)
+ok 156 - owner-kept intent is session-bound and once only (move=resume)
+  ---
+  duration_ms: 41.054022
+  type: 'test'
+  ...
+# Subtest: owner-kept intent is session-bound and once only (move=new-relaunch)
+ok 157 - owner-kept intent is session-bound and once only (move=new-relaunch)
+  ---
+  duration_ms: 61.69287
+  type: 'test'
+  ...
+# Subtest: relaunch requires recorded confirmed cleanup (restart=false)
+ok 158 - relaunch requires recorded confirmed cleanup (restart=false)
+  ---
+  duration_ms: 19.876208
+  type: 'test'
+  ...
+# Subtest: relaunch requires recorded confirmed cleanup (restart=true)
+ok 159 - relaunch requires recorded confirmed cleanup (restart=true)
+  ---
+  duration_ms: 25.605587
+  type: 'test'
+  ...
+# Subtest: process-group fallback never authorizes fresh-process relaunch
+ok 160 - process-group fallback never authorizes fresh-process relaunch
+  ---
+  duration_ms: 18.819701
+  type: 'test'
+  ...
+# Subtest: relaunch verifies the returned session file, not just successful switch
+ok 161 - relaunch verifies the returned session file, not just successful switch
+  ---
+  duration_ms: 40.95082
+  type: 'test'
+  ...
+# Subtest: spontaneous leader exit immediately cleans domain (confirmed=false)
+ok 162 - spontaneous leader exit immediately cleans domain (confirmed=false)
+  ---
+  duration_ms: 23.098953
+  type: 'test'
+  ...
+# Subtest: spontaneous leader exit immediately cleans domain (confirmed=true)
+ok 163 - spontaneous leader exit immediately cleans domain (confirmed=true)
+  ---
+  duration_ms: 17.327119
+  type: 'test'
+  ...
+# Subtest: files.read pins roots, refuses hidden/traversal/symlink paths, non-UTF8, sockets, and oversize files
+ok 164 - files.read pins roots, refuses hidden/traversal/symlink paths, non-UTF8, sockets, and oversize files
+  ---
+  duration_ms: 7.559793
+  type: 'test'
+  ...
+# Subtest: sandbox history and session directory provisioning cannot follow outside symlinks
+ok 165 - sandbox history and session directory provisioning cannot follow outside symlinks
+  ---
+  duration_ms: 2.561726
+  type: 'test'
+  ...
+# Subtest: sandbox launch refuses mismatched roots, parent state exposure, non-child and external resources
+ok 166 - sandbox launch refuses mismatched roots, parent state exposure, non-child and external resources
+  ---
+  duration_ms: 11.034544
+  type: 'test'
+  ...
+# Subtest: sandbox refuses user runtime control paths (equal)
+ok 167 - sandbox refuses user runtime control paths (equal)
+  ---
+  duration_ms: 6.514454
+  type: 'test'
+  ...
+# Subtest: sandbox refuses user runtime control paths (ancestor)
+ok 168 - sandbox refuses user runtime control paths (ancestor)
+  ---
+  duration_ms: 6.25484
+  type: 'test'
+  ...
+# Subtest: sandbox refuses user runtime control paths (descendant)
+ok 169 - sandbox refuses user runtime control paths (descendant)
+  ---
+  duration_ms: 6.037007
+  type: 'test'
+  ...
+# Subtest: sandbox refuses user runtime control paths (bus)
+ok 170 - sandbox refuses user runtime control paths (bus)
+  ---
+  duration_ms: 5.517627
+  type: 'test'
+  ...
+# Subtest: sandbox refuses user runtime control paths (bus-ancestor)
+ok 171 - sandbox refuses user runtime control paths (bus-ancestor)
+  ---
+  duration_ms: 6.107511
+  type: 'test'
+  ...
+# Subtest: sandbox refuses user runtime control paths (symlink)
+ok 172 - sandbox refuses user runtime control paths (symlink)
+  ---
+  duration_ms: 5.84331
+  type: 'test'
+  ...
+# Subtest: sandbox refuses default user runtime, private kernel mounts and nested cgroup/socket roots
+ok 173 - sandbox refuses default user runtime, private kernel mounts and nested cgroup/socket roots
+  ---
+  duration_ms: 7.41555
+  type: 'test'
+  ...
+# Subtest: sandbox host uses environment allowlist and a private PID namespace
+ok 174 - sandbox host uses environment allowlist and a private PID namespace
+  ---
+  duration_ms: 14.094339
+  type: 'test'
+  ...
+# Subtest: sandboxed parent cannot create an unconfined child
+ok 175 - sandboxed parent cannot create an unconfined child
+  ---
+  duration_ms: 23.528529
+  type: 'test'
+  ...
+# Subtest: bwrap SDK child cannot read outside sentinel/socket/grants; inherited FD delivers its report
+ok 176 - bwrap SDK child cannot read outside sentinel/socket/grants; inherited FD delivers its report
+  ---
+  duration_ms: 1357.607875
+  type: 'test'
+  ...
+# Subtest: automatic follow_up flush is not owner-ready and recovers without redispatch eligibility
+ok 177 - automatic follow_up flush is not owner-ready and recovers without redispatch eligibility
+  ---
+  duration_ms: 121.228784
+  type: 'test'
+  ...
+# Subtest: automatic child flush is not owner-ready and recovers without redispatch eligibility
+ok 178 - automatic child flush is not owner-ready and recovers without redispatch eligibility
+  ---
+  duration_ms: 103.699185
+  type: 'test'
+  ...
+# Subtest: direct revoked prompt leaves no running execution and never fences on exit
+ok 179 - direct revoked prompt leaves no running execution and never fences on exit
+  ---
+  duration_ms: 22.726631
+  type: 'test'
+  ...
+# Subtest: direct revoked create leaves no ghost worker or cwd reservation
+ok 180 - direct revoked create leaves no ghost worker or cwd reservation
+  ---
+  duration_ms: 16.298686
+  type: 'test'
+  ...
+# Subtest: post-write rebind collision is unknown and fenced
+ok 181 - post-write rebind collision is unknown and fenced
+  ---
+  duration_ms: 46.589917
+  type: 'test'
+  ...
+# Subtest: post-write rebind resume-mismatch is unknown and fenced
+ok 182 - post-write rebind resume-mismatch is unknown and fenced
+  ---
+  duration_ms: 44.352141
+  type: 'test'
+  ...
+# Subtest: post-write rebind cancelled is unknown and fenced
+ok 183 - post-write rebind cancelled is unknown and fenced
+  ---
+  duration_ms: 43.905529
+  type: 'test'
+  ...
+# Subtest: observed accepts an exact fsynced settlement after restart, never a different run
+ok 184 - observed accepts an exact fsynced settlement after restart, never a different run
+  ---
+  duration_ms: 34.931789
+  type: 'test'
+  ...
+# Subtest: observed rejects delivered admission, agent_end and attribution without settlement
+ok 185 - observed rejects delivered admission, agent_end and attribution without settlement
+  ---
+  duration_ms: 21.891434
+  type: 'test'
+  ...
+# Subtest: late exit cleanup cannot retire a relaunched generation (gone=true)
+ok 186 - late exit cleanup cannot retire a relaunched generation (gone=true)
+  ---
+  duration_ms: 49.995033
+  type: 'test'
+  ...
+# Subtest: late exit cleanup cannot retire a relaunched generation (gone=false)
+ok 187 - late exit cleanup cannot retire a relaunched generation (gone=false)
+  ---
+  duration_ms: 33.314182
+  type: 'test'
+  ...
+# Subtest: late stop cleanup cannot retire a relaunched generation (gone=true)
+ok 188 - late stop cleanup cannot retire a relaunched generation (gone=true)
+  ---
+  duration_ms: 38.14405
+  type: 'test'
+  ...
+# Subtest: late stop cleanup cannot retire a relaunched generation (gone=false)
+ok 189 - late stop cleanup cannot retire a relaunched generation (gone=false)
+  ---
+  duration_ms: 37.741654
+  type: 'test'
+  ...
+# Subtest: late fault cleanup cannot retire a relaunched generation (gone=true)
+ok 190 - late fault cleanup cannot retire a relaunched generation (gone=true)
+  ---
+  duration_ms: 43.406129
+  type: 'test'
+  ...
+# Subtest: late fault cleanup cannot retire a relaunched generation (gone=false)
+ok 191 - late fault cleanup cannot retire a relaunched generation (gone=false)
+  ---
+  duration_ms: 54.509384
+  type: 'test'
+  ...
+# Subtest: owner-kept prompt binds to the successful retry after spawn failure (restart=false)
+ok 192 - owner-kept prompt binds to the successful retry after spawn failure (restart=false)
+  ---
+  duration_ms: 74.741969
+  type: 'test'
+  ...
+# Subtest: owner-kept prompt binds to the successful retry after spawn failure (restart=true)
+ok 193 - owner-kept prompt binds to the successful retry after spawn failure (restart=true)
+  ---
+  duration_ms: 74.891591
+  type: 'test'
+  ...
+# Subtest: owner-kept prompt binds to the successful retry after get_state failure (restart=false)
+ok 194 - owner-kept prompt binds to the successful retry after get_state failure (restart=false)
+  ---
+  duration_ms: 78.258311
+  type: 'test'
+  ...
+# Subtest: owner-kept prompt binds to the successful retry after get_state failure (restart=true)
+ok 195 - owner-kept prompt binds to the successful retry after get_state failure (restart=true)
+  ---
+  duration_ms: 89.292283
+  type: 'test'
+  ...
+# Subtest: a second successful relaunch does not rebind an undispatched owner-kept prompt
+ok 196 - a second successful relaunch does not rebind an undispatched owner-kept prompt
+  ---
+  duration_ms: 68.736669
+  type: 'test'
+  ...
+# Subtest: late stop after successful relaunch: termination is superseded_generation_stopped with both epoch fields
+ok 197 - late stop after successful relaunch: termination is superseded_generation_stopped with both epoch fields
+  ---
+  duration_ms: 30.516797
+  type: 'test'
+  ...
+# Subtest: late stop after failed cleanup, superseded generation: termination is superseded_generation_unknown
+ok 198 - late stop after failed cleanup, superseded generation: termination is superseded_generation_unknown
+  ---
+  duration_ms: 17.306358
+  type: 'test'
+  ...
+# Subtest: ordinary stop (non-superseded): termination is observed_stopped with matching epoch fields
+ok 199 - ordinary stop (non-superseded): termination is observed_stopped with matching epoch fields
+  ---
+  duration_ms: 20.629944
+  type: 'test'
+  ...
+# Subtest: stop idempotency: second stop call returns the same receipt
+ok 200 - stop idempotency: second stop call returns the same receipt
+  ---
+  duration_ms: 19.158464
+  type: 'test'
+  ...
+# Subtest: unknown stop (cleanup failed, no supersession): epoch fields still identify the targeted generation
+ok 201 - unknown stop (cleanup failed, no supersession): epoch fields still identify the targeted generation
+  ---
+  duration_ms: 21.548615
+  type: 'test'
+  ...
+# Subtest: SSE attach barrier: snapshot is first, no duplicate or missing event under reentrant emission
+ok 202 - SSE attach barrier: snapshot is first, no duplicate or missing event under reentrant emission
+  ---
+  duration_ms: 26.196383
+  type: 'test'
+  ...
+# Subtest: public HTTP/CLI client: identity, duplicate, stale binding, admission distinct from settlement, history, detach, stop
+ok 203 - public HTTP/CLI client: identity, duplicate, stale binding, admission distinct from settlement, history, detach, stop
+  ---
+  duration_ms: 72.734925
+  type: 'test'
+  ...
+# Subtest: crash after admission while running: journal unknown/fence, no prompt replay, rejected future write
+ok 204 - crash after admission while running: journal unknown/fence, no prompt replay, rejected future write
+  ---
+  duration_ms: 33.798059
+  type: 'test'
+  ...
+# Subtest: execution reservation cut before dispatch stays no_effect on recovery
+ok 205 - execution reservation cut before dispatch stays no_effect on recovery
+  ---
+  duration_ms: 27.241462
+  type: 'test'
+  ...
+# Subtest: supervisor projects admission, settlement, fence and stop to an already connected watcher
+ok 206 - supervisor projects admission, settlement, fence and stop to an already connected watcher
+  ---
+  duration_ms: 46.890152
+  type: 'test'
+  ...
+# Subtest: transport epoch changes across supervisor restart even when new seq catches the old cursor
+ok 207 - transport epoch changes across supervisor restart even when new seq catches the old cursor
+  ---
+  duration_ms: 15.038828
+  type: 'test'
+  ...
+# Subtest: history pages pin a branch watermark and ignore partial final JSONL
+ok 208 - history pages pin a branch watermark and ignore partial final JSONL
+  ---
+  duration_ms: 5.614101
+  type: 'test'
+  ...
+# Subtest: one supervisor stream filters workers/types, snapshot barrier, bounded explicit overflow and resync
+ok 209 - one supervisor stream filters workers/types, snapshot barrier, bounded explicit overflow and resync
+  ---
+  duration_ms: 31.984412
+  type: 'test'
+  ...
+# Subtest: client failure before connect is no_effect; after write is unknown, one attempt and keepalive disabled
+ok 210 - client failure before connect is no_effect; after write is unknown, one attempt and keepalive disabled
+  ---
+  duration_ms: 24.646777
+  type: 'test'
+  ...
+# Subtest: public client retains no_effect HTTP detail and supervisor-wide snapshot; overflow disables controls
+ok 211 - public client retains no_effect HTTP detail and supervisor-wide snapshot; overflow disables controls
+  ---
+  duration_ms: 42.215675
+  type: 'test'
+  ...
+1..211
+# tests 211
+# suites 0
+# pass 211
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 159666.549884
+Running as unit: a0-s7-artifact-kernel.service; invocation ID: 0cc1ed0bd9fa49d2abb31c685e926324
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 2min 44.010s
+CPU time consumed: 2min 10.559s
+Memory peak: 1.0M
+Memory swap peak: 0B

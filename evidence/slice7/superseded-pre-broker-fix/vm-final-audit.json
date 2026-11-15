@@ -1,0 +1,298 @@
+{
+  "producer": "slice7-final-service-and-source-audit",
+  "subject": {
+    "commit_id": "249be1b0ff539b723e95e6dcff106237fc555496",
+    "tree_id": "bc3cef7814d1e67caa4b5e6e84669c76383181fe"
+  },
+  "clock": "2026-11-15T17:28:10.183Z",
+  "node": "v22.21.1",
+  "git_version": "git version 2.43.0",
+  "loaded_a0_units": [],
+  "source_files": [
+    {
+      "path": "src/api.generated.ts",
+      "sha256": "24a6e4bbaf4775acb9065e97030f931b674a6a19f2b075c7f4971ec635370776"
+    },
+    {
+      "path": "src/artifact.ts",
+      "sha256": "c307e47e0c05e147f89e7072545c2fe1a8ef657b1ba17dbcdfb04287ce113cd4"
+    },
+    {
+      "path": "src/cli.ts",
+      "sha256": "dc9a5d43182eb7e96c267cbada87e610e63c28f50004d0c55cbd7afd53b928ac"
+    },
+    {
+      "path": "src/client.ts",
+      "sha256": "cea8edbad135d943f4c2599102a846850055a79c7b5e717a4f1533ef5c91c47b"
+    },
+    {
+      "path": "src/containment.ts",
+      "sha256": "cfdb673f3ee3182ff564de83be19787c40450e8ede983d4847c46da517cbe02a"
+    },
+    {
+      "path": "src/events.ts",
+      "sha256": "0f81ca7191ebd96df1be0978d0ddd3b4b40b64c8553b768e890622926a3a0760"
+    },
+    {
+      "path": "src/fsync.ts",
+      "sha256": "5d75531b455b5aea13893defddfe412e2efd3b1d0f9a686c35c12c0a98a140b6"
+    },
+    {
+      "path": "src/git-sandbox.ts",
+      "sha256": "122b14f9b7a53617e94b794d7cf82139379cfbc199a39c6ed3c0371ab1d40f24"
+    },
+    {
+      "path": "src/grants.ts",
+      "sha256": "e7c8332e247e506cc2a79fb9e64b3ec6588f131dd94cdd3392de5d37992a04ba"
+    },
+    {
+      "path": "src/host.ts",
+      "sha256": "0df3a8457693ea15f9f46e28c7d40d9ae2ed638141b0f5f4d6ffdca89b6fa605"
+    },
+    {
+      "path": "src/interactions.ts",
+      "sha256": "85c004f06256a506ce57e4c0cdd489183b91d95c1558ec44df0165d5985151a3"
+    },
+    {
+      "path": "src/journal.ts",
+      "sha256": "b4684a8fe0c654b826ad839a03d77305bf6a7254d748db1b6e520c3634abf507"
+    },
+    {
+      "path": "src/library-host.ts",
+      "sha256": "93ac62e28ae0d2a9bd4021f3465d6ab4a1942bbf7f7d3fca95b2cf624dc1f7fe"
+    },
+    {
+      "path": "src/main.ts",
+      "sha256": "ee946f08c223841b8ea5c814aaf40d864fe9fb89b25b1d650637115b31d73352"
+    },
+    {
+      "path": "src/process.ts",
+      "sha256": "9bb5d880bfcd2b55f9597c34dcbbce35777881c9936763c4c24b064176c403fa"
+    },
+    {
+      "path": "src/receipts.ts",
+      "sha256": "fa1598e6f9dbadb6bc04be682742b490fed3d3ab9c10c7894ff6e5c8e758f3ea"
+    },
+    {
+      "path": "src/resolvers.ts",
+      "sha256": "6e339bf67d8813b5cc11e96b6e4aa444426e6c40c7741815f8676b49ffc2cee8"
+    },
+    {
+      "path": "src/rpc-audit.ts",
+      "sha256": "6ebcb8b12bf0d279b3f136c7d9cebfac7d6ab400b80e313ae2154612517c4da4"
+    },
+    {
+      "path": "src/sandbox.ts",
+      "sha256": "28e1f6c4753340601b3f2fb4fedab2f993c995fbdeca5dc6bcc6944e7708d463"
+    },
+    {
+      "path": "src/sdk-child.ts",
+      "sha256": "3455fc8b506a8df8af8d3a81a997f83c545a9b638e27bd97eb92bca9636ce965"
+    },
+    {
+      "path": "src/server.ts",
+      "sha256": "d3b69d20a2d716c43bef6e46b2e2dcb09e61fd6fa16adc18b3a7eed725ebce8f"
+    },
+    {
+      "path": "src/session.ts",
+      "sha256": "7343d96f5332a62a992a1e152e235993ba9512f18514a02c4199ddf96e385f87"
+    },
+    {
+      "path": "src/supervisor.ts",
+      "sha256": "b1c1ddeb87803cc81365acc5ef8e75dea08595a289b0bf1c35ae6464901fb166"
+    },
+    {
+      "path": "src/test/acp-profile.test.ts",
+      "sha256": "b500af47891f4a888a7020e257fad85d65f5a21d7131d558aae11afc2be1ead5"
+    },
+    {
+      "path": "src/test/binding-answer-race.test.ts",
+      "sha256": "d94eb32736d3b01862f7876b1a99570c7136766a0a95fb417446525dda8da7da"
+    },
+    {
+      "path": "src/test/children-crash.test.ts",
+      "sha256": "c7a59686992f3459d8dc999c448e5140508273892ccae9db1b2f3026159b6e33"
+    },
+    {
+      "path": "src/test/children.test.ts",
+      "sha256": "abc043f0a2e8ff6d5ad73cb6dd4a7207db61b5c95e0a8a93bdd28036d4e68a09"
+    },
+    {
+      "path": "src/test/conformance.test.ts",
+      "sha256": "066886ec7e2d77994bbd431befb6f4a8e0b3d365a154a2a596b1c2a243061154"
+    },
+    {
+      "path": "src/test/containment-crash.test.ts",
+      "sha256": "4dc125ccb8956441a141ba66eb47432a5ddf3e66b63cea460634018f7e064376"
+    },
+    {
+      "path": "src/test/containment.test.ts",
+      "sha256": "9495a313bbc2cc779c661d6d3135f7c70e736b5451e2bcd740fd6773ee30c2fe"
+    },
+    {
+      "path": "src/test/crash-matrix.test.ts",
+      "sha256": "f92b853d4f26db7daa77dd57f6334f7e83f1f4340706ce4649d78b53b310d1fe"
+    },
+    {
+      "path": "src/test/fix-round.test.ts",
+      "sha256": "53dcecca775b5e8c7da39f7d08e2f47dac6a23367d76d3492521a75dbbe3e1bf"
+    },
+    {
+      "path": "src/test/fixtures/README.md",
+      "sha256": "fc3da330733b95d8fb338595a4a865c8c5ffcd3a8ccdb6628551a2092a2be1a8"
+    },
+    {
+      "path": "src/test/fixtures/children-cut.ts",
+      "sha256": "135b90a74555214e2da6dc26fdcc349b6cf10b84695053e24f1181681ca5ab8b"
+    },
+    {
+      "path": "src/test/fixtures/containment-cut.ts",
+      "sha256": "a73a0721315b7663d6b7b1d333a3cf12c32f96bb425b65f612fca5d9802c7650"
+    },
+    {
+      "path": "src/test/fixtures/crash-child.ts",
+      "sha256": "bde7e6ec671e92b022b67aea3bd8c43cedc9128379d0582753baf6675a615518"
+    },
+    {
+      "path": "src/test/fixtures/fake-pi.mjs",
+      "sha256": "786fe2c5d495cea38e2118a6d9b85cfeecaca7086a202c5ab039ef4648273d56"
+    },
+    {
+      "path": "src/test/fixtures/interaction-crash-child.ts",
+      "sha256": "27119af25454ef302e586ea05f95d8fcdc39003b1570b69e01c1cf1f301ff512"
+    },
+    {
+      "path": "src/test/fixtures/queue-cut.ts",
+      "sha256": "12357c437223e32f4d522dca74b7f5b4ab6f809627dd43a30c1d73717afb6253"
+    },
+    {
+      "path": "src/test/fixtures/transitions.json",
+      "sha256": "df46000c8d11e2d0d538e8228a60ad0134f4315d2f6c268e04311988e6f83891"
+    },
+    {
+      "path": "src/test/gate1-artifact.test.ts",
+      "sha256": "fa8a4db9d88f508145677d5888b0c5b395324cd3a4b968fa2cdfdbe4f54ab185"
+    },
+    {
+      "path": "src/test/gate1-git.test.ts",
+      "sha256": "06993ab1355667a93224b4617d25233ca916bac3acb7b862b170334f5d981fa6"
+    },
+    {
+      "path": "src/test/gate1-native-binding.test.ts",
+      "sha256": "02ac182a7c5440f72211ae4370c13dfef4955810d9312fcf33beb1d8250964d4"
+    },
+    {
+      "path": "src/test/gate1-parent.test.ts",
+      "sha256": "63790989cd05ddacd6cc92b77b2fb642a4ce84f4b2105430295f68481b50cfcc"
+    },
+    {
+      "path": "src/test/gate1-pi-cuts.test.ts",
+      "sha256": "7a827433d040deff082230017e720e116ef9a8722ec3c8aa433295dadf5c12ab"
+    },
+    {
+      "path": "src/test/gate1-sibling.test.ts",
+      "sha256": "a81a6f660e33f8ba3b4224252800aa9f97da35ea6ebf125e835a33f4c8e5acf9"
+    },
+    {
+      "path": "src/test/grants.test.ts",
+      "sha256": "11f8979e4ff5f340102325eb5ca9409662554cb73d02e7e0c922710f9de897f7"
+    },
+    {
+      "path": "src/test/helpers.ts",
+      "sha256": "f4021a69438e62b643752c0df12e5926bec34d0d0ac23250029f49d8ebb5a707"
+    },
+    {
+      "path": "src/test/host.test.ts",
+      "sha256": "7feb2b69a03f68f093b54aa9984ec8f208e4494c427e82db630c77e81a5b27b8"
+    },
+    {
+      "path": "src/test/interaction-crash.test.ts",
+      "sha256": "3c56e8f86be2291ff6070f92b8458ffda1de6ebea879c78e727108d63e1fedc0"
+    },
+    {
+      "path": "src/test/interactions.test.ts",
+      "sha256": "e8a5777d5deb663559b94d0269f23484809ade894eb2af2bf9ac8b18ca3d41c9"
+    },
+    {
+      "path": "src/test/invariants.test.ts",
+      "sha256": "c078416f76072b81bd7ab79f41a15a7494e98d7eef796586704ddd8671bd234f"
+    },
+    {
+      "path": "src/test/issue1-stop.test.ts",
+      "sha256": "b52bf7391223d72562dd92e9d2323fc190050606b746715f8c791ffb6a3441e1"
+    },
+    {
+      "path": "src/test/merged-host-children.test.ts",
+      "sha256": "3dbb79b2b625acadd9d94528c1e9523ff3a52679ae8dcdbabe2a3dca2285aaa8"
+    },
+    {
+      "path": "src/test/receipts.test.ts",
+      "sha256": "30765f5cb14f6463e51156975085dea3d3e3af531e81827c6c10a3b35479684c"
+    },
+    {
+      "path": "src/test/relaunch.test.ts",
+      "sha256": "778e924853aca35944d703a063a6304d539b358d025be35e8163ce114e8a98b1"
+    },
+    {
+      "path": "src/test/review5-fixes.test.ts",
+      "sha256": "6db55593983391366480f66b1d68959405ce028fa193f5167aa7467c6b2d5f3f"
+    },
+    {
+      "path": "src/test/sandbox.test.ts",
+      "sha256": "808bbff5e1a36be1424b20990df453f81e4edc115a3ee9152039015a5fe0571d"
+    },
+    {
+      "path": "src/test/slice2-fix.test.ts",
+      "sha256": "125aca1f7aab48bb42690786a26a67ac1feadae61eea46f04d0cd6da8c8ed42e"
+    },
+    {
+      "path": "src/test/slice5-followups.test.ts",
+      "sha256": "f446b52d2112146db1c84d34dc80f52fce51707d8715c1b180d774924431a584"
+    },
+    {
+      "path": "src/test/stop-superseded.test.ts",
+      "sha256": "b260dce19101316d3d298554e209176f7391f62f27262e95f0c5b1a6050efc30"
+    },
+    {
+      "path": "src/test/supervisor.test.ts",
+      "sha256": "5cb7d26e398a18296460a0ed58f66e6d2578effb5897ac11cc2b63923aa843c6"
+    },
+    {
+      "path": "src/test/transport.test.ts",
+      "sha256": "6a8c2a9119888f095b8fe1cb3e23cb381cb5e55c22d631115bb8b98de419b8e8"
+    },
+    {
+      "path": "src/types.ts",
+      "sha256": "8e7d8cbac26704ee0e8f738ccfcee9d4ed7bbc3cb399e546e513dc474cc08274"
+    },
+    {
+      "path": "package.json",
+      "sha256": "eb3cb29f32f4570cd3af25b9aaa61d6f9e7fc00766d35506bd5f18504129846d"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "19839b109f29ce81967428ff52c4c0a69d26e6210c4babbc3d8d016dd89cbd0f"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "7b2aa705a1fef2ba87348b2ce86bbeff750768eb213b88b22b819036f5805a86"
+    },
+    {
+      "path": "openapi.json",
+      "sha256": "15a8dc4c456a0cab51f370649b65124483a22b9324e8f25ddb2552e24d36401d"
+    }
+  ],
+  "credential_boundary": {
+    "checked_standard_credential_file_paths": [
+      ".git-credentials",
+      ".config/gh/hosts.yml",
+      ".config/hub"
+    ],
+    "credential_files_present": [],
+    "github_credential_env_names": [],
+    "git_credential_helper_configured": false,
+    "github_token_pattern_in_staged_store": false,
+    "transferred_github_credentials": false,
+    "limitations": "standard mechanisms/patterns only; not an exhaustive VM filesystem credential search"
+  }
+}

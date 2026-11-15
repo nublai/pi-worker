@@ -1,0 +1,33 @@
+{
+  "producer": "slice7-total-attention-accounting",
+  "subject": {
+    "commit_id": "07832f232b8b97e5c06f074fac60074b38ee33a3",
+    "tree_id": "8489c92caa773802a3c57440de20d6a10e4380b3"
+  },
+  "runs": [
+    {
+      "path": "/tmp/a0s7/run",
+      "status": "superseded-after-broker-bug",
+      "prompts": 1,
+      "answers": 0,
+      "acceptances": 1,
+      "owner_write_actions": 5
+    },
+    {
+      "path": "/tmp/a0s7/run2",
+      "status": "final-verified",
+      "prompts": 1,
+      "answers": 0,
+      "acceptances": 1,
+      "owner_write_actions": 5
+    }
+  ],
+  "authorization_interventions": 4,
+  "owner_write_actions": 10,
+  "verified_current_changes": 1,
+  "verified_prs": 0,
+  "founder_live_touches": 0,
+  "active_human_attention_minutes": null,
+  "minutes_per_verified_pr": null,
+  "note": "Includes the earlier invalidated acceptance; setup/debug/test authoring remain disclosed automated overhead, not measured human attention."
+}
