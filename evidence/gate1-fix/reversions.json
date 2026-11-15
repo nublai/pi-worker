@@ -1,0 +1,125 @@
+{
+  "producer": "gate1-fix-isolated-reversion-runner",
+  "subject_commit": "2a3ba0848a91ab10086b3c70a0151efcd25b0f8d",
+  "test_file": "src/test/gate1-fix.test.ts",
+  "env": "A0_TEST_BWRAP=1 (real bwrap), no cgroup delegation needed",
+  "reversions": [
+    {
+      "name": "d1-copy-whole-profile",
+      "defect": "D1",
+      "file": "src/pinned-fs.ts",
+      "compiled": true,
+      "exit_code": 1,
+      "guard_tests": [
+        "D1: a real-size profile",
+        "kernel D1:"
+      ],
+      "failed_tests": [
+        "✖ D1: a real-size profile (20k+ entries, node_modules shape) stages small and binds its dependency tree read-only by descriptor",
+        "✖ kernel D1: a sandboxed parent launches a channel child with a 20k+ entry profile; the child loads code from the read-only dependency bind"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "d1-copy-whole-profile.log",
+      "log_sha256": "dbe188d8cc2a4e78410801389f386374297bd965c256de67ab1d6aaed8c0873b",
+      "diff": "d1-copy-whole-profile.diff"
+    },
+    {
+      "name": "d1-dependency-bind-writable",
+      "defect": "D1",
+      "file": "src/sandbox.ts",
+      "compiled": true,
+      "exit_code": 1,
+      "guard_tests": [
+        "D1: a real-size profile",
+        "kernel D1:"
+      ],
+      "failed_tests": [
+        "✖ D1: a real-size profile (20k+ entries, node_modules shape) stages small and binds its dependency tree read-only by descriptor",
+        "✖ kernel D1: a sandboxed parent launches a channel child with a 20k+ entry profile; the child loads code from the read-only dependency bind"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "d1-dependency-bind-writable.log",
+      "log_sha256": "cbc75fbe4a57c2a3717d6a995451b8cf4a27e0084ca4f85746f618769850c06a",
+      "diff": "d1-dependency-bind-writable.diff"
+    },
+    {
+      "name": "d2-refusal-default-no-effect",
+      "defect": "D2",
+      "file": "src/receipts.ts",
+      "compiled": true,
+      "exit_code": 1,
+      "guard_tests": [
+        "D2: after the dispatch record"
+      ],
+      "failed_tests": [
+        "✖ D2: after the dispatch record a plain Refusal is outcome_unknown; only ProvenNoEffect is rejected/no_effect"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "d2-refusal-default-no-effect.log",
+      "log_sha256": "0f862f4aab214e71179534b788005df12328b684b4c838c8dd667403796ae3ea",
+      "diff": "d2-refusal-default-no-effect.diff"
+    },
+    {
+      "name": "d2-no-cleanup",
+      "defect": "D2",
+      "file": "src/supervisor.ts",
+      "compiled": true,
+      "exit_code": 1,
+      "guard_tests": [
+        "D1: the copied part keeps",
+        "D2+D3:"
+      ],
+      "failed_tests": [
+        "✖ D1: the copied part keeps its entry budget; a refusal after dispatch leaves nothing staged",
+        "✖ D2+D3: a staging failure after dispatch is cleaned, verified and reported no_effect; the child row ends failed and frees its root"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "d2-no-cleanup.log",
+      "log_sha256": "46f52fccf2d48a7fffeb2486362ba962d20fc787273602c7e86e5c02370ed2b7",
+      "diff": "d2-no-cleanup.diff"
+    },
+    {
+      "name": "d2-no-verification",
+      "defect": "D2",
+      "file": "src/supervisor.ts",
+      "compiled": true,
+      "exit_code": 1,
+      "guard_tests": [
+        "D2: an unverified staging cleanup"
+      ],
+      "failed_tests": [
+        "✖ D2: an unverified staging cleanup is outcome_unknown and fences the parent"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "d2-no-verification.log",
+      "log_sha256": "867cab8c65413b48659b595cb2a92586e58bebf997cb34365498be13003f2415",
+      "diff": "d2-no-verification.diff"
+    },
+    {
+      "name": "d3-row-left-starting",
+      "defect": "D3",
+      "file": "src/supervisor.ts",
+      "compiled": true,
+      "exit_code": 1,
+      "guard_tests": [
+        "D2+D3:"
+      ],
+      "failed_tests": [
+        "✖ D2+D3: a staging failure after dispatch is cleaned, verified and reported no_effect; the child row ends failed and frees its root",
+        "✖ D2: an unverified staging cleanup is outcome_unknown and fences the parent"
+      ],
+      "assertion_failure": true,
+      "killed": true,
+      "log": "d3-row-left-starting.log",
+      "log_sha256": "b546955daf02622f326c8043e4a08fe3eee0d003f1c611927d7aa7f061670f07",
+      "diff": "d3-row-left-starting.diff"
+    }
+  ],
+  "killed": 6,
+  "total": 6
+}

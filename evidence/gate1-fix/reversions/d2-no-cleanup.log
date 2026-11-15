@@ -1,0 +1,58 @@
+BUILD exit 0
+
+✔ D1: a real-size profile (20k+ entries, node_modules shape) stages small and binds its dependency tree read-only by descriptor (165.027621ms)
+✖ D1: the copied part keeps its entry budget; a refusal after dispatch leaves nothing staged (256.280962ms)
+✖ D2+D3: a staging failure after dispatch is cleaned, verified and reported no_effect; the child row ends failed and frees its root (16.257801ms)
+✔ D2: an unverified staging cleanup is outcome_unknown and fences the parent (7.46465ms)
+✔ D2: after the dispatch record a plain Refusal is outcome_unknown; only ProvenNoEffect is rejected/no_effect (1.118797ms)
+✔ kernel D1: a sandboxed parent launches a channel child with a 20k+ entry profile; the child loads code from the read-only dependency bind (800.342113ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 4
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1309.030146
+
+✖ failing tests:
+
+test at dist/test/gate1-fix.test.js:114:1
+✖ D1: the copied part keeps its entry budget; a refusal after dispatch leaves nothing staged (256.280962ms)
+  AssertionError [ERR_ASSERTION]: {"command_id":"over","operation":"workers.create","request_hash":"062e01dd70c7d90e3bbc35e65da3ab95e2e0ad6d16bf6a8d55852b3f9b1d8fe5","state":"outcome_unknown","stage":"unknown","effect":"unknown","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T21:58:52.483Z","worker_id":"d3b8ccb3-977b-4dc3-8e8b-cb579d7818e6","error":"profile_copy_too_many_entries"}
+  + actual - expected
+  
+  + 'unknown'
+  - 'no_effect'
+  
+      at TestContext.<anonymous> (file:///tmp/a0g1f/rev/d2-no-cleanup/dist/test/gate1-fix.test.js:124:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'unknown',
+    expected: 'no_effect',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/gate1-fix.test.js:132:1
+✖ D2+D3: a staging failure after dispatch is cleaned, verified and reported no_effect; the child row ends failed and frees its root (16.257801ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'outcome_unknown'
+  - 'rejected'
+  
+      at TestContext.<anonymous> (file:///tmp/a0g1f/rev/d2-no-cleanup/dist/test/gate1-fix.test.js:143:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'outcome_unknown',
+    expected: 'rejected',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

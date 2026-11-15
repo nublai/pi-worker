@@ -1,0 +1,13 @@
+diff --git 1/home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/src/sandbox.ts 2/tmp/a0g1f/rev/d1-dependency-bind-writable/src/sandbox.ts
+index 793ae27..a0e0705 100644
+--- 1/home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/src/sandbox.ts
++++ 2/tmp/a0g1f/rev/d1-dependency-bind-writable/src/sandbox.ts
+@@ -89,7 +89,7 @@ export function sandboxLaunch(root: string, command: string, args: string[], par
+       let point: number;
+       try { point = openUnder(rootFd, ['.a0-agent', ...dep.dest], 'dir'); } catch { throw new Refusal('sandbox_dependency_mount_point_invalid'); }
+       closeSync(point);
+-      bind('ro-bind', dep.fd, join(root, '.a0-agent', ...dep.dest));
++      bind('bind', dep.fd, join(root, '.a0-agent', ...dep.dest));
+     }
+     mounts.push('--chdir', root, '--dir', '/tmp/a0-home');
+     // Pi may read only the deliberately staged credential stores, read-only. No

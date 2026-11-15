@@ -1,0 +1,12 @@
+diff --git 1/home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/src/supervisor.ts 2/tmp/a0g1f/rev/d3-row-left-starting/src/supervisor.ts
+index 7f8d874..986fe4c 100644
+--- 1/home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/src/supervisor.ts
++++ 2/tmp/a0g1f/rev/d3-row-left-starting/src/supervisor.ts
+@@ -514,7 +514,6 @@ export class Supervisor {
+       } catch (error) {
+         // No host was constructed. The row ends terminal (never live); the
+         // receipt's label comes from the error: unknown unless proven.
+-        await this.launchFailed(live, c.command_id, error);
+         throw error;
+       }
+       live.pid = host.pid ?? null; live.token = host.token; this.persist(live);

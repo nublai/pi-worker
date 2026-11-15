@@ -1,0 +1,13 @@
+diff --git 1/home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/src/pinned-fs.ts 2/tmp/a0g1f/rev/d1-copy-whole-profile/src/pinned-fs.ts
+index 3c95c96..d83fdc5 100644
+--- 1/home/g/.herdr/worktrees/pi-worker/a0-gate1-rerun/src/pinned-fs.ts
++++ 2/tmp/a0g1f/rev/d1-copy-whole-profile/src/pinned-fs.ts
+@@ -121,7 +121,7 @@ export const MAX_DEPENDENCY_BINDS = 64;
+  * descriptor is closed; the partial copy is the caller's to remove. */
+ export function stageProfileAt(source: number, dest: number): DependencyBind[] {
+   const found: DependencyBind[] = [];
+-  try { copyTreeAt(source, dest, { entries: 0, bytes: 0 }, 0, 'recreate', { prefix: [], found }); return found; }
++  try { copyTreeAt(source, dest, { entries: 0, bytes: 0 }, 0, 'recreate'); return found; }
+   catch (error) { for (const bind of found) closeSync(bind.fd); throw error; }
+ }
+ /** Remove entry `name` below open directory `parent` without following any
