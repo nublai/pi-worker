@@ -126,7 +126,10 @@ export function router(supervisor: Supervisor, channel?: ParentChannel): Server 
               return join(childProfile, relative(realpathSync(profile), realpathSync(path)));
             };
             c.launch_spec.resources = { extensions: c.launch_spec.resources.extensions.map(remap), skills: c.launch_spec.resources.skills.map(remap) };
-            cpSync(profile, childProfile, { recursive: true, dereference: true, errorOnExist: true, force: false });
+            // The parent controls this tree. Preserve links verbatim: dereferencing
+            // here would let the unsandboxed broker copy an inaccessible grant
+            // into the child workspace, bypassing the parent's filesystem jail.
+            cpSync(profile, childProfile, { recursive: true, dereference: false, verbatimSymlinks: true, errorOnExist: true, force: false });
             c.host = 'sdk'; c.launch_spec.environment.filesystem = 'bwrap'; c.launch_spec.environment.root = realpathSync(c.cwd);
           }
           return json(res, await run('workers.create', () => supervisor.create(c), c.parent?.worker_id, c.cwd));

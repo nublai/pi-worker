@@ -1,0 +1,10 @@
+✔ parent channel staging never dereferences profile symlinks into supervisor secrets (17.95187ms)
+✔ project extension reaches B2 unsandboxed; bwrap parent cannot read grants/state or reach B2, but can use its own channel (1348.249821ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1427.333614
