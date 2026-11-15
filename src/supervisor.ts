@@ -7,15 +7,16 @@ import { Journal } from './journal.js';
 import { ReceiptStore } from './receipts.js';
 import { RpcHost, type SessionHost, type PiRecord } from './host.js';
 import { SessionIndex } from './session.js';
-import { EventHub } from './events.js';
+import { EventHub, type EventScope } from './events.js';
 import { killGroup } from './process.js';
 import { Refusal, type Binding, type Create, type Prompt, type Worker, type Receipt, type Hello, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
 type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null };
 type Pending = { kind: 'follow_up' | 'child'; request: FollowUp | ChildLaunch; guard: () => void };
-type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventHub; completedMessages: number; faulted?: boolean; startupDialog?: boolean; rebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout> };
+type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; rebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout> };
 export type HostFactory = (create: Create, sessionDir: string) => SessionHost;
 export class Supervisor {
   readonly epoch = randomUUID();
+  readonly events = new EventHub(this.epoch);
   readonly receipts: ReceiptStore;
   readonly workers = new Map<string, Live>();
   readonly id: string;
@@ -31,7 +32,7 @@ export class Supervisor {
     for (const record of journal.records) if (record.kind === 'worker') {
       const persisted = structuredClone(record.value) as Persisted;
       if (persisted.worker.session_id && persisted.sessionFile) this.sessionFiles.set(persisted.worker.session_id, { file: persisted.sessionFile, worker_id: persisted.worker.worker_id });
-      this.workers.set(persisted.worker.worker_id, { ...persisted, index: new SessionIndex(persisted.sessionFile), hub: new EventHub(`${this.epoch}:${persisted.worker.worker_epoch}`), completedMessages: 0 });
+      this.workers.set(persisted.worker.worker_id, { ...persisted, index: new SessionIndex(persisted.sessionFile), hub: this.events.scoped(persisted.worker.worker_id), completedMessages: 0 });
     }
   }
   static rpcFactory(executable: string): HostFactory {
@@ -78,7 +79,7 @@ export class Supervisor {
   hello(): Hello {
     return { protocol: { major: 0, minor: 1 }, prototype: true, supervisor_id: this.id, supervisor_epoch: this.epoch, pi_version: this.piVersion,
       capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt'],
-      limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'not implemented', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination bypasses count quota, journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_buffer_bytes: 1048576, socket_mode: '0600', socket_directory_mode: '0700', replay: 'fresh authoritative snapshot on every attach, no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed proves exact input evidence, never external-effect completion', tree_navigation: 'Pi 1.5.2 RPC has get_tree but no navigate command; refused no_effect', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
+      limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'not implemented', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination bypasses count quota, journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed proves exact input evidence, never external-effect completion', tree_navigation: 'Pi 1.5.2 RPC has get_tree but no navigate command; refused no_effect', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
       resource_profile: 'normal CLI discovery; exact loaded extension/tool inventory unverified', cleanup_profile: 'linux_process_group; no adoption or resume; escaped descendants unproven' };
   }
   private persist(live: Live): void {
@@ -215,7 +216,7 @@ export class Supervisor {
     return this.receipts.run(c.command_id, 'workers.create', c, async () => {
       const worker_id = randomUUID(), worker_epoch = randomUUID();
       const w: Worker = { worker_id, worker_epoch, supervisor_epoch: this.epoch, session_id: null, session_identity_evidence: 'pi_rpc_header_id', binding_revision: 1, leaf_id: null, cwd, status: 'starting', foreground: 'idle', execution: null, fence: null, history: { last_entry_id: null, lag: false, evidence: 'pi_session_file' }, cleanup: 'not_started', pending_interactions: [] };
-      const live: Live = { worker: w, sessionFile: null, pid: null, token: null, index: new SessionIndex(null), hub: new EventHub(`${this.epoch}:${worker_epoch}`), completedMessages: 0 };
+      const live: Live = { worker: w, sessionFile: null, pid: null, token: null, index: new SessionIndex(null), hub: this.events.scoped(worker_id), completedMessages: 0 };
       this.workers.set(worker_id, live);
       this.persist(live);
       this.dispatchGuard();

@@ -46,7 +46,7 @@ test('SSE attach barrier: snapshot is first, no duplicate or missing event under
     assert.equal(snapshot.worker!.session_id, 'native-header');
     const reattached: (Snapshot | WorkerEvent)[] = [];
     hub.attach(() => w, snapshot.cursor, frame => reattached.push(frame))();
-    assert.equal((reattached[0] as Snapshot).resync_reason, 'evicted'); assert.equal(reattached.length, 1);
+    assert.equal((reattached[0] as Snapshot).resync_reason, 'gap'); assert.equal(reattached.length, 1);
     hub.attach(() => w, { worker_epoch: 'old', seq: 1 }, frame => assert.equal((frame as Snapshot).resync_reason, 'epoch'))();
   } finally { f.cleanup(); }
 });

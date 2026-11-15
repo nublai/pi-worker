@@ -251,19 +251,19 @@ test('restart 1 and restart 2 cannot reuse transport epochs (T-1)', async () => 
     }
   } finally { f.cleanup(); }
 });
-test('B2 SSE closes a slow subscriber when the response queue exceeds 1 MiB (M4)', async () => {
+test('B2 SSE ends a slow subscriber with explicit overflow after bounded queue (M4)' , async () => {
   const f = fixture(), server = router(f.supervisor); let connection: ReturnType<typeof request> | undefined;
   try {
     const w = await f.create(); await listenPrivate(server, join(f.dir, 'socket'));
     let response!: import('node:http').ServerResponse;
     server.on('request', (_req, res) => { response = res; });
     await new Promise<void>((resolve, reject) => {
-      connection = request({ socketPath: join(f.dir, 'socket'), path: `/v0/workers/${w.worker_id}/events` }, res => {
+      connection = request({ socketPath: join(f.dir, 'socket'), path: `/v0/events?worker_id=${w.worker_id}` }, res => {
         res.once('data', () => { res.pause(); resolve(); }); res.on('error', () => {});
       }); connection.on('error', reject); connection.end();
     });
     for (let i = 0; i < 200; i++) f.supervisor.require(w.worker_id).hub.publish('payload', { text: 'x'.repeat(15000) });
-    assert.equal(response.destroyed, true, 'overflow must disconnect and force resnapshot');
+    assert.equal(response.writableEnded, true, 'overflow must end the stream and force resnapshot');
     assert.equal(f.supervisor.get(w.worker_id).status, 'ready');
     // Reads still work after dropping only the slow subscriber.
     assert.equal((await new Client(join(f.dir, 'socket')).call('hello')).protocol.major, 0);

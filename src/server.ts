@@ -66,6 +66,25 @@ export function router(supervisor: Supervisor): Server {
     void (async () => {
       const url = new URL(req.url ?? '/', 'http://a0-unix-socket');
       const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+      if (req.method === 'GET' && url.pathname === '/v0/events') {
+        const since = cursor(req, url);
+        const workerIds = url.searchParams.get('worker_id')?.split(',');
+        if (workerIds) for (const id of workerIds) supervisor.require(id);
+        const types = url.searchParams.get('types')?.split(',');
+        supervisor.list();
+        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'close', 'X-Accel-Buffering': 'no' });
+        res.flushHeaders();
+        const subscription = supervisor.events.subscribe(() => supervisor.list(), since, frame => {
+          if (res.destroyed) return false;
+          return res.write(`id: ${JSON.stringify(frame.cursor)}\nevent: ${frame.type === 'snapshot' ? 'snapshot' : frame.type === 'overflow' ? 'overflow' : 'worker_event'}\ndata: ${JSON.stringify(frame)}\n\n`);
+        }, { workerIds, types, overflowResync: url.searchParams.get('resync') === 'overflow', onOverflow: () => {
+          res.end();
+          // A peer that never drains cannot retain even the bounded final transport buffer forever.
+          const timer = setTimeout(() => { if (!res.destroyed) res.destroy(); }, 1000); timer.unref();
+        } });
+        res.on('drain', subscription.drain); res.once('close', () => { subscription.close(); res.off('drain', subscription.drain); });
+        return;
+      }
       if (req.method === 'GET' && url.pathname === '/v0/hello') return json(res, supervisor.hello());
       if (url.pathname === '/v0/workers') {
         if (req.method === 'GET') return json(res, supervisor.list());
@@ -96,20 +115,6 @@ export function router(supervisor: Supervisor): Server {
         const page = live.index.page(watermark ? { watermark, after: url.searchParams.get('after') } : null, limit);
         if ('error' in page) throw new Refusal(page.error);
         return json(res, page);
-      }
-      if (parts[3] === 'events' && req.method === 'GET') {
-        const since = cursor(req, url);
-        // Validation/state read before HTTP success; attach repeats synchronously at barrier.
-        supervisor.get(id);
-        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
-        res.flushHeaders();
-        const detach = live.hub.attach(() => supervisor.get(id), since, frame => {
-          if (res.destroyed) return;
-          res.write(`id: ${JSON.stringify(frame.cursor)}\nevent: ${frame.type === 'snapshot' ? 'snapshot' : 'worker_event'}\ndata: ${JSON.stringify(frame)}\n\n`);
-          if (res.writableLength > 1048576) res.destroy();
-        });
-        res.once('close', detach);
-        return; // Disconnect never cancels the worker.
       }
       if (req.method !== 'GET' && live.worker.fence) throw new Refusal('session_fenced', 'no_effect', live.worker.fence.command_id);
       throw new Refusal('unsupported_method');
