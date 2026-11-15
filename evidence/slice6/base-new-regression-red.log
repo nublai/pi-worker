@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: issue1: superseded stop (cleanup succeeded) reports superseded_generation_stopped, not observed_stopped
+not ok 1 - issue1: superseded stop (cleanup succeeded) reports superseded_generation_stopped, not observed_stopped
+  ---
+  duration_ms: 69.437198
+  type: 'test'
+  location: '/tmp/a0s6/verify-final/base/dist/test/issue1-stop.test.js:68:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    superseded stop (cleanup succeeded) must report superseded_generation_stopped, not observed_stopped
+    + actual - expected
+    
+    + 'observed_stopped'
+    - 'superseded_generation_stopped'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'superseded_generation_stopped'
+  actual: 'observed_stopped'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///tmp/a0s6/verify-final/base/dist/test/issue1-stop.test.js:104:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: issue1: superseded stop (cleanup failed) reports superseded_generation_unknown with outcome_unknown
+not ok 2 - issue1: superseded stop (cleanup failed) reports superseded_generation_unknown with outcome_unknown
+  ---
+  duration_ms: 34.370277
+  type: 'test'
+  location: '/tmp/a0s6/verify-final/base/dist/test/issue1-stop.test.js:135:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    superseded stop (cleanup failed) must report superseded_generation_unknown
+    + actual - expected
+    
+    + 'unknown'
+    - 'superseded_generation_unknown'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'superseded_generation_unknown'
+  actual: 'unknown'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///tmp/a0s6/verify-final/base/dist/test/issue1-stop.test.js:168:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: issue1: ordinary observed_stopped includes stopped_worker_epoch === current_worker_epoch
+not ok 3 - issue1: ordinary observed_stopped includes stopped_worker_epoch === current_worker_epoch
+  ---
+  duration_ms: 20.987484
+  type: 'test'
+  location: '/tmp/a0s6/verify-final/base/dist/test/issue1-stop.test.js:193:1'
+  failureType: 'testCodeFailure'
+  error: 'ordinary observed_stopped must include stopped_worker_epoch'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///tmp/a0s6/verify-final/base/dist/test/issue1-stop.test.js:205:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: issue1: superseded stop receipt is stable on duplicate submission
+ok 4 - issue1: superseded stop receipt is stable on duplicate submission
+  ---
+  duration_ms: 35.08715
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 1
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 215.197937

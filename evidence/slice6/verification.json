@@ -1,0 +1,358 @@
+{
+  "schema": "a0-verification-evidence-v1",
+  "job_id": "pi-worker-issue-1",
+  "producer": {
+    "name": "slice6-owner-deterministic-verifier",
+    "kind": "independent fresh-checkout command runner",
+    "model_family": null,
+    "independent_of_agent_success_text": true
+  },
+  "subject": {
+    "commit_sha": "a3c4e02b902ffb151a1c8f99b93dc9bd75aa48a6",
+    "base_sha": "409bd889289fa3601977411747e0aaccf9a73332",
+    "diff_digest": {
+      "algorithm": "sha256",
+      "definition": "exact git diff --binary BASE COMMIT bytes",
+      "value": "72cd34f6360344c8680181900bd6dbfb78d5000d420183b926364a7dbccd1061"
+    }
+  },
+  "started_at": "2026-11-15T15:05:46.981Z",
+  "environment": {
+    "host": "a0-worker",
+    "node": "v22.21.1"
+  },
+  "checks": [
+    {
+      "name": "clone-head",
+      "command": [
+        "git",
+        "clone",
+        "--no-local",
+        "/tmp/a0s6/run1/workspace",
+        "/tmp/a0s6/verify-final/head"
+      ],
+      "cwd": "/tmp/a0s6/verify-final",
+      "started_at": "2026-11-15T15:05:46.982Z",
+      "finished_at": "2026-11-15T15:05:47.063Z",
+      "duration_seconds": 0.081,
+      "exit_code": 0,
+      "signal": null,
+      "expected_exit": 0,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s6/out/clone-head.log",
+        "sha256": "0946140a96fafef3ab89c9f35b50669f365b8e71609373806696efff7818c1d7"
+      }
+    },
+    {
+      "name": "checkout-head",
+      "command": [
+        "git",
+        "checkout",
+        "--detach",
+        "a3c4e02b902ffb151a1c8f99b93dc9bd75aa48a6"
+      ],
+      "cwd": "/tmp/a0s6/verify-final/head",
+      "started_at": "2026-11-15T15:05:47.063Z",
+      "finished_at": "2026-11-15T15:05:47.082Z",
+      "duration_seconds": 0.019,
+      "exit_code": 0,
+      "signal": null,
+      "expected_exit": 0,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s6/out/checkout-head.log",
+        "sha256": "94030ffc9df961e7216100796d7f78482bc50f103ed24a37d241035060cf8c30"
+      }
+    },
+    {
+      "name": "head-npm-ci",
+      "command": [
+        "npm",
+        "ci",
+        "--ignore-scripts"
+      ],
+      "cwd": "/tmp/a0s6/verify-final/head",
+      "started_at": "2026-11-15T15:05:47.082Z",
+      "finished_at": "2026-11-15T15:05:49.777Z",
+      "duration_seconds": 2.695,
+      "exit_code": 0,
+      "signal": null,
+      "expected_exit": 0,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s6/out/head-npm-ci.log",
+        "sha256": "8c68e13c0e67cc6a7c758fbedf08bbb4a805332d387b4821b3f23bf4cb772af6"
+      }
+    },
+    {
+      "name": "head-npm-test",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "cwd": "/tmp/a0s6/verify-final/head",
+      "started_at": "2026-11-15T15:05:49.777Z",
+      "finished_at": "2026-11-15T15:08:01.823Z",
+      "duration_seconds": 132.046,
+      "exit_code": 0,
+      "signal": null,
+      "expected_exit": 0,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s6/out/head-npm-test.log",
+        "sha256": "2ae9da7e70edf09c51329bd2cbbc28015eebd27f3b22b4cf365563484301085e"
+      },
+      "counts": {
+        "tests": 201,
+        "pass": 196,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 5,
+        "todo": 0
+      }
+    },
+    {
+      "name": "head-generated",
+      "command": [
+        "npm",
+        "run",
+        "check:generated"
+      ],
+      "cwd": "/tmp/a0s6/verify-final/head",
+      "started_at": "2026-11-15T15:08:01.823Z",
+      "finished_at": "2026-11-15T15:08:02.618Z",
+      "duration_seconds": 0.795,
+      "exit_code": 0,
+      "signal": null,
+      "expected_exit": 0,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s6/out/head-generated.log",
+        "sha256": "6400ae26b731a74bb976f5fadf97f88a860d8d391705d62a96407f0a7f7020ea"
+      }
+    },
+    {
+      "name": "head-npm-test-kernel",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--unit=a0-s6-verify-kernel",
+        "--wait",
+        "--pipe",
+        "--collect",
+        "--service-type=exec",
+        "--property=Delegate=yes",
+        "--setenv=PATH=/home/exedev/.local/node/bin:/usr/bin:/bin",
+        "--setenv=A0_VERIFY_HEAD=/tmp/a0s6/verify-final/head",
+        "/bin/bash",
+        "/tmp/a0s6/kernel.sh"
+      ],
+      "cwd": "/tmp/a0s6/verify-final/head",
+      "started_at": "2026-11-15T15:08:02.619Z",
+      "finished_at": "2026-11-15T15:10:23.615Z",
+      "duration_seconds": 140.996,
+      "exit_code": 0,
+      "signal": null,
+      "expected_exit": 0,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s6/out/head-npm-test-kernel.log",
+        "sha256": "0ab9d19c47f2a8cac9f08590323006572662e30494331aaaef3b8337b3a8f580"
+      },
+      "counts": {
+        "tests": 201,
+        "pass": 201,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "name": "clone-base",
+      "command": [
+        "git",
+        "clone",
+        "--no-local",
+        "/tmp/a0s6/run1/workspace",
+        "/tmp/a0s6/verify-final/base"
+      ],
+      "cwd": "/tmp/a0s6/verify-final",
+      "started_at": "2026-11-15T15:10:23.619Z",
+      "finished_at": "2026-11-15T15:10:23.704Z",
+      "duration_seconds": 0.085,
+      "exit_code": 0,
+      "signal": null,
+      "expected_exit": 0,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s6/out/clone-base.log",
+        "sha256": "9b1f380f49306fa76243eae9d41d25fd3f8cf339ee8203a99188e969bd63186d"
+      }
+    },
+    {
+      "name": "checkout-base",
+      "command": [
+        "git",
+        "checkout",
+        "--detach",
+        "409bd889289fa3601977411747e0aaccf9a73332"
+      ],
+      "cwd": "/tmp/a0s6/verify-final/base",
+      "started_at": "2026-11-15T15:10:23.704Z",
+      "finished_at": "2026-11-15T15:10:23.714Z",
+      "duration_seconds": 0.01,
+      "exit_code": 0,
+      "signal": null,
+      "expected_exit": 0,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s6/out/checkout-base.log",
+        "sha256": "3c68fb65de208e13c8b9b1b4c905e420a8a09d371523819c80b5f1430606bb04"
+      }
+    },
+    {
+      "name": "base-npm-ci",
+      "command": [
+        "npm",
+        "ci",
+        "--ignore-scripts"
+      ],
+      "cwd": "/tmp/a0s6/verify-final/base",
+      "started_at": "2026-11-15T15:10:23.715Z",
+      "finished_at": "2026-11-15T15:10:26.246Z",
+      "duration_seconds": 2.531,
+      "exit_code": 0,
+      "signal": null,
+      "expected_exit": 0,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s6/out/base-npm-ci.log",
+        "sha256": "c53a605a1e837b4bc09fee1b8415f93877e72ea19309127208d4170d569d3c18"
+      }
+    },
+    {
+      "name": "base-build-with-new-test",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "cwd": "/tmp/a0s6/verify-final/base",
+      "started_at": "2026-11-15T15:10:26.246Z",
+      "finished_at": "2026-11-15T15:10:30.577Z",
+      "duration_seconds": 4.331,
+      "exit_code": 0,
+      "signal": null,
+      "expected_exit": 0,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s6/out/base-build-with-new-test.log",
+        "sha256": "0bccbcf7f3fcccde781dec16359fdea7aae6ae82a00bc312477133ddcce0f263"
+      }
+    },
+    {
+      "name": "base-new-regression-red",
+      "command": [
+        "node",
+        "--test",
+        "dist/test/issue1-stop.test.js"
+      ],
+      "cwd": "/tmp/a0s6/verify-final/base",
+      "started_at": "2026-11-15T15:10:30.578Z",
+      "finished_at": "2026-11-15T15:10:30.834Z",
+      "duration_seconds": 0.256,
+      "exit_code": 1,
+      "signal": null,
+      "expected_exit": 1,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s6/out/base-new-regression-red.log",
+        "sha256": "e385b641c2991cbc903273aa88b2c396cb6c28b0e33cb264553e0d8c3244e895"
+      },
+      "counts": {
+        "tests": 4,
+        "pass": 1,
+        "fail": 3,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "name": "head-new-regression-green",
+      "command": [
+        "node",
+        "--test",
+        "dist/test/issue1-stop.test.js"
+      ],
+      "cwd": "/tmp/a0s6/verify-final/head",
+      "started_at": "2026-11-15T15:10:30.834Z",
+      "finished_at": "2026-11-15T15:10:31.071Z",
+      "duration_seconds": 0.237,
+      "exit_code": 0,
+      "signal": null,
+      "expected_exit": 0,
+      "pass": true,
+      "log": {
+        "path": "/tmp/a0s6/out/head-new-regression-green.log",
+        "sha256": "aa29e83bdac0162ef2dd8c20790629d5312c9deba38cf3273e866bca9daa1a5d"
+      },
+      "counts": {
+        "tests": 4,
+        "pass": 4,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "name": "owner-artifact-and-journey-assertions",
+      "producer": "slice6-finish deterministic assertions",
+      "pass": true,
+      "result": {
+        "stop_result_schema_wired": true,
+        "no_unrelated_openapi_semantics": true,
+        "no_existing_tests_changed": true,
+        "real_typed_children": 2,
+        "retained_locked_clean_worktrees": 2,
+        "result_deliveries_once": 2,
+        "separate_termination_deliveries_once": 2,
+        "successful_pstack_guidance_reads": 2,
+        "external_client_disconnect_seconds": 93.43,
+        "native_tool_calls_during_disconnect": 9,
+        "same_parent_epoch_and_session_after_reconnect": true,
+        "reattach_resync_reason": "gap",
+        "all_pi_leaders_nonexecuting": true,
+        "all_worker_domains_removed": true,
+        "task_scoped_bearer_revoked": true
+      }
+    }
+  ],
+  "limitations": [
+    "Throwaway Linux prototype, not production or a Gate 1 freeze.",
+    "Default npm test may skip kernel opt-in cases; counts are recorded, not presented as full kernel evidence.",
+    "Implementer and tester both use Anthropic Claude Sonnet; no independent-provider model review.",
+    "Verification is independent execution and artifact inspection, not hostile same-UID isolation.",
+    "No PR, push, merge, deployment or release is authorized. Test 13 draft-PR step remains for root.",
+    "Unsandboxed parent read its scoped B2 grant despite an explicit instruction not to; private transcript retained on VM only; grant revoked after stop. No GitHub credential was transferred.",
+    "Six invalid thinking launch attempts were refused before acquisition; exactly two real children launched with thinking off.",
+    "Pstack guidance was read and followed from a B2 prompt; unsupported slash-mode activation was not bypassed."
+  ],
+  "verdict": "verified",
+  "artifact_inspection": {
+    "clean_fresh_checkout": true,
+    "new_regression_compiles_on_base": true,
+    "new_regression_fails_base_by_assertion": true,
+    "changed_files": [
+      "openapi.json",
+      "src/api.generated.ts",
+      "src/supervisor.ts",
+      "src/test/issue1-stop.test.ts",
+      "src/test/stop-superseded.test.ts"
+    ]
+  },
+  "finished_at": "2026-11-15T15:12:51.703Z"
+}

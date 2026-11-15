@@ -1,0 +1,22 @@
+{
+  "clock": "2026-11-15T15:13:49.578Z",
+  "kind": "accept",
+  "actor": "slice6-authorized-owner-script",
+  "policy_revision": "slice6-owner-v1",
+  "job_id": "pi-worker-issue-1",
+  "artifact": {
+    "commit_sha": "a3c4e02b902ffb151a1c8f99b93dc9bd75aa48a6",
+    "base_sha": "409bd889289fa3601977411747e0aaccf9a73332",
+    "diff_digest": {
+      "algorithm": "sha256",
+      "definition": "exact git diff --binary BASE COMMIT bytes",
+      "value": "72cd34f6360344c8680181900bd6dbfb78d5000d420183b926364a7dbccd1061"
+    }
+  },
+  "decision": "accept_verified_artifact_for_root_review",
+  "scope": "local verified change only; NOT push, PR, merge, release or deployment authorization",
+  "expiry": "2026-11-16T00:00:00Z",
+  "revocation": "artifact or policy change invalidates acceptance",
+  "evidence_record_sha256": "ec38293183081df32052f6446f23b01a44171fdccbd25269ebe62712c04ba9f5",
+  "scripted_action_seconds": 0.025
+}

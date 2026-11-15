@@ -1,0 +1,14 @@
+{
+  "branch": "a0/slice6-e2e",
+  "fix_branch": "fix/issue-1",
+  "fix_head": "a3c4e02b902ffb151a1c8f99b93dc9bd75aa48a6",
+  "checks": [
+    {"name": "node --check evidence/slice6/*.mjs", "files": 11, "pass": true},
+    {"name": "bash -n evidence/slice6/setup.sh evidence/slice6/kernel.sh", "files": 2, "pass": true},
+    {"name": "active LSP errors probe", "files": 11, "diagnostics": 0, "confirmed_clean": 0, "inconclusive": 11, "clean_evidence": false},
+    {"name": "local git diff --binary BASE fix/issue-1 digest", "sha256": "72cd34f6360344c8680181900bd6dbfb78d5000d420183b926364a7dbccd1061", "matches_vm_evidence": true},
+    {"name": "input bundle digest", "sha256": "ab527e12a57dbf2503d105ef2dfb3b528f2f1ec54eaf88ef76de176efa17f929", "matches_vm": true},
+    {"name": "output bundle digest", "sha256": "f31a595646fdb0c13591bedb6508a747984d12f9ba193dd9d7d77b0b60ab54a6", "matches_vm": true}
+  ],
+  "limits": "Mandatory npm suites ran independently on the exact fix artifact on the VM. This report branch does not modify runtime source or tests. LSP did not confirm clean status for these VM-specific driver files."
+}
