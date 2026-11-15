@@ -1,0 +1,101 @@
+{
+  "root": "/tmp/a0s3/crashes-clEO7X",
+  "rows": [
+    {
+      "host": "rpc",
+      "cut": "intent",
+      "receipt": "intent_recovered",
+      "resolver_effect_count": 0,
+      "fence": true,
+      "old_process_cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "stale_answer_refused": true,
+      "duplicate_unchanged": true
+    },
+    {
+      "host": "rpc",
+      "cut": "accepted",
+      "receipt": "outcome_unknown",
+      "answer_stage": 1,
+      "resolver_effect_count": 0,
+      "fence": true,
+      "old_process_cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "stale_answer_refused": true,
+      "duplicate_unchanged": true
+    },
+    {
+      "host": "rpc",
+      "cut": "delivered",
+      "receipt": "delivered",
+      "answer_stage": 2,
+      "resolver_effect_count": 1,
+      "fence": true,
+      "old_process_cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "stale_answer_refused": true,
+      "duplicate_unchanged": true
+    },
+    {
+      "host": "sdk",
+      "cut": "intent",
+      "receipt": "intent_recovered",
+      "resolver_effect_count": 0,
+      "fence": true,
+      "old_process_cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "stale_answer_refused": true,
+      "duplicate_unchanged": true
+    },
+    {
+      "host": "sdk",
+      "cut": "accepted",
+      "receipt": "outcome_unknown",
+      "answer_stage": 1,
+      "resolver_effect_count": 0,
+      "fence": true,
+      "old_process_cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "stale_answer_refused": true,
+      "duplicate_unchanged": true
+    },
+    {
+      "host": "sdk",
+      "cut": "delivered",
+      "receipt": "delivered",
+      "answer_stage": 3,
+      "resolver_effect_count": 1,
+      "fence": false,
+      "old_process_cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "stale_answer_refused": true,
+      "duplicate_unchanged": true
+    },
+    {
+      "host": "acp",
+      "cut": "intent",
+      "receipt": "intent_recovered",
+      "resolver_effect_count": 0,
+      "fence": true,
+      "old_process_cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "stale_answer_refused": true,
+      "duplicate_unchanged": true
+    },
+    {
+      "host": "acp",
+      "cut": "accepted",
+      "receipt": "outcome_unknown",
+      "answer_stage": 1,
+      "resolver_effect_count": 0,
+      "fence": true,
+      "old_process_cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "stale_answer_refused": true,
+      "duplicate_unchanged": true
+    },
+    {
+      "host": "acp",
+      "cut": "delivered",
+      "receipt": "delivered",
+      "answer_stage": 3,
+      "resolver_effect_count": 1,
+      "fence": true,
+      "old_process_cleanup": "process_group_observed_gone; escaped_descendants_unproven",
+      "stale_answer_refused": true,
+      "duplicate_unchanged": true
+    }
+  ]
+}

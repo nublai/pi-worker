@@ -1,0 +1,7 @@
+{"mutant":"deadline","result":"killed_by_assertion","test_exit":1}
+{"mutant":"dispatch_order","result":"killed_by_assertion","test_exit":1}
+{"mutant":"answer_hash_privacy","result":"killed_by_assertion","test_exit":1}
+{"mutant":"first_answer_wins","result":"killed_by_assertion","test_exit":1}
+{"mutant":"rpc_false_stage3","result":"killed_by_assertion","test_exit":1}
+{"mutant":"release_grant_check","result":"killed_by_assertion","test_exit":1}
+{"complete":true,"root":"/tmp/a0s3/mutations-zaPlCF"}

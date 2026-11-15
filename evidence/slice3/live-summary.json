@@ -1,0 +1,2781 @@
+{
+  "root": "/tmp/a0s3/live-EcYGBb",
+  "node": "v22.21.1",
+  "pi": "1.5.2",
+  "hosts": [
+    {
+      "host": "rpc",
+      "dialogs": [
+        {
+          "kind": "select",
+          "mode": "answer",
+          "receipt_stage": 2,
+          "status": "forwarded",
+          "outcome": "answered",
+          "native_has_value": true,
+          "native_false": false,
+          "prefill_observed": false
+        },
+        {
+          "kind": "confirm",
+          "mode": "no",
+          "receipt_stage": 2,
+          "status": "forwarded",
+          "outcome": "no",
+          "native_has_value": true,
+          "native_false": true,
+          "prefill_observed": false
+        },
+        {
+          "kind": "confirm",
+          "mode": "cancel",
+          "receipt_stage": 2,
+          "status": "forwarded",
+          "outcome": "cancel",
+          "native_has_value": true,
+          "native_false": true,
+          "prefill_observed": false
+        },
+        {
+          "kind": "confirm",
+          "mode": "timeout",
+          "status": "timeout",
+          "outcome": "timeout",
+          "native_has_value": true,
+          "native_false": true,
+          "race_loser": "interaction_not_pending",
+          "prefill_observed": false
+        },
+        {
+          "kind": "input",
+          "mode": "answer",
+          "receipt_stage": 2,
+          "status": "forwarded",
+          "outcome": "answered",
+          "native_has_value": true,
+          "native_false": false,
+          "prefill_observed": false
+        },
+        {
+          "kind": "editor",
+          "mode": "answer",
+          "receipt_stage": 2,
+          "status": "forwarded",
+          "outcome": "answered",
+          "native_has_value": true,
+          "native_false": false,
+          "prefill_observed": true
+        },
+        {
+          "kind": "input",
+          "mode": "race",
+          "receipt_stage": 2,
+          "status": "forwarded",
+          "outcome": "answered",
+          "native_has_value": true,
+          "native_false": false,
+          "race_loser": "interaction_not_pending",
+          "prefill_observed": false
+        }
+      ],
+      "startup": {
+        "stage": 2,
+        "native_answer_received": false,
+        "worker_ready": true
+      },
+      "resources": {
+        "active_tools": [
+          "read",
+          "bash",
+          "edit",
+          "write",
+          "tool_search"
+        ],
+        "tools": [
+          {
+            "name": "read",
+            "sourceInfo": {
+              "path": "builtin:read",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "bash",
+            "sourceInfo": {
+              "path": "builtin:bash",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "powershell",
+            "sourceInfo": {
+              "path": "builtin:powershell",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "edit",
+            "sourceInfo": {
+              "path": "builtin:edit",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "write",
+            "sourceInfo": {
+              "path": "builtin:write",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "grep",
+            "sourceInfo": {
+              "path": "builtin:grep",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "find",
+            "sourceInfo": {
+              "path": "builtin:find",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "ls",
+            "sourceInfo": {
+              "path": "builtin:ls",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "worktree_list",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "worktree_remove",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagents_write_task_models",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_send",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_stop",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_interrupt",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_cancel",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagents_list",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_resume",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "codemode",
+            "sourceInfo": {
+              "path": "builtin:codemode",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "tool_search",
+            "sourceInfo": {
+              "path": "builtin:tool-search",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          }
+        ],
+        "commands": [
+          {
+            "name": "subagents-init",
+            "source": "extension",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "worktree",
+            "source": "extension",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent",
+            "source": "extension",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "poteto-mode",
+            "source": "extension",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "setup-pstack",
+            "source": "extension",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "llama",
+            "source": "extension",
+            "sourceInfo": {
+              "path": "builtin:llama.cpp",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "mcp",
+            "source": "extension",
+            "sourceInfo": {
+              "path": "builtin:mcp",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "skill:pi-herdr-agents",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/skills/pi-herdr-agents/SKILL.md",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:code-review",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/code-review/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:codebase-design",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/codebase-design/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:diagnosing-bugs",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/diagnosing-bugs/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:domain-modeling",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/domain-modeling/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:grill-me",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/grill-me/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:grill-with-docs",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/grill-with-docs/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:grilling",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/grilling/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:handoff",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/handoff/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:implement",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/implement/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:implement-spec",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/implement-spec/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:improve-codebase-architecture",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/improve-codebase-architecture/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:pr",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/pr/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:research",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/research/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:retro",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/retro/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:setup-repo",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/setup-repo/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:to-questionnaire",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/to-questionnaire/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:to-spec",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/to-spec/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:to-tickets",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/to-tickets/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:triage",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/triage/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:wayfinder",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/wayfinder/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:wizard",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/wizard/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:writing-for-agents",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/writing-for-agents/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:poteto-help",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/merged/poteto-help/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:prototype",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/merged/prototype/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:tdd",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/merged/tdd/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:teach",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/merged/teach/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:architect",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/architect/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:arena",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/arena/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:automate-me",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/automate-me/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:benchmark-checklist",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/benchmark-checklist/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:blast-radius",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/blast-radius/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:bro",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/bro/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:correct",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/correct/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:create-formal-verification-skill",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/create-formal-verification-skill/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:create-verification-skill",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/create-verification-skill/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:figure-it-out",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/figure-it-out/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:how",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/how/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:in-your-own-words",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/in-your-own-words/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:interrogate",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/interrogate/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:ketchup",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/ketchup/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:maintain-formal-verification-skill",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/maintain-formal-verification-skill/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:maintain-verification-skill",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/maintain-verification-skill/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:make-bot-ui",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/make-bot-ui/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:no-comments",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/no-comments/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:poteto-mode",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-attack-the-premise",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-attack-the-premise/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-boundary-discipline",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-boundary-discipline/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-build-the-lever",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-build-the-lever/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-encode-lessons-in-structure",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-encode-lessons-in-structure/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-exhaust-the-design-space",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-exhaust-the-design-space/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-experience-first",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-experience-first/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-explain-the-number",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-explain-the-number/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-fix-root-causes",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-fix-root-causes/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-foundational-thinking",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-foundational-thinking/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-guard-the-context-window",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-guard-the-context-window/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-laziness-protocol",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-laziness-protocol/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-make-operations-idempotent",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-make-operations-idempotent/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-migrate-callers-then-delete-legacy-apis",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-migrate-callers-then-delete-legacy-apis/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-minimize-reader-load",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-minimize-reader-load/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-model-the-domain",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-model-the-domain/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-never-block-on-the-human",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-never-block-on-the-human/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-outcome-oriented-execution",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-outcome-oriented-execution/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-prove-it-works",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-prove-it-works/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-redesign-from-first-principles",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-redesign-from-first-principles/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-separate-before-serializing-shared-state",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-separate-before-serializing-shared-state/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-sequence-verifiable-units",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-sequence-verifiable-units/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-subtract-before-you-add",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-subtract-before-you-add/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-test-behavior-not-implementation",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-test-behavior-not-implementation/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:principle-type-system-discipline",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-type-system-discipline/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:recall",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/recall/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:reflect",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/reflect/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:setup-pstack",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/setup-pstack/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:sharpen",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/sharpen/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:show-me-your-work",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/show-me-your-work/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:statechart",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/statechart/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:swarm",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/swarm/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:technical-writing",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/technical-writing/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:typescript-best-practices",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/typescript-best-practices/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:unslop",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/unslop/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "skill:why",
+            "source": "skill",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/why/SKILL.md",
+              "source": "npm:pi-herdr-pstack@1.0.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/CHANGELOG.md"
+            }
+          }
+        ]
+      },
+      "custom": "explicit_unsupported_ui",
+      "navigation": {
+        "receipt": "rejected",
+        "effect": "no_effect",
+        "error": "pi_1_5_2_rpc_tree_navigation_unavailable"
+      },
+      "dropped_ack": {
+        "receipt": "outcome_unknown",
+        "answer_stage": 1,
+        "fenced": true,
+        "native_effect_count": 1,
+        "no_replay": true
+      }
+    },
+    {
+      "host": "sdk",
+      "dialogs": [
+        {
+          "kind": "select",
+          "mode": "answer",
+          "receipt_stage": 3,
+          "status": "consumed",
+          "outcome": "answered",
+          "resolver_outcome": "answered",
+          "native_has_value": true,
+          "native_false": false,
+          "prefill_observed": false
+        },
+        {
+          "kind": "confirm",
+          "mode": "no",
+          "receipt_stage": 3,
+          "status": "consumed",
+          "outcome": "no",
+          "resolver_outcome": "no",
+          "native_has_value": true,
+          "native_false": true,
+          "prefill_observed": false
+        },
+        {
+          "kind": "confirm",
+          "mode": "cancel",
+          "receipt_stage": 3,
+          "status": "consumed",
+          "outcome": "cancel",
+          "resolver_outcome": "cancel",
+          "native_has_value": true,
+          "native_false": true,
+          "prefill_observed": false
+        },
+        {
+          "kind": "confirm",
+          "mode": "timeout",
+          "status": "timeout",
+          "outcome": "timeout",
+          "native_has_value": true,
+          "native_false": true,
+          "race_loser": "interaction_not_pending",
+          "prefill_observed": false
+        },
+        {
+          "kind": "input",
+          "mode": "answer",
+          "receipt_stage": 3,
+          "status": "consumed",
+          "outcome": "answered",
+          "resolver_outcome": "answered",
+          "native_has_value": true,
+          "native_false": false,
+          "prefill_observed": false
+        },
+        {
+          "kind": "editor",
+          "mode": "answer",
+          "receipt_stage": 3,
+          "status": "consumed",
+          "outcome": "answered",
+          "resolver_outcome": "answered",
+          "native_has_value": true,
+          "native_false": false,
+          "prefill_observed": true
+        },
+        {
+          "kind": "input",
+          "mode": "race",
+          "receipt_stage": 3,
+          "status": "consumed",
+          "outcome": "answered",
+          "resolver_outcome": "answered",
+          "native_has_value": true,
+          "native_false": false,
+          "race_loser": "interaction_already_answered",
+          "prefill_observed": false
+        }
+      ],
+      "startup": {
+        "stage": 3,
+        "native_answer_received": true,
+        "worker_ready": true
+      },
+      "resources": {
+        "extensions": [
+          "/tmp/a0s3/live-EcYGBb/sdk/.pi/extensions/dialog.ts",
+          "/home/exedev/.pi/agent/extensions/exe-dev/index.ts",
+          "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+          "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts",
+          "builtin:codemode",
+          "builtin:tool_search",
+          "builtin:mcp",
+          "<inline:1>"
+        ],
+        "extension_errors": [],
+        "skills": [
+          {
+            "name": "pi-herdr-agents",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/skills/pi-herdr-agents/SKILL.md"
+          },
+          {
+            "name": "code-review",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/code-review/SKILL.md"
+          },
+          {
+            "name": "codebase-design",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/codebase-design/SKILL.md"
+          },
+          {
+            "name": "diagnosing-bugs",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/diagnosing-bugs/SKILL.md"
+          },
+          {
+            "name": "domain-modeling",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/domain-modeling/SKILL.md"
+          },
+          {
+            "name": "grill-me",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/grill-me/SKILL.md"
+          },
+          {
+            "name": "grill-with-docs",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/grill-with-docs/SKILL.md"
+          },
+          {
+            "name": "grilling",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/grilling/SKILL.md"
+          },
+          {
+            "name": "handoff",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/handoff/SKILL.md"
+          },
+          {
+            "name": "implement",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/implement/SKILL.md"
+          },
+          {
+            "name": "implement-spec",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/implement-spec/SKILL.md"
+          },
+          {
+            "name": "improve-codebase-architecture",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/improve-codebase-architecture/SKILL.md"
+          },
+          {
+            "name": "pr",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/pr/SKILL.md"
+          },
+          {
+            "name": "research",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/research/SKILL.md"
+          },
+          {
+            "name": "retro",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/retro/SKILL.md"
+          },
+          {
+            "name": "setup-repo",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/setup-repo/SKILL.md"
+          },
+          {
+            "name": "to-questionnaire",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/to-questionnaire/SKILL.md"
+          },
+          {
+            "name": "to-spec",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/to-spec/SKILL.md"
+          },
+          {
+            "name": "to-tickets",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/to-tickets/SKILL.md"
+          },
+          {
+            "name": "triage",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/triage/SKILL.md"
+          },
+          {
+            "name": "wayfinder",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/wayfinder/SKILL.md"
+          },
+          {
+            "name": "wizard",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/wizard/SKILL.md"
+          },
+          {
+            "name": "writing-for-agents",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/writing-for-agents/SKILL.md"
+          },
+          {
+            "name": "poteto-help",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/merged/poteto-help/SKILL.md"
+          },
+          {
+            "name": "prototype",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/merged/prototype/SKILL.md"
+          },
+          {
+            "name": "tdd",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/merged/tdd/SKILL.md"
+          },
+          {
+            "name": "teach",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/merged/teach/SKILL.md"
+          },
+          {
+            "name": "architect",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/architect/SKILL.md"
+          },
+          {
+            "name": "arena",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/arena/SKILL.md"
+          },
+          {
+            "name": "automate-me",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/automate-me/SKILL.md"
+          },
+          {
+            "name": "benchmark-checklist",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/benchmark-checklist/SKILL.md"
+          },
+          {
+            "name": "blast-radius",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/blast-radius/SKILL.md"
+          },
+          {
+            "name": "bro",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/bro/SKILL.md"
+          },
+          {
+            "name": "correct",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/correct/SKILL.md"
+          },
+          {
+            "name": "create-formal-verification-skill",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/create-formal-verification-skill/SKILL.md"
+          },
+          {
+            "name": "create-verification-skill",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/create-verification-skill/SKILL.md"
+          },
+          {
+            "name": "figure-it-out",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/figure-it-out/SKILL.md"
+          },
+          {
+            "name": "how",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/how/SKILL.md"
+          },
+          {
+            "name": "in-your-own-words",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/in-your-own-words/SKILL.md"
+          },
+          {
+            "name": "interrogate",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/interrogate/SKILL.md"
+          },
+          {
+            "name": "ketchup",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/ketchup/SKILL.md"
+          },
+          {
+            "name": "maintain-formal-verification-skill",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/maintain-formal-verification-skill/SKILL.md"
+          },
+          {
+            "name": "maintain-verification-skill",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/maintain-verification-skill/SKILL.md"
+          },
+          {
+            "name": "make-bot-ui",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/make-bot-ui/SKILL.md"
+          },
+          {
+            "name": "no-comments",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/no-comments/SKILL.md"
+          },
+          {
+            "name": "poteto-mode",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/SKILL.md"
+          },
+          {
+            "name": "principle-attack-the-premise",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-attack-the-premise/SKILL.md"
+          },
+          {
+            "name": "principle-boundary-discipline",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-boundary-discipline/SKILL.md"
+          },
+          {
+            "name": "principle-build-the-lever",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-build-the-lever/SKILL.md"
+          },
+          {
+            "name": "principle-encode-lessons-in-structure",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-encode-lessons-in-structure/SKILL.md"
+          },
+          {
+            "name": "principle-exhaust-the-design-space",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-exhaust-the-design-space/SKILL.md"
+          },
+          {
+            "name": "principle-experience-first",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-experience-first/SKILL.md"
+          },
+          {
+            "name": "principle-explain-the-number",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-explain-the-number/SKILL.md"
+          },
+          {
+            "name": "principle-fix-root-causes",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-fix-root-causes/SKILL.md"
+          },
+          {
+            "name": "principle-foundational-thinking",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-foundational-thinking/SKILL.md"
+          },
+          {
+            "name": "principle-guard-the-context-window",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-guard-the-context-window/SKILL.md"
+          },
+          {
+            "name": "principle-laziness-protocol",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-laziness-protocol/SKILL.md"
+          },
+          {
+            "name": "principle-make-operations-idempotent",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-make-operations-idempotent/SKILL.md"
+          },
+          {
+            "name": "principle-migrate-callers-then-delete-legacy-apis",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-migrate-callers-then-delete-legacy-apis/SKILL.md"
+          },
+          {
+            "name": "principle-minimize-reader-load",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-minimize-reader-load/SKILL.md"
+          },
+          {
+            "name": "principle-model-the-domain",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-model-the-domain/SKILL.md"
+          },
+          {
+            "name": "principle-never-block-on-the-human",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-never-block-on-the-human/SKILL.md"
+          },
+          {
+            "name": "principle-outcome-oriented-execution",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-outcome-oriented-execution/SKILL.md"
+          },
+          {
+            "name": "principle-prove-it-works",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-prove-it-works/SKILL.md"
+          },
+          {
+            "name": "principle-redesign-from-first-principles",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-redesign-from-first-principles/SKILL.md"
+          },
+          {
+            "name": "principle-separate-before-serializing-shared-state",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-separate-before-serializing-shared-state/SKILL.md"
+          },
+          {
+            "name": "principle-sequence-verifiable-units",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-sequence-verifiable-units/SKILL.md"
+          },
+          {
+            "name": "principle-subtract-before-you-add",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-subtract-before-you-add/SKILL.md"
+          },
+          {
+            "name": "principle-test-behavior-not-implementation",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-test-behavior-not-implementation/SKILL.md"
+          },
+          {
+            "name": "principle-type-system-discipline",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-type-system-discipline/SKILL.md"
+          },
+          {
+            "name": "recall",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/recall/SKILL.md"
+          },
+          {
+            "name": "reflect",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/reflect/SKILL.md"
+          },
+          {
+            "name": "setup-pstack",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/setup-pstack/SKILL.md"
+          },
+          {
+            "name": "sharpen",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/sharpen/SKILL.md"
+          },
+          {
+            "name": "show-me-your-work",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/show-me-your-work/SKILL.md"
+          },
+          {
+            "name": "statechart",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/statechart/SKILL.md"
+          },
+          {
+            "name": "swarm",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/swarm/SKILL.md"
+          },
+          {
+            "name": "technical-writing",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/technical-writing/SKILL.md"
+          },
+          {
+            "name": "typescript-best-practices",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/typescript-best-practices/SKILL.md"
+          },
+          {
+            "name": "unslop",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/unslop/SKILL.md"
+          },
+          {
+            "name": "why",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/why/SKILL.md"
+          }
+        ],
+        "active_tools": [
+          "read",
+          "bash",
+          "edit",
+          "write",
+          "worktree_list",
+          "worktree_remove",
+          "subagent",
+          "subagent_send",
+          "subagent_stop",
+          "subagent_interrupt",
+          "subagent_cancel",
+          "subagents_list",
+          "subagent_resume"
+        ],
+        "tools": [
+          {
+            "name": "read",
+            "sourceInfo": {
+              "path": "builtin:read",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "bash",
+            "sourceInfo": {
+              "path": "builtin:bash",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "powershell",
+            "sourceInfo": {
+              "path": "builtin:powershell",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "edit",
+            "sourceInfo": {
+              "path": "builtin:edit",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "write",
+            "sourceInfo": {
+              "path": "builtin:write",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "grep",
+            "sourceInfo": {
+              "path": "builtin:grep",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "find",
+            "sourceInfo": {
+              "path": "builtin:find",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "ls",
+            "sourceInfo": {
+              "path": "builtin:ls",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "worktree_list",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "worktree_remove",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagents_write_task_models",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_send",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_stop",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_interrupt",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_cancel",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagents_list",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_resume",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "codemode",
+            "sourceInfo": {
+              "path": "builtin:codemode",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "tool_search",
+            "sourceInfo": {
+              "path": "builtin:tool_search",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          }
+        ]
+      },
+      "custom": "explicit_unsupported_ui",
+      "navigation": {
+        "receipt": "delivered",
+        "revision": 2,
+        "leaf": "627e94e3",
+        "native_leaf": "627e94e3",
+        "stale_interaction": "cancel",
+        "stale_answer_refusal": "stale_binding"
+      },
+      "dropped_ack": {
+        "receipt": "outcome_unknown",
+        "answer_stage": 1,
+        "fenced": true,
+        "native_effect_count": 1,
+        "no_replay": true
+      },
+      "gates": [
+        {
+          "mode": "allow",
+          "answer_stage": 3,
+          "release_stage": 4,
+          "released": true,
+          "artifact_exists": true
+        },
+        {
+          "mode": "revoked",
+          "answer_stage": 3,
+          "release_stage": 3,
+          "released": false,
+          "artifact_exists": false
+        },
+        {
+          "mode": "revoked_at_child",
+          "answer_stage": 3,
+          "release_stage": 3,
+          "released": false,
+          "artifact_exists": false
+        },
+        {
+          "mode": "policy_changed",
+          "answer_stage": 3,
+          "release_stage": 3,
+          "released": false,
+          "artifact_exists": false
+        },
+        {
+          "mode": "expired",
+          "answer_stage": 3,
+          "release_stage": 3,
+          "released": false,
+          "artifact_exists": false
+        }
+      ]
+    },
+    {
+      "host": "acp",
+      "dialogs": [
+        {
+          "kind": "select",
+          "mode": "answer",
+          "receipt_stage": 3,
+          "status": "consumed",
+          "outcome": "answered",
+          "resolver_outcome": "answered",
+          "native_has_value": true,
+          "native_false": false,
+          "prefill_observed": false
+        },
+        {
+          "kind": "confirm",
+          "mode": "no",
+          "receipt_stage": 3,
+          "status": "consumed",
+          "outcome": "no",
+          "resolver_outcome": "no",
+          "native_has_value": true,
+          "native_false": true,
+          "prefill_observed": false
+        },
+        {
+          "kind": "confirm",
+          "mode": "cancel",
+          "receipt_stage": 3,
+          "status": "consumed",
+          "outcome": "cancel",
+          "resolver_outcome": "cancel",
+          "native_has_value": true,
+          "native_false": true,
+          "prefill_observed": false
+        },
+        {
+          "kind": "confirm",
+          "mode": "timeout",
+          "status": "timeout",
+          "outcome": "timeout",
+          "native_has_value": true,
+          "native_false": true,
+          "race_loser": "interaction_not_pending",
+          "prefill_observed": false
+        },
+        {
+          "kind": "input",
+          "mode": "answer",
+          "receipt_stage": 3,
+          "status": "consumed",
+          "outcome": "answered",
+          "resolver_outcome": "answered",
+          "native_has_value": true,
+          "native_false": false,
+          "prefill_observed": false
+        },
+        {
+          "kind": "editor",
+          "mode": "answer",
+          "receipt_stage": 3,
+          "status": "consumed",
+          "outcome": "answered",
+          "resolver_outcome": "answered",
+          "native_has_value": true,
+          "native_false": false,
+          "prefill_observed": true
+        },
+        {
+          "kind": "input",
+          "mode": "race",
+          "receipt_stage": 3,
+          "status": "consumed",
+          "outcome": "answered",
+          "resolver_outcome": "answered",
+          "native_has_value": true,
+          "native_false": false,
+          "race_loser": "interaction_already_answered",
+          "prefill_observed": false
+        }
+      ],
+      "startup": {
+        "stage": 3,
+        "native_answer_received": true,
+        "worker_ready": true
+      },
+      "resources": {
+        "extensions": [
+          "/tmp/a0s3/live-EcYGBb/acp/.pi/extensions/dialog.ts",
+          "/home/exedev/.pi/agent/extensions/exe-dev/index.ts",
+          "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+          "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/pi-extension/pstack/index.ts",
+          "builtin:codemode",
+          "builtin:tool_search",
+          "builtin:mcp",
+          "<inline:1>"
+        ],
+        "extension_errors": [],
+        "skills": [
+          {
+            "name": "pi-herdr-agents",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/skills/pi-herdr-agents/SKILL.md"
+          },
+          {
+            "name": "code-review",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/code-review/SKILL.md"
+          },
+          {
+            "name": "codebase-design",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/codebase-design/SKILL.md"
+          },
+          {
+            "name": "diagnosing-bugs",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/diagnosing-bugs/SKILL.md"
+          },
+          {
+            "name": "domain-modeling",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/domain-modeling/SKILL.md"
+          },
+          {
+            "name": "grill-me",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/grill-me/SKILL.md"
+          },
+          {
+            "name": "grill-with-docs",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/grill-with-docs/SKILL.md"
+          },
+          {
+            "name": "grilling",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/grilling/SKILL.md"
+          },
+          {
+            "name": "handoff",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/handoff/SKILL.md"
+          },
+          {
+            "name": "implement",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/implement/SKILL.md"
+          },
+          {
+            "name": "implement-spec",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/implement-spec/SKILL.md"
+          },
+          {
+            "name": "improve-codebase-architecture",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/improve-codebase-architecture/SKILL.md"
+          },
+          {
+            "name": "pr",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/pr/SKILL.md"
+          },
+          {
+            "name": "research",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/research/SKILL.md"
+          },
+          {
+            "name": "retro",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/retro/SKILL.md"
+          },
+          {
+            "name": "setup-repo",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/setup-repo/SKILL.md"
+          },
+          {
+            "name": "to-questionnaire",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/to-questionnaire/SKILL.md"
+          },
+          {
+            "name": "to-spec",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/to-spec/SKILL.md"
+          },
+          {
+            "name": "to-tickets",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/to-tickets/SKILL.md"
+          },
+          {
+            "name": "triage",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/triage/SKILL.md"
+          },
+          {
+            "name": "wayfinder",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/wayfinder/SKILL.md"
+          },
+          {
+            "name": "wizard",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/wizard/SKILL.md"
+          },
+          {
+            "name": "writing-for-agents",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/mattpocock/writing-for-agents/SKILL.md"
+          },
+          {
+            "name": "poteto-help",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/merged/poteto-help/SKILL.md"
+          },
+          {
+            "name": "prototype",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/merged/prototype/SKILL.md"
+          },
+          {
+            "name": "tdd",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/merged/tdd/SKILL.md"
+          },
+          {
+            "name": "teach",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/merged/teach/SKILL.md"
+          },
+          {
+            "name": "architect",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/architect/SKILL.md"
+          },
+          {
+            "name": "arena",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/arena/SKILL.md"
+          },
+          {
+            "name": "automate-me",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/automate-me/SKILL.md"
+          },
+          {
+            "name": "benchmark-checklist",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/benchmark-checklist/SKILL.md"
+          },
+          {
+            "name": "blast-radius",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/blast-radius/SKILL.md"
+          },
+          {
+            "name": "bro",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/bro/SKILL.md"
+          },
+          {
+            "name": "correct",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/correct/SKILL.md"
+          },
+          {
+            "name": "create-formal-verification-skill",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/create-formal-verification-skill/SKILL.md"
+          },
+          {
+            "name": "create-verification-skill",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/create-verification-skill/SKILL.md"
+          },
+          {
+            "name": "figure-it-out",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/figure-it-out/SKILL.md"
+          },
+          {
+            "name": "how",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/how/SKILL.md"
+          },
+          {
+            "name": "in-your-own-words",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/in-your-own-words/SKILL.md"
+          },
+          {
+            "name": "interrogate",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/interrogate/SKILL.md"
+          },
+          {
+            "name": "ketchup",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/ketchup/SKILL.md"
+          },
+          {
+            "name": "maintain-formal-verification-skill",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/maintain-formal-verification-skill/SKILL.md"
+          },
+          {
+            "name": "maintain-verification-skill",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/maintain-verification-skill/SKILL.md"
+          },
+          {
+            "name": "make-bot-ui",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/make-bot-ui/SKILL.md"
+          },
+          {
+            "name": "no-comments",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/no-comments/SKILL.md"
+          },
+          {
+            "name": "poteto-mode",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/SKILL.md"
+          },
+          {
+            "name": "principle-attack-the-premise",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-attack-the-premise/SKILL.md"
+          },
+          {
+            "name": "principle-boundary-discipline",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-boundary-discipline/SKILL.md"
+          },
+          {
+            "name": "principle-build-the-lever",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-build-the-lever/SKILL.md"
+          },
+          {
+            "name": "principle-encode-lessons-in-structure",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-encode-lessons-in-structure/SKILL.md"
+          },
+          {
+            "name": "principle-exhaust-the-design-space",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-exhaust-the-design-space/SKILL.md"
+          },
+          {
+            "name": "principle-experience-first",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-experience-first/SKILL.md"
+          },
+          {
+            "name": "principle-explain-the-number",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-explain-the-number/SKILL.md"
+          },
+          {
+            "name": "principle-fix-root-causes",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-fix-root-causes/SKILL.md"
+          },
+          {
+            "name": "principle-foundational-thinking",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-foundational-thinking/SKILL.md"
+          },
+          {
+            "name": "principle-guard-the-context-window",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-guard-the-context-window/SKILL.md"
+          },
+          {
+            "name": "principle-laziness-protocol",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-laziness-protocol/SKILL.md"
+          },
+          {
+            "name": "principle-make-operations-idempotent",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-make-operations-idempotent/SKILL.md"
+          },
+          {
+            "name": "principle-migrate-callers-then-delete-legacy-apis",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-migrate-callers-then-delete-legacy-apis/SKILL.md"
+          },
+          {
+            "name": "principle-minimize-reader-load",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-minimize-reader-load/SKILL.md"
+          },
+          {
+            "name": "principle-model-the-domain",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-model-the-domain/SKILL.md"
+          },
+          {
+            "name": "principle-never-block-on-the-human",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-never-block-on-the-human/SKILL.md"
+          },
+          {
+            "name": "principle-outcome-oriented-execution",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-outcome-oriented-execution/SKILL.md"
+          },
+          {
+            "name": "principle-prove-it-works",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-prove-it-works/SKILL.md"
+          },
+          {
+            "name": "principle-redesign-from-first-principles",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-redesign-from-first-principles/SKILL.md"
+          },
+          {
+            "name": "principle-separate-before-serializing-shared-state",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-separate-before-serializing-shared-state/SKILL.md"
+          },
+          {
+            "name": "principle-sequence-verifiable-units",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-sequence-verifiable-units/SKILL.md"
+          },
+          {
+            "name": "principle-subtract-before-you-add",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-subtract-before-you-add/SKILL.md"
+          },
+          {
+            "name": "principle-test-behavior-not-implementation",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-test-behavior-not-implementation/SKILL.md"
+          },
+          {
+            "name": "principle-type-system-discipline",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/principle-type-system-discipline/SKILL.md"
+          },
+          {
+            "name": "recall",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/recall/SKILL.md"
+          },
+          {
+            "name": "reflect",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/reflect/SKILL.md"
+          },
+          {
+            "name": "setup-pstack",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/setup-pstack/SKILL.md"
+          },
+          {
+            "name": "sharpen",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/sharpen/SKILL.md"
+          },
+          {
+            "name": "show-me-your-work",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/show-me-your-work/SKILL.md"
+          },
+          {
+            "name": "statechart",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/statechart/SKILL.md"
+          },
+          {
+            "name": "swarm",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/swarm/SKILL.md"
+          },
+          {
+            "name": "technical-writing",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/technical-writing/SKILL.md"
+          },
+          {
+            "name": "typescript-best-practices",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/typescript-best-practices/SKILL.md"
+          },
+          {
+            "name": "unslop",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/unslop/SKILL.md"
+          },
+          {
+            "name": "why",
+            "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/why/SKILL.md"
+          }
+        ],
+        "active_tools": [
+          "read",
+          "bash",
+          "edit",
+          "write",
+          "worktree_list",
+          "worktree_remove",
+          "subagent",
+          "subagent_send",
+          "subagent_stop",
+          "subagent_interrupt",
+          "subagent_cancel",
+          "subagents_list",
+          "subagent_resume"
+        ],
+        "tools": [
+          {
+            "name": "read",
+            "sourceInfo": {
+              "path": "builtin:read",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "bash",
+            "sourceInfo": {
+              "path": "builtin:bash",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "powershell",
+            "sourceInfo": {
+              "path": "builtin:powershell",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "edit",
+            "sourceInfo": {
+              "path": "builtin:edit",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "write",
+            "sourceInfo": {
+              "path": "builtin:write",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "grep",
+            "sourceInfo": {
+              "path": "builtin:grep",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "find",
+            "sourceInfo": {
+              "path": "builtin:find",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "ls",
+            "sourceInfo": {
+              "path": "builtin:ls",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "worktree_list",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "worktree_remove",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagents_write_task_models",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_send",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_stop",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_interrupt",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_cancel",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagents_list",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "subagent_resume",
+            "sourceInfo": {
+              "path": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/pi-extension/subagents/index.ts",
+              "source": "npm:pi-herdr-agents@3.11.0",
+              "scope": "user",
+              "origin": "package",
+              "baseDir": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents",
+              "changelogPath": "/home/exedev/.pi/agent/npm/node_modules/pi-herdr-agents/CHANGELOG.md"
+            }
+          },
+          {
+            "name": "codemode",
+            "sourceInfo": {
+              "path": "builtin:codemode",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          },
+          {
+            "name": "tool_search",
+            "sourceInfo": {
+              "path": "builtin:tool_search",
+              "source": "builtin",
+              "scope": "temporary",
+              "origin": "top-level"
+            }
+          }
+        ]
+      },
+      "custom": "explicit_unsupported_ui",
+      "navigation": {
+        "receipt": "delivered",
+        "revision": 2,
+        "leaf": "21e46d7f",
+        "native_leaf": "21e46d7f",
+        "stale_interaction": "cancel",
+        "stale_answer_refusal": "stale_binding"
+      },
+      "dropped_ack": {
+        "receipt": "outcome_unknown",
+        "answer_stage": 1,
+        "fenced": true,
+        "native_effect_count": 1,
+        "no_replay": true
+      },
+      "gates": [
+        {
+          "mode": "allow",
+          "answer_stage": 3,
+          "release_stage": 4,
+          "released": true,
+          "artifact_exists": true
+        },
+        {
+          "mode": "revoked",
+          "answer_stage": 3,
+          "release_stage": 3,
+          "released": false,
+          "artifact_exists": false
+        },
+        {
+          "mode": "revoked_at_child",
+          "answer_stage": 3,
+          "release_stage": 3,
+          "released": false,
+          "artifact_exists": false
+        },
+        {
+          "mode": "policy_changed",
+          "answer_stage": 3,
+          "release_stage": 3,
+          "released": false,
+          "artifact_exists": false
+        },
+        {
+          "mode": "expired",
+          "answer_stage": 3,
+          "release_stage": 3,
+          "released": false,
+          "artifact_exists": false
+        }
+      ]
+    }
+  ],
+  "acp_wire": {
+    "protocol": "ACP v1",
+    "schema_package": "@agentclientprotocol/sdk@2.7.0 stable v1",
+    "validated": {
+      "zInitializeRequest": 7,
+      "zInitializeResponse": 7,
+      "zNewSessionRequest": 7,
+      "zNewSessionResponse": 7,
+      "zPromptRequest": 16,
+      "zPromptResponse": 11,
+      "zSessionNotification": 2,
+      "zRequestPermissionRequest": 5,
+      "zRequestPermissionResponse": 5
+    },
+    "extensions": {
+      "_pi/event": 170,
+      "_pi/command": 22,
+      "_pi/dialog": 10,
+      "_pi/consumed": 15,
+      "_pi/admitted": 16
+    },
+    "failures": []
+  }
+}
