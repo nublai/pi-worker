@@ -38,6 +38,10 @@ test('refusal versus uncertain timeout, plus no eviction at capacity', async () 
     const bounded = new ReceiptStore(f.journal, 2);
     await assert.rejects(bounded.run('third', 'sessions.prompt', {}, async () => ({})), /receipt_capacity/);
     assert.equal(bounded.all.size, 2);
+    for (const operation of ['sessions.resolve_unknown', 'executions.cancel', 'executions.interrupt', 'children.report'] as const) {
+      const r = await bounded.run(operation, operation, {}, async () => { bounded.dispatch(operation); return { state: 'delivered', stage: 'resolved', effect: 'observed' }; });
+      assert.equal(r.state, 'delivered', operation + ' must bypass the ordinary count quota');
+    }
   } finally { f.cleanup(); }
 });
 test('recovery separates undispatched intent from dispatch; neither is replayed', async () => {

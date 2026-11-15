@@ -69,10 +69,10 @@ export class ReceiptStore {
       // effect(). Refusals here have no durable receipt and consume no capacity.
       validate();
       if (this.journal.failed) throw new Refusal('journal_failed', 'no_effect');
-      const ordinary = [...this.all.values()].filter(r => r.operation !== 'workers.stop').length;
-      // Termination bypasses the ordinary receipt quota. Its storage remains
-      // bounded by the advertised journal byte limit, not by validation traffic.
-      if (operation !== 'workers.stop' && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');
+      const recoveryAndControl = new Set<Receipt['operation']>(['workers.stop', 'executions.cancel', 'executions.interrupt', 'sessions.resolve_unknown', 'children.report']);
+      const ordinary = [...this.all.values()].filter(r => !recoveryAndControl.has(r.operation)).length;
+      // Control/recovery never deadlock behind ordinary count quota. The byte cap still applies.
+      if (!prior && !recoveryAndControl.has(operation) && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');
       if (!this.journal.reserve(command_id, this.maxResultBytes + 1024)) throw new Refusal('journal_result_capacity');
       const intent = this.put({ command_id, operation, request_hash: hash, ...(typeof request.worker_id === 'string' ? { worker_id: request.worker_id } : {}), state: 'intent', stage: 'reserved', effect: 'no_effect', evidence: 'supervisor_journal_fsynced', created_at: prior?.created_at ?? new Date().toISOString() });
       try {

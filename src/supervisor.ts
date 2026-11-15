@@ -92,7 +92,7 @@ export class Supervisor {
   hello(): Hello {
     return { protocol: { major: 0, minor: 1 }, prototype: true, supervisor_id: this.id, supervisor_epoch: this.epoch, pi_version: this.piVersion,
       capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt'],
-      limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; no privileged-tool-release gate in slice 2', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination bypasses count quota, journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed proves exact input evidence, never external-effect completion', tree_navigation: 'Pi 1.5.2 RPC has get_tree but no navigate command; refused no_effect', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
+      limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; no privileged-tool-release gate in slice 2', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination, cancel/interrupt, resolution and child reports bypass count quota; journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed proves exact input evidence, never external-effect completion', tree_navigation: 'Pi 1.5.2 RPC has get_tree but no navigate command; refused no_effect', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
       resource_profile: 'normal CLI discovery; exact loaded extension/tool inventory unverified', cleanup_profile: 'linux_process_group; no adoption or resume; escaped descendants unproven' };
   }
   private persist(live: Live): void {
@@ -318,9 +318,9 @@ export class Supervisor {
       if (w.fence) w.fence_generation = w.fence.fence_generation;
       if (!w.fence) {
         w.foreground = live.host && live.observedIdle === false ? 'running' : 'idle';
-        for (const queued of w.queued ?? []) if (queued.state === 'paused') queued.state = r.disposition === 'abandon' ? 'dropped' : 'queued';
-        if (r.disposition === 'abandon') this.dropPending(live, 'resolve_abandon');
+        for (const queued of w.queued ?? []) if (queued.state === 'paused' && r.disposition !== 'abandon') queued.state = 'queued';
       }
+      if (r.disposition === 'abandon') this.dropPending(live, 'resolve_abandon');
       this.persist(live); // durable resolution tombstone before clearing/authorizing receipts
       const target = this.receipts.all.get(uncertain);
       if (target && ['intent_recovered', 'intent_ready'].includes(target.state)) this.receipts.resolveIntent(uncertain, r.disposition);
@@ -415,13 +415,15 @@ export class Supervisor {
     });
   }
   private dropPending(live: Live, reason: string): void {
-    for (const [id] of live.pending ?? []) {
+    const active = (live.worker.queued ?? []).filter(q => ['queued', 'paused', 'recovered'].includes(q.state));
+    const ids = new Set([...(live.pending?.keys() ?? []), ...active.map(q => q.command_id)]);
+    for (const id of ids) {
       const r = this.receipts.all.get(id);
-      if (r && ['queued', 'intent_ready'].includes(r.state)) this.receipts.resolveIntent(id, 'abandon');
+      if (r && ['queued', 'intent_ready', 'intent_recovered'].includes(r.state)) this.receipts.resolveIntent(id, 'abandon');
       live.hub.publish('queued_dropped', { command_id: id, reason }, null, 'supervisor');
     }
     live.pending?.clear();
-    for (const q of live.worker.queued ?? []) if (['queued', 'paused'].includes(q.state)) q.state = 'dropped';
+    for (const q of active) q.state = 'dropped';
   }
   private async flushPending(live: Live): Promise<void> {
     // Every due item rechecks fence, binding and the original grant at dispatch.

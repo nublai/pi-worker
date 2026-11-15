@@ -115,6 +115,38 @@ test('recovered intent only dispatches once after owner resolution and exact ret
     assert.ok(!readFileSync(f.journal.file, 'utf8').includes(p.message + '"'));
   } finally { f.cleanup(); }
 });
+for (const reported of [false, true]) test(`child recovery ${reported ? 'with' : 'without'} fsynced report preserves parent launch uncertainty`, async () => {
+  const f = fixture(); try {
+    const w = await f.create(); await f.supervisor.prompt(w.worker_id, { ...bind(w, 'run'), message: 'run' });
+    f.hosts[0]!.emit('event', { type: 'agent_settled' });
+    await f.supervisor.launchChild(w.worker_id, { ...bind(w, 'launch'), execution_id: f.supervisor.get(w.worker_id).execution!.execution_id, launch: { command_id: 'create-child', cwd: f.dir, provider: 'p', model: 'm', thinking: 'off' } });
+    await tick(); await tick();
+    const child = f.supervisor.list().find(x => x.parent_worker_id === w.worker_id)!; assert.ok(child);
+    const delivered = f.supervisor.receipts.all.get('launch'); assert.equal(delivered?.state, 'delivered');
+    if (reported) await f.supervisor.report(child.worker_id, { ...bind(child, 'child-report'), task_id: 'launch', result_digest: 'sha256:claim' });
+    const journal = new Journal(f.journal.file);
+    try {
+      const next = new Supervisor(f.dir, journal, '1.5.2', () => { assert.fail('no replacement'); }); await next.recover();
+      assert.equal(next.get(w.worker_id).fence?.command_id ?? null, reported ? null : 'launch');
+      assert.deepEqual(next.receipts.all.get('launch'), delivered);
+    } finally { journal.close(); }
+  } finally { f.cleanup(); }
+});
+test('abandon drops a recovered queue and its durable no-dispatch intent', async () => {
+  const f = fixture(); try {
+    const w = await f.create(); await f.supervisor.prompt(w.worker_id, { ...bind(w, 'run'), message: 'run' });
+    await f.supervisor.followUp(w.worker_id, { ...bind(w, 'queued'), execution_id: f.supervisor.get(w.worker_id).execution!.execution_id, message: 'never dispatch' });
+    const journal = new Journal(f.journal.file);
+    try {
+      const next = new Supervisor(f.dir, journal, '1.5.2', () => { assert.fail('no host'); }); await next.recover();
+      let now = next.get(w.worker_id);
+      await next.resolveUnknown(w.worker_id, { ...bind(now, 'resolve-run'), uncertain_command_id: 'run', fence_generation: now.fence!.fence_generation, disposition: 'abandon' });
+      now = next.get(w.worker_id); assert.equal(now.queued?.[0]?.state, 'dropped');
+      assert.equal(next.receipts.all.get('queued')?.disposition, 'abandoned_without_dispatch');
+      assert.equal(f.hosts[0]!.prompts, 1);
+    } finally { journal.close(); }
+  } finally { f.cleanup(); }
+});
 test('resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation', async () => {
   const f = fixture(); try {
     const w = await f.create(), p = { ...bind(w, 'lost'), message: 'live' }; f.hosts[0]!.failure = true;
