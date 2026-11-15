@@ -1,6 +1,8 @@
 # A0 slice 7 — close the Gate 1 gaps
 
 > **Security fix round (2026-11-15) supersedes the original verdict below.** Two independent reviews found that the slice's parent sandbox could be escaped: a symlinked `ROOT/.a0-worktrees` gave a child an arbitrary host root (B1), profile staging could be raced into copying unreadable files (B2), and sandbox-writable Git metadata could run code as the owner (M1). All three, and the listed minors, are fixed with regressions on runtime **`c8bfbdbfbbce2c257458b60362c7e6752763b66f`** (tree `52d1653219cfbb3b1151bdbb5a42706963a9fd34`). See [Security fix round](#security-fix-round) and the corrected Gate 1 table. The original claims for items 8 and 12 were **not met** as first stated.
+>
+> **Owner-Git follow-up (2026-11-15).** A delta review (Grok, `nubl/.pi/plan/research/a0-slice7-security-delta.md`) found that the M1 fix was not one step: a sandboxed parent could still rewrite a child's `commondir` between the owner pin check and Git's own open of it, so owner `safeGit diff` could run a planted diff driver or filter. Owner Git now runs on a private snapshot of the pinned metadata and ignores global/system config. Runtime **`244bc54`**; records on `51a8641` (same `src/`). See [Owner-Git follow-up](#owner-git-follow-up-grok-delta-review-fixed).
 
 **Complete for the authorized throwaway build. My verdict, after the security fix round: Gate 1's bounded prototype cases are covered against contract revision 7, with the stated limits. Recommend root review, then founder approval of the invariant freeze—not production approval.** Gate 2 and the verified-draft-PR finish line are not completed by this slice. No subagents, pushes, merges, PR actions, VM creation, or tailnet changes.
 
@@ -141,7 +143,7 @@ Verified on the old code. In the portable channel probe, a child launched throug
   - Reverting to the old `cpSync(..., dereference:false, verbatimSymlinks:true)` primitive, even after validation, **copied the secret** in each of 3 runs ("staging copied a link target (f24, attempt 1)"). Both `staging-follows-race-cpSync` and `staging-before-validation` are killed.
   - The leak check runs before the receipt check, because the old primitive both fails (`EINVAL`) and steals under this race.
 
-### M1 / Grok blocker 2 — sandbox-written Git metadata ran as the owner: **fixed**
+### M1 / Grok blocker 2 — sandbox-written Git metadata ran as the owner: **fixed** (owner helper completed in the [follow-up](#owner-git-follow-up-grok-delta-review-fixed))
 
 Verified on the old code: a decoy `commondir` with `core.fsmonitor` ran its payload from the pre-fix owner audit's `git -C <child> status` ([m1-before-1f38036.log](evidence/slice7-security/before-fix/m1-before-1f38036.log)). Locally, Git 2.53 also runs it from `fsck`.
 
@@ -165,7 +167,7 @@ Verified on the old code: a decoy `commondir` with `core.fsmonitor` ran its payl
   - alternates.
 
   It is read through `O_NOFOLLOW` descriptors when the supervisor first launches the worker.
-- **One owner helper, `src/git-safe.ts`.** Before every Git command it re-reads the pin and refuses on any change (`git_metadata_changed_since_launch`) or a missing pin. It then runs Git with:
+- **One owner helper, `src/git-safe.ts`.** *(Superseded by the follow-up below: a compare-then-run-by-path helper was raceable.)* Before every Git command it re-reads the pin and refuses on any change (`git_metadata_changed_since_launch`) or a missing pin. It then runs Git with:
   - `--git-dir=<pinned dir>`;
   - `-c core.fsmonitor=false -c core.hooksPath=/dev/null -c diff.ignoreSubmodules=all -c submodule.recurse=false`;
   - inherited `GIT_DIR`/`GIT_CONFIG_*`-style variables removed.
@@ -178,6 +180,53 @@ Verified on the old code: a decoy `commondir` with `core.fsmonitor` ran its payl
   - Portable: plants via `commondir` and via the gitfile are refused without running the payload. A pre-pin `core.fsmonitor` in config still never runs, through `safeGit`, `fsck` and `artifactSubject`. An ordinary-checkout `commondir` plant, a config include, and the mount plan are each covered.
   - Kernel: a child cannot write `.git`, `gitdir`, `commondir`, `HEAD`, alternates or config, and cannot remove or rename `.git`, yet still commits. In an ordinary-checkout root, config, hooks, attributes and alternates are read-only, `.git` cannot be renamed, and the commit works.
   - Reversions killed: `git-pointer-overlays-removed`, `ordinary-checkout-overlays-removed`, `owner-pin-compare-removed`, `owner-safe-config-removed`.
+
+### Owner-Git follow-up (Grok delta review): **fixed**
+
+**The race is closed: owner Git no longer re-opens any agent-writable path for anything that picks code to run. Runtime `244bc54`; the tests ran on `51a8641` (tree `ccdaf49`), whose `src/` is the same.** Input: `nubl/.pi/plan/research/a0-slice7-security-delta.md`, a local planning file. No reviewer script was executed.
+
+**The hole, confirmed before the fix.** `checkGitPin` read the pointer files, closed the descriptors and returned. Then `spawnSync('git', ['--git-dir=<admin path>', ...])` let Git re-read `commondir` by path. A sandboxed parent can write its children's admin files under `.git/worktrees/`, and also its own `.git/commondir`. So it can flip `commondir` to a decoy common dir. That decoy's config defines `diff.<x>.command`, `diff.<x>.textconv` and `filter.<x>.clean`, and the worktree `.gitattributes` selects `<x>`. The `-c` fsmonitor/hooks flags do not stop that. I confirmed the reviewer's blocker with new tests built against the `a8d1357` helper ([log](evidence/slice7-security/before-fix/owner-git-before-a8d1357.log)):
+- **Linked child:** the payload ran 605 times during 452 passing `safeGitRun` calls (900 calls in total: `diff --binary BASE HEAD`, `diff -- note`, `status`).
+- **Ordinary `.git`:** the payload also ran when the decoy `commondir` was created and removed during the calls.
+- **Repository config:** a filter in the repository config ran.
+- **Global config:** a filter pulled in by a `~/.gitconfig` `[include]` ran.
+
+**The fix (`src/git-safe.ts`).** Each `safeGitRun` call:
+1. Opens `.git`, the admin dir and the common dir with `O_NOFOLLOW` and compares the launch pin through those descriptors. This is the same `inspect` the sandbox mount plan uses.
+2. Copies HEAD from the **same descriptors** into a fresh mode-0700 `mkdtemp` dir that the supervisor owns. The dir is checked for owner, mode, and being outside the root and the git and common dirs. A symbolic HEAD must equal the pin; otherwise HEAD must have the expected shape. The step also copies config, re-hashed so it must equal `config_sha256`. It copies `refs/`, `packed-refs`, `shallow`, `info/` and the index as well. Links and special files refuse.
+3. Lists the copied config with Git's own parser: `git config --file <copy> --no-includes --null --list`. That parser handles a BOM, quoting and case. The call refuses with `git_config_executes_code` if any key names a program: `include*`, `filter.*`, `diff.external`, `diff.*.command|textconv`, `merge.*.driver`, `alias.*`, `gpg[.*].program`, `core.sshCommand|pager|editor|askPass|gitProxy|alternateRefsCommand`, `pager.*`, `sequence.editor`, `uploadpack.packObjectsHook`. A `-c` flag cannot switch off a driver whose name is unknown, and `.gitattributes` is agent data that picks drivers by name.
+4. Runs Git with `--git-dir=<snapshot>` (no `commondir`, so nothing redirects) and `GIT_OBJECT_DIRECTORY=<pinned common>/objects`. The environment is a clean allowlist (`PATH`, locale, `TZ`) plus `HOME`/`XDG_CONFIG_HOME` set to an empty private dir. It also sets `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_ATTR_NOSYSTEM=1`, `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0` and `GIT_NO_LAZY_FETCH=1`. The `-c` flags are `core.fsmonitor=false`, `core.hooksPath=/dev/null`, `core.attributesFile=/dev/null`, `diff.ignoreSubmodules=all`, `submodule.recurse=false` and `protocol.allow=never`. Diff-family commands (`diff*`, `log`, `show`, `whatchanged`) get `--no-ext-diff --no-textconv`. The snapshot is removed afterwards.
+
+`checkGitPin` stays exported for scripts, but its docs now say it is advisory on its own. `copyTreeAt` gained a `links: 'refuse'` mode. `copyFileAt` streams one `O_NOFOLLOW` file. Callers did not change. On this checkout, `artifactSubject`'s diff digest equals a plain `git diff --no-ext-diff --no-textconv --binary` with global config off (identical 76,886 bytes).
+
+**Deviations, stated:**
+- **No `-c diff.external=`.** On Git 2.53 it makes every plain `git diff` fail with `cannot run :`. Instead, `diff.external` in config refuses, `GIT_EXTERNAL_DIFF` is dropped by the environment allowlist, and `--no-ext-diff` is added.
+- **Repository configs that define drivers or filters now refuse owner Git.** Example: a repo-local `git lfs install`. This fails closed. `credential.helper` and remote/url keys are not refused, because `protocol.allow=never` blocks every transport in the helper.
+- **Objects come from the shared store by path.** A parent could swap that store for one holding crafted objects or FIFOs. That is data or a hang, never code; the delta review accepted it. Work-tree contents (`.gitattributes`, `.gitignore`, `.gitmodules`) are agent data too: they cannot name a program once no config defines one.
+- **Per-worktree refs and reflogs are not copied.** These are `refs/worktree`, `refs/bisect` and `logs/`, so `@{n}` reflog syntax does not work through the helper. `fsck` still exits 0; other worktrees' HEADs are not reachability roots there.
+
+**Regressions, in `src/test/owner-git.test.ts` (6 tests: 5 portable, 1 kernel):**
+- **Linked-child race:** a separate process atomically flips the child admin `commondir` between the real path and a decoy. Meanwhile there are 300 each of `safeGitRun` `diff --binary BASE HEAD`, `diff -- note` and `status` (the file is made stat-dirty every call, so the clean filter is needed). The test asserts no payload run and no unexpected error. It also requires passes > 0 and refusals > 0, so it cannot pass vacuously, and a static control proves the decoy fires under the old argv.
+- **Ordinary `.git` race:** the same, with `.git/commondir` created and removed.
+- **Executing config:** each of the 8 executing keys in repository config refuses for all three commands on both checkouts. A control shows that plain Git runs it.
+- **Global config:** a `~/.gitconfig` `[include]`, XDG `git/config` and `git/attributes`, and then `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM` and `GIT_EXTERNAL_DIFF` are not honoured. A control shows that plain Git honours them.
+- **Faithful snapshot:** `status --branch`, `rev-parse` (loose and packed refs and tags), `for-each-ref`, `diff --binary`, `log` and `symbolic-ref` match plain Git. `fsck --full --strict` exits 0, and `config --get credential.helper` exits 1.
+- **Kernel:** the flipping writer is a real bwrap sandbox whose root is the parent's ordinary clone. It uses `/bin/sh` and `mv`.
+
+| Check (`51a8641`) | Local (Node 26.13, bwrap 0.11.1, Git 2.53) |
+| --- | --- |
+| `npm test` (`TMPDIR=/tmp/a0s7g/tmp`) | **239 tests: 226 pass, 13 kernel skips, 0 failures** |
+| Full suite, delegated user service `a0-s7g-kernel`, `A0_TEST_BWRAP=1` + cgroup | **239/239 pass** |
+| New tests on the `a8d1357` helper | 4 portable fail by assertion (kernel skipped); 1 passes (snapshot fidelity) |
+| Reversions ([runner](evidence/slice7-security/reversions/owner-git-reversions.py), portable + `A0_TEST_BWRAP=1`) | **4/4 killed:** `owner-helper-a8d1357` (all 5 guards, including the kernel race; 600 payload runs in the linked race), `snapshot-removed-git-reads-pinned-paths` (both races and the kernel race; Git reads the pinned admin path again), `executing-config-allowed`, `global-config-honoured` |
+| Final `a0-*` user units; leftover `a0-git-*` snapshots | Empty; none |
+
+The 6 new tests join the 233. No test was removed or weakened. Record: [owner-git-checks.json](evidence/slice7-security/owner-git-checks.json), with logs, diffs and the before-fix log; [owner-git-record.mjs](evidence/slice7-security/owner-git-record.mjs) binds the commit and tree through the helper. **Not rerun:** the `a0-worker` VM suites; the model-driven job.
+
+**Delta-review nits not addressed here:**
+- The channel grant still unions `launch_spec.grant_methods`. The router whitelist ignores them.
+- A quoted or BOM-prefixed `worktreeConfig = "true"` slips past the launch regex. Only sandbox Git is affected: the agent cannot write common config, and owner Git never reads `config.worktree` (the snapshot has no admin config).
+- Missing pins on pre-fix workers still skip the relaunch compare. Owner `safeGit` refuses a missing pin (`git_launch_pin_required`).
 
 ### Minors and nits
 
@@ -200,7 +249,7 @@ Verified on the old code: a decoy `commondir` with `core.fsmonitor` ran its payl
 ### Remaining stated limits from this round
 
 - **Admin files created after launch.** A linked worktree's writable admin dir can gain `config`, `config.worktree` or `hooks` files that were absent at launch. Git does not read them for a linked worktree (`worktreeConfig` is refused), and the helper disables hooks anyway.
-- **Parent-controlled child metadata.** For children of an ordinary-clone parent, the admin metadata lives in the parent's writable `.git/worktrees/`, so the parent can rewrite it. The owner helper detects that through the pins. **Manual owner Git** in a retained worktree, outside the helper, is not protected: use `safeGit` (or a fresh `--no-local` clone) for any later inspection.
+- **Parent-controlled child metadata.** For children of an ordinary-clone parent, the admin metadata lives in the parent's writable `.git/worktrees/`, so the parent can rewrite it. The owner helper detects that through the pins. Since the follow-up, it runs Git on a private snapshot taken from the compared descriptors, so a concurrent rewrite cannot reach Git either. **Manual owner Git** in a retained worktree, outside the helper, is not protected: use `safeGit` (or a fresh `--no-local` clone) for any later inspection.
 - **Experimental host Git.** The experimental host's own Git inspection runs plain `git` inside the parent sandbox; that repository was not edited. Child pointers are read-only, so a child cannot redirect it.
 - **Shared objects.** The object store stays writable, as an integrity limit (corruption, extra loose objects or packs), not a code-execution vector.
 - **Pins and config edits.** Workers persisted before this round have no `git_pin`, so their relaunch skips the pin compare. An owner config edit after launch makes owner commands refuse; this fails closed.
@@ -231,7 +280,7 @@ The probe sources are under [before-fix/](evidence/slice7-security/before-fix/).
 | **7** New/fork/resume/tree identity and stale bindings | **Covered** | Slices 2/3 B2 transitions; slice 5 fresh-process relaunch; slice 7 real native extension moves in SDK/ACP/RPC, native leaf comparison and stale refusals. |
 | **8** bwrap allowed/outside/socket refusal | **Covered after the fix round** (first claim was **not met**) | Slice 5 real child and root-pinned reads. As first delivered, slice 7's parent sandbox failed this item: B1 hit the "unconfined file read" stop condition (a host root bound read-write), and B2 gave an unconfined read through staging. Fixed: descriptor binds, an O_NOFOLLOW child root inside the parent root, post-validation descriptor staging, and read-only Git pointers. Real-bwrap regressions run in both kernel suites; PROBE A got HTTP 200 on the old code and is refused now. |
 | **11** Fence/duplicate session/same-user project extension/FD report | **Covered** | Slices 2–5 fence and duplicate-open cases; slice 7 literal project-extension socket positive/negative fixture and two live sandbox FD results. |
-| **12** Scoped/revoked authority, delayed mutation, paused queue/keep, abrupt-kill cleanup/profile | **Covered after the fix round** (first claim was **not met** for the channel) | Slices 2/3/5 fixtures, gate release revocation and detached-grandchild cleanup, all rerun. As first delivered, the channel acted with the owner's `*` grant, so "a scoped grant is denied outside its scope" failed (B1). Fixed: the channel has its own grant scoped to the parent worker and root, the source grant is rechecked, and worker-less receipts are hidden. Owner Git checks compare launch-time pins, because a full-ref map alone was not a Git mitigation (M1). Existing-daemon handoffs and hostile same-UID code remain named limits. |
+| **12** Scoped/revoked authority, delayed mutation, paused queue/keep, abrupt-kill cleanup/profile | **Covered after the fix round** (first claim was **not met** for the channel) | Slices 2/3/5 fixtures, gate release revocation and detached-grandchild cleanup, all rerun. As first delivered, the channel acted with the owner's `*` grant, so "a scoped grant is denied outside its scope" failed (B1). Fixed: the channel has its own grant scoped to the parent worker and root, the source grant is rechecked, and worker-less receipts are hidden. Owner Git checks compare launch-time pins, because a full-ref map alone was not a Git mitigation (M1). Since the owner-Git follow-up, they also run Git on a private snapshot of the pinned bytes, with executing config refused and global/system config ignored. This closes the `commondir` race the delta review found. Existing-daemon handoffs and hostile same-UID code remain named limits. |
 | **6, history-lag part only** | **Covered** | Slices 1–3 lag/watermark/stage tests rerun; slice 7 confirms snapshot identity after disconnected work. Remaining client/push surfaces are Gate 2. |
 | **0.1 fixtures** | **Covered** | All eleven replay rows run in both final suites; details below. |
 
