@@ -18,7 +18,15 @@ function check(root: string): void {
       const header = JSON.parse(readFileSync(effect.file, 'utf8').split('\n')[0]!);
       assert.equal(header.id, effect.session_id);
       assert.notEqual(after.receipts.find(r => r.command_id === effect.command_id)?.effect, 'no_effect');
-      assert.ok(after.receipts.find(r => r.command_id === effect.command_id));
+      const receipt = after.receipts.find(r => r.command_id === effect.command_id);
+      assert.ok(receipt);
+      if (effect.parent) {
+        const child = after.workers.find(w => w.worker_id === receipt.worker_id);
+        assert.ok(child, 'every native child spawn must have a recovered reservation');
+        assert.deepEqual(child.parent, effect.parent, 'native spawn requires lineage persisted before the effect');
+        assert.equal(child.parent_worker_id, effect.parent.worker_id);
+        assert.equal(child.parent_launch_command_id, effect.command_id);
+      }
     }
     if (effect.kind === 'stop') {
       const receipt = after.receipts.find(r => r.command_id === effect.command_id);
@@ -30,7 +38,7 @@ function check(root: string): void {
   if (child) {
     const parent = after.workers.find(w => w.worker_id === child.parent_worker_id)!;
     const launch = after.receipts.find(r => r.command_id === child.parent_launch_command_id)!;
-    const reported = after.receipts.some(r => r.worker_id === child.worker_id && r.operation === 'children.report' && r.state === 'delivered');
+    const reported = after.receipts.some(r => r.worker_id === child.worker_id && r.operation === 'children.report' && r.state === 'delivered' && r.result?.kind !== 'help');
     assert.equal(!!parent.fence?.uncertain_command_ids?.includes(child.parent_launch_command_id!), launch.effect !== 'no_effect' && !reported, 'missing durable report fences parent, pre-dispatch does not');
     assert.equal(child.child_reports?.length, reported ? 1 : 0);
   }
