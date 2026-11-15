@@ -1,0 +1,52 @@
+{
+  "prototype": true,
+  "subject": {
+    "repository": "nublai/pi-worker",
+    "revision": "933efbf406273a925edb98ab862e886c9ddc9070",
+    "deployment_archive_sha256": "d88258947eb728fd0fe79fac4aafd7cb2f7bf5a1eefd1c5828feeb7f34a48d03",
+    "archive_hash_matched_on_host_and_vm": true
+  },
+  "producer": "A0 slice 1 build leaf; self-verification, no independent reviewer",
+  "environment": {
+    "vm": "a0-worker",
+    "node": "22.21.1",
+    "pi": "1.5.2",
+    "pi_herdr_agents": "3.11.0",
+    "pi_herdr_pstack": "1.0.0",
+    "provider_model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+    "thinking": "off",
+    "tailscale_tags": ["tag:tester"],
+    "tailscale_ssh": false
+  },
+  "checks": {
+    "local_npm_test": {"pass": 13, "fail": 0},
+    "node22_vm_npm_test": {"pass": 13, "fail": 0},
+    "openapi_generated_types_unchanged": true,
+    "git_diff_check": true,
+    "socket_mode": "0600",
+    "socket_directory_mode": "0700",
+    "journal_mode": "0600",
+    "live_file_and_reply": true,
+    "live_agent_settled": true,
+    "live_history": true,
+    "reattach_snapshot_cursor_history_marker": true,
+    "duplicate_receipt_identical": true,
+    "supervisor_sigkill_after_actual_tool_output": true,
+    "recovered_command_outcome_unknown": true,
+    "recovered_duplicate_no_replay": true,
+    "fence_refusal_names_uncertain_command": true,
+    "observed_start_effect_count": 1,
+    "blocking_tool_finish_file_absent_after_deadline": true,
+    "fresh_live_worker_stop_observed": true,
+    "same_environment_replacement_refused_after_unproven_cleanup": true,
+    "report_and_selected_evidence_credential_pattern_scan": true
+  },
+  "limitations": [
+    "Not A0 Gate 1, Gate 2, or production conformance",
+    "LSP checked files were inconclusive; strict tsc passed",
+    "No native peer-UID check, grants, dialogs/answers, fence resolution, resume, or child orchestration",
+    "Linux process-group cleanup cannot prove escaped descendant termination",
+    "Earlier crash driver matched echoed arguments; only corrected final run proves a started effect",
+    "Initial host npm cache/log used its default location outside the requested scratch boundary"
+  ]
+}

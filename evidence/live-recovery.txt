@@ -1,0 +1,19 @@
+{"command_id":"final-crash","operation":"sessions.prompt","request_hash":"61e37de068b7d4770a8b344a8f82cf140068f4d648e45f716d1e3bf139e7480d","state":"outcome_unknown","stage":"unknown","effect":"unknown","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T05:05:24.746Z","worker_id":"51aaf702-e108-4fa9-8492-f0bf95dbf43c","execution_id":"0001014b-ac37-48a0-8ebf-53046cb4ee2f","admission":"accepted","disposition":"started","history_lag":true}
+RECOVERED_DUPLICATE_RECEIPT_IDENTICAL
+{"command_id":"final-fenced","operation":"sessions.prompt","request_hash":"9db8a9d3082306280f454fe9dcadf5903507981013f98e319332d781c78eec7b","state":"rejected","stage":"refused","effect":"no_effect","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T05:06:27.262Z","admission":"rejected","uncertain_command_id":"final-crash","error":"session_fenced"}
+{"command_id":"final-stop","operation":"workers.stop","request_hash":"8beea8e3ae5b0001b6bfc1a9619fbb8e0acf84300282340086a5ac779c31132b","state":"delivered","stage":"termination_observed","effect":"observed","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T05:06:27.474Z","worker_id":"51aaf702-e108-4fa9-8492-f0bf95dbf43c","result":{"termination":"observed_stopped","profile":"process_group_only"}}
+{"command_id":"final-replacement","operation":"workers.create","request_hash":"e847e626b42121dc0bf4e40894296a8928bd721c0e669ac20dd09fb44f435199","state":"rejected","stage":"refused","effect":"no_effect","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T05:06:27.532Z","admission":"rejected","error":"exclusive_environment_already_bound"}
+{"journalStates":["intent","accepted","delivered","outcome_unknown"],"fence":{"command_id":"final-crash","fence_generation":1},"cleanup":"process_group_observed_gone; escaped_descendants_unproven","startEffectCount":1,"crashPromptsInPiHistory":1,"finishedFileExists":false,"controlJournalContainsPromptText":false}
+700 /tmp/a0/state
+600 /tmp/a0/state/worker.sock
+600 /tmp/a0/state/journal.jsonl
+      1 node
+{
+  "tags": [
+    "tag:tester"
+  ],
+  "online": true
+}
+{
+  "RunSSH": false
+}

@@ -1,0 +1,97 @@
+{"command_id":"live-stop-1","operation":"workers.stop","request_hash":"a20db9c049dd21727f2011dc953cd2205bca32f555365534d842648cd56bea57","state":"delivered","stage":"termination_observed","effect":"observed","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T05:04:02.346Z","worker_id":"8c3d340f-b6a2-4f9a-becc-651cacaf4bdf","result":{"termination":"observed_stopped","profile":"process_group_only"}}
+
+> @nublai/pi-worker-a0@0.0.0-throwaway test
+> npm run build && node --test dist/test/*.test.js
+
+
+> @nublai/pi-worker-a0@0.0.0-throwaway build
+> tsc -p tsconfig.json
+
+TAP version 13
+# Subtest: RPC host keeps LF framing across Unicode separators and split UTF8; drains events independently
+ok 1 - RPC host keeps LF framing across Unicode separators and split UTF8; drains events independently
+  ---
+  duration_ms: 37.478152
+  type: 'test'
+  ...
+# Subtest: RPC timeout is an error, never a resend; process exit rejects pending requests
+ok 2 - RPC timeout is an error, never a resend; process exit rejects pending requests
+  ---
+  duration_ms: 55.886067
+  type: 'test'
+  ...
+# Subtest: canonical idempotency ignores transport id, not operation content
+ok 3 - canonical idempotency ignores transport id, not operation content
+  ---
+  duration_ms: 7.462405
+  type: 'test'
+  ...
+# Subtest: intent and dispatch are durable before effect; duplicate attempts dispatch once
+ok 4 - intent and dispatch are durable before effect; duplicate attempts dispatch once
+  ---
+  duration_ms: 9.592243
+  type: 'test'
+  ...
+# Subtest: refusal versus uncertain timeout, plus no eviction at capacity
+ok 5 - refusal versus uncertain timeout, plus no eviction at capacity
+  ---
+  duration_ms: 9.277176
+  type: 'test'
+  ...
+# Subtest: recovery separates undispatched intent from dispatch; neither is replayed
+ok 6 - recovery separates undispatched intent from dispatch; neither is replayed
+  ---
+  duration_ms: 7.079578
+  type: 'test'
+  ...
+# Subtest: journal admission reserves full result room and never begins an effect without it
+ok 7 - journal admission reserves full result room and never begins an effect without it
+  ---
+  duration_ms: 2.000416
+  type: 'test'
+  ...
+# Subtest: journal truncates a torn final record, rejects complete corruption or sequence gaps
+ok 8 - journal truncates a torn final record, rejects complete corruption or sequence gaps
+  ---
+  duration_ms: 5.176796
+  type: 'test'
+  ...
+# Subtest: SSE attach barrier: snapshot is first, no duplicate or missing event under reentrant emission
+ok 9 - SSE attach barrier: snapshot is first, no duplicate or missing event under reentrant emission
+  ---
+  duration_ms: 23.932307
+  type: 'test'
+  ...
+# Subtest: public HTTP/CLI client: identity, duplicate, stale binding, admission distinct from settlement, history, detach, stop
+ok 10 - public HTTP/CLI client: identity, duplicate, stale binding, admission distinct from settlement, history, detach, stop
+  ---
+  duration_ms: 66.391705
+  type: 'test'
+  ...
+# Subtest: crash after admission while running: journal unknown/fence, no prompt replay, rejected future write
+ok 11 - crash after admission while running: journal unknown/fence, no prompt replay, rejected future write
+  ---
+  duration_ms: 33.193859
+  type: 'test'
+  ...
+# Subtest: execution reservation cut before dispatch stays no_effect on recovery
+ok 12 - execution reservation cut before dispatch stays no_effect on recovery
+  ---
+  duration_ms: 25.982477
+  type: 'test'
+  ...
+# Subtest: history pages pin a branch watermark and ignore partial final JSONL
+ok 13 - history pages pin a branch watermark and ignore partial final JSONL
+  ---
+  duration_ms: 3.892552
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 452.810043

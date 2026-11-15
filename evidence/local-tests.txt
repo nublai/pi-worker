@@ -1,0 +1,29 @@
+
+> @nublai/pi-worker-a0@0.0.0-throwaway test
+> npm run build && node --test dist/test/*.test.js
+
+
+> @nublai/pi-worker-a0@0.0.0-throwaway build
+> tsc -p tsconfig.json
+
+✔ RPC host keeps LF framing across Unicode separators and split UTF8; drains events independently (37.22816ms)
+✔ RPC timeout is an error, never a resend; process exit rejects pending requests (78.709548ms)
+✔ canonical idempotency ignores transport id, not operation content (4.897034ms)
+✔ intent and dispatch are durable before effect; duplicate attempts dispatch once (1.497666ms)
+✔ refusal versus uncertain timeout, plus no eviction at capacity (0.499265ms)
+✔ recovery separates undispatched intent from dispatch; neither is replayed (0.328545ms)
+✔ journal admission reserves full result room and never begins an effect without it (0.207338ms)
+✔ journal truncates a torn final record, rejects complete corruption or sequence gaps (0.571781ms)
+✔ SSE attach barrier: snapshot is first, no duplicate or missing event under reentrant emission (6.727132ms)
+✔ public HTTP/CLI client: identity, duplicate, stale binding, admission distinct from settlement, history, detach, stop (16.906451ms)
+✔ crash after admission while running: journal unknown/fence, no prompt replay, rejected future write (1.294325ms)
+✔ execution reservation cut before dispatch stays no_effect on recovery (0.846666ms)
+✔ history pages pin a branch watermark and ignore partial final JSONL (0.536275ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 151.680245

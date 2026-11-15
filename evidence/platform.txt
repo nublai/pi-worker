@@ -1,0 +1,9 @@
+680d3f30b24a7ff24b98db5e96f294c0070f8f9078df658da1bce1b9c9873c88  node-v22.21.1-linux-x64.tar.xz
+v22.21.1
+1.5.2
+pi-herdr-agents 3.11.0
+pi-herdr-pstack 1.0.0
+supervisor_pid 1269
+   1269 node
+{"tags":["tag:tester"],"online":true}
+{"RunSSH":false}

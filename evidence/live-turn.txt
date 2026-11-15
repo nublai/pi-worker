@@ -1,0 +1,3 @@
+{"command_id":"final-prompt","operation":"sessions.prompt","request_hash":"e98f8b13b6a0a2a537b9fc9d29e512b1ac84783add47b9355ea452a6b62b1415","state":"delivered","stage":"forwarded","effect":"observed","evidence":"supervisor_journal_fsynced","created_at":"2026-11-15T05:04:53.873Z","worker_id":"51aaf702-e108-4fa9-8492-f0bf95dbf43c","execution_id":"819d0c1b-8024-4ce6-8ccf-5c11a5dfa036","admission":"accepted","disposition":"started","history_lag":true}
+DUPLICATE_RECEIPT_IDENTICAL
+{"eventTypes":["snapshot","agent_start","turn_start","message_start","message_end","message_update","tool_execution_start","tool_execution_end","turn_end","agent_end","agent_settled"],"first":"snapshot","last":"agent_settled","historyEntries":7,"watermark":"fa6e2654","proof":"A0_SLICE1_FILE_OK\n"}
