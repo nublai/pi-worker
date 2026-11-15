@@ -682,18 +682,21 @@ export interface components {
         };
         StopResult: {
             /**
-             * @description observed_stopped: normal stop, generation confirmed gone. superseded_generation_stopped: old generation gone but a new relaunch was already running. superseded_generation_unknown: old generation cleanup outcome unknown, new generation running. unknown: cleanup outcome unknown.
+             * @description observed_stopped: normal stop, generation confirmed gone. superseded_generation_stopped: old generation gone but a new relaunch was already running. superseded_generation_unknown: old generation cleanup outcome unknown, new generation running. unknown: cleanup outcome unknown, generation status not checked.
              * @enum {unknown}
              */
             termination?: "observed_stopped" | "superseded_generation_stopped" | "superseded_generation_unknown" | "unknown";
-            /** @description Present for observed_stopped, superseded_generation_stopped, and superseded_generation_unknown. The worker_epoch of the generation that was stopped. */
+            /** @description The worker_epoch of the generation that was targeted by this stop. Present for all termination values. */
             stopped_worker_epoch?: string;
-            /** @description Present for observed_stopped, superseded_generation_stopped, and superseded_generation_unknown. The worker_epoch of the currently active generation (may differ from stopped_worker_epoch when superseded). */
+            /** @description The worker_epoch of the currently active generation at the time of receipt. Equals stopped_worker_epoch for non-superseded stops; differs when the generation was superseded. */
             current_worker_epoch?: string;
             /** @enum {unknown} */
             profile?: "cgroup_v2" | "process_group_only";
         } & {
             [key: string]: unknown;
+        };
+        StopReceipt: components["schemas"]["Receipt"] & {
+            result?: components["schemas"]["StopResult"];
         };
     };
     responses: never;
@@ -1123,7 +1126,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Receipt"];
+                    "application/json": components["schemas"]["StopReceipt"];
                 };
             };
             /** @description Refusal; never implies cancel */

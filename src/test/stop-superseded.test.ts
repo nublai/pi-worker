@@ -197,3 +197,27 @@ test('stop idempotency: second stop call returns the same receipt', async () => 
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('unknown stop (cleanup failed, no supersession): epoch fields still identify the targeted generation', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'a0s6-unknown-epoch-'));
+  const containment = makeContainment({ cleanResult: false });
+  const { journal, supervisor, cwd } = makeFixture(root, containment);
+  try {
+    const createArgs = { command_id: 'create', cwd, provider: 'p', model: 'm', thinking: 'off' as const };
+    const r = await supervisor.create(createArgs);
+    const w0 = supervisor.get(r.worker_id!);
+    const originalEpoch = w0.worker_epoch;
+
+    const stopReceipt = await supervisor.stop(w0.worker_id, bind(w0, 'stop-unknown'));
+
+    assert.equal(stopReceipt.state, 'outcome_unknown');
+    assert.equal(stopReceipt.result?.termination, 'unknown');
+    assert.equal(stopReceipt.result?.stopped_worker_epoch, originalEpoch,
+      'unknown stop must still report stopped_worker_epoch for the targeted generation');
+    assert.equal(stopReceipt.result?.current_worker_epoch, originalEpoch,
+      'unknown stop without supersession: current_worker_epoch equals stopped_worker_epoch');
+  } finally {
+    journal.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});

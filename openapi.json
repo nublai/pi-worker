@@ -147,14 +147,7 @@
       "get": {
         "operationId": "interactions.status",
         "parameters": [
-          {
-            "name": "interaction_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
+          { "name": "interaction_id", "in": "query", "required": true, "schema": { "type": "string" } },
           {
             "name": "id",
             "in": "path",
@@ -513,7 +506,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Receipt"
+                  "$ref": "#/components/schemas/StopReceipt"
                 }
               }
             }
@@ -1552,38 +1545,15 @@
       "Parent": {
         "type": "object",
         "properties": {
-          "worker_id": {
-            "type": "string"
-          },
-          "worker_epoch": {
-            "type": "string"
-          },
-          "session_id": {
-            "type": "string"
-          },
-          "binding_revision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "execution_id": {
-            "type": "string"
-          },
-          "task_id": {
-            "type": "string"
-          },
-          "generation_id": {
-            "type": "string"
-          }
+          "worker_id": { "type": "string" },
+          "worker_epoch": { "type": "string" },
+          "session_id": { "type": "string" },
+          "binding_revision": { "type": "integer", "minimum": 1 },
+          "execution_id": { "type": "string" },
+          "task_id": { "type": "string" },
+          "generation_id": { "type": "string" }
         },
-        "required": [
-          "worker_id",
-          "worker_epoch",
-          "session_id",
-          "binding_revision",
-          "execution_id",
-          "task_id",
-          "generation_id"
-        ],
+        "required": ["worker_id", "worker_epoch", "session_id", "binding_revision", "execution_id", "task_id", "generation_id"],
         "additionalProperties": false
       },
       "FileRead": {
@@ -1636,122 +1606,43 @@
           "environment": {
             "type": "object",
             "properties": {
-              "id": {
-                "type": "string"
-              },
-              "revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "base_sha": {
-                "type": "string"
-              },
-              "filesystem": {
-                "enum": [
-                  "none",
-                  "bwrap"
-                ]
-              },
-              "root": {
-                "type": "string"
-              },
-              "allowed_methods": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
+              "id": { "type": "string" },
+              "revision": { "type": "integer", "minimum": 1 },
+              "base_sha": { "type": "string" },
+              "filesystem": { "enum": ["none", "bwrap"] },
+              "root": { "type": "string" },
+              "allowed_methods": { "type": "array", "items": { "type": "string" } }
             },
-            "required": [
-              "id",
-              "revision",
-              "allowed_methods"
-            ],
+            "required": ["id", "revision", "allowed_methods"],
             "additionalProperties": false
           },
-          "role": {
-            "type": "string"
-          },
-          "tools": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "denied_tools": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
+          "role": { "type": "string" },
+          "tools": { "type": "array", "items": { "type": "string" } },
+          "denied_tools": { "type": "array", "items": { "type": "string" } },
           "resources": {
             "type": "object",
             "properties": {
-              "extensions": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "skills": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
+              "extensions": { "type": "array", "items": { "type": "string" } },
+              "skills": { "type": "array", "items": { "type": "string" } }
             },
-            "required": [
-              "extensions",
-              "skills"
-            ],
+            "required": ["extensions", "skills"],
             "additionalProperties": false
           },
-          "grant_methods": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "seed_mode": {
-            "const": "standalone"
-          }
+          "grant_methods": { "type": "array", "items": { "type": "string" } },
+          "seed_mode": { "const": "standalone" }
         },
-        "required": [
-          "environment",
-          "role",
-          "tools",
-          "denied_tools",
-          "resources",
-          "grant_methods",
-          "seed_mode"
-        ],
+        "required": ["environment", "role", "tools", "denied_tools", "resources", "grant_methods", "seed_mode"],
         "additionalProperties": false
       },
       "ChildClaim": {
         "type": "object",
         "properties": {
-          "command_id": {
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "result",
-              "help"
-            ]
-          },
-          "message": {
-            "type": "string"
-          },
-          "claim_not_verified": {
-            "const": true
-          }
+          "command_id": { "type": "string" },
+          "kind": { "enum": ["result", "help"] },
+          "message": { "type": "string" },
+          "claim_not_verified": { "const": true }
         },
-        "required": [
-          "command_id",
-          "kind",
-          "message",
-          "claim_not_verified"
-        ],
+        "required": ["command_id", "kind", "message", "claim_not_verified"],
         "additionalProperties": false
       },
       "Create": {
@@ -1763,12 +1654,8 @@
           "cwd": {
             "type": "string"
           },
-          "parent": {
-            "$ref": "#/components/schemas/Parent"
-          },
-          "launch_spec": {
-            "$ref": "#/components/schemas/LaunchSpec"
-          },
+          "parent": { "$ref": "#/components/schemas/Parent" },
+          "launch_spec": { "$ref": "#/components/schemas/LaunchSpec" },
           "provider": {
             "type": "string"
           },
@@ -1793,9 +1680,7 @@
               "acp"
             ]
           },
-          "project_trusted": {
-            "type": "boolean"
-          }
+          "project_trusted": { "type": "boolean" }
         },
         "required": [
           "command_id",
@@ -1888,21 +1773,10 @@
       "Worker": {
         "type": "object",
         "properties": {
-          "parent": {
-            "$ref": "#/components/schemas/Parent"
-          },
-          "launch_spec": {
-            "$ref": "#/components/schemas/LaunchSpec"
-          },
-          "grant_source_id": {
-            "type": "string"
-          },
-          "child_reports": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ChildClaim"
-            }
-          },
+          "parent": { "$ref": "#/components/schemas/Parent" },
+          "launch_spec": { "$ref": "#/components/schemas/LaunchSpec" },
+          "grant_source_id": { "type": "string" },
+          "child_reports": { "type": "array", "items": { "$ref": "#/components/schemas/ChildClaim" } },
           "worker_id": {
             "type": "string"
           },
@@ -1990,25 +1864,8 @@
             "type": "array",
             "items": {
               "anyOf": [
-                {
-                  "$ref": "#/components/schemas/Interaction"
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "native_id": {
-                      "type": "string"
-                    },
-                    "kind": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "native_id",
-                    "kind"
-                  ],
-                  "additionalProperties": false
-                }
+                { "$ref": "#/components/schemas/Interaction" },
+                { "type": "object", "properties": { "native_id": { "type": "string" }, "kind": { "type": "string" } }, "required": ["native_id", "kind"], "additionalProperties": false }
               ]
             }
           },
@@ -2686,15 +2543,8 @@
       "Report": {
         "type": "object",
         "properties": {
-          "kind": {
-            "enum": [
-              "result",
-              "help"
-            ]
-          },
-          "message": {
-            "type": "string"
-          },
+          "kind": { "enum": ["result", "help"] },
+          "message": { "type": "string" },
           "command_id": {
             "type": "string"
           },
@@ -2729,30 +2579,35 @@
         "type": "object",
         "properties": {
           "termination": {
-            "enum": [
-              "observed_stopped",
-              "superseded_generation_stopped",
-              "superseded_generation_unknown",
-              "unknown"
-            ],
-            "description": "observed_stopped: normal stop, generation confirmed gone. superseded_generation_stopped: old generation gone but a new relaunch was already running. superseded_generation_unknown: old generation cleanup outcome unknown, new generation running. unknown: cleanup outcome unknown."
+            "enum": ["observed_stopped", "superseded_generation_stopped", "superseded_generation_unknown", "unknown"],
+            "description": "observed_stopped: normal stop, generation confirmed gone. superseded_generation_stopped: old generation gone but a new relaunch was already running. superseded_generation_unknown: old generation cleanup outcome unknown, new generation running. unknown: cleanup outcome unknown, generation status not checked."
           },
           "stopped_worker_epoch": {
             "type": "string",
-            "description": "Present for observed_stopped, superseded_generation_stopped, and superseded_generation_unknown. The worker_epoch of the generation that was stopped."
+            "description": "The worker_epoch of the generation that was targeted by this stop. Present for all termination values."
           },
           "current_worker_epoch": {
             "type": "string",
-            "description": "Present for observed_stopped, superseded_generation_stopped, and superseded_generation_unknown. The worker_epoch of the currently active generation (may differ from stopped_worker_epoch when superseded)."
+            "description": "The worker_epoch of the currently active generation at the time of receipt. Equals stopped_worker_epoch for non-superseded stops; differs when the generation was superseded."
           },
           "profile": {
-            "enum": [
-              "cgroup_v2",
-              "process_group_only"
-            ]
+            "enum": ["cgroup_v2", "process_group_only"]
           }
         },
         "additionalProperties": true
+      },
+      "StopReceipt": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Receipt" },
+          {
+            "type": "object",
+            "properties": {
+              "result": {
+                "$ref": "#/components/schemas/StopResult"
+              }
+            }
+          }
+        ]
       }
     },
     "securitySchemes": {
