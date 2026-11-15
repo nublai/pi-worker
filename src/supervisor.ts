@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdirSync, realpathSync, statSync, existsSync, writeFileSync, closeSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import type { Server } from 'node:http';
 import { router, listenPrivate } from './server.js';
 import { Journal } from './journal.js';
@@ -427,6 +427,8 @@ export class Supervisor {
       let exists = true;
       try { closeSync(openUnder(fd, ['.a0-agent'], 'any')); } catch (error) { if (isMissing(error)) exists = false; }
       if (exists) { closeSync(fd); throw new Refusal('parent_channel_child_profile_exists'); }
+      // Git admin/common dirs must stay inside the parent root (its own .git).
+      try { pinned('sandbox_git_metadata_unreadable', () => gitPinAt(cwd, fd, dirname(within!))); } catch (error) { closeSync(fd); throw error; }
     }
     return fd;
   }
@@ -445,7 +447,7 @@ export class Supervisor {
       this.validateLaunch(c);
       const rootFd = bwrap ? openChildRoot() : undefined;
       try {
-      const gitPin = rootFd === undefined ? undefined : pinned('sandbox_git_metadata_unreadable', () => gitPinAt(cwd, rootFd, within));
+      const gitPin = rootFd === undefined ? undefined : pinned('sandbox_git_metadata_unreadable', () => gitPinAt(cwd, rootFd, channelParent?.cwd));
       const worker_id = randomUUID(), worker_epoch = randomUUID();
       const w: Worker = { worker_id, worker_epoch, host: c.host ?? 'rpc', supervisor_epoch: this.epoch, session_id: null, session_identity_evidence: 'pi_rpc_header_id', binding_revision: 1, leaf_id: null, cwd, status: 'starting', foreground: 'idle', execution: null, fence: null, history: { last_entry_id: null, lag: false, evidence: 'pi_session_file' }, cleanup: 'not_started', pending_interactions: [] };
       if (c.launch_spec) w.launch_spec = structuredClone(c.launch_spec);
@@ -602,7 +604,7 @@ export class Supervisor {
       live = this.require(id); this.binding(live, b);
       if (live.worker.launch_spec?.environment.filesystem === 'bwrap' && live.worker.git_pin !== undefined) {
         const fd = pinned('sandbox_root_not_real_directory', () => openSandboxRoot(live.worker.cwd, live.within));
-        try { assertPin(pinned('git_metadata_changed_since_launch', () => gitPinAt(live.worker.cwd, fd, live.within)), live.worker.git_pin); } finally { closeSync(fd); }
+        try { assertPin(pinned('git_metadata_changed_since_launch', () => gitPinAt(live.worker.cwd, fd, live.within && dirname(live.within))), live.worker.git_pin); } finally { closeSync(fd); }
       }
       if (live.worker.status === 'cleanup_pending' || live.worker.cleanup !== 'cgroup_empty_removed' || !live.unit) throw new Refusal('cleanup_pending_or_cleanup_unproven');
       this.writable(live); this.noOtherWriter(live.worker.session_id!, id);

@@ -85,6 +85,27 @@ test('B1: the channel acts with its own root-scoped grant, never the owner grant
   } finally { await f.cleanup(); }
 });
 
+test('B1: a channel child may be a linked worktree of the parent repo, never of a repo outside the parent root', async () => {
+  const f = await channelFixture();
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', env }).trim();
+  try {
+    for (const repo of [f.root, join(f.base, 'other')]) {
+      mkdirSync(repo, { recursive: true }); git(repo, 'init', '-q'); git(repo, 'config', 'user.name', 'A0'); git(repo, 'config', 'user.email', 'a0@example.invalid');
+      writeFileSync(join(repo, 'note'), 'base\n'); git(repo, 'add', 'note'); git(repo, 'commit', '-qm', 'base');
+    }
+    git(f.root, 'worktree', 'add', '-qb', 'task-a/work', join(f.root, '.a0-worktrees', 'inside'), 'HEAD');
+    const ok = await call(f.socket, '/workers', f.child('inside', join(f.root, '.a0-worktrees', 'inside')));
+    assert.equal(ok.body.state, 'delivered', JSON.stringify(ok.body));
+    const pin = f.s.get(String(ok.body.worker_id)).git_pin;
+    assert.equal(pin?.kind, 'linked'); assert.equal(pin?.common_dir, join(f.root, '.git'));
+    // A parent can write a gitfile naming any admin dir; one outside its root refuses.
+    git(join(f.base, 'other'), 'worktree', 'add', '-qb', 'task-b/work', join(f.root, '.a0-worktrees', 'outside'), 'HEAD');
+    const out = await call(f.socket, '/workers', f.child('outside', join(f.root, '.a0-worktrees', 'outside')));
+    assert.equal(out.status, 409, JSON.stringify(out.body)); assert.equal(out.body.error, 'sandbox_git_outside_parent_root');
+  } finally { await f.cleanup(); }
+});
+
 test('B2: refused launches stage nothing; accepted staging never copies a raced link target', { timeout: 60000 }, async () => {
   const f = await channelFixture();
   const secret = join(f.base, 'secret'); writeFileSync(secret, 'SECRET-MARKER');

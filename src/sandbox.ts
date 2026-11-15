@@ -77,7 +77,8 @@ export function sandboxLaunch(root: string, command: string, args: string[], par
     // System and worker runtime paths are owner-controlled, never sandbox-writable.
     for (const path of ['/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc/ssl', '/etc/resolv.conf', '/etc/hosts', '/etc/nsswitch.conf', ...runtimePaths()]) if (existsSync(path)) mounts.push('--ro-bind', path, path);
     bind('bind', rootFd, root);
-    const git = gitPlan(root, rootFd, { within: options.within, expected: options.gitPin });
+    // A channel child's Git admin/common dirs live in the PARENT root's .git.
+    const git = gitPlan(root, rootFd, { within: options.within && dirname(options.within), expected: options.gitPin });
     opened.push(...git.fds);
     for (const mount of git.mounts) bind(mount.mode, mount.fd, mount.dest);
     mounts.push('--chdir', root, '--dir', '/tmp/a0-home');
