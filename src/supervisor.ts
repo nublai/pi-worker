@@ -702,7 +702,7 @@ export class Supervisor {
         const currentEpoch = live.worker.worker_epoch;
         return gone
           ? { state: 'delivered', stage: 'termination_observed', effect: 'observed', result: { termination: 'superseded_generation_stopped', stopped_worker_epoch: stoppedEpoch, current_worker_epoch: currentEpoch, profile: unit ? 'cgroup_v2' : 'process_group_only' } }
-          : { state: 'outcome_unknown', stage: 'unknown', effect: 'unknown', result: { termination: 'superseded_generation_unknown', profile: unit ? 'cgroup_v2' : 'process_group_only' } };
+          : { state: 'outcome_unknown', stage: 'unknown', effect: 'unknown', result: { termination: 'superseded_generation_unknown', stopped_worker_epoch: stoppedEpoch, current_worker_epoch: currentEpoch, profile: unit ? 'cgroup_v2' : 'process_group_only' } };
       }
       return { state: gone ? 'delivered' : 'outcome_unknown', stage: gone ? 'termination_observed' : 'unknown', effect: gone ? 'observed' : 'unknown', result: { termination: gone ? 'observed_stopped' : 'unknown', ...(gone ? { stopped_worker_epoch: stoppedEpoch, current_worker_epoch: stoppedEpoch } : {}), profile: unit ? 'cgroup_v2' : 'process_group_only' } };
     }, () => { live = this.require(id); this.binding(live, b); });

@@ -686,9 +686,9 @@ export interface components {
              * @enum {unknown}
              */
             termination?: "observed_stopped" | "superseded_generation_stopped" | "superseded_generation_unknown" | "unknown";
-            /** @description Present for observed_stopped and superseded_generation_stopped. The worker_epoch of the generation that was stopped. */
+            /** @description Present for observed_stopped, superseded_generation_stopped, and superseded_generation_unknown. The worker_epoch of the generation that was stopped. */
             stopped_worker_epoch?: string;
-            /** @description Present for observed_stopped and superseded_generation_stopped. The worker_epoch of the currently active generation (may differ from stopped_worker_epoch when superseded). */
+            /** @description Present for observed_stopped, superseded_generation_stopped, and superseded_generation_unknown. The worker_epoch of the currently active generation (may differ from stopped_worker_epoch when superseded). */
             current_worker_epoch?: string;
             /** @enum {unknown} */
             profile?: "cgroup_v2" | "process_group_only";

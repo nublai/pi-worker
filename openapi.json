@@ -2739,11 +2739,11 @@
           },
           "stopped_worker_epoch": {
             "type": "string",
-            "description": "Present for observed_stopped and superseded_generation_stopped. The worker_epoch of the generation that was stopped."
+            "description": "Present for observed_stopped, superseded_generation_stopped, and superseded_generation_unknown. The worker_epoch of the generation that was stopped."
           },
           "current_worker_epoch": {
             "type": "string",
-            "description": "Present for observed_stopped and superseded_generation_stopped. The worker_epoch of the currently active generation (may differ from stopped_worker_epoch when superseded)."
+            "description": "Present for observed_stopped, superseded_generation_stopped, and superseded_generation_unknown. The worker_epoch of the currently active generation (may differ from stopped_worker_epoch when superseded)."
           },
           "profile": {
             "enum": [
