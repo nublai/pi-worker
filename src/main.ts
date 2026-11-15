@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** THROWAWAY A0 entrypoint; Linux /proc process-group profile only. */
+/** THROWAWAY A0 entrypoint; Linux cgroup v2 delegation or explicit weaker fallback. */
 import { mkdirSync, lstatSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';

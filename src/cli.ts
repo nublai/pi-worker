@@ -45,6 +45,8 @@ try {
   else if (id && cmd === 'follow-up') print(await client.call('sessions.follow_up', { id, body: { ...await binding(id), execution_id: required('execution-id'), message: required('message') } }));
   else if (id && (cmd === 'cancel' || cmd === 'interrupt')) print(await client.call(cmd === 'cancel' ? 'executions.cancel' : 'executions.interrupt', { id, body: { ...await binding(id), ...(flags.has('execution-id') ? { execution_id: required('execution-id') } : {}) } }));
   else if (id && cmd === 'stop') print(await client.call('workers.stop', { id, body: await binding(id) }));
+  else if (id && cmd === 'relaunch') print(await client.call('workers.relaunch', { id, body: await binding(id) }));
+  else if (id && cmd === 'files-read') print(await client.call('files.read', { id, body: { path: required('path'), roots: [required('root')] } }));
   else if (id && cmd === 'history') {
     const query: Record<string, string> = {};
     for (const key of ['watermark', 'after', 'limit']) if (flags.has(key)) query[key] = required(key);
@@ -58,5 +60,5 @@ try {
       if (flags.has('until-settled') && (frame.type === 'agent_settled' || (frame.type === 'snapshot' && (frame as Snapshot).worker?.execution?.state === 'settled'))) return false;
       return true;
     }, since);
-  } else throw new Error('Usage: a0 [--socket PATH] hello | create --command-id ID --cwd DIR --provider P --model M --thinking off [--host rpc|sdk|acp --project-trusted] | interactions WORKER | interaction-status WORKER --interaction-id ID | answer WORKER --answer-file PATH | list | get WORKER | prompt WORKER --command-id ID --message TEXT | watch WORKER [--until-settled|--max-events N] [--worker-epoch E --seq N] | history WORKER [--limit N --watermark ID --after ID] | stop WORKER --command-id ID | receipt COMMAND');
+  } else throw new Error('Usage: a0 [--socket PATH] hello | create --command-id ID --cwd DIR --provider P --model M --thinking off [--host rpc|sdk|acp --project-trusted] | interactions WORKER | interaction-status WORKER --interaction-id ID | answer WORKER --answer-file PATH | list | get WORKER | prompt WORKER --command-id ID --message TEXT | watch WORKER [--until-settled|--max-events N] [--worker-epoch E --seq N] | history WORKER [--limit N --watermark ID --after ID] | stop WORKER --command-id ID | relaunch WORKER --command-id ID | files-read WORKER --path FILE --root ROOT | receipt COMMAND');
 } catch (error) { console.error(error instanceof Error ? error.message : error); process.exitCode = 1; }

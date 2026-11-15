@@ -1,16 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
-import { readConfined, sandboxRoot } from '../sandbox.js';
+import { readConfined, sandboxRoot, sandboxSessionDir } from '../sandbox.js';
+import { SessionIndex } from '../session.js';
 import { Journal } from '../journal.js';
 import { Supervisor } from '../supervisor.js';
 import { openContainment } from '../containment.js';
 import { bind, fixture } from './helpers.js';
 import type { Create } from '../types.js';
 
-test('files.read pins roots, refuses hidden/traversal/symlink paths, non-UTF8, sockets, and oversize files', () => {
+test('files.read pins roots, refuses hidden/traversal/symlink paths, non-UTF8, sockets, and oversize files', async () => {
   const root = mkdtempSync(join(tmpdir(), 'a0s5-files-')); mkdirSync(join(root, 'allowed')); mkdirSync(join(root, 'elsewhere'));
   try {
     writeFileSync(join(root, 'allowed', 'ok'), 'ALLOWED\n'); writeFileSync(join(root, 'elsewhere', 'out'), 'OUTSIDE\n');
@@ -28,7 +30,31 @@ test('files.read pins roots, refuses hidden/traversal/symlink paths, non-UTF8, s
     assert.throws(() => readConfined(root, 'allowed', roots), /not_regular/);
     assert.throws(() => readConfined(root, 'allowed/ok', []), /explicit_roots/);
     assert.throws(() => readConfined(root, 'allowed/ok', ['/']), /outside/);
+    assert.throws(() => readConfined(root, 'allowed/ok', [...roots, '/']), /outside/);
+    const socket = createServer();
+    await new Promise<void>(resolve => socket.listen(join(root, 'allowed', 'socket'), resolve));
+    try { assert.throws(() => readConfined(root, 'allowed/socket', roots), /unavailable|not_regular/); }
+    finally { await new Promise<void>(resolve => socket.close(() => resolve())); }
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('sandbox history and session directory provisioning cannot follow outside symlinks', () => {
+  const base = mkdtempSync(join(tmpdir(), 'a0s5-history-')), root = join(base, 'root'); mkdirSync(root);
+  try {
+    const outside = join(base, 'outside.jsonl');
+    writeFileSync(outside, '{"type":"session","id":"native"}\n' + JSON.stringify({ type: 'message', id: 'outside', parentId: null, message: { role: 'user', content: 'OUTSIDE_TEST_SENTINEL' } }) + '\n');
+    const linked = join(root, 'linked.jsonl'); symlinkSync(outside, linked);
+    const index = new SessionIndex(linked, undefined, root);
+    const page = index.page(null, 10); assert.ok('entries' in page); assert.deepEqual(page.entries, []);
+    const direct = new SessionIndex(outside, undefined, root); assert.deepEqual(direct.page(null, 10), page);
+    const session = sandboxSessionDir(root, 'worker');
+    const own = join(session, 'own.jsonl'); writeFileSync(own, '{"type":"session","id":"own"}\n');
+    const allowed = new SessionIndex(own, undefined, root); allowed.refresh(); assert.equal(allowed.headerId, 'own');
+    rmSync(join(root, '.a0-worker'), { recursive: true });
+    const target = join(base, 'outside-dir'); mkdirSync(target); symlinkSync(target, join(root, '.a0-worker'));
+    assert.throws(() => sandboxSessionDir(root, 'worker'));
+    assert.equal(existsSync(join(target, 'sessions')), false, 'no supervisor directory creation through a worktree symlink');
+  } finally { rmSync(base, { recursive: true, force: true }); }
 });
 
 test('sandbox launch refuses mismatched roots, parent state exposure, non-child and external resources', () => {

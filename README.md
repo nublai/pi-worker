@@ -1,15 +1,20 @@
 # pi-worker
 
-**THROWAWAY A0 slice 3 prototype — NOT production, Gate 1, or a contract freeze.** One Node 22+ supervisor, one selectable Pi 1.5.2 RPC, SDK, or ACP subprocess per worker, private Unix HTTP/OpenAPI, typed CLI, fsynced control records, explicit uncertainty, and Pi-owned conversation files. The SDK dependency is pinned to 1.5.2. See [A0-SLICE3.md](A0-SLICE3.md) for the SDK production-host recommendation and evidence.
+**THROWAWAY A0 slice 5 prototype — NOT production, Gate 1, or a contract freeze.** One Node 22+ supervisor, one selectable Pi 1.5.2 RPC, SDK, or ACP subprocess per worker, private Unix HTTP/OpenAPI, typed CLI, fsynced control records, explicit uncertainty, and Pi-owned conversation files. The SDK dependency is pinned to 1.5.2. See [A0-SLICE3.md](A0-SLICE3.md) for the SDK production-host recommendation and evidence.
 
 ## Try the throwaway CLI
 
 ```sh
-npm ci --ignore-scripts --cache /tmp/a0s3/npm-cache
-TMPDIR=/tmp/a0s3 npm test
-A0_STATE_DIR=/tmp/a0s3/demo npm start
+mkdir -p /tmp/a0s5/demo /tmp/a0s5/tmp
+npm ci --ignore-scripts --cache /tmp/a0s5/npm-cache
+TMPDIR=/tmp/a0s5/tmp npm test
+# Linux: launch under the user manager so migration into delegated cgroups is legal.
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
+systemd-run --user --pipe --wait --unit=a0-demo --property=WorkingDirectory="$PWD" \
+  --setenv=PATH="$PATH" --setenv=A0_STATE_DIR=/tmp/a0s5/demo node dist/main.js
 # Another shell, same OS user:
-export A0_SOCKET=/tmp/a0s3/demo/worker.sock
+export A0_SOCKET=/tmp/a0s5/demo/worker.sock
 node dist/cli.js hello
 node dist/cli.js create --command-id create-1 --cwd /absolute/workspace --provider PROVIDER --model MODEL --thinking off
 node dist/cli.js prompt WORKER --command-id prompt-1 --message 'Reply hello'
@@ -20,6 +25,7 @@ node dist/cli.js rebind WORKER --command-id resume-1 --action resume --target-se
 node dist/cli.js rebind WORKER --command-id fork-1 --action fork --entry-id USER_ENTRY --source-leaf-id CURRENT_LEAF
 node dist/cli.js resolve WORKER --command-id resolution-1 --uncertain-command-id UNCERTAIN_COMMAND --fence-generation GENERATION --disposition keep
 node dist/cli.js stop WORKER --command-id stop-1
+node dist/cli.js relaunch WORKER --command-id relaunch-1
 ```
 
 `A0_PI` selects Pi. The installation owner is registered at the first supervisor start; its bearer file is `STATE/grants/owner.json` (0600). The CLI defaults to that file. Register a separate honest-component caller locally, then set `A0_GRANT_FILE` to the returned **file path** (never paste a bearer):
@@ -53,13 +59,27 @@ The answer file is a complete `Answer` from `openapi.json`: capture worker epoch
 - New, fork, and same-process resume use Pi RPC and bump the binding revision, invalidate interactions, and publish `session_rebound`. Second live session bindings name their holder; canonical exclusive cwds are reserved. SDK/ACP tree navigation uses `rebind --action navigate --entry-id ENTRY --source-leaf-id CURRENT_LEAF`, bumps the binding and invalidates live interactions. **Pi 1.5.2 RPC tree navigation refuses explicitly.** A `/new` UI action uses typed `sessions.rebind(action=new)`, not raw slash-command forwarding.
 - Admission, execution start and `agent_settled` are separate. `agent_end` is not settlement. Delivered input can still have a later unknown execution. Reads never append control records; derived leaf/history changes publish memory-only evidence.
 - Unknown session mutations latch a persisted fence. New writes refuse `no_effect` naming its cause. Pending follow-ups/child launches pause. Reads, cancel, interrupt, stop and evidence reports remain available. Resolution checks exact binding, command **or** execution, and generation; records keep/abandon/observed; never claims external effects undone. `observed` requires exact session-file attribution or a fsynced settlement record for that execution, not arbitrary text, admission or an unknown dispatch marker.
-- Follow-ups and pending child launches are supervisor-owned, capped at 32, and not sent into Pi's unpausable native queue. Payloads are memory-only. Restart turns undispatched intent into `intent_recovered/no_effect`; owner `keep` enables an exact retry once (`intent_ready`), never automatic replay. A ready live host/current binding is still required. Full post-restart relaunch/resume remains blocked by unproven descendant cleanup.
+- Follow-ups and pending child launches are supervisor-owned, capped at 32, and not sent into Pi's unpausable native queue. Payloads are memory-only. Restart turns undispatched intent into `intent_recovered/no_effect`; owner `keep` enables an exact retry once (`intent_ready`), never automatic replay. A ready live host/current binding is still required. After cgroup cleanup, explicit `workers.relaunch` opens known history on a fresh process without prompting. Only exact owner-kept recovered prompts retain their captured old binding; ordinary stale writes still refuse. Other recovered operation rebinding remains unimplemented.
 - One **supervisor-wide** SSE endpoint, `/v0/events`, with `worker_id` and `types` filters. Each subscriber has at most 64 queued events/256 KiB, plus bounded in-flight transport data. Overflow sends an `overflow` frame and closes; the client requires a fresh snapshot before controls. `watch '*'` watches all authorized workers. Every reconnect snapshots; there is no historical event replay or retained ring. The legacy cursor field `worker_epoch` means **transport epoch**, changes per supervisor start, and is not the binding epoch.
 - Client writes use `agent:false`, one attempt, and typed `ClientFailure`: before connect/write = `no_effect`, after attempted write = `unknown`, server refusals preserve their label/details. Disconnect never cancels work.
-- Restart never adopts Pi. Linux process groups are cleaned up, but escaped descendants remain **unproven**; replacement environments stay reserved. No cgroup/bwrap guarantee, macOS coverage, bridge, child result FD, production approval policy, or exactly-once external effects.
+- Restart never adopts Pi. Linux defaults to per-process cgroup v2 domains under a stable delegated systemd user service, with no runtime sudo. Cleanup is pending until `cgroup.kill`, `populated=0` and removal succeed. SDK/ACP sandbox children use bwrap and a job-bound inherited report FD. No hostile-same-uid guarantee, network isolation, macOS verification, bridge, production approval policy, or exactly-once external effects.
 - Journal: 32 MiB, no compaction/eviction; 512 ordinary receipts. Stop, cancel/interrupt, resolution and evidence reports bypass the ordinary count quota, **not** byte/storage failure. Result reservations are not whole-chain reservations; disk/fsync failure can still block durable control replies.
 
 `hello` names these limits, same-user access, BYO journal machine loss, and Linux ≠ macOS. Normal Pi resource discovery runs; never use sensitive state. `openapi.json` is the draft B2 surface; `npm run generate` regenerates `src/api.generated.ts`, and `npm run check:generated` checks drift.
+
+## Containment and sandbox profile
+
+`A0_CGROUP_DIR` can select an operator-delegated cgroup v2 subtree instead of the installation's automatically created user service. The supervisor must have migration permission at the common ancestor; an SSH process in `init.scope` does not. Unsupported delegation refuses startup rather than silently downgrading. `A0_CLEANUP=process-group` explicitly selects the weaker fallback (also selected on non-Linux); escaped descendants remain unproven, so it never authorizes environment reuse or fresh-process relaunch. macOS is untested.
+
+For a typed SDK/ACP child, set `launch_spec.environment.filesystem="bwrap"` and `root` equal to its canonical `cwd`. The worktree is the only host-writable bind. System paths and worker runtime/dependencies are read-only; `/proc`, `/tmp`, `/run` and HOME are private. Network is **shared**, not filtered. Parent state, socket, grants and home are not mounted. Explicit resources must reside inside the root. Stage the child's own Pi/provider profile at `ROOT/.a0-agent`; parent credentials and environment variables are not inherited. Its own transcript lives at `ROOT/.a0-worker/sessions/WORKER`. Linked Git worktree administrative directories outside the root are intentionally inaccessible; full Git operations need a future explicit policy.
+
+`files.read` requires explicit absolute subroots of this environment and returns UTF-8 regular files up to 1 MiB. Hidden paths, traversal, symlinks at any component, sockets and outside roots refuse. Sandbox history also uses root-pinned, no-symlink opens, while permitting Pi's hidden transcript directory.
+
+```sh
+node dist/cli.js files-read CHILD --path proof.txt --root /absolute/child-worktree
+```
+
+`workers.relaunch` requires a bound session file, confirmed cgroup cleanup, no unresolved fence and no competing checkout/session writer. It does not create an execution. Resolve an undispatched recovered prompt with `keep`, relaunch, then submit **the original exact command and binding**; duplicate lookup still never dispatches. See [A0-SLICE5.md](A0-SLICE5.md) for proof, setup constraints and limits.
 
 ## Evidence
 

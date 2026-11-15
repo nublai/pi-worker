@@ -1,5 +1,5 @@
 /** Linux bwrap filesystem profile. Network is deliberately shared, not filtered. */
-import { constants, openSync, closeSync, fstatSync, readSync, realpathSync, existsSync } from 'node:fs';
+import { constants, openSync, closeSync, fstatSync, readSync, realpathSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Create } from './types.js';
@@ -44,11 +44,30 @@ function pinnedOpen(path: string): number {
     return fd;
   } catch (error) { closeSync(fd); throw error; }
 }
+/** Internal history opens allow hidden session directories, but never symlinks
+ * or paths outside the environment. Keep this distinct from files.read policy. */
+export function openRooted(root: string, path: string): number {
+  if (!isAbsolute(path) || !inside(realpathSync(root), resolve(path))) throw new Refusal('session_file_outside_sandbox');
+  return pinnedOpen(path);
+}
+export function sandboxSessionDir(root: string, workerId: string): string {
+  let fd = pinnedOpen(root);
+  try {
+    if (!fstatSync(fd).isDirectory()) throw new Refusal('sandbox_root_not_directory');
+    for (const part of ['.a0-worker', 'sessions', workerId]) {
+      const path = `/proc/self/fd/${fd}/${part}`;
+      try { mkdirSync(path, { mode: 0o700 }); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
+      const next = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_DIRECTORY);
+      closeSync(fd); fd = next;
+    }
+    return join(root, '.a0-worker', 'sessions', workerId);
+  } finally { closeSync(fd); }
+}
 export function readConfined(root: string, path: string, roots: string[]): { path: string; content: string; bytes: number; evidence: 'pinned_file_read' } {
   if (!roots.length || roots.length > 32) throw new Refusal('explicit_roots_required');
   if (path.split('/').some(p => p.startsWith('.'))) throw new Refusal('hidden_or_traversal_path_refused');
   const canonical = realpathSync(root), target = resolve(root, path);
-  if (!inside(canonical, target) || !roots.some(r => isAbsolute(r) && inside(canonical, resolve(r)) && inside(resolve(r), target))) throw new Refusal('file_outside_explicit_roots');
+  if (!inside(canonical, target) || roots.some(r => !isAbsolute(r) || !inside(canonical, resolve(r))) || !roots.some(r => inside(resolve(r), target))) throw new Refusal('file_outside_explicit_roots');
   if (relative(canonical, target).split('/').some(p => p.startsWith('.'))) throw new Refusal('hidden_path_refused');
   let fd: number;
   try { fd = pinnedOpen(target); } catch { throw new Refusal('file_symlink_or_unavailable'); }
