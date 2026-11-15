@@ -11,7 +11,8 @@ const base='409bd889289fa3601977411747e0aaccf9a73332';
 const hash=x=>createHash('sha256').update(x).digest('hex');
 // Security fix round: Git only after a launch-time pin check (A0_S6_PIN file).
 // Slice 6 recorded no pin, so this historical verifier refuses to rerun without one.
-const pins=new Map(process.env.A0_S6_PIN?[[work,JSON.parse(process.env.A0_S6_PIN)]]:[]);
+let pinValue;try{pinValue=process.env.A0_S6_PIN?JSON.parse(process.env.A0_S6_PIN):undefined;}catch(cause){throw new Error('Invalid A0_S6_PIN',{cause});}
+const pins=new Map(pinValue?[[work,pinValue]]:[]);
 const git=(cwd,...args)=>safeGit(cwd,pins.get(cwd),args);
 assert.equal(git(work,'branch','--show-current'),'fix/issue-1');assert.equal(git(work,'status','--porcelain'),'');
 const head=git(work,'rev-parse','HEAD');assert.notEqual(head,base);

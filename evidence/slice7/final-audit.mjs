@@ -1,7 +1,7 @@
 /** Task-owned final service/source audit; credential checks return booleans only. */
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync,existsSync,writeFileSync} from 'node:fs';
-import {execFileSync,spawnSync} from 'node:child_process';
+import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {join} from 'node:path';
 import {readGitPin,safeGit,safeGitRun} from '/tmp/a0s7/runtime/dist/git-safe.js';
@@ -19,7 +19,8 @@ if(root==='/tmp/a0s7/runtime'){
   const home=process.env.HOME,paths=['.git-credentials','.config/gh/hosts.yml','.config/hub'];
   const credential_files_present=paths.filter(p=>existsSync(join(home,p)));
   const github_credential_env_names=Object.keys(process.env).filter(k=>/^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN)$/.test(k)&&process.env[k]);
-  const helper=safeGitRun(R+'/workspace',JSON.parse(readFileSync(R+'/workspace-pin.json','utf8')),['config','--get','credential.helper']);
+  let workspacePin;try{workspacePin=JSON.parse(readFileSync(R+'/workspace-pin.json','utf8'));}catch(cause){throw new Error('Invalid workspace pin; contents withheld',{cause});}
+  const helper=safeGitRun(R+'/workspace',workspacePin,['config','--get','credential.helper']);
   const store=readFileSync(R+'/workspace/.a0-agent/models-store.json','utf8');
   const github_token_pattern_present=/(?:ghp_|github_pat_|gho_|ghu_|ghs_)[A-Za-z0-9_]{20,}/.test(store);
   assert.deepEqual(credential_files_present,[]);assert.deepEqual(github_credential_env_names,[]);assert.equal(helper.status,1);assert.equal(github_token_pattern_present,false);
