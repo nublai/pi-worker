@@ -1,0 +1,17 @@
+{
+  "source_head": "90220b591de31a8ef5dd1fe5676ac4c0c23839d2",
+  "results": [
+    {
+      "mutation": "keeper-stop-removed",
+      "exit": 1,
+      "assertion_failure": true,
+      "log": "/tmp/a0-review5-kernel-mutations-8qs9p5fs/keeper-stop-removed/result.txt"
+    },
+    {
+      "mutation": "default-delegation-not-owned",
+      "exit": 1,
+      "assertion_failure": true,
+      "log": "/tmp/a0-review5-kernel-mutations-8qs9p5fs/default-delegation-not-owned/result.txt"
+    }
+  ]
+}

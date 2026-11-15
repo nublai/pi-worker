@@ -9,8 +9,10 @@ import { fileURLToPath } from 'node:url';
 import type { UIAnswer } from './resolvers.js';
 import { killGroup, processToken } from './process.js';
 import type { Create } from './types.js';
+import type { Containment, CleanupUnit } from './containment.js';
+import { sandboxLaunch } from './sandbox.js';
 import type { Readable } from 'node:stream';
-export type HostContext = { worker_id: string; launch_command_id: string; parent?: Create['parent']; launch_spec?: Create['launch_spec'] };
+export type HostContext = { worker_id: string; launch_command_id: string; parent?: Create['parent']; launch_spec?: Create['launch_spec']; containment?: Containment; unit?: CleanupUnit };
 export type ChildReport = { report_id: string; kind: 'result' | 'help'; message: string };
 export type PiRecord = Record<string, unknown> & { type: string };
 export type PiResponse = { type: 'response'; id: string; success: boolean; data?: Record<string, unknown>; error?: string };
@@ -33,13 +35,15 @@ export class RpcHost extends EventEmitter implements SessionHost {
   private decoder = new StringDecoder('utf8');
   private exited = false;
   private stderr = '';
+  private cleanupContext?: HostContext;
   readonly token: string | null;
   readonly kind: 'rpc' | 'sdk' | 'acp';
   constructor(executable: string, cwd: string, sessionDir: string, provider: string, model: string, thinking: string, readonly timeoutMs = 30_000, context?: HostContext, launch?: { kind: 'sdk' | 'acp'; args: string[] }, projectTrusted = false) {
     super(); this.kind = launch?.kind ?? 'rpc';
     const args = launch?.args ?? ['--mode', 'rpc', '--session-dir', sessionDir, '--provider', provider, '--model', model, '--thinking', thinking];
     if (!launch) args.push(...(!context?.launch_spec ? [projectTrusted ? '--approve' : '--no-approve'] : []), '-e', fileURLToPath(new URL('./rpc-audit.js', import.meta.url)));
-    const env = { ...process.env };
+    let env = { ...process.env };
+    let spawnArgs = args;
     if (context) env.PI_WORKER_ID = context.worker_id;
     if (context?.launch_spec && !launch) {
       const spec = context.launch_spec;
@@ -56,7 +60,14 @@ export class RpcHost extends EventEmitter implements SessionHost {
       env.PI_WORKER_TASK_ID = context.parent.task_id;
       env.PI_SUBAGENT_ID = context.parent.task_id;
     } else { delete env.PI_WORKER_REPORT_FD; delete env.PI_WORKER_TASK_ID; }
-    this.child = spawn(executable, args, { cwd, env, detached: true, stdio: context?.parent ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'] }) as ChildProcessWithoutNullStreams;
+    if (context?.launch_spec?.environment.filesystem === 'bwrap') {
+      if (!context.parent) throw new Error('sandbox_child_required');
+      const sandbox = sandboxLaunch(cwd, executable, args, context.parent, context.worker_id);
+      executable = sandbox.command; spawnArgs = sandbox.args; env = sandbox.env;
+    }
+    const options = { cwd, env, detached: true, stdio: context?.parent ? ['pipe', 'pipe', 'pipe', 'pipe'] as const : ['pipe', 'pipe', 'pipe'] as const };
+    this.cleanupContext = context;
+    this.child = (context?.unit && context.containment ? context.containment.spawn(context.unit, executable, spawnArgs, { ...options, stdio: [...options.stdio] }) : spawn(executable, spawnArgs, { ...options, stdio: [...options.stdio] })) as ChildProcessWithoutNullStreams;
     if (context?.parent) {
       const channel = this.child.stdio[3] as Readable;
       const decoder = new StringDecoder('utf8'); let buffer = ''; let count = 0;
@@ -144,5 +155,9 @@ export class RpcHost extends EventEmitter implements SessionHost {
       this.child.stdin.write(JSON.stringify({ type: 'extension_ui_response', id: nativeId, cancelled: true }) + '\n', error => error ? reject(error) : resolve());
     });
   }
-  async stop(): Promise<boolean> { return this.pid ? killGroup(this.pid, this.token) : this.exited; }
+  async stop(): Promise<boolean> {
+    const c = this.cleanupContext;
+    if (c?.unit && c.containment) return c.containment.clean(c.unit);
+    return this.pid ? killGroup(this.pid, this.token) : this.exited;
+  }
 }

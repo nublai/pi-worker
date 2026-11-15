@@ -1,0 +1,120 @@
+{
+  "root": "/tmp/a0s5/live-ug9ddB",
+  "host": "sdk",
+  "provider": "exe-dev-anthropic",
+  "model": "claude-sonnet-4-6@llm",
+  "thinking": "off",
+  "direct_native_requests": [],
+  "failures": [],
+  "cleanup_profile": "cgroup_v2_user_delegation; Linux; cgroup.kill + populated=0 + removed; no hostile-same-uid guarantee",
+  "cleanup_pending": {
+    "actual_populated_unit": true,
+    "kill_permission_withheld_only_on_own_unit": true,
+    "stop_unknown": true,
+    "actual_restart_retained_pending": true,
+    "resume_and_relaunch_refused_no_effect": true
+  },
+  "stop": {
+    "pid": 102894,
+    "final_state": null,
+    "marker_absent_after_deadline": true,
+    "unit_removed": true
+  },
+  "detached_alive_after_supervisor_kill": true,
+  "restart": {
+    "pid": 102924,
+    "final_state": null,
+    "marker_absent_after_deadline": true,
+    "unit_removed": true
+  },
+  "owner_resolved_intent": {
+    "actual_SIGKILL_before_dispatch": true,
+    "recovered_no_effect": true,
+    "fresh_epoch": true,
+    "native_user_entries": 1,
+    "external_append_count": 1,
+    "duplicate_receipt_identical": true,
+    "relaunch_prompted": false
+  },
+  "sandbox": {
+    "actual_socket_hidden": true,
+    "parent_state_and_grants_hidden": true,
+    "outside_sentinel_hidden": true,
+    "real_bash_tool_proof": "SANDBOX_TOOL_OK",
+    "inherited_fd_report_count": 1,
+    "files_read_allowed": true,
+    "files_read_outside_and_hidden_refused": true,
+    "worktree_retained": true,
+    "worktree_locked": true,
+    "base": "870a7f2debfb93e76b97cb9991111851bf2115f8",
+    "network": "shared; not a network sandbox",
+    "provider_probe_copy": "VM marker existence check removed only in private copied provider extension; /exe.dev never mounted"
+  },
+  "supervisor_pids": [
+    {
+      "pid": 102864,
+      "absent": true
+    },
+    {
+      "pid": 102896,
+      "absent": true
+    },
+    {
+      "pid": 102926,
+      "absent": true
+    },
+    {
+      "pid": 102942,
+      "absent": true
+    },
+    {
+      "pid": 102969,
+      "absent": true
+    }
+  ],
+  "pass": true,
+  "pi_leaders": [
+    {
+      "pid": 102882,
+      "state": null
+    },
+    {
+      "pid": 102912,
+      "state": null
+    },
+    {
+      "pid": 102958,
+      "state": null
+    },
+    {
+      "pid": 102985,
+      "state": null
+    },
+    {
+      "pid": 102997,
+      "state": null
+    }
+  ],
+  "units": [
+    {
+      "name": "w-72665ed1-f282-45b5-8722-1b77bec1d97c",
+      "removed": true
+    },
+    {
+      "name": "w-82cb9e99-6f95-47fb-a668-86bff443f7e2",
+      "removed": true
+    },
+    {
+      "name": "w-4db487b5-f5e2-476f-a08c-0148a1292a5f",
+      "removed": true
+    },
+    {
+      "name": "w-85b67504-beea-44c3-8aad-60ce17a066f9",
+      "removed": true
+    },
+    {
+      "name": "w-a6c32c64-f273-47ee-917b-c0e74e5f2345",
+      "removed": true
+    }
+  ]
+}

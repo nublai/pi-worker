@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-/** THROWAWAY A0 entrypoint; Linux /proc process-group profile only. */
+/** THROWAWAY A0 entrypoint; Linux cgroup v2 delegation or explicit weaker fallback. */
 import { mkdirSync, lstatSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { processToken } from './process.js';
 import { Journal } from './journal.js';
 import { Supervisor } from './supervisor.js';
+import { openContainment } from './containment.js';
 import { router, listenPrivate } from './server.js';
 const stateDir = resolve(process.env.A0_STATE_DIR ?? '.a0');
 process.umask(0o077);
@@ -28,7 +29,7 @@ let version: string;
 try { version = execFileSync(pi, ['--version'], { encoding: 'utf8', timeout: 15000 }).trim(); }
 catch (cause) { throw new Error('cannot read installed pi version', { cause }); }
 const journal = new Journal(join(stateDir, 'journal.jsonl'));
-const supervisor = new Supervisor(stateDir, journal, version, Supervisor.rpcFactory(pi));
+const supervisor = new Supervisor(stateDir, journal, version, Supervisor.rpcFactory(pi), openContainment(stateDir));
 await supervisor.recover();
 const server = router(supervisor);
 const socket = join(stateDir, 'worker.sock');

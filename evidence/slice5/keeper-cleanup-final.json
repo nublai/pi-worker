@@ -1,0 +1,21 @@
+{
+  "test_delegate_keepers": [
+    {
+      "unit": "a0-9af4fe582692eb7e7720.service",
+      "keeper_pid": 93197,
+      "worker_processes": 0,
+      "invocation_matches_probe": true,
+      "stopped": true,
+      "cgroup_removed": true
+    },
+    {
+      "unit": "a0-b7678315dbe1f35b6099.service",
+      "keeper_pid": 102880,
+      "worker_processes": 0,
+      "invocation_matches_probe": true,
+      "stopped": true,
+      "cgroup_removed": true
+    }
+  ],
+  "unrelated_units_signalled": 0
+}

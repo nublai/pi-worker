@@ -14,6 +14,8 @@ const routes = {
   'interactions.answer_if_current': ['POST', '/v0/workers/:id/interactions/answer_if_current'],
   hello: ['GET', '/v0/hello'], 'workers.create': ['POST', '/v0/workers'], 'workers.list': ['GET', '/v0/workers'],
   'workers.get': ['GET', '/v0/workers/:id'], 'sessions.prompt': ['POST', '/v0/workers/:id/prompt'],
+  'files.read': ['POST', '/v0/workers/:id/files/read'],
+  'workers.relaunch': ['POST', '/v0/workers/:id/relaunch'],
   'workers.stop': ['POST', '/v0/workers/:id/stop'], 'history.page': ['GET', '/v0/workers/:id/history'],
   'events.subscribe': ['GET', '/v0/events'], 'receipts.get': ['GET', '/v0/receipts/:id'],
   'sessions.resolve_unknown': ['POST', '/v0/workers/:id/resolve_unknown'],

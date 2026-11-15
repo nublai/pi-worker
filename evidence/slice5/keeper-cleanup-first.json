@@ -1,0 +1,61 @@
+{
+  "test_delegate_keepers": [
+    {
+      "unit": "a0-9af4fe582692eb7e7720.service",
+      "keeper_pid": 72421,
+      "worker_processes": 0,
+      "invocation_matches_probe": true,
+      "stopped": true,
+      "cgroup_removed": true
+    },
+    {
+      "unit": "a0-d080fc6ffdd7da8ba28e.service",
+      "keeper_pid": 72487,
+      "worker_processes": 0,
+      "invocation_matches_probe": true,
+      "stopped": true,
+      "cgroup_removed": true
+    },
+    {
+      "unit": "a0-7491453120c6d596b7ff.service",
+      "keeper_pid": 72558,
+      "worker_processes": 0,
+      "invocation_matches_probe": true,
+      "stopped": true,
+      "cgroup_removed": true
+    },
+    {
+      "unit": "a0-5e82ef207dc3fad7795f.service",
+      "keeper_pid": 72651,
+      "worker_processes": 0,
+      "invocation_matches_probe": true,
+      "stopped": true,
+      "cgroup_removed": true
+    },
+    {
+      "unit": "a0-cb21966281329ef02790.service",
+      "keeper_pid": 72784,
+      "worker_processes": 0,
+      "invocation_matches_probe": true,
+      "stopped": true,
+      "cgroup_removed": true
+    },
+    {
+      "unit": "a0-2c3d2725e24825fe9ab6.service",
+      "keeper_pid": 72980,
+      "worker_processes": 0,
+      "invocation_matches_probe": true,
+      "stopped": true,
+      "cgroup_removed": true
+    },
+    {
+      "unit": "a0-8698b315fbe2a3d5bd98.service",
+      "keeper_pid": 82909,
+      "worker_processes": 0,
+      "invocation_matches_probe": true,
+      "stopped": true,
+      "cgroup_removed": true
+    }
+  ],
+  "unrelated_units_signalled": 0
+}

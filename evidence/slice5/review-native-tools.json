@@ -1,0 +1,34 @@
+{
+  "run": "/tmp/a0s5/live-4hW12M",
+  "parent_bash_calls": 4,
+  "child_bash_calls": 1,
+  "other_tool_calls": 0,
+  "native_checks": [
+    {
+      "kind": "stop",
+      "exact_native_bash_command": true,
+      "marker_absent": true,
+      "command_sha256": "437abaf99934006b95b970355338dd415e138d696b02cf39fa0b0ef82642c4d0"
+    },
+    {
+      "kind": "restart",
+      "exact_native_bash_command": true,
+      "marker_absent": true,
+      "command_sha256": "6090ad7bce178d78248cc176a77e0be7716f3b2eaf2b27134f5e9a1ac0ce1bc5"
+    },
+    {
+      "kind": "pi-exit",
+      "exact_native_bash_command": true,
+      "marker_absent": true,
+      "command_sha256": "11aa19dfd7f79905bad91dff69563efea63c475f11bc15540036aee147abc01e"
+    },
+    {
+      "kind": "owner-kept-append",
+      "exact_native_bash_command": true,
+      "append_count": 1
+    }
+  ],
+  "child_denied_paths_and_allowed_read_write_checked": true,
+  "leaders_absent_or_zombie": 6,
+  "worker_domains_removed": 6
+}

@@ -6,6 +6,7 @@
  * from a pinned watermark back to the root, which later appends never change.
  */
 import { closeSync, fstatSync, openSync, readSync } from "node:fs";
+import { openRooted } from './sandbox.js';
 import {
   type HistoryCursor,
   type HistoryEntry,
@@ -41,9 +42,13 @@ export class SessionIndex {
   file: string | null;
   headerId: string | null = null;
 
-  constructor(file: string | null, rawLimit: number = SIZE_LIMITS.rawLineBytes) {
+  constructor(file: string | null, rawLimit: number = SIZE_LIMITS.rawLineBytes, readonly confinementRoot?: string) {
     this.file = file;
     this.rawLimit = rawLimit;
+  }
+
+  private openFile(): number {
+    return this.confinementRoot ? openRooted(this.confinementRoot, this.file!) : openSync(this.file!, 'r');
   }
 
   get leafId(): string | null {
@@ -67,7 +72,7 @@ export class SessionIndex {
     if (this.file === null) return;
     let fd: number;
     try {
-      fd = openSync(this.file, "r");
+      fd = this.openFile();
     } catch {
       this.reset();
       return;
@@ -155,7 +160,7 @@ export class SessionIndex {
   hasSettlement(executionId: string, commandId: string): boolean {
     this.refresh();
     if (!this.file) return false;
-    const fd = openSync(this.file, 'r');
+    const fd = this.openFile();
     try {
       for (const meta of this.byId.values()) {
         if (meta.oversize || meta.length > SIZE_LIMITS.historyPageBytes) continue;
@@ -204,7 +209,7 @@ export class SessionIndex {
     let bytes = 2;
     let truncated = false;
     if (this.file === null) return { error: "no session file" };
-    const fd = openSync(this.file, "r");
+    const fd = this.openFile();
     try {
       for (; index < path.length && entries.length < limit; index++) {
         const meta = path[index] as Indexed;
