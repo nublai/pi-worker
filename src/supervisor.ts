@@ -109,6 +109,12 @@ export class Supervisor {
   }
   private async cleanup(live: Live): Promise<boolean> {
     live.worker.status = 'cleanup_pending'; live.worker.cleanup = 'unresolved';
+    const execution = live.worker.execution;
+    if (execution && execution.state !== 'settled' && this.receipts.all.get(execution.command_id)?.effect !== 'no_effect') {
+      // Domain removal may beat Node's exit event. Do not lose the uncertain
+      // execution or allow relaunch merely because the OS cleanup is confirmed.
+      try { this.fence(live, execution.command_id); } catch { /* keep the in-memory fence and still kill */ }
+    }
     let durable = true;
     try { this.persist(live); } catch { durable = false; } // storage failure must not suppress a safety kill
     let gone = false;

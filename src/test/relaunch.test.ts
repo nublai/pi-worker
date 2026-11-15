@@ -29,5 +29,12 @@ test('relaunch refuses a replacement checkout writer; fresh epoch rejects ordina
     await assert.rejects(s.prompt(old.worker_id, { ...bind(old, 'stale'), message: 'stale' }), /stale_binding/);
     assert.equal((await s.prompt(old.worker_id, { ...bind(fresh, 'fresh'), message: 'fresh' })).state, 'delivered');
     assert.equal(hosts.at(-1)!.prompts, 1);
+    // Cgroup emptiness can be observed before Node delivers the leader's exit
+    // callback. Stop must fence the active execution independently of that event.
+    await s.stop(fresh.worker_id, bind(fresh, 'stop-running'));
+    const stopped = s.get(fresh.worker_id);
+    assert.equal(stopped.execution?.state, 'outcome_unknown');
+    assert.equal(stopped.fence?.command_id, 'fresh');
+    await assert.rejects(s.relaunch(fresh.worker_id, bind(stopped, 'unsafe-relaunch')), /session_fenced/);
   } finally { await s.shutdown(); j.close(); rmSync(root, { recursive: true, force: true }); }
 });
