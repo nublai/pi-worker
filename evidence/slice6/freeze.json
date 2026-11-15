@@ -1,0 +1,25 @@
+{
+  "clock": "2026-11-15T15:05:33.182Z",
+  "settled_execution": {
+    "execution_id": "884acf8e-4d70-459e-ae83-6bf4fa3d2612",
+    "command_id": "slice6-review-correction",
+    "state": "settled",
+    "disposition": "started"
+  },
+  "receipt": {
+    "command_id": "slice6-freeze-parent",
+    "operation": "workers.stop",
+    "request_hash": "14b4e6ddfa37e76d1e3cf0c303a33da62915379ca08a4a21c096857ae0983e41",
+    "worker_id": "febff8a3-dad1-4b0b-af35-1da1ae631ea0",
+    "state": "delivered",
+    "stage": "termination_observed",
+    "effect": "observed",
+    "evidence": "supervisor_journal_fsynced",
+    "created_at": "2026-11-15T15:05:33.196Z",
+    "result": {
+      "termination": "observed_stopped",
+      "profile": "cgroup_v2"
+    }
+  },
+  "final_status": "stopped"
+}

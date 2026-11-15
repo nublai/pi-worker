@@ -1,0 +1,122 @@
+diff --git a/openapi.json b/openapi.json
+index 6ac9ed3..585f19f 100644
+--- a/openapi.json
++++ b/openapi.json
+@@ -506,7 +506,7 @@
+             "content": {
+               "application/json": {
+                 "schema": {
+-                  "$ref": "#/components/schemas/Receipt"
++                  "$ref": "#/components/schemas/StopReceipt"
+                 }
+               }
+             }
+@@ -2574,6 +2574,40 @@
+           "result_digest"
+         ],
+         "additionalProperties": false
++      },
++      "StopResult": {
++        "type": "object",
++        "properties": {
++          "termination": {
++            "enum": ["observed_stopped", "superseded_generation_stopped", "superseded_generation_unknown", "unknown"],
++            "description": "observed_stopped: normal stop, generation confirmed gone. superseded_generation_stopped: old generation gone but a new relaunch was already running. superseded_generation_unknown: old generation cleanup outcome unknown, new generation running. unknown: cleanup outcome unknown, generation status not checked."
++          },
++          "stopped_worker_epoch": {
++            "type": "string",
++            "description": "The worker_epoch of the generation that was targeted by this stop. Present for all termination values."
++          },
++          "current_worker_epoch": {
++            "type": "string",
++            "description": "The worker_epoch of the currently active generation at the time of receipt. Equals stopped_worker_epoch for non-superseded stops; differs when the generation was superseded."
++          },
++          "profile": {
++            "enum": ["cgroup_v2", "process_group_only"]
++          }
++        },
++        "additionalProperties": true
++      },
++      "StopReceipt": {
++        "allOf": [
++          { "$ref": "#/components/schemas/Receipt" },
++          {
++            "type": "object",
++            "properties": {
++              "result": {
++                "$ref": "#/components/schemas/StopResult"
++              }
++            }
++          }
++        ]
+       }
+     },
+     "securitySchemes": {
+diff --git a/src/api.generated.ts b/src/api.generated.ts
+index 675298f..a522b97 100644
+--- a/src/api.generated.ts
++++ b/src/api.generated.ts
+@@ -680,6 +680,24 @@ export interface components {
+             task_id: string;
+             result_digest: string;
+         };
++        StopResult: {
++            /**
++             * @description observed_stopped: normal stop, generation confirmed gone. superseded_generation_stopped: old generation gone but a new relaunch was already running. superseded_generation_unknown: old generation cleanup outcome unknown, new generation running. unknown: cleanup outcome unknown, generation status not checked.
++             * @enum {unknown}
++             */
++            termination?: "observed_stopped" | "superseded_generation_stopped" | "superseded_generation_unknown" | "unknown";
++            /** @description The worker_epoch of the generation that was targeted by this stop. Present for all termination values. */
++            stopped_worker_epoch?: string;
++            /** @description The worker_epoch of the currently active generation at the time of receipt. Equals stopped_worker_epoch for non-superseded stops; differs when the generation was superseded. */
++            current_worker_epoch?: string;
++            /** @enum {unknown} */
++            profile?: "cgroup_v2" | "process_group_only";
++        } & {
++            [key: string]: unknown;
++        };
++        StopReceipt: components["schemas"]["Receipt"] & {
++            result?: components["schemas"]["StopResult"];
++        };
+     };
+     responses: never;
+     parameters: never;
+@@ -1108,7 +1126,7 @@ export interface operations {
+                     [name: string]: unknown;
+                 };
+                 content: {
+-                    "application/json": components["schemas"]["Receipt"];
++                    "application/json": components["schemas"]["StopReceipt"];
+                 };
+             };
+             /** @description Refusal; never implies cancel */
+diff --git a/src/supervisor.ts b/src/supervisor.ts
+index a1fc09b..bfd4e13 100644
+--- a/src/supervisor.ts
++++ b/src/supervisor.ts
+@@ -688,15 +688,23 @@ export class Supervisor {
+       this.dispatchGuard();
+       this.receipts.dispatch(b.command_id, { worker_id: id });
+       const unit = live.unit;
++      const stoppedEpoch = live.worker.worker_epoch;
+       if (!unit) { live.worker.status = 'cleanup_pending'; this.persist(live); }
+       const gone = unit ? await this.cleanup(live) : live.host ? await live.host.stop() : live.pid !== null ? await killGroup(live.pid, live.token) : live.worker.cleanup === 'not_started';
+-      if (live.unit === unit) {
++      const superseded = live.unit !== unit;
++      if (!superseded) {
+         live.worker.status = gone ? 'stopped' : 'cleanup_pending';
+         live.worker.cleanup = gone ? unit ? 'cgroup_empty_removed' : 'process_group_observed_gone; escaped_descendants_unproven' : 'unresolved';
+         if (gone) live.pid = null;
+         this.persist(live);
+       }
+-      return { state: gone ? 'delivered' : 'outcome_unknown', stage: gone ? 'termination_observed' : 'unknown', effect: gone ? 'observed' : 'unknown', result: { termination: gone ? 'observed_stopped' : 'unknown', profile: unit ? 'cgroup_v2' : 'process_group_only' } };
++      if (superseded) {
++        const currentEpoch = live.worker.worker_epoch;
++        return gone
++          ? { state: 'delivered', stage: 'termination_observed', effect: 'observed', result: { termination: 'superseded_generation_stopped', stopped_worker_epoch: stoppedEpoch, current_worker_epoch: currentEpoch, profile: unit ? 'cgroup_v2' : 'process_group_only' } }
++          : { state: 'outcome_unknown', stage: 'unknown', effect: 'unknown', result: { termination: 'superseded_generation_unknown', stopped_worker_epoch: stoppedEpoch, current_worker_epoch: currentEpoch, profile: unit ? 'cgroup_v2' : 'process_group_only' } };
++      }
++      return { state: gone ? 'delivered' : 'outcome_unknown', stage: gone ? 'termination_observed' : 'unknown', effect: gone ? 'observed' : 'unknown', result: { termination: gone ? 'observed_stopped' : 'unknown', stopped_worker_epoch: stoppedEpoch, current_worker_epoch: stoppedEpoch, profile: unit ? 'cgroup_v2' : 'process_group_only' } };
+     }, () => { live = this.require(id); this.binding(live, b); });
+   }
+   async shutdown(): Promise<void> {

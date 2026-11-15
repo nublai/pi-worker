@@ -1,0 +1,98 @@
+{
+  "schema": "a0-attention-baseline-v1",
+  "owner_write_actions": [
+    {
+      "clock": "2026-11-15T14:30:28.692Z",
+      "operation": "workers.create",
+      "class": "provisioning",
+      "clock_evidence": "post-create observation"
+    },
+    {
+      "clock": "2026-11-15T14:30:28.692Z",
+      "operation": "sessions.prompt",
+      "class": "authorization_intervention"
+    },
+    {
+      "clock": "2026-11-15T14:50:26.492Z",
+      "operation": "sessions.follow_up",
+      "class": "authorization_intervention"
+    },
+    {
+      "clock": "2026-11-15T15:05:33.182Z",
+      "operation": "workers.stop",
+      "class": "cleanup_control"
+    },
+    {
+      "clock": "2026-11-15T15:13:49.578Z",
+      "operation": "artifact.accept",
+      "class": "authorization_intervention"
+    }
+  ],
+  "total_owner_write_actions": 5,
+  "non_intervention_write_actions": 2,
+  "job_id": "pi-worker-issue-1",
+  "verified_changes": 1,
+  "verified_prs": 0,
+  "touches": [
+    {
+      "clock": "2026-11-15T14:30:28.692Z",
+      "kind": "prompt",
+      "actor": "slice6-authorized-owner-script",
+      "policy_revision": "slice6-owner-v1",
+      "command_id": "slice6-job",
+      "artifact": {
+        "base": "409bd889289fa3601977411747e0aaccf9a73332"
+      },
+      "scope": "implement/test/integrate/commit fix/issue-1 only",
+      "started": "2026-11-15T14:30:28.692Z"
+    },
+    {
+      "clock": "2026-11-15T14:50:26.492Z",
+      "kind": "prompt",
+      "actor": "slice6-authorized-owner-script",
+      "policy_revision": "slice6-owner-v1",
+      "command_id": "slice6-review-correction",
+      "scope": "same issue-1 API wiring, minimal diff and generation-attribution correction",
+      "reason": "Owner inspection found unused StopResult schema and unrelated OpenAPI formatting churn",
+      "candidate_commit": "f292dbe09d770a3cd3c65742ae7b8e29446d4471"
+    },
+    {
+      "clock": "2026-11-15T15:13:49.578Z",
+      "kind": "accept",
+      "actor": "slice6-authorized-owner-script",
+      "policy_revision": "slice6-owner-v1",
+      "job_id": "pi-worker-issue-1",
+      "artifact": {
+        "commit_sha": "a3c4e02b902ffb151a1c8f99b93dc9bd75aa48a6",
+        "base_sha": "409bd889289fa3601977411747e0aaccf9a73332",
+        "diff_digest": {
+          "algorithm": "sha256",
+          "definition": "exact git diff --binary BASE COMMIT bytes",
+          "value": "72cd34f6360344c8680181900bd6dbfb78d5000d420183b926364a7dbccd1061"
+        }
+      },
+      "decision": "accept_verified_artifact_for_root_review",
+      "scope": "local verified change only; NOT push, PR, merge, release or deployment authorization",
+      "expiry": "2026-11-16T00:00:00Z",
+      "revocation": "artifact or policy change invalidates acceptance",
+      "evidence_record_sha256": "ec38293183081df32052f6446f23b01a44171fdccbd25269ebe62712c04ba9f5",
+      "scripted_action_seconds": 0.025
+    }
+  ],
+  "interventions": 3,
+  "prompts": 2,
+  "answers": 0,
+  "accepts": 1,
+  "first_touch": "2026-11-15T14:30:28.692Z",
+  "last_touch": "2026-11-15T15:13:49.578Z",
+  "elapsed_minutes_per_verified_change": 43.3481,
+  "verified_at": "2026-11-15T15:12:51.703Z",
+  "founder_human_touches_during_job": 0,
+  "human_attention_minutes": null,
+  "limitations": [
+    "Interventions are explicit scripted owner decisions, not a measured human-attention study.",
+    "Elapsed minutes are job wall time between first prompt and exact-artifact acceptance, not active human minutes.",
+    "Harness authoring, VM setup, read-only observation, independent verification and cleanup are automation/operator overhead outside the prompt/answer/accept count; disclosed in the run report.",
+    "No verified PR exists yet; minutes per verified PR cannot be reported until root opens and verifies the draft PR."
+  ]
+}

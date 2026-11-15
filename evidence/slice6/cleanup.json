@@ -1,0 +1,64 @@
+{
+  "clock": "2026-11-15T15:12:51.625Z",
+  "scoped_grant_revoked": true,
+  "pi_leaders": [
+    {
+      "pid": 142392,
+      "state": null
+    },
+    {
+      "pid": 142758,
+      "state": null
+    },
+    {
+      "pid": 142759,
+      "state": null
+    }
+  ],
+  "worker_domains": [
+    {
+      "name": "w-add7e5fe-a072-42e2-8132-14478c243a48",
+      "removed": true
+    },
+    {
+      "name": "w-b4b616f9-d5f4-44d3-80d3-0074517bafbe",
+      "removed": true
+    },
+    {
+      "name": "w-e0bc084b-5e60-43af-9b3a-876188bb7431",
+      "removed": true
+    }
+  ],
+  "stopped_units": [
+    "a0-s6-supervisor.service",
+    "a0-0e5c3766620adc7725b0.service"
+  ],
+  "supervisor_pid": 142343,
+  "supervisor_absent": true,
+  "service_states": [
+    {
+      "unit": "a0-s6-supervisor.service",
+      "state": "inactive",
+      "inactive": true
+    },
+    {
+      "unit": "a0-0e5c3766620adc7725b0.service",
+      "state": "inactive",
+      "inactive": true
+    }
+  ],
+  "terminal_executable_positive_controls": [
+    {
+      "name": "herdr",
+      "exit_code": 97
+    },
+    {
+      "name": "hc",
+      "exit_code": 97
+    },
+    {
+      "name": "herdr-core",
+      "exit_code": 97
+    }
+  ]
+}

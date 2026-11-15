@@ -1,0 +1,16 @@
+{
+  "clock": "2026-11-15T14:30:28.710Z",
+  "cursor": {
+    "worker_epoch": "52db5c5b-56c7-46d8-ad2c-f7e5f03d0f94",
+    "seq": 17
+  },
+  "workers": [
+    {
+      "worker_id": "febff8a3-dad1-4b0b-af35-1da1ae631ea0",
+      "worker_epoch": "add7e5fe-a072-42e2-8132-14478c243a48",
+      "status": "ready",
+      "foreground": "running"
+    }
+  ],
+  "note": "Owner client exits now; no external observer/controller is left connected. The job-owned orchestration adapter stays alive inside parent."
+}

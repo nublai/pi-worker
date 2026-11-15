@@ -1,0 +1,10 @@
+{
+  "revision": "slice6-owner-v1",
+  "actor": "slice6-authorized-owner-script",
+  "job_id": "pi-worker-issue-1",
+  "prompt": "One bounded issue-fix job; exactly two typed retained-worktree leaves; integrate and commit only.",
+  "answers": "No automatic grants or approvals. Cancel any unexpected interaction through a separately logged owner action. Never infer authorization from dialog text.",
+  "accept": "Only after fresh-checkout checks and base-red regression; exact commit and diff SHA256 bound; no push/merge/PR authority.",
+  "expiry": "2026-11-16T00:00:00Z",
+  "revocation": "artifact or policy change invalidates acceptance"
+}

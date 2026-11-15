@@ -1,0 +1,14 @@
+/** One logged owner correction, through B2 only, after inspecting actual diff. */
+import assert from 'node:assert/strict';
+import {Client} from '/tmp/a0s6/supervisor/dist/client.js';
+import {readFileSync,appendFileSync,writeFileSync} from 'node:fs';
+const R='/tmp/a0s6/run1';let p;try{p=JSON.parse(readFileSync(R+'/parent.json','utf8'));}catch(cause){throw Error('invalid parent identity',{cause});}
+const c=new Client(R+'/state/worker.sock',R+'/state/grants/owner.json'),w=await c.call('workers.get',{id:p.worker_id});
+const message=`Owner artifact review correction, same authorized issue-1 scope. Do not launch any more children. I inspected the actual f292dbe diff, not your success text. The new StopResult component is never referenced by the workers.stop response; merely generating an unused component does not type the operation's actual result. Please wire StopResult into the actual workers.stop 200 response (for example a StopReceipt allOf Receipt plus narrowed result schema), retain general Receipt for other operations, and verify the generated workers.stop response exposes these fields. Also remove the unrelated JSON formatting churn: preserve the original bytes/layout of unchanged OpenAPI regions and make only the required schema/path edits. These are bounded API-contract corrections, not runtime redesign. Include stopped_worker_epoch/current_worker_epoch on unknown stop outcomes too so every stop result identifies its targeted and current generation; change StopResult descriptions accordingly. Add focused assertions for unknown epoch attribution without weakening any existing test. Test and commit these integration corrections on fix/issue-1. Run npm test and npm run check:generated on the exact committed state. Then report final HEAD and A0_SLICE6_JOB_COMPLETE only after both child result AND both separate termination messages are received. No push/PR/merge/cleanup. This is owner prompt #2; do not hide it in the attention baseline.`;
+const command_id='slice6-review-correction';const clock=new Date().toISOString();
+appendFileSync(R+'/attention.jsonl',JSON.stringify({clock,kind:'prompt',actor:'slice6-authorized-owner-script',policy_revision:'slice6-owner-v1',command_id,scope:'same issue-1 API wiring, minimal diff and generation-attribution correction',reason:'Owner inspection found unused StopResult schema and unrelated OpenAPI formatting churn',candidate_commit:'f292dbe09d770a3cd3c65742ae7b8e29446d4471'})+'\n');
+writeFileSync(R+'/correction-prompt.txt',message+'\n');
+const b={command_id,worker_epoch:w.worker_epoch,session_id:w.session_id,binding_revision:w.binding_revision,message};
+const op=w.foreground==='idle'?'sessions.prompt':'sessions.follow_up';
+const receipt=await c.call(op,{id:w.worker_id,body:{...b,...(op==='sessions.follow_up'?{execution_id:w.execution.execution_id}:{})}});
+assert.ok(['delivered','queued'].includes(receipt.state));console.log(JSON.stringify({clock,operation:op,state:receipt.state}));

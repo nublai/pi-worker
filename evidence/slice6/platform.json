@@ -1,0 +1,16 @@
+{
+  "node": "v22.21.1",
+  "pi": "1.5.2",
+  "herdr_version": "3.11.0",
+  "pstack_version": "1.0.0",
+  "host_experimental_source": "f9e6cc5367dd203e7d32e6b4059aa389f3003a8d",
+  "host_source_sha256": {
+    "maestro/core/worker-execution.ts": "0249b43518424d07b4e808ab6de9c08ab5c41d07650533fda7f56019d42bf412",
+    "maestro/adapters/pi/worker-client.ts": "fdd5cbd7ae6cd028371a64aa077b81fa20dc89d9ef936758a69c62a6ef6b51b0",
+    "maestro/runtime/pi-worker-session.ts": "cde2265e1728517e6c636ec9823a9eec782c7af21209f6e19e704d7c68e61560",
+    "pi-extension/subagents/worker-backend.ts": "7a6f3b6f03de4f46af7c66ecf1e25cb951bb94c62c86b43ce3a0d41d68027f89"
+  },
+  "input_bundle_sha256": "ab527e12a57dbf2503d105ef2dfb3b528f2f1ec54eaf88ef76de176efa17f929",
+  "output_bundle_sha256": "f31a595646fdb0c13591bedb6508a747984d12f9ba193dd9d7d77b0b60ab54a6",
+  "remote_git_transport": "local Git bundle only; no GitHub credential transfer"
+}
