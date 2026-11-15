@@ -15,7 +15,7 @@ import { killGroup } from './process.js';
 import { ProcessGroupContainment, type Containment, type CleanupUnit } from './containment.js';
 import { sandboxRoot, readConfined, sandboxSessionDir } from './sandbox.js';
 import { Refusal, type Binding, type Create, type Prompt, type Worker, type Receipt, type Hello, type Resolve, type Rebind, type FollowUp, type Control, type ChildLaunch, type Report } from './types.js';
-type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null; unit?: CleanupUnit; create?: Create; intentBindings?: Record<string, Binding> };
+type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null; unit?: CleanupUnit; create?: Create; intentBindings?: Record<string, Binding & { relaunch_epoch?: string }> };
 type Pending = { kind: 'follow_up' | 'child'; request: FollowUp | ChildLaunch; guard: () => void };
 type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; exited?: boolean; rebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout>; inventoryReady?: () => void };
 export type HostFactory = (create: Create, sessionDir: string, context?: HostContext) => SessionHost;
@@ -50,6 +50,7 @@ export class Supervisor {
     return (c, dir, context) => c.host === 'sdk' ? new SdkHost(c, dir, 'sdk', context) : c.host === 'acp' ? new AcpHost(c, dir, context) : new RpcHost(executable, c.cwd, dir, c.provider, c.model, c.thinking, 30000, context, undefined, c.project_trusted === true);
   }
   async recover(): Promise<void> {
+    await this.containment.sweepUnknown?.([...this.workers.values()].flatMap(live => live.unit ? [live.unit] : []));
     this.receipts.recover();
     this.interactions.recover();
     for (const live of this.workers.values()) {
@@ -280,6 +281,7 @@ export class Supervisor {
     // Never downgrade that independent confirmed-stop evidence to leader-only.
     if (live.worker.status === 'stopped' && live.pid === null) { live.exited = true; return; }
     live.exited = true;
+    const cleaning = live.worker.status === 'cleanup_pending';
     if (live.worker.execution && live.worker.execution.state !== 'settled') {
       const id = live.worker.execution.command_id;
       this.receipts.unknown(id); this.fence(live, id);
@@ -290,6 +292,9 @@ export class Supervisor {
     live.worker.cleanup = 'leader_exit_only';
     this.persist(live);
     live.hub.publish('worker_exit', {}, live.worker.execution?.execution_id ?? null, 'supervisor', true);
+    // An exit is only leader evidence. Kill detached tools now, not at restart.
+    // Explicit stop/fault cleanup already owns a pending domain operation.
+    if (live.unit && !cleaning) void this.cleanup(live).catch(error => this.fault(live, error));
   }
   private validateLaunch(c: Create): void {
     const spec = c.launch_spec;
@@ -381,6 +386,7 @@ export class Supervisor {
       this.dispatchGuard(); // A revoked input must not leave an admitted execution.
       const w = live.worker;
       w.execution = { execution_id: randomUUID(), command_id: p.command_id, state: 'admitted' }; w.foreground = 'running';
+      if (live.intentBindings) delete live.intentBindings[p.command_id];
       this.persist(live);
       this.receipts.dispatch(p.command_id, { worker_id: id, execution_id: w.execution.execution_id });
       const response = await live.host!.request({ type: 'prompt', message: p.message });
@@ -411,7 +417,7 @@ export class Supervisor {
    * across an explicit fresh-process launch. All ordinary stale writes refuse. */
   private intentBinding(live: Live, b: Binding): void {
     const old = live.intentBindings?.[b.command_id];
-    if (this.receipts.all.get(b.command_id)?.state === 'intent_ready' && old && old.worker_epoch === b.worker_epoch && old.session_id === b.session_id && old.binding_revision === b.binding_revision) return;
+    if (this.receipts.all.get(b.command_id)?.state === 'intent_ready' && old && old.worker_epoch === b.worker_epoch && old.session_id === b.session_id && old.binding_revision === b.binding_revision && live.worker.worker_epoch === old.relaunch_epoch && live.worker.session_id === old.session_id && live.worker.binding_revision === old.binding_revision) return;
     this.binding(live, b);
   }
   async relaunch(id: string, b: Binding): Promise<Receipt> {
@@ -420,9 +426,10 @@ export class Supervisor {
       this.dispatchGuard();
       live.host = undefined; // retire listeners before publishing the new epoch
       const w = live.worker, old = { worker_epoch: w.worker_epoch, session_id: w.session_id!, binding_revision: w.binding_revision };
+      w.worker_epoch = randomUUID();
       (live.intentBindings ??= {});
-      for (const r of this.receipts.all.values()) if (r.worker_id === id && ['intent_recovered', 'intent_ready'].includes(r.state) && r.operation === 'sessions.prompt') live.intentBindings[r.command_id] ??= { ...old, command_id: r.command_id };
-      w.worker_epoch = randomUUID(); w.status = 'starting'; w.cleanup = 'not_started';
+      for (const r of this.receipts.all.values()) if (r.worker_id === id && ['intent_recovered', 'intent_ready'].includes(r.state) && r.operation === 'sessions.prompt') live.intentBindings[r.command_id] ??= { ...old, command_id: r.command_id, relaunch_epoch: w.worker_epoch };
+      w.status = 'starting'; w.cleanup = 'not_started';
       w.execution = null; w.foreground = 'idle'; live.exited = false; live.faulted = false;
       live.unit = this.containment.reserve(w.worker_epoch); live.pid = null; live.token = null;
       this.persist(live); // new domain and old exact-intent binding before any spawn
