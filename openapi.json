@@ -946,6 +946,9 @@
           "history_lag": {
             "type": "boolean"
           },
+          "uncertain_command_id": {
+            "type": "string"
+          },
           "error": {
             "type": "string"
           },

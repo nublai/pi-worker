@@ -53,6 +53,7 @@ export class ReceiptStore {
     if (this.all.size >= this.maxCount) throw new Refusal('receipt_capacity');
     // No unexpired eviction. Each command reserves the full bounded receipt allocation.
     if ((this.all.size + 1) * this.maxResultBytes > 8 * 1024 * 1024) throw new Refusal('receipt_bytes_capacity');
+    if (!this.journal.reserve(command_id, this.maxResultBytes + 1024)) throw new Refusal('journal_result_capacity');
     const intent = this.put({ command_id, operation, request_hash: hash, state: 'intent', stage: 'reserved', effect: 'no_effect', evidence: 'supervisor_journal_fsynced', created_at: new Date().toISOString() });
     const result = Promise.resolve().then(async () => {
       try {
@@ -60,8 +61,8 @@ export class ReceiptStore {
         return this.put({ ...this.all.get(command_id)!, ...patch });
       } catch (error) {
         if (this.journal.failed) throw new Refusal('journal_failed_after_intent', 'unknown', command_id);
-        const noEffect = error instanceof Refusal && error.effect === 'no_effect';
-        return this.update(command_id, { state: noEffect ? 'rejected' : 'outcome_unknown', stage: noEffect ? 'refused' : 'unknown', effect: noEffect ? 'no_effect' : 'unknown', admission: 'rejected', error: error instanceof Error ? error.message.slice(0, 1024) : 'unknown failure' });
+        const noEffect = (error instanceof Refusal && error.effect === 'no_effect') || this.all.get(command_id)?.state === 'intent';
+        return this.update(command_id, { state: noEffect ? 'rejected' : 'outcome_unknown', stage: noEffect ? 'refused' : 'unknown', effect: noEffect ? 'no_effect' : 'unknown', ...(noEffect ? { admission: 'rejected' as const } : {}), ...(error instanceof Refusal && error.uncertain_command_id ? { uncertain_command_id: error.uncertain_command_id } : {}), error: error instanceof Error ? error.message.slice(0, 1024) : 'unknown failure' });
       } finally { this.inFlight.delete(command_id); }
     });
     this.inFlight.set(command_id, result);

@@ -34,7 +34,7 @@ test('refusal versus uncertain timeout, plus no eviction at capacity', async () 
     const no = await f.store.run('no', 'sessions.prompt', {}, async () => { throw new Refusal('no'); });
     assert.equal(no.effect, 'no_effect'); assert.equal(no.state, 'rejected');
     const unknown = await f.store.run('unknown', 'sessions.prompt', {}, async () => { f.store.dispatch('unknown'); throw new Error('lost response'); });
-    assert.equal(unknown.state, 'outcome_unknown'); assert.equal(unknown.effect, 'unknown');
+    assert.equal(unknown.state, 'outcome_unknown'); assert.equal(unknown.effect, 'unknown'); assert.equal(unknown.admission, undefined);
     const bounded = new ReceiptStore(f.journal, 2);
     assert.throws(() => bounded.run('third', 'workers.stop', {}, async () => ({})), /receipt_capacity/);
     assert.equal(bounded.all.size, 2);
@@ -50,6 +50,15 @@ test('recovery separates undispatched intent from dispatch; neither is replayed'
     assert.equal(recovered.all.get('sent')?.state, 'outcome_unknown');
     assert.equal(recovered.all.get('sent')?.effect, 'unknown');
   } finally { f.cleanup(); }
+});
+test('journal admission reserves full result room and never begins an effect without it', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'a0-capacity-'));
+  const journal = new Journal(join(dir, 'journal'), 1024);
+  try {
+    const store = new ReceiptStore(journal);
+    assert.throws(() => store.run('no-room', 'workers.create', {}, async () => { assert.fail('must not dispatch'); }), /journal_result_capacity/);
+    assert.equal(journal.records.length, 0); assert.equal(journal.failed, false);
+  } finally { journal.close(); rmSync(dir, { recursive: true }); }
 });
 test('journal truncates a torn final record, rejects complete corruption or sequence gaps', () => {
   const f = fixture(); try {

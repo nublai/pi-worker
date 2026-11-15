@@ -24,6 +24,7 @@ export function parseJournal(bytes: Buffer): { records: JournalRecord[]; validBy
 export class Journal {
   readonly records: JournalRecord[];
   private fd: number;
+  private reservations = new Map<string, number>();
   failed = false;
   constructor(readonly file: string, readonly maxBytes = 32 * 1024 * 1024) {
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
@@ -35,16 +36,25 @@ export class Journal {
     const dir = openSync(dirname(file), 'r');
     try { fsyncSync(dir); } finally { closeSync(dir); }
   }
+  reserve(commandId: string, bytes: number): boolean {
+    const reserved = [...this.reservations.values()].reduce((a, b) => a + b, 0);
+    if (this.failed || fstatSync(this.fd).size + reserved + bytes > this.maxBytes) return false;
+    this.reservations.set(commandId, bytes); return true;
+  }
   append(kind: JournalRecord['kind'], value: Record<string, unknown>): void {
     if (this.failed) throw new Error('journal failed; supervisor fenced globally');
     const record = { seq: this.records.length + 1, kind, value } as JournalRecord;
     const data = Buffer.from(JSON.stringify({ record, checksum: digest(JSON.stringify(record)) }) + '\n');
     try {
-      if (fstatSync(this.fd).size + data.length > this.maxBytes) throw new Error('journal capacity; no automatic eviction');
+      const reserved = [...this.reservations.values()].reduce((a, b) => a + b, 0);
+      const terminal = kind === 'receipt' && ['delivered', 'rejected', 'outcome_unknown'].includes(String(value.state));
+      const own = terminal ? this.reservations.get(String(value.command_id)) ?? 0 : 0;
+      if (fstatSync(this.fd).size + data.length + reserved - own > this.maxBytes) throw new Error('journal capacity; no automatic eviction');
       let offset = 0;
       while (offset < data.length) offset += writeSync(this.fd, data, offset, data.length - offset);
       fsyncSync(this.fd);
       this.records.push(record);
+      if (terminal) this.reservations.delete(String(value.command_id));
     } catch (error) { this.failed = true; throw error; }
   }
   close(): void { closeSync(this.fd); }

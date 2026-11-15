@@ -38,8 +38,13 @@ export class Supervisor {
       const active = w.execution && w.execution.state !== 'settled';
       if (active) {
         const id = w.execution!.command_id;
-        if (this.receipts.all.has(id)) this.receipts.unknown(id);
-        this.fence(live, id);
+        const receipt = this.receipts.all.get(id);
+        if (receipt?.effect === 'no_effect' && receipt.state === 'rejected') {
+          w.execution!.state = 'settled'; w.execution!.disposition = 'no_effect_before_dispatch'; w.foreground = 'idle';
+        } else {
+          if (receipt) this.receipts.unknown(id);
+          this.fence(live, id);
+        }
       }
       for (const receipt of this.receipts.all.values()) if (receipt.worker_id === w.worker_id && receipt.state === 'outcome_unknown') this.fence(live, receipt.command_id);
       if (live.pid !== null) {
@@ -59,7 +64,7 @@ export class Supervisor {
   hello(): Hello {
     return { protocol: { major: 0, minor: 1 }, prototype: true, supervisor_id: this.id, supervisor_epoch: this.epoch, pi_version: this.piVersion,
       capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'settlement.agent_settled'],
-      limits: { same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'not implemented', receipt_retention: 'until explicit prototype state removal; max 512, no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_buffer_bytes: 1048576, socket_mode: '0600', socket_directory_mode: '0700', replay: 'fresh authoritative snapshot on every attach, no historical event replay', fence_resolution: 'not implemented; fenced session remains read/stop only' },
+      limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'not implemented', receipt_retention: 'until explicit prototype state removal; max 512, no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_buffer_bytes: 1048576, socket_mode: '0600', socket_directory_mode: '0700', replay: 'fresh authoritative snapshot on every attach, no historical event replay', fence_resolution: 'not implemented; fenced session remains read/stop only' },
       resource_profile: 'normal CLI discovery; exact loaded extension/tool inventory unverified', cleanup_profile: 'linux_process_group; no adoption or resume; escaped descendants unproven' };
   }
   private persist(live: Live): void {
@@ -104,7 +109,7 @@ export class Supervisor {
       if (w.execution && !w.fence) w.execution.state = 'settled';
       this.refresh(live); this.persist(live);
     }
-    live.hub.publish(event.type, event, w.execution?.execution_id ?? null, 'pi', event.type === 'agent_settled');
+    live.hub.publish(event.type, event, w.execution?.execution_id ?? null, 'pi');
   }
   private onExit(live: Live): void {
     if (live.worker.execution && live.worker.execution.state !== 'settled') {
@@ -121,7 +126,7 @@ export class Supervisor {
     return this.receipts.run(c.command_id, 'workers.create', c, async () => {
       if (!statSync(c.cwd).isDirectory()) throw new Refusal('cwd_not_directory');
       const cwd = realpathSync(c.cwd);
-      if ([...this.workers.values()].some(l => l.worker.cwd === cwd && ['starting', 'ready', 'cleanup_pending'].includes(l.worker.status))) throw new Refusal('exclusive_environment_already_bound');
+      if ([...this.workers.values()].some(l => l.worker.cwd === cwd && (['starting', 'ready', 'cleanup_pending'].includes(l.worker.status) || l.worker.cleanup.includes('escaped_descendants_unproven')))) throw new Refusal('exclusive_environment_already_bound');
       const worker_id = randomUUID(), worker_epoch = randomUUID();
       const w: Worker = { worker_id, worker_epoch, supervisor_epoch: this.epoch, session_id: null, session_identity_evidence: 'pi_rpc_header_id', binding_revision: 1, leaf_id: null, cwd, status: 'starting', foreground: 'idle', execution: null, fence: null, history: { last_entry_id: null, lag: false, evidence: 'pi_session_file' }, cleanup: 'not_started', pending_interactions: [] };
       const live: Live = { worker: w, sessionFile: null, pid: null, token: null, index: new SessionIndex(null), hub: new EventHub(worker_epoch), completedMessages: 0 };

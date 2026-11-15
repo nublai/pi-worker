@@ -221,6 +221,7 @@ export interface components {
             admission?: "accepted" | "rejected";
             disposition?: string;
             history_lag?: boolean;
+            uncertain_command_id?: string;
             error?: string;
             result?: {
                 [key: string]: unknown;

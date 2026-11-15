@@ -78,6 +78,8 @@ test('public HTTP/CLI client: identity, duplicate, stale binding, admission dist
     assert.equal(f.supervisor.get(id).history.lag, false);
     const stopped = await client.call('workers.stop', { id, body: asBinding(w, 'stop') });
     assert.equal(stopped.result?.termination, 'observed_stopped');
+    const replacement = await client.call('workers.create', { body: { ...create(f.cwd), command_id: 'replacement' } });
+    assert.equal(replacement.state, 'rejected'); assert.equal(replacement.error, 'exclusive_environment_already_bound');
   } finally { server.closeAllConnections(); await new Promise<void>(r => server.close(() => r())); f.cleanup(); }
 });
 test('crash after admission while running: journal unknown/fence, no prompt replay, rejected future write', async () => {
@@ -91,8 +93,23 @@ test('crash after admission while running: journal unknown/fence, no prompt repl
     assert.equal(recovered.receipts.all.get('active')?.state, 'outcome_unknown');
     assert.equal(recovered.get(id).fence?.command_id, 'active');
     assert.equal(recovered.get(id).execution?.state, 'outcome_unknown');
-    const refused = await recovered.prompt(id, { ...p, command_id: 'new' }); assert.equal(refused.state, 'rejected'); assert.equal(refused.effect, 'no_effect');
+    const refused = await recovered.prompt(id, { ...p, command_id: 'new' }); assert.equal(refused.state, 'rejected'); assert.equal(refused.effect, 'no_effect'); assert.equal(refused.uncertain_command_id, 'active');
     const again = await recovered.prompt(id, p); assert.equal(again.state, 'outcome_unknown'); assert.equal(f.host.prompts, 1);
+    reopened.close();
+  } finally { f.cleanup(); }
+});
+test('execution reservation cut before dispatch stays no_effect on recovery', async () => {
+  const f = setup(); try {
+    const created = await f.supervisor.create(create(f.cwd)); const id = created.worker_id!, w = f.supervisor.get(id);
+    await f.supervisor.prompt(id, { ...asBinding(w, 'reserved'), message: 'fixture' });
+    // Persist the exact recovery fixture: worker execution reserved, receipt still intent.
+    f.supervisor.receipts.update('reserved', { state: 'intent', stage: 'reserved', effect: 'no_effect' });
+    const reopened = new Journal(f.journal.file);
+    const recovered = new Supervisor(f.dir, reopened, '1.5.2', () => { throw new Error('no launch'); });
+    await recovered.recover();
+    assert.equal(recovered.receipts.all.get('reserved')?.effect, 'no_effect');
+    assert.equal(recovered.get(id).fence, null);
+    assert.equal(recovered.get(id).execution?.disposition, 'no_effect_before_dispatch');
     reopened.close();
   } finally { f.cleanup(); }
 });
