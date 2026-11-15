@@ -1,0 +1,177 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, symlinkSync, chownSync } from 'node:fs';
+import { join } from 'node:path';
+import { request } from 'node:http';
+import { Journal, parseJournal } from '../journal.js';
+import { Supervisor } from '../supervisor.js';
+import { router, listenPrivate } from '../server.js';
+import { Client } from '../client.js';
+import type { SessionHost, PiRecord, PiResponse } from '../host.js';
+import type { Binding, Worker, Receipt } from '../types.js';
+class Host extends EventEmitter implements SessionHost {
+  pid = undefined; token = null; prompts = 0; stops = 0; stopOk = true;
+  beforePrompt = () => {}; failure: Error | null = null;
+  constructor(readonly file: string, readonly sessionId: string) { super(); }
+  async request(c: PiRecord): Promise<PiResponse> {
+    if (c.type === 'get_state') return { type: 'response', id: 'x', success: true, data: { sessionId: this.sessionId, sessionFile: this.file } };
+    this.beforePrompt(); this.prompts++;
+    if (this.failure) throw this.failure;
+    this.emit('event', { type: 'agent_start' });
+    return { type: 'response', id: 'x', success: true, data: { disposition: 'started' } };
+  }
+  async stop() { this.stops++; this.emit('exit'); return this.stopOk; }
+}
+function fixture() {
+  mkdirSync('/tmp/a0', { recursive: true });
+  const dir = mkdtempSync('/tmp/a0/fix-test-'), journal = new Journal(join(dir, 'journal'));
+  const hosts: Host[] = [];
+  const supervisor = new Supervisor(dir, journal, '1.5.2', () => {
+    const sid = `session-${hosts.length}`, file = join(dir, `${sid}.jsonl`);
+    writeFileSync(file, JSON.stringify({ type: 'session', id: sid, version: 3 }) + '\n');
+    const host = new Host(file, sid); hosts.push(host); return host;
+  });
+  async function create() {
+    const cwd = join(dir, `cwd-${hosts.length}`); mkdirSync(cwd);
+    const r = await supervisor.create({ command_id: `create-${hosts.length}`, cwd, provider: 'p', model: 'm', thinking: 'off' });
+    assert.equal(r.state, 'delivered'); return supervisor.get(r.worker_id!);
+  }
+  return { dir, journal, supervisor, hosts, create, cleanup() { journal.close(); rmSync(dir, { recursive: true }); } };
+}
+const binding = (w: Worker, command_id: string): Binding => ({ command_id, worker_epoch: w.worker_epoch, session_id: w.session_id!, binding_revision: w.binding_revision });
+function latestWorker(file: string, id: string): Worker {
+  return parseJournal(readFileSync(file)).records.filter(r => r.kind === 'worker' && (r.value.worker as Worker).worker_id === id).at(-1)!.value.worker as Worker;
+}
+test('supervisor dispatch marker with execution ID is fsynced before the host receives prompt (M2)', async () => {
+  const f = fixture(); try {
+    const w = await f.create();
+    f.hosts[0]!.beforePrompt = () => {
+      const records = parseJournal(readFileSync(f.journal.file)).records;
+      const last = records.at(-1)!;
+      assert.equal(last.kind, 'receipt'); assert.equal(last.value.state, 'accepted');
+      assert.equal(last.value.execution_id, f.supervisor.get(w.worker_id).execution?.execution_id);
+      assert.equal(last.value.command_id, 'ordered');
+      assert.ok(records.some(r => r.kind === 'receipt' && r.value.command_id === 'ordered' && r.value.state === 'intent'));
+    };
+    const r = await f.supervisor.prompt(w.worker_id, { ...binding(w, 'ordered'), message: 'hi' });
+    assert.equal(r.state, 'delivered'); assert.equal(f.hosts[0]!.prompts, 1);
+  } finally { f.cleanup(); }
+});
+for (const failure of ['pi prompt response timeout', 'stdin write failed']) test(`HTTP ${failure}: unknown and durable fence before response headers (M1, M6)`, async () => {
+  const f = fixture(), server = router(f.supervisor); try {
+    await listenPrivate(server, join(f.dir, 'socket'));
+    const w = await f.create(); f.hosts[0]!.failure = new Error(failure);
+    const r = await new Promise<Receipt>((resolve, reject) => {
+      const data = JSON.stringify({ ...binding(w, 'uncertain'), message: 'hello' });
+      const req = request({ socketPath: join(f.dir, 'socket'), method: 'POST', path: `/v0/workers/${w.worker_id}/prompt`, headers: { 'Content-Type': 'application/json' } }, res => {
+        try {
+          // Inspect disk as headers arrive, before the HTTP result promise resolves.
+          const persisted = latestWorker(f.journal.file, w.worker_id);
+          assert.equal(persisted.fence?.command_id, 'uncertain');
+          assert.equal(persisted.execution?.state, 'outcome_unknown');
+          assert.equal(f.supervisor.get(w.worker_id).fence?.command_id, 'uncertain');
+          assert.equal(res.statusCode, 200);
+        } catch (error) { res.resume(); reject(error); return; }
+        let text = ''; res.setEncoding('utf8'); res.on('data', c => { text += c; });
+        res.on('end', () => resolve(JSON.parse(text) as Receipt)); res.on('error', reject);
+      });
+      req.on('error', reject); req.end(data);
+    });
+    assert.equal(r.state, 'outcome_unknown');
+    await assert.rejects(f.supervisor.prompt(w.worker_id, { ...binding(w, 'next'), message: 'no' }), /session_fenced/);
+    assert.equal(f.hosts[0]!.prompts, 1);
+  } finally { server.closeAllConnections(); await new Promise<void>(r => server.close(() => r())); f.cleanup(); }
+});
+test('Pi exit fences an admitted run durably without rewriting delivered admission (M9)', async () => {
+  const f = fixture(); try {
+    const w = await f.create(), p = { ...binding(w, 'running'), message: 'hi' };
+    const delivered = await f.supervisor.prompt(w.worker_id, p);
+    f.hosts[0]!.emit('exit');
+    assert.equal(latestWorker(f.journal.file, w.worker_id).fence?.command_id, 'running');
+    assert.equal(latestWorker(f.journal.file, w.worker_id).execution?.state, 'outcome_unknown');
+    assert.deepEqual(await f.supervisor.prompt(w.worker_id, p), delivered);
+  } finally { f.cleanup(); }
+});
+test('unknown stop never replaces the prompt fence; two restarts preserve fence and delivered receipt', async () => {
+  const f = fixture(); try {
+    const w = await f.create();
+    const delivered = await f.supervisor.prompt(w.worker_id, { ...binding(w, 'active'), message: 'hi' });
+    f.hosts[0]!.stopOk = false;
+    assert.equal((await f.supervisor.stop(w.worker_id, binding(w, 'unknown-stop'))).state, 'outcome_unknown');
+    const fence = f.supervisor.get(w.worker_id).fence; assert.equal(fence?.command_id, 'active');
+    for (let i = 0; i < 2; i++) {
+      const log = new Journal(f.journal.file);
+      try {
+        const next = new Supervisor(f.dir, log, '1.5.2', () => { assert.fail('no replay'); });
+        await next.recover();
+        assert.deepEqual(next.get(w.worker_id).fence, fence);
+        assert.deepEqual(next.receipts.all.get('active'), delivered);
+      } finally { log.close(); }
+    }
+  } finally { f.cleanup(); }
+});
+for (const failure of ['journal', 'header']) test(`${failure} failure in a Pi event faults only that worker and keeps inventory readable`, async () => {
+  const f = fixture(); try {
+    const w = await f.create(), healthy = await f.create();
+    await f.supervisor.prompt(w.worker_id, { ...binding(w, 'active'), message: 'hi' });
+    if (failure === 'journal') f.journal.failed = true;
+    else writeFileSync(f.hosts[0]!.file, JSON.stringify({ type: 'session', id: 'wrong-header' }) + '\n');
+    assert.doesNotThrow(() => f.hosts[0]!.emit('event', { type: 'agent_settled' }));
+    await new Promise<void>(r => setImmediate(r));
+    assert.ok(f.hosts[0]!.stops > 0); assert.equal(f.hosts[1]!.stops, 0);
+    assert.equal(f.supervisor.get(w.worker_id).status, 'failed');
+    assert.equal(f.supervisor.list().find(x => x.worker_id === healthy.worker_id)?.status, 'ready');
+    assert.equal(f.supervisor.hello().protocol.major, 0);
+    if (failure === 'journal') await assert.rejects(f.supervisor.prompt(healthy.worker_id, { ...binding(healthy, 'blocked'), message: 'no' }), /journal_failed/);
+    else assert.equal((await f.supervisor.prompt(healthy.worker_id, { ...binding(healthy, 'allowed'), message: 'yes' })).state, 'delivered');
+  } finally { f.cleanup(); }
+});
+test('validation refusals consume no durable storage, ordinary capacity never blocks termination', async () => {
+  const f = fixture(); try {
+    const w = await f.create(), before = readFileSync(f.journal.file);
+    for (let i = 0; i < 520; i++) await assert.rejects(f.supervisor.prompt(w.worker_id, { ...binding(w, `stale-${i}`), binding_revision: 99, message: 'no' }), /stale_binding/);
+    assert.deepEqual(readFileSync(f.journal.file), before); assert.equal(f.supervisor.receipts.all.size, 1);
+    // Fill the real ordinary quota with accepted/handled no-run commands.
+    f.hosts[0]!.request = async c => c.type === 'prompt' ? { type: 'response', id: 'x', success: true, data: { disposition: 'handled' } } : assert.fail('unexpected');
+    for (let i = 0; i < 511; i++) assert.equal((await f.supervisor.prompt(w.worker_id, { ...binding(w, `handled-${i}`), message: 'hi' })).state, 'delivered');
+    await assert.rejects(f.supervisor.prompt(w.worker_id, { ...binding(w, 'full'), message: 'no' }), /receipt_capacity/);
+    assert.equal((await f.supervisor.stop(w.worker_id, binding(w, 'stop'))).state, 'delivered');
+  } finally { f.cleanup(); }
+});
+test('socket directory rejects symlink, public mode and foreign ownership before listening (M5)', async () => {
+  const f = fixture(); try {
+    const dir = join(f.dir, 'private'); mkdirSync(dir, { mode: 0o700 });
+    const link = join(f.dir, 'link'); symlinkSync(dir, link);
+    for (const path of [join(link, 'socket'), join(dir, 'socket')]) {
+      if (path.startsWith(dir)) chmodSync(dir, 0o755);
+      const server = router(f.supervisor);
+      try { await assert.rejects(listenPrivate(server, path), /socket directory must/); }
+      finally { server.closeAllConnections(); server.close(); }
+    }
+    chmodSync(dir, 0o700);
+    if (process.getuid?.() === 0) chownSync(dir, 65534, 65534);
+    const foreign = process.getuid?.() === 0 ? dir : '/root';
+    const server = router(f.supervisor);
+    try { await assert.rejects(listenPrivate(server, join(foreign, 'a0-refusal-test.sock')), /socket directory must/); }
+    finally { server.closeAllConnections(); server.close(); }
+  } finally { f.cleanup(); }
+});
+test('B2 SSE closes a slow subscriber when the response queue exceeds 1 MiB (M4)', async () => {
+  const f = fixture(), server = router(f.supervisor); let connection: ReturnType<typeof request> | undefined;
+  try {
+    const w = await f.create(); await listenPrivate(server, join(f.dir, 'socket'));
+    let response!: import('node:http').ServerResponse;
+    server.on('request', (_req, res) => { response = res; });
+    await new Promise<void>((resolve, reject) => {
+      connection = request({ socketPath: join(f.dir, 'socket'), path: `/v0/workers/${w.worker_id}/events` }, res => {
+        res.once('data', () => { res.pause(); resolve(); }); res.on('error', () => {});
+      }); connection.on('error', reject); connection.end();
+    });
+    for (let i = 0; i < 200; i++) f.supervisor.require(w.worker_id).hub.publish('payload', { text: 'x'.repeat(15000) });
+    assert.equal(response.destroyed, true, 'overflow must disconnect and force resnapshot');
+    assert.equal(f.supervisor.get(w.worker_id).status, 'ready');
+    // Reads still work after dropping only the slow subscriber.
+    assert.equal((await new Client(join(f.dir, 'socket')).call('hello')).protocol.major, 0);
+  } finally { connection?.destroy(); server.closeAllConnections(); await new Promise<void>(r => server.close(() => r())); f.cleanup(); }
+});

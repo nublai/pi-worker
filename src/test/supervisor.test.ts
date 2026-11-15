@@ -59,8 +59,8 @@ test('public HTTP/CLI client: identity, duplicate, stale binding, admission dist
     assert.deepEqual(await client.call('workers.create', { body: create(f.cwd) }), created);
     const id = created.worker_id!, w = await client.call('workers.get', { id });
     assert.equal(w.session_id, 'native-header'); assert.equal(w.session_identity_evidence, 'pi_session_file');
-    const stale = await client.call('sessions.prompt', { id, body: { ...asBinding(w, 'stale'), binding_revision: 2, message: 'hello' } });
-    assert.equal(stale.state, 'rejected'); assert.equal(stale.effect, 'no_effect'); assert.equal(f.host.prompts, 0);
+    await assert.rejects(client.call('sessions.prompt', { id, body: { ...asBinding(w, 'stale'), binding_revision: 2, message: 'hello' } }), /stale_binding/);
+    assert.equal(f.host.prompts, 0); assert.equal(f.supervisor.receipts.all.has('stale'), false);
     const body = { ...asBinding(w, 'prompt'), message: 'hello' };
     const first = await client.call('sessions.prompt', { id, body });
     assert.equal(first.admission, 'accepted'); assert.equal(first.stage, 'forwarded'); assert.equal(first.history_lag, true);
@@ -78,8 +78,7 @@ test('public HTTP/CLI client: identity, duplicate, stale binding, admission dist
     assert.equal(f.supervisor.get(id).history.lag, false);
     const stopped = await client.call('workers.stop', { id, body: asBinding(w, 'stop') });
     assert.equal(stopped.result?.termination, 'observed_stopped');
-    const replacement = await client.call('workers.create', { body: { ...create(f.cwd), command_id: 'replacement' } });
-    assert.equal(replacement.state, 'rejected'); assert.equal(replacement.error, 'exclusive_environment_already_bound');
+    await assert.rejects(client.call('workers.create', { body: { ...create(f.cwd), command_id: 'replacement' } }), /exclusive_environment_already_bound/);
   } finally { server.closeAllConnections(); await new Promise<void>(r => server.close(() => r())); f.cleanup(); }
 });
 test('crash after admission while running: journal unknown/fence, no prompt replay, rejected future write', async () => {
@@ -93,7 +92,11 @@ test('crash after admission while running: journal unknown/fence, no prompt repl
     assert.deepEqual(recovered.receipts.all.get('active'), delivered);
     assert.equal(recovered.get(id).fence?.command_id, 'active');
     assert.equal(recovered.get(id).execution?.state, 'outcome_unknown');
-    const refused = await recovered.prompt(id, { ...p, command_id: 'new' }); assert.equal(refused.state, 'rejected'); assert.equal(refused.effect, 'no_effect'); assert.equal(refused.uncertain_command_id, 'active');
+    await assert.rejects(recovered.prompt(id, { ...p, command_id: 'new' }), (error: unknown) => {
+      assert.equal((error as { effect: string }).effect, 'no_effect');
+      assert.equal((error as { uncertain_command_id: string }).uncertain_command_id, 'active'); return true;
+    });
+    assert.equal(recovered.receipts.all.has('new'), false);
     const again = await recovered.prompt(id, p); assert.deepEqual(again, delivered);
     const fence = recovered.get(id).fence;
     reopened.close();

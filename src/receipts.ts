@@ -17,7 +17,7 @@ export function requestHash(request: Record<string, unknown>): string {
 }
 export class ReceiptStore {
   readonly all = new Map<string, Receipt>();
-  private inFlight = new Map<string, Promise<Receipt>>();
+  private inFlight = new Map<string, { hash: string; operation: Receipt['operation']; promise: Promise<Receipt> }>();
   constructor(readonly journal: Journal, readonly maxCount = 512, readonly maxResultBytes = 16 * 1024) {
     for (const record of journal.records) if (record.kind === 'receipt') {
       const receipt = record.value as Receipt;
@@ -48,30 +48,40 @@ export class ReceiptStore {
     if (!prior) throw new Error('receipt missing');
     return prior.state === 'accepted' ? this.update(id, { state: 'outcome_unknown', stage: 'unknown', effect: 'unknown' }) : prior;
   }
-  run(command_id: string, operation: Receipt['operation'], request: Record<string, unknown>, effect: (receipt: Receipt) => Promise<Partial<Receipt>>): Promise<Receipt> {
+  run(command_id: string, operation: Receipt['operation'], request: Record<string, unknown>, effect: (receipt: Receipt) => Promise<Partial<Receipt>>, validate: () => void = () => {}): Promise<Receipt> {
     const hash = requestHash({ ...request, operation });
+    const pending = this.inFlight.get(command_id);
     const prior = this.all.get(command_id);
-    if (prior) {
-      if (prior.operation !== operation || prior.request_hash !== hash) throw new Refusal('command_id_conflict');
-      return this.inFlight.get(command_id) ?? Promise.resolve(prior);
+    if (pending || prior) {
+      if ((pending?.operation ?? prior!.operation) !== operation || (pending?.hash ?? prior!.request_hash) !== hash) throw new Refusal('command_id_conflict');
+      return pending?.promise ?? Promise.resolve(prior!);
     }
-    if (this.journal.failed) throw new Refusal('journal_failed', 'unknown');
-    if (this.all.size >= this.maxCount) throw new Refusal('receipt_capacity');
-    // No unexpired eviction. Each command reserves the full bounded receipt allocation.
-    if ((this.all.size + 1) * this.maxResultBytes > 8 * 1024 * 1024) throw new Refusal('receipt_bytes_capacity');
-    if (!this.journal.reserve(command_id, this.maxResultBytes + 1024)) throw new Refusal('journal_result_capacity');
-    const intent = this.put({ command_id, operation, request_hash: hash, state: 'intent', stage: 'reserved', effect: 'no_effect', evidence: 'supervisor_journal_fsynced', created_at: new Date().toISOString() });
     const result = Promise.resolve().then(async () => {
+      // Validate and reserve atomically with the synchronous pre-dispatch part of
+      // effect(). Refusals here have no durable receipt and consume no capacity.
+      validate();
+      if (this.journal.failed) throw new Refusal('journal_failed', 'unknown');
+      const ordinary = [...this.all.values()].filter(r => r.operation !== 'workers.stop').length;
+      // Termination bypasses the ordinary receipt quota. Its storage remains
+      // bounded by the advertised journal byte limit, not by validation traffic.
+      if (operation !== 'workers.stop' && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');
+      if (!this.journal.reserve(command_id, this.maxResultBytes + 1024)) throw new Refusal('journal_result_capacity');
+      const intent = this.put({ command_id, operation, request_hash: hash, state: 'intent', stage: 'reserved', effect: 'no_effect', evidence: 'supervisor_journal_fsynced', created_at: new Date().toISOString() });
       try {
         const patch = await effect(intent);
-        return this.put({ ...this.all.get(command_id)!, ...patch });
+        const current = this.all.get(command_id)!;
+        // Exit may have finalized an accepted command while request() awaited.
+        if (['delivered', 'rejected', 'outcome_unknown'].includes(current.state)) return current;
+        return this.put({ ...current, ...patch });
       } catch (error) {
         if (this.journal.failed) throw new Refusal('journal_failed_after_intent', 'unknown', command_id);
-        const noEffect = (error instanceof Refusal && error.effect === 'no_effect') || this.all.get(command_id)?.state === 'intent';
+        const current = this.all.get(command_id)!;
+        if (['delivered', 'rejected', 'outcome_unknown'].includes(current.state)) return current;
+        const noEffect = (error instanceof Refusal && error.effect === 'no_effect') || current.state === 'intent';
         return this.update(command_id, { state: noEffect ? 'rejected' : 'outcome_unknown', stage: noEffect ? 'refused' : 'unknown', effect: noEffect ? 'no_effect' : 'unknown', ...(noEffect ? { admission: 'rejected' as const } : {}), ...(error instanceof Refusal && error.uncertain_command_id ? { uncertain_command_id: error.uncertain_command_id } : {}), error: error instanceof Error ? error.message.slice(0, 1024) : 'unknown failure' });
-      } finally { this.inFlight.delete(command_id); }
-    });
-    this.inFlight.set(command_id, result);
+      }
+    }).finally(() => { this.inFlight.delete(command_id); });
+    this.inFlight.set(command_id, { hash, operation, promise: result });
     return result;
   }
   dispatch(command_id: string, patch: Partial<Receipt> = {}): Receipt {
