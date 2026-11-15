@@ -396,3 +396,76 @@ test('kernel: --die-with-parent kills the sandbox when its spawning process dies
     assert.equal(alive, false, 'bwrap outlived its parent');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+// The live job's topology with no model call: a sandboxed SDK parent acquires a
+// linked worktree in its own ordinary clone, launches a child there through its
+// channel, the child commits inside bwrap, the parent cherry-picks, and the owner
+// verifies both checkouts through the pinned helper.
+test('kernel: live topology — parent worktree add, channel child commit, parent cherry-pick, owner pinned check', { ...kernel, timeout: 60000 }, async () => {
+  const base = realpathSync(mkdtempSync(join(tmpdir(), 'a0sf-live-'))), state = join(base, 'state'), agent = join(base, 'agent'), root = join(base, 'workspace');
+  mkdirSync(state, { mode: 0o700 }); mkdirSync(agent); mkdirSync(root);
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', env }).trim();
+  git(root, 'init', '-q'); git(root, 'config', 'user.name', 'A0 owner'); git(root, 'config', 'user.email', 'a0@example.invalid');
+  writeFileSync(join(root, 'README.md'), 'base\n'); git(root, 'add', '.'); git(root, 'commit', '-qm', 'base'); git(root, 'checkout', '-qb', 'job/live');
+  writeFileSync(join(root, '.git', 'info', 'exclude'), '.a0-agent/\n.a0-worker/\n.a0-worktrees/\n');
+  const ext = join(root, '.a0-agent', 'extensions'); mkdirSync(ext, { recursive: true }); mkdirSync(join(root, '.a0-worktrees'));
+  writeFileSync(join(root, '.a0-agent', 'auth.json'), '{}');
+  const ownerPin = readGitPin(root), baseRefs = git(root, 'for-each-ref', '--format=%(refname) %(objectname)');
+  const id = 'c0ffee00-0000-4000-8000-000000000001';
+  writeFileSync(join(ext, 'parent.mjs'), `import {execFileSync} from 'node:child_process'; import {writeFileSync} from 'node:fs'; import {request} from 'node:http';
+const call=(path,body)=>new Promise((resolve,reject)=>{const q=request({socketPath:process.env.PI_WORKER_SOCKET,path,method:body?'POST':'GET',headers:{'Content-Type':'application/json'},agent:false},r=>{let t='';r.on('data',x=>t+=x);r.on('end',()=>resolve({status:r.statusCode,body:JSON.parse(t)}));});q.on('error',reject);q.end(body?JSON.stringify(body):undefined);});
+const git=(...a)=>execFileSync('git',['-c','user.name=A0 parent','-c','user.email=a0@example.invalid',...a],{encoding:'utf8',cwd:process.cwd()}).trim();
+export default pi => pi.on('input', async e => {
+  if (e.text === 'go') {
+    const wt = process.cwd() + '/.a0-worktrees/${id}';
+    git('worktree','add','--lock','--reason','a0 live topology','-b','task-live/work',wt,'HEAD');
+    const me=(await call('/v0/workers/'+process.env.PI_WORKER_ID)).body;
+    const r=await call('/v0/workers',{command_id:'live-child',cwd:wt,host:'sdk',provider:'anthropic',model:'claude-sonnet-4-5',thinking:'off',parent:{worker_id:me.worker_id,worker_epoch:me.worker_epoch,session_id:me.session_id,binding_revision:me.binding_revision,execution_id:me.execution.execution_id,task_id:'live-task',generation_id:'live-gen'},launch_spec:{...me.launch_spec,role:'child',grant_methods:['children.report'],environment:{id:wt,revision:1,allowed_methods:['children.report']}}});
+    writeFileSync(process.cwd()+'/go.json',JSON.stringify({status:r.status,body:r.body}));return {action:'handled'};
+  }
+  if (e.text.startsWith('pick ')) { let out; try { git('cherry-pick',e.text.slice(5)); out={ok:true,head:git('rev-parse','HEAD')}; } catch (error) { out={ok:false,error:String(error).slice(0,400)}; } writeFileSync(process.cwd()+'/pick.json',JSON.stringify(out)); return {action:'handled'}; }
+});`);
+  writeFileSync(join(ext, 'child.mjs'), `import {execFileSync} from 'node:child_process'; import {writeFileSync} from 'node:fs';
+export default pi => pi.on('input', async e => {
+  if (e.text !== 'commit') return;
+  const git=(...a)=>execFileSync('git',['-c','user.name=A0 child','-c','user.email=a0@example.invalid',...a],{encoding:'utf8',cwd:process.cwd()}).trim();
+  let out; try { writeFileSync(process.cwd()+'/README.md','base\\nchild line\\n'); git('add','README.md'); git('commit','-qm','child'); out={ok:true,head:git('rev-parse','HEAD'),status:git('status','--porcelain')}; } catch (error) { out={ok:false,error:String(error).slice(0,400)}; }
+  writeFileSync(process.cwd()+'/.a0-worker/commit.json',JSON.stringify(out)); return {action:'handled'};
+});`);
+  const saved = process.env.PI_CODING_AGENT_DIR; process.env.PI_CODING_AGENT_DIR = agent;
+  const journal = new Journal(join(state, 'journal'));
+  const s = new Supervisor(state, journal, '1.5.2', Supervisor.rpcFactory(join(process.cwd(), 'node_modules/.bin/pi')));
+  try {
+    const spec: NonNullable<Create['launch_spec']> = { environment: { id: root, revision: 1, filesystem: 'bwrap', root, allowed_methods: ['workers.create', 'children.report'] }, role: 'parent', tools: [], denied_tools: [], resources: { extensions: [join(ext, 'parent.mjs'), join(ext, 'child.mjs')], skills: [] }, grant_methods: ['workers.create', 'children.report'], seed_mode: 'standalone' };
+    const created = await s.create({ command_id: 'live-parent', cwd: root, host: 'sdk', provider: 'anthropic', model: 'claude-sonnet-4-5', thinking: 'off', launch_spec: spec });
+    assert.equal(created.state, 'delivered', JSON.stringify(created));
+    const p = s.get(created.worker_id!);
+    assert.deepEqual(p.git_pin, ownerPin, 'supervisor launch pin equals the owner setup pin');
+    assert.equal((await s.prompt(p.worker_id, { ...bind(p, 'go'), message: 'go' })).state, 'delivered');
+    const go = JSON.parse(readFileSync(join(root, 'go.json'), 'utf8'));
+    assert.equal(go.body.state, 'delivered', JSON.stringify(go));
+    const child = s.get(go.body.worker_id), wt = join(root, '.a0-worktrees', id);
+    assert.equal(child.git_pin?.kind, 'linked'); assert.equal(child.git_pin?.head, 'ref: refs/heads/task-live/work\n');
+    assert.equal((await s.prompt(child.worker_id, { ...bind(child, 'commit'), message: 'commit' })).state, 'delivered');
+    const commit = JSON.parse(readFileSync(join(wt, '.a0-worker', 'commit.json'), 'utf8'));
+    assert.equal(commit.ok, true, JSON.stringify(commit)); assert.equal(commit.status, '');
+    const p2 = s.get(p.worker_id);
+    assert.equal((await s.prompt(p2.worker_id, { ...bind(p2, 'pick'), message: 'pick ' + commit.head })).state, 'delivered');
+    const pick = JSON.parse(readFileSync(join(root, 'pick.json'), 'utf8'));
+    assert.equal(pick.ok, true, JSON.stringify(pick));
+    // Owner verification: only through launch-time pins and safe config.
+    assert.equal(safeGit(wt, child.git_pin, ['rev-parse', 'HEAD']), commit.head);
+    assert.equal(safeGit(root, ownerPin, ['rev-parse', 'HEAD']), pick.head);
+    assert.equal(safeGit(root, ownerPin, ['status', '--porcelain']).split('\n').filter(l => !/go\.json|pick\.json/.test(l)).join(''), '');
+    const before = new Map(baseRefs.split('\n').map(x => x.split(' ') as [string, string]));
+    const after = new Map(safeGit(root, ownerPin, ['for-each-ref', '--format=%(refname) %(objectname)']).split('\n').map(x => x.split(' ') as [string, string]));
+    const moved = [...after].filter(([ref, sha]) => before.get(ref) !== sha).map(([ref]) => ref).sort();
+    assert.deepEqual(moved, ['refs/heads/job/live', 'refs/heads/task-live/work']);
+    assert.equal(safeGitRun(root, ownerPin, ['fsck', '--full', '--strict']).status, 0);
+  } finally {
+    await s.shutdown(); journal.close();
+    if (saved === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = saved;
+    rmSync(base, { recursive: true, force: true });
+  }
+});
