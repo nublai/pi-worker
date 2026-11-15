@@ -367,9 +367,46 @@ export interface components {
             session_id: string;
             binding_revision: number;
         };
+        Parent: {
+            worker_id: string;
+            worker_epoch: string;
+            session_id: string;
+            binding_revision: number;
+            execution_id: string;
+            task_id: string;
+            generation_id: string;
+        };
+        LaunchSpec: {
+            environment: {
+                id: string;
+                revision: number;
+                base_sha?: string;
+                allowed_methods: string[];
+            };
+            role: string;
+            tools: string[];
+            denied_tools: string[];
+            resources: {
+                extensions: string[];
+                skills: string[];
+            };
+            grant_methods: string[];
+            /** @constant */
+            seed_mode: "standalone";
+        };
+        ChildClaim: {
+            command_id: string;
+            /** @enum {unknown} */
+            kind: "result" | "help";
+            message: string;
+            /** @constant */
+            claim_not_verified: true;
+        };
         Create: {
             command_id: string;
             cwd: string;
+            parent?: components["schemas"]["Parent"];
+            launch_spec?: components["schemas"]["LaunchSpec"];
             provider: string;
             model: string;
             /** @enum {unknown} */
@@ -398,6 +435,10 @@ export interface components {
             uncertain_command_ids?: string[];
         };
         Worker: {
+            parent?: components["schemas"]["Parent"];
+            launch_spec?: components["schemas"]["LaunchSpec"];
+            grant_source_id?: string;
+            child_reports?: components["schemas"]["ChildClaim"][];
             worker_id: string;
             worker_epoch: string;
             supervisor_epoch: string;
@@ -582,6 +623,9 @@ export interface components {
             launch: components["schemas"]["Create"];
         };
         Report: {
+            /** @enum {unknown} */
+            kind?: "result" | "help";
+            message?: string;
             command_id: string;
             worker_epoch: string;
             session_id: string;

@@ -1,0 +1,121 @@
+{
+  "runs": [
+    {
+      "root": "/tmp/a0merge/children-IYYEcw",
+      "outcome": "failed_before_summary",
+      "leaders": [
+        {
+          "pid": 71343,
+          "absent": true
+        }
+      ]
+    },
+    {
+      "root": "/tmp/a0merge/children-MEpQFG",
+      "outcome": "pass",
+      "leaders": [
+        {
+          "pid": 72075,
+          "absent": true
+        },
+        {
+          "pid": 72103,
+          "absent": true
+        },
+        {
+          "pid": 72109,
+          "absent": true
+        },
+        {
+          "pid": 72137,
+          "absent": true
+        }
+      ]
+    },
+    {
+      "root": "/tmp/a0merge/children-XGPmtC",
+      "outcome": "failed",
+      "leaders": [
+        {
+          "pid": 71851,
+          "absent": true
+        }
+      ]
+    },
+    {
+      "root": "/tmp/a0merge/children-ePM3sF",
+      "outcome": "failed",
+      "leaders": [
+        {
+          "pid": 71916,
+          "absent": true
+        },
+        {
+          "pid": 71943,
+          "absent": true
+        },
+        {
+          "pid": 71950,
+          "absent": true
+        },
+        {
+          "pid": 71977,
+          "absent": true
+        }
+      ]
+    },
+    {
+      "root": "/tmp/a0merge/children-tbSqRC",
+      "outcome": "failed",
+      "leaders": [
+        {
+          "pid": 71448,
+          "absent": true
+        },
+        {
+          "pid": 71517,
+          "absent": true
+        },
+        {
+          "pid": 71523,
+          "absent": true
+        },
+        {
+          "pid": 71558,
+          "absent": true
+        }
+      ]
+    },
+    {
+      "root": "/tmp/a0merge/children-y9HyhG",
+      "outcome": "failed",
+      "leaders": [
+        {
+          "pid": 71749,
+          "absent": true
+        }
+      ]
+    },
+    {
+      "root": "/tmp/a0merge/races-G0v7LN",
+      "outcome": "pass",
+      "leaders": [
+        {
+          "pid": 71325,
+          "absent": true
+        },
+        {
+          "pid": 71354,
+          "absent": true
+        },
+        {
+          "pid": 71365,
+          "absent": true
+        }
+      ]
+    }
+  ],
+  "total_leaders": 18,
+  "all_absent": true,
+  "scope": "Recorded test-owned leaders only; escaped descendants unproven"
+}

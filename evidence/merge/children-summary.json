@@ -1,0 +1,125 @@
+{
+  "outcome": "pass",
+  "root": "/tmp/a0merge/children-MEpQFG",
+  "base": "4bdd0a8bc75484f7a3dbdd68d4914664f99ba847",
+  "node": "v22.21.1",
+  "parent_host": "sdk",
+  "child_hosts": [
+    "rpc",
+    "rpc"
+  ],
+  "direct_native_calls": [
+    {
+      "type": "get_available_models",
+      "purpose": "read-only model availability; outside B2"
+    },
+    {
+      "type": "prompt",
+      "purpose": "setup-only slash command, unsupported at B2"
+    }
+  ],
+  "parent_grant": {
+    "id": "orchestrator",
+    "methods": [
+      "workers.create",
+      "workers.get",
+      "workers.list",
+      "workers.stop",
+      "sessions.prompt",
+      "events.subscribe",
+      "children.report"
+    ],
+    "owner": false
+  },
+  "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+  "worktrees": [
+    {
+      "name": "writer-b",
+      "path": "/tmp/a0merge/children-MEpQFG/worktrees/e97f192d-16f1-4d16-a8b5-767fa2830c1a",
+      "head": "b42caffee8297ef69d561c55a7423aea13d1d046",
+      "locked": true,
+      "retained": true,
+      "clean": true,
+      "content_verified": true,
+      "grant_methods": [
+        "children.report"
+      ]
+    },
+    {
+      "name": "writer-a",
+      "path": "/tmp/a0merge/children-MEpQFG/worktrees/7405fae4-12ca-4e0f-8d20-ea59a2040e32",
+      "head": "3b2c1fe81a7a06a792fbecd46550e478b798ee2c",
+      "locked": true,
+      "retained": true,
+      "clean": true,
+      "content_verified": true,
+      "grant_methods": [
+        "children.report"
+      ]
+    }
+  ],
+  "cancellation": {
+    "confirmed": true,
+    "locked": true,
+    "retained": true,
+    "sibling_ready": true
+  },
+  "help_roundtrip": true,
+  "delivery_counts": {
+    "7405fae4-12ca-4e0f-8d20-ea59a2040e32:help": 1,
+    "52fe96ff-7667-4477-b8c7-8b6a9d0cac42:help": 1,
+    "52fe96ff-7667-4477-b8c7-8b6a9d0cac42:cancelled": 1,
+    "e97f192d-16f1-4d16-a8b5-767fa2830c1a:result": 1,
+    "e97f192d-16f1-4d16-a8b5-767fa2830c1a:termination": 1,
+    "7405fae4-12ca-4e0f-8d20-ea59a2040e32:result": 1,
+    "7405fae4-12ca-4e0f-8d20-ea59a2040e32:termination": 1
+  },
+  "terminal_provider_calls": 0,
+  "parent_ready": true,
+  "playbook_reads": [
+    {
+      "path": "/tmp/a0merge/children-MEpQFG/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/SKILL.md",
+      "successful": true
+    },
+    {
+      "path": "/tmp/a0merge/children-MEpQFG/agent/npm/node_modules/pi-herdr-pstack/skills/pstack/poteto-mode/playbooks/prototype.md",
+      "successful": true
+    }
+  ],
+  "checklist_observed": true,
+  "pstack_mode_persisted": true,
+  "process_check": [
+    {
+      "pid": 72075,
+      "host": "sdk",
+      "worker_id": "a44b8f44-6fa9-4b0d-a9cb-694d0e138588",
+      "absent": true
+    },
+    {
+      "pid": 72103,
+      "host": "rpc",
+      "worker_id": "a106ecf9-9e32-41d0-8136-33abaedccdf1",
+      "absent": true
+    },
+    {
+      "pid": 72109,
+      "host": "rpc",
+      "worker_id": "29ec3651-0fc6-419c-8480-9f77b83c7aaa",
+      "absent": true
+    },
+    {
+      "pid": 72137,
+      "host": "rpc",
+      "worker_id": "9afe1cb2-a0fe-4b6f-8c88-89c0e145def2",
+      "absent": true
+    }
+  ],
+  "native_counts": {
+    "sdk:get_state": 1,
+    "sdk:inventory": 1,
+    "sdk:get_available_models": 1,
+    "sdk:prompt": 2,
+    "rpc:get_state": 3,
+    "rpc:prompt": 4
+  }
+}

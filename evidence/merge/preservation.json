@@ -1,0 +1,30 @@
+{
+  "original_tests": [
+    {
+      "ref": "95ddc5f",
+      "files": 14,
+      "definitions_preserved_verbatim": 77,
+      "inherited_slice3_strengthening": []
+    },
+    {
+      "ref": "281c82b",
+      "files": 12,
+      "definitions_preserved_verbatim": 69,
+      "inherited_slice3_strengthening": [
+        {
+          "path": "src/test/crash-matrix.test.ts",
+          "test": "`effect cut ${kind}: native evidence forbids no_effect and recovered buckets require fences`",
+          "reason": "exact slice-3 version, expanded native-control cut selection; original assertions retained"
+        }
+      ]
+    }
+  ],
+  "spec": "slice-3 surface plus all slice-4 additions preserved; regenerated types",
+  "assertions_changed_by_merge": [],
+  "base": 82,
+  "slice3": 118,
+  "slice4": 104,
+  "union": 140,
+  "new_tests": 6,
+  "merged_tests": 146
+}

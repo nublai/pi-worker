@@ -13,8 +13,12 @@ import {
 import { Resolvers, type UIAnswer } from './resolvers.js';
 import { requestHash } from './receipts.js';
 import type { PiRecord } from './host.js';
+import type { Create } from './types.js';
 import { GrantStore } from './grants.js';
-const [protocol, sessionDir, provider, modelId, thinking, projectTrusted] = process.argv.slice(2);
+const [protocol, sessionDir, provider, modelId, thinking, projectTrusted, launchJson] = process.argv.slice(2);
+let launchSpec: Create['launch_spec'] | null;
+try { launchSpec = launchJson ? JSON.parse(launchJson) : null; }
+catch { console.error('invalid_launch_spec'); process.exit(1); }
 const acp = protocol === 'acp';
 const output = (value: unknown) => process.stdout.write(JSON.stringify(value) + '\n');
 console.log = (...args) => console.error(...args);
@@ -92,14 +96,14 @@ const gateExtension: ExtensionFactory = pi => {
   });
 };
 const runtimePromise = createAgentSessionRuntime(async options => {
-  const services = await createAgentSessionServices({ ...options, settingsManager: SettingsManager.create(options.cwd, options.agentDir, { projectTrusted: projectTrusted === 'true' }), resourceLoaderOptions: { extensionFactories: [
+  const services = await createAgentSessionServices({ ...options, settingsManager: SettingsManager.create(options.cwd, options.agentDir, { projectTrusted: projectTrusted === 'true' }), resourceLoaderOptions: { ...(launchSpec ? { noExtensions: true, noSkills: true, noPromptTemplates: true, noContextFiles: true, disabledBuiltinExtensions: ['mcp'], additionalExtensionPaths: launchSpec.resources.extensions, additionalSkillPaths: launchSpec.resources.skills } : {}), extensionFactories: [
     { name: 'codemode', builtin: true, factory: createCodemodeExtension() },
     { name: 'tool_search', builtin: true, factory: createToolSearchExtension() },
     { name: 'mcp', builtin: true, factory: createMcpExtension() }, gateExtension,
   ] } });
   const model = services.modelRuntime.getModel(provider!, modelId!);
   if (!model) throw new Error('configured_model_not_found');
-  const created = await createAgentSessionFromServices({ services, sessionManager: options.sessionManager, sessionStartEvent: options.sessionStartEvent, model, thinkingLevel: thinking as 'off' });
+  const created = await createAgentSessionFromServices({ services, sessionManager: options.sessionManager, sessionStartEvent: options.sessionStartEvent, model, thinkingLevel: thinking as 'off', ...(launchSpec ? { tools: launchSpec.tools, noTools: launchSpec.tools.length === 0 ? 'all' as const : undefined, excludeTools: launchSpec.denied_tools } : {}) });
   return { ...created, services, diagnostics: services.diagnostics };
 }, { cwd: process.cwd(), agentDir: getAgentDir(), sessionManager: SessionManager.create(process.cwd(), sessionDir) });
 async function bind(session: AgentSession): Promise<void> {
@@ -127,6 +131,7 @@ async function command(c: PiRecord, reply: (data: Record<string, unknown>) => vo
   const runtime = await ready, session = runtime.session;
   switch (c.type) {
     case 'get_state': reply({ sessionId: session.sessionId, sessionFile: session.sessionFile, leafId: session.sessionManager.getLeafId() }); break;
+    case 'get_available_models': reply({ models: await runtime.services.modelRuntime.getAvailable() }); break;
     case 'inventory': {
       const loader = runtime.services.resourceLoader;
       reply({ extensions: loader.getExtensions().extensions.map(e => e.path), extension_errors: loader.getExtensions().errors.map(e => e.path), skills: loader.getSkills().skills.map(s => ({ name: s.name, path: s.filePath })), tools: session.getAllTools().map(t => ({ name: t.name, sourceInfo: t.sourceInfo })), active_tools: session.getActiveToolNames() }); break;

@@ -1,0 +1,76 @@
+{
+  "branch": "a0/merge-3-4",
+  "parents": [
+    "95ddc5f",
+    "281c82b"
+  ],
+  "local": {
+    "node": "26.13.0",
+    "tests": 146,
+    "pass": 146,
+    "fail": 0,
+    "skip": 0,
+    "log": "/tmp/a0merge/tests.log"
+  },
+  "vm": {
+    "host": "a0-worker.exe.xyz",
+    "node": "22.21.1",
+    "tests": 146,
+    "pass": 146,
+    "fail": 0,
+    "skip": 0,
+    "log": "/tmp/a0merge/tests.log"
+  },
+  "tests": {
+    "common_base": 82,
+    "slice3": 118,
+    "slice4": 104,
+    "union": 140,
+    "added": 6,
+    "assertions_changed_by_merge": []
+  },
+  "crash_matrix": {
+    "fsync_cuts": 300,
+    "native_effect_cuts": 37,
+    "queue_readiness_cuts": 2,
+    "bounded_scenarios": true
+  },
+  "strict_typescript": "pass local and VM",
+  "generated": "regenerated from merged openapi; check:generated pass",
+  "lsp": {
+    "diagnostics": 0,
+    "confirmed_clean": 3,
+    "inconclusive": 9
+  },
+  "source_hashes_match_vm": true,
+  "probe_hashes_match_vm": true,
+  "experimental_host": {
+    "revision": "f9e6cc5367dd203e7d32e6b4059aa389f3003a8d",
+    "execution_files_compared": 4,
+    "match": true
+  },
+  "live": {
+    "races": "pass",
+    "races_root": "/tmp/a0merge/races-G0v7LN",
+    "children": "pass",
+    "children_root": "/tmp/a0merge/children-MEpQFG",
+    "parent_host": "sdk",
+    "children_hosts": [
+      "rpc",
+      "rpc",
+      "rpc"
+    ],
+    "failed_child_attempt_runs": 5,
+    "recorded_pi_leaders": 18,
+    "all_recorded_leaders_absent": true
+  },
+  "scratch": {
+    "TMPDIR": "/tmp/a0merge/tmp",
+    "npm_cache": "/tmp/a0merge/npm-cache"
+  },
+  "limits": [
+    "focused race rerun, not entire historical dialog/gate/live-crash suite",
+    "leader-only cleanup; escaped descendants unproven",
+    "no production approval or independent re-review"
+  ]
+}

@@ -1,18 +1,18 @@
 /** A0-owned SDK subprocess and ACP v1 client. ACP extension profile is documented
  * in A0-SLICE3.md; it is not a generic ACP client and never masquerades as B1. */
 import { fileURLToPath } from 'node:url';
-import { RpcHost, type PiRecord } from './host.js';
+import { RpcHost, type PiRecord, type HostContext } from './host.js';
 import type { Create } from './types.js';
 export class SdkHost extends RpcHost {
-  constructor(c: Create, dir: string, kind: 'sdk' | 'acp' = 'sdk') {
-    super(process.execPath, c.cwd, dir, c.provider, c.model, c.thinking, 30000, { kind, args: [fileURLToPath(new URL('./sdk-child.js', import.meta.url)), kind, dir, c.provider, c.model, c.thinking, String(c.project_trusted === true)] });
+  constructor(c: Create, dir: string, kind: 'sdk' | 'acp' = 'sdk', context?: HostContext) {
+    super(process.execPath, c.cwd, dir, c.provider, c.model, c.thinking, 30000, context, { kind, args: [fileURLToPath(new URL('./sdk-child.js', import.meta.url)), kind, dir, c.provider, c.model, c.thinking, String(c.project_trusted === true), JSON.stringify(c.launch_spec ?? null)] });
   }
 }
 export class AcpHost extends SdkHost {
   private initialized = false;
   private sessionId = '';
   private readonly agentCwd: string;
-  constructor(c: Create, dir: string) { super(c, dir, 'acp'); this.agentCwd = c.cwd; }
+  constructor(c: Create, dir: string, context?: HostContext) { super(c, dir, 'acp', context); this.agentCwd = c.cwd; }
   override async request(c: PiRecord) {
     if (!this.initialized && c.type === 'get_state') {
       const init = await super.request({ type: 'acp_initialize' });

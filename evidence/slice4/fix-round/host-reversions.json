@@ -1,0 +1,24 @@
+{
+  "H03_provisioning_after_add": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 A0 host cuts every manifest fsync and Git/B2/delivery effect; acquired checkouts stay locked and evidence precedes effects (464.692499ms)",
+      "\u2716 failing tests:",
+      "\u2716 A0 host cuts every manifest fsync and Git/B2/delivery effect; acquired checkouts stay locked and evidence precedes effects (464.692499ms)"
+    ],
+    "mutation_sha256": "dd65d37f783ed172574e024aba80257f53f365cca3a12108bb3ab83cc5cc8517"
+  },
+  "H06_no_git_env_scrub": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 host Git acquisition and delivered evidence ignore inherited repository selectors (63.62712ms)",
+      "\u2716 failing tests:",
+      "\u2716 host Git acquisition and delivered evidence ignore inherited repository selectors (63.62712ms)"
+    ],
+    "mutation_sha256": "3f37c4d1547a97aafacf9e26011633a2a857aaf69bde9d38e61d89261504940b"
+  }
+}

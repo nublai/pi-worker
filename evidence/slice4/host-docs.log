@@ -1,0 +1,4 @@
+
+> pi-herdr-agents@3.11.0 docs:tools:check
+> node --experimental-strip-types scripts/update-tool-docs.ts --check
+

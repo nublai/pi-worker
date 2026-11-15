@@ -1,0 +1,47 @@
+{
+  "worker_tested_revision": "3d5e0902a8a1f7405bf7b87c5d07ef89eea07166",
+  "host_tested_revision": "f9e6cc5367dd203e7d32e6b4059aa389f3003a8d",
+  "worker": {
+    "local_tests_passed": 104,
+    "vm_tests_passed": 104,
+    "failed": 0,
+    "strict_build": "pass",
+    "generated_spec": "pass",
+    "slice4_fsync_cuts": 44,
+    "slice4_effect_cuts": 5,
+    "slice2_fsync_cuts": 172,
+    "slice2_effect_cuts": 12,
+    "targeted_reviewer_reversions_killed": 11
+  },
+  "host": {
+    "tests": 1782,
+    "passed": 1781,
+    "skipped": 1,
+    "failed": 0,
+    "host_crash_checkpoints": 41,
+    "typecheck": "pass",
+    "lint": "pass",
+    "format_check": "pass",
+    "docs_tools_check": "pass",
+    "package_preview": "pass",
+    "original_delivery_tests_red": 7,
+    "original_delivery_reversion_red": 7,
+    "reviewer_reversions_killed_verbatim": ["H03", "H06"],
+    "reviewer_reversions_killed_adapted": ["H07"],
+    "extra_reversions_killed": ["H1 full delivery reversion", "H1 result waits for stop"],
+    "package_sha256": "637613d120a105d722b2380c7c71e73af7e480b54a99e6a60e711ca6d4b267b6"
+  },
+  "lsp": { "files_checked": 7, "diagnostics": 0, "confirmed_clean": 4, "inconclusive": 3, "note": "Push-only silent-on-clean rechecks; strict compiler checks passed independently." },
+  "live": {
+    "run": "/tmp/a0s4fix/live-f7iKRv",
+    "outcome": "pass",
+    "scope": "Real Pi parent plus three explicitly authorized experimental children; no build/review subagents",
+    "initial_cleanup_probe_failure": "/tmp/a0s4fix/live-k2TFb6",
+    "recorded_leaders_across_both_runs": 8,
+    "recorded_leaders_absent": 8
+  },
+  "not_run": ["Legacy/Core terminal integration suites (unchanged execution paths)", "Independent review (task forbids subagents)", "Live crash or timeout injection (covered through deterministic host and SSE seams)"],
+  "unchanged_scope": ["Worker production runtime", "Slice-3 cancel/interrupt effect cuts", "Released host tool schemas", "pi-herdr-agents main checkout"],
+  "mutation_hygiene": "Reviewer scratch was copied, mutation dictionaries read as AST data by a task-owned runner, no copied reviewer script executed; mutated files restored and byte-compared. H07 adapted only because the settlement guard moved.",
+  "logs": "/tmp/a0s4fix/ (local); VM worker tests and private live sessions under /tmp/a0s4fix/ only"
+}

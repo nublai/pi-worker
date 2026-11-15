@@ -1,0 +1,41 @@
+{
+  "H1_full_delivery_reversion": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 parent gets typed handoff for crash without settlement (30.33052ms)",
+      "\u2716 parent gets typed handoff for fault without settlement (21.16487ms)",
+      "\u2716 parent gets typed handoff for unknown-execution without settlement (17.544094ms)",
+      "\u2716 a child that never settles gets an unknown handoff at the finite turn deadline (17.639382ms)",
+      "\u2716 result precedes stop; unknown termination cannot block sibling answers or launches (29.698395ms)",
+      "\u2716 result precedes stop; throws termination cannot block sibling answers or launches (29.051513ms)",
+      "\u2716 help waits for settlement, suspends the deadline and answer rearms it (25.519893ms)",
+      "\u2716 failing tests:",
+      "\u2716 parent gets typed handoff for crash without settlement (30.33052ms)",
+      "\u2716 parent gets typed handoff for fault without settlement (21.16487ms)"
+    ]
+  },
+  "H07_help_without_settle_adapted": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 help waits for settlement, suspends the deadline and answer rearms it (29.155738ms)",
+      "\u2716 failing tests:",
+      "\u2716 help waits for settlement, suspends the deadline and answer rearms it (29.155738ms)"
+    ]
+  },
+  "H1_result_waits_for_stop": {
+    "exit": 1,
+    "killed": true,
+    "assertion_failure": true,
+    "failures": [
+      "\u2716 result precedes stop; unknown termination cannot block sibling answers or launches (47.527023ms)",
+      "\u2716 result precedes stop; throws termination cannot block sibling answers or launches (37.289023ms)",
+      "\u2716 failing tests:",
+      "\u2716 result precedes stop; unknown termination cannot block sibling answers or launches (47.527023ms)",
+      "\u2716 result precedes stop; throws termination cannot block sibling answers or launches (37.289023ms)"
+    ]
+  }
+}

@@ -37,6 +37,11 @@ export class GrantStore {
     if (g.grant_id !== id || typeof g.token !== 'string' || !Array.isArray(g.methods) || !Array.isArray(g.scope?.worker_ids) || !Array.isArray(g.scope?.cwd_roots)) throw new Refusal('invalid_grant_file');
     return g;
   }
+  active(id: string): Grant {
+    const grant = this.read(id);
+    if (grant.revoked) throw new Refusal('grant_revoked');
+    return grant;
+  }
   authenticate(token: string | undefined): Grant {
     if (!token) throw new Refusal('bearer_grant_required');
     const id = token.split('.')[0]!;

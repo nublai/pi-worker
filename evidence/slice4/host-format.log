@@ -1,0 +1,5 @@
+
+> pi-herdr-agents@3.11.0 format:check
+> biome format pi-extension test maestro plugins scripts
+
+Checked 214 files in 85ms. No fixes applied.

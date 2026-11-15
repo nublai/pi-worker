@@ -1,0 +1,77 @@
+{
+  "root": "/tmp/a0s4/live-g6iENm",
+  "profile": "/tmp/a0s4/live-g6iENm/agent",
+  "base": "1693d18abe1fafbdc069881cb0ee78e1e9108941",
+  "pi": "1.5.2",
+  "model": "exe-dev-anthropic/claude-sonnet-4-6@llm",
+  "thinking": "off",
+  "host_backend": "pi-worker",
+  "terminal_provider_calls": 0,
+  "outcome": "pass",
+  "worktrees": [
+    {
+      "name": "writer-b",
+      "path": "/tmp/a0s4/live-g6iENm/worktrees/fd0493a5-fe80-4098-8d91-9ec7f77fab2e",
+      "base": "1693d18abe1fafbdc069881cb0ee78e1e9108941",
+      "head": "c1ed8784c6ceba38b5baf22950b42be9ddd878bd",
+      "clean": true,
+      "content_verified": true,
+      "retained": true,
+      "report_id": "fd-16da0739-8788-4a40-927c-25582a19ca20-08e1b941-58c0-45f8-92d7-4e3e26708990"
+    },
+    {
+      "name": "writer-a",
+      "path": "/tmp/a0s4/live-g6iENm/worktrees/99170bec-5437-44b8-b04d-c7a1620b75b1",
+      "base": "1693d18abe1fafbdc069881cb0ee78e1e9108941",
+      "head": "5d81383418f02bcd93d09de7703ab6bb7929365c",
+      "clean": true,
+      "content_verified": true,
+      "retained": true,
+      "report_id": "fd-9c7c646b-3e9b-4bee-bbb5-4511443eae11-48764031-f98b-4789-a08d-6747f6991336"
+    }
+  ],
+  "parent": {
+    "worker_id": "283bd2a0-b6da-41c1-9d57-fc039fcfc42b",
+    "session_id": "01a1de83-7350-776d-963c-275435434373",
+    "pstack_mode_persisted": true,
+    "still_ready_after_children": true
+  },
+  "delivery_counts": {
+    "99170bec-5437-44b8-b04d-c7a1620b75b1:help": 1,
+    "fd0493a5-fe80-4098-8d91-9ec7f77fab2e:result": 1,
+    "a56ddaa2-da99-4052-896f-8c2844afb252:help": 1,
+    "a56ddaa2-da99-4052-896f-8c2844afb252:cancelled": 1,
+    "99170bec-5437-44b8-b04d-c7a1620b75b1:result": 1
+  },
+  "reports": [
+    {
+      "type": "child_report",
+      "worker_id": "9c7c646b-3e9b-4bee-bbb5-4511443eae11",
+      "kind": "help"
+    },
+    {
+      "type": "child_report",
+      "worker_id": "16da0739-8788-4a40-927c-25582a19ca20",
+      "kind": "result"
+    },
+    {
+      "type": "child_report",
+      "worker_id": "843be204-6f00-42fb-b750-0e19fce2259a",
+      "kind": "help"
+    },
+    {
+      "type": "child_report",
+      "worker_id": "9c7c646b-3e9b-4bee-bbb5-4511443eae11",
+      "kind": "result"
+    }
+  ],
+  "cancel": {
+    "status": "confirmed",
+    "sibling_ready": true,
+    "retained": true
+  },
+  "help_roundtrip": true,
+  "terminal_evidence": "PATH traps for herdr/hc/herdr-core unused; typed backend selected, no terminal binding/environment",
+  "child_count": 3,
+  "manifest_count": 3
+}

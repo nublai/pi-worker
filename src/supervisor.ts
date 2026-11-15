@@ -4,9 +4,9 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Journal } from './journal.js';
-import { GrantStore } from './grants.js';
+import { GrantStore, type Grant } from './grants.js';
 import { ReceiptStore } from './receipts.js';
-import { RpcHost, type SessionHost, type PiRecord } from './host.js';
+import { RpcHost, type SessionHost, type PiRecord, type HostContext, type ChildReport } from './host.js';
 import { SdkHost, AcpHost } from './library-host.js';
 import { Interactions, type Answer, type AnswerGuard } from './interactions.js';
 import { SessionIndex } from './session.js';
@@ -16,7 +16,7 @@ import { Refusal, type Binding, type Create, type Prompt, type Worker, type Rece
 type Persisted = { worker: Worker; sessionFile: string | null; pid: number | null; token: string | null };
 type Pending = { kind: 'follow_up' | 'child'; request: FollowUp | ChildLaunch; guard: () => void };
 type Live = Persisted & { host?: SessionHost; index: SessionIndex; hub: EventScope; completedMessages: number; faulted?: boolean; startupDialog?: boolean; exited?: boolean; rebinding?: boolean; observedIdle?: boolean; pending?: Map<string, Pending>; interactionTimers?: Map<string, NodeJS.Timeout>; inventoryReady?: () => void };
-export type HostFactory = (create: Create, sessionDir: string) => SessionHost;
+export type HostFactory = (create: Create, sessionDir: string, context?: HostContext) => SessionHost;
 export class Supervisor {
   readonly epoch = randomUUID();
   readonly events = new EventHub(this.epoch);
@@ -27,8 +27,10 @@ export class Supervisor {
   readonly id: string;
   private sessionFiles = new Map<string, { file: string; worker_id: string }>();
   private sessionReservations = new Map<string, string>();
+  private reportNotifications = new Set<string>();
   // Internal callers are trusted; the HTTP boundary supplies a per-request dispatch guard.
   readonly authority = new AsyncLocalStorage<AnswerGuard>();
+  readonly callerGrant = new AsyncLocalStorage<Grant>();
   private dispatchGuard(): void { this.authority.getStore()?.(); }
   constructor(readonly stateDir: string, readonly journal: Journal, readonly piVersion: string, readonly factory: HostFactory) {
     this.grants = new GrantStore(stateDir); this.grants.registerOwner();
@@ -43,7 +45,7 @@ export class Supervisor {
     }
   }
   static rpcFactory(executable: string): HostFactory {
-    return (c, dir) => c.host === 'sdk' ? new SdkHost(c, dir) : c.host === 'acp' ? new AcpHost(c, dir) : new RpcHost(executable, c.cwd, dir, c.provider, c.model, c.thinking, 30000, undefined, c.project_trusted === true);
+    return (c, dir, context) => c.host === 'sdk' ? new SdkHost(c, dir, 'sdk', context) : c.host === 'acp' ? new AcpHost(c, dir, context) : new RpcHost(executable, c.cwd, dir, c.provider, c.model, c.thinking, 30000, context, undefined, c.project_trusted === true);
   }
   async recover(): Promise<void> {
     this.receipts.recover();
@@ -88,18 +90,18 @@ export class Supervisor {
     }
     for (const child of this.workers.values()) {
       const launch = child.worker.parent_launch_command_id, parentId = child.worker.parent_worker_id;
-      if (!launch || !parentId) continue;
+      if (!launch || !parentId || this.receipts.all.get(launch)?.effect === 'no_effect') continue;
       const parent = this.require(parentId);
       const resolved = parent.worker.resolutions?.some(r => r.command_id === launch);
-      const reported = [...this.receipts.all.values()].some(r => r.operation === 'children.report' && r.worker_id === child.worker.worker_id && r.state === 'delivered' && r.result?.task_id === launch);
+      const reported = [...this.receipts.all.values()].some(r => r.operation === 'children.report' && r.worker_id === child.worker.worker_id && r.state === 'delivered' && r.result?.task_id === (child.worker.parent?.task_id ?? launch) && r.result?.kind !== 'help');
       if (!reported && !resolved) this.fence(parent, launch);
     }
   }
   hello(): Hello {
     return { protocol: { major: 0, minor: 1 }, prototype: true, supervisor_id: this.id, supervisor_epoch: this.epoch, pi_version: this.piVersion,
-      capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'host.sdk', 'host.acp', 'interactions.list', 'interactions.answer_if_current', 'interactions.status', 'interaction.select', 'interaction.confirm', 'interaction.input', 'interaction.editor', 'interaction.tool_approval.sdk_acp', 'answer_stage.rpc.2', 'answer_stage.sdk_acp.3', 'gate_stage.sdk_acp.4', 'custom_ui.refused', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt'],
+      capabilities: ['workers.create', 'workers.list', 'workers.get', 'sessions.prompt', 'events.subscribe', 'history.page', 'workers.stop', 'receipts.get', 'host.rpc', 'host.sdk', 'host.acp', 'interactions.list', 'interactions.answer_if_current', 'interactions.status', 'interaction.select', 'interaction.confirm', 'interaction.input', 'interaction.editor', 'interaction.tool_approval.sdk_acp', 'answer_stage.rpc.2', 'answer_stage.sdk_acp.3', 'gate_stage.sdk_acp.4', 'custom_ui.refused', 'settlement.agent_settled', 'sessions.resolve_unknown', 'sessions.rebind', 'sessions.follow_up', 'children.launch', 'children.report', 'executions.cancel', 'executions.interrupt', 'workers.create.typed_child', 'children.report.fd'],
       limits: { cleanup_replacement: 'Environment reuse blocked when escaped-descendant cleanup is unproven.', same_os_user_not_isolated: 'Private socket ownership does not isolate hostile same-user code, including project extensions.', byo_journal_machine_loss: 'BYO journal dies with the machine.', linux_not_macos: 'Linux results are not macOS results.', peer_check: 'filesystem owner/mode only; no SO_PEERCRED in stock Node API', grants: 'per-caller 0600 bearer file issued by local registration; method/worker/environment checks; revocation rechecked at mutation dispatch; same-user code can read grant files; SDK/ACP test bash gate rechecks grant at release dispatch and child rechecks input digest/policy/expiry; not a production sandbox', receipt_retention: 'until explicit prototype state removal; max 512 ordinary receipts; termination, cancel/interrupt, resolution and child reports bypass count quota; journal byte limit still applies; no eviction', journal_bytes: 33554432, request_bytes: 262144, sse_queue_events: 64, sse_queue_bytes: 262144, socket_mode: '0600', socket_directory_mode: '0700', replay: 'one supervisor-wide filtered stream; bounded per-subscriber queue; overflow closes and requires fresh snapshot; no historical event replay', fence_resolution: 'explicit keep/abandon/observed latch; observed requires exact agent_settled evidence in the session file or fsynced settlement record, never external-effect completion', tree_navigation: 'SDK/ACP navigateTree supported; RPC refused no_effect. SDK leaf overrides append-order history.', pending_payloads: 'follow-up/child payloads memory-only; restart recovers intents no_effect, exact owner-authorized request required' },
-      resource_profile: 'per-worker resources inventories actually registered tools/commands; SDK/ACP also exact loaded extension paths and skills. Project resources require create.project_trusted=true. SDK builtins added explicitly; no MCP connection parity claim', cleanup_profile: 'linux_process_group; no adoption or resume; escaped descendants unproven' };
+      resource_profile: 'per-worker resources inventories actually registered tools/commands; SDK/ACP also exact loaded extension paths and skills. Project resources require create.project_trusted=true. SDK builtins added explicitly for untyped launches; launch_spec uses explicit resources/tools with no discovered resources/MCP/project context; no MCP connection parity claim', cleanup_profile: 'linux_process_group; no adoption or resume; escaped descendants unproven' };
   }
   private persist(live: Live): void {
     if (live.worker.session_id && live.sessionFile) this.sessionFiles.set(live.worker.session_id, { file: live.sessionFile, worker_id: live.worker.worker_id });
@@ -124,9 +126,10 @@ export class Supervisor {
   require(id: string): Live { const live = this.workers.get(id); if (!live) throw new Refusal('unknown_worker'); return live; }
   get(id: string): Worker {
     const live = this.require(id); this.guarded(live, () => this.refresh(live), true);
-    const view = structuredClone(live.worker);
-    if (live.host?.answerUI) view.pending_interactions = this.interactions.list(id);
-    return view;
+    const w = structuredClone(live.worker);
+    if (w.parent) w.child_reports = [...this.receipts.all.values()].filter(r => r.worker_id === id && r.operation === 'children.report' && r.state === 'delivered' && r.result?.kind).map(r => ({ command_id: r.command_id, kind: r.result!.kind as 'result' | 'help', message: String(r.result!.message), claim_not_verified: true }));
+    if (live.host?.answerUI) w.pending_interactions = this.interactions.list(id);
+    return w;
   }
   list(): Worker[] { return [...this.workers.keys()].map(id => this.get(id)); }
   private refresh(live: Live): void {
@@ -243,6 +246,9 @@ export class Supervisor {
   }
   private onExit(live: Live): void {
     if (live.exited) return;
+    // killGroup may observe termination before Node delivers the exit callback.
+    // Never downgrade that independent confirmed-stop evidence to leader-only.
+    if (live.worker.status === 'stopped' && live.pid === null) { live.exited = true; return; }
     live.exited = true;
     if (live.worker.execution && live.worker.execution.state !== 'settled') {
       const id = live.worker.execution.command_id;
@@ -255,21 +261,54 @@ export class Supervisor {
     this.persist(live);
     live.hub.publish('worker_exit', {}, live.worker.execution?.execution_id ?? null, 'supervisor', true);
   }
-  create(c: Create): Promise<Receipt> {
+  private validateLaunch(c: Create): void {
+    const spec = c.launch_spec;
+    if (c.parent && !spec) throw new Refusal('child_launch_spec_required');
+    const caller = this.callerGrant.getStore();
+    if (spec) {
+      const subset = (child: string[], parent: string[]) => child.every(x => parent.includes('*') || parent.includes(x));
+      if (!subset(spec.grant_methods, spec.environment.allowed_methods) || (caller && !subset(spec.grant_methods, this.grants.active(caller.grant_id).methods))) throw new Refusal('child_grant_not_subset');
+      if (spec.tools.some(t => !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(t)) || spec.tools.some(t => spec.denied_tools.includes(t))) throw new Refusal('invalid_tool_allowlist');
+      if (spec.resources.extensions.concat(spec.resources.skills).some(p => !p.startsWith('/'))) throw new Refusal('resource_path_must_be_absolute');
+      if (c.parent) {
+        const parent = this.require(c.parent.worker_id); this.writable(parent);
+        this.binding(parent, { ...c.parent, command_id: c.command_id });
+        if (parent.worker.status !== 'ready' || parent.worker.execution?.execution_id !== c.parent.execution_id) throw new Refusal('stale_parent_execution');
+        const p = parent.worker.launch_spec;
+        if (!p || !subset(spec.grant_methods, p.grant_methods) || !subset(spec.environment.allowed_methods, p.environment.allowed_methods) || !subset(spec.tools, p.tools) || !subset(p.denied_tools, spec.denied_tools) || !subset(spec.resources.extensions, p.resources.extensions) || !subset(spec.resources.skills, p.resources.skills)) throw new Refusal('child_authority_not_subset');
+        if (parent.worker.grant_source_id) this.grants.active(parent.worker.grant_source_id);
+      }
+    }
+  }
+  private onReport(live: Live, report: ChildReport): void {
+    const w = live.worker, parent = w.parent;
+    if (!parent || !w.session_id) { this.fault(live, new Error('report_before_binding')); return; }
+    const guard = () => {
+      if (!w.launch_spec?.grant_methods.includes('children.report')) throw new Refusal('report_not_granted');
+      for (const owner of [w, this.require(parent.worker_id).worker]) if (owner.grant_source_id) this.grants.active(owner.grant_source_id);
+    };
+    void this.authority.run(guard, () => this.report(w.worker_id, { command_id: `fd-${w.worker_id}-${report.report_id}`, worker_epoch: w.worker_epoch, session_id: w.session_id!, binding_revision: w.binding_revision, task_id: parent.task_id, result_digest: 'unverified-claim', kind: report.kind, message: report.message })).catch(error => this.fault(live, error));
+  }
+  async create(c: Create): Promise<Receipt> {
     let cwd: string;
-    return this.receipts.run(c.command_id, 'workers.create', c, async () => {
+    const receipt = await this.receipts.run(c.command_id, 'workers.create', c, async () => {
       this.dispatchGuard(); // Refusal must precede even local worker/cwd reservation.
+      this.validateLaunch(c);
       const worker_id = randomUUID(), worker_epoch = randomUUID();
       const w: Worker = { worker_id, worker_epoch, host: c.host ?? 'rpc', supervisor_epoch: this.epoch, session_id: null, session_identity_evidence: 'pi_rpc_header_id', binding_revision: 1, leaf_id: null, cwd, status: 'starting', foreground: 'idle', execution: null, fence: null, history: { last_entry_id: null, lag: false, evidence: 'pi_session_file' }, cleanup: 'not_started', pending_interactions: [] };
+      if (c.launch_spec) w.launch_spec = structuredClone(c.launch_spec);
+      if (this.callerGrant.getStore()) w.grant_source_id = this.callerGrant.getStore()!.grant_id;
+      if (c.parent) { w.parent = structuredClone(c.parent); w.parent_worker_id = c.parent.worker_id; w.parent_launch_command_id = c.command_id; }
       const live: Live = { worker: w, sessionFile: null, pid: null, token: null, index: new SessionIndex(null), hub: this.events.scoped(worker_id), completedMessages: 0 };
       this.workers.set(worker_id, live);
       this.persist(live);
       this.receipts.dispatch(c.command_id, { worker_id });
       const dir = join(this.stateDir, 'sessions', worker_id); mkdirSync(dir, { recursive: true, mode: 0o700 });
-      const host = this.factory({ ...c, cwd }, dir); live.host = host;
+      const host = this.factory({ ...c, cwd }, dir, { worker_id, launch_command_id: c.command_id, parent: c.parent, launch_spec: c.launch_spec }); live.host = host;
       live.pid = host.pid ?? null; live.token = host.token; this.persist(live);
       host.on('event', event => this.guarded(live, () => this.onEvent(live, event)));
       host.on('exit', () => this.guarded(live, () => this.onExit(live)));
+      host.on('report', report => this.onReport(live, report));
       try {
         const state = await host.request({ type: 'get_state' });
         if (live.faulted) throw new Error('worker fault during initialization');
@@ -293,10 +332,13 @@ export class Supervisor {
         this.persist(live); throw error;
       }
     }, () => {
+      this.validateLaunch(c);
       try { if (!statSync(c.cwd).isDirectory()) throw new Error('not directory'); cwd = realpathSync(c.cwd); }
       catch { throw new Refusal('cwd_not_directory'); }
       if ([...this.workers.values()].some(l => l.worker.cwd === cwd && (['starting', 'ready', 'cleanup_pending'].includes(l.worker.status) || l.worker.cleanup.includes('escaped_descendants_unproven')))) throw new Refusal('exclusive_environment_already_bound');
     });
+    if (c.parent && receipt.effect === 'unknown') this.fence(this.require(c.parent.worker_id), c.command_id);
+    return receipt;
   }
   async prompt(id: string, p: Prompt, operation: 'sessions.prompt' | 'sessions.follow_up' = 'sessions.prompt'): Promise<Receipt> {
     let live: Live;
@@ -447,6 +489,7 @@ export class Supervisor {
       return { state: 'queued', stage: 'reserved', effect: 'no_effect', admission: 'queued', worker_id: id };
     }, () => {
       live = this.require(id); this.writable(live); this.binding(live, request);
+      if (kind === 'child' && live.worker.launch_spec) throw new Refusal('typed_children_use_workers_create');
       if (live.worker.status !== 'ready' || !live.host) throw new Refusal('worker_not_ready');
       if (request.execution_id !== live.worker.execution?.execution_id) throw new Refusal('stale_execution');
       if ((live.pending?.size ?? 0) >= 32) throw new Refusal('pending_capacity');
@@ -514,11 +557,20 @@ export class Supervisor {
       if (b.execution_id && live.worker.execution?.execution_id !== b.execution_id) throw new Refusal('stale_execution');
     });
   }
-  report(id: string, r: Report): Promise<Receipt> {
-    return this.receipts.run(r.command_id, 'children.report', { ...r, worker_id: id }, async () => {
+  async report(id: string, r: Report): Promise<Receipt> {
+    const receipt = await this.receipts.run(r.command_id, 'children.report', { ...r, worker_id: id }, async () => {
       this.dispatchGuard(); this.receipts.dispatch(r.command_id, { worker_id: id });
-      return { state: 'delivered', stage: 'forwarded', effect: 'observed', result: { task_id: r.task_id, result_digest: r.result_digest, claim_not_verified: true } };
-    }, () => { this.binding(this.require(id), r); });
+      return { state: 'delivered', stage: 'forwarded', effect: 'observed', result: { task_id: r.task_id, result_digest: r.result_digest, ...(r.kind ? { kind: r.kind, message: r.message } : {}), claim_not_verified: true } };
+    }, () => {
+      const w = this.require(id).worker; this.binding(this.require(id), r);
+      if (w.parent && r.task_id !== w.parent.task_id) throw new Refusal('wrong_child_task');
+      if (r.kind && (typeof r.message !== 'string' || Buffer.byteLength(r.message) > 8192)) throw new Refusal('report_message_invalid');
+    });
+    if (receipt.state === 'delivered' && !this.reportNotifications.has(r.command_id)) {
+      this.reportNotifications.add(r.command_id);
+      this.require(id).hub.publish('child_report', { receipt }, null, 'supervisor', true);
+    }
+    return receipt;
   }
   async stop(id: string, b: Binding): Promise<Receipt> {
     let live: Live;
