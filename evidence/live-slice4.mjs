@@ -28,7 +28,7 @@ const state = join(root, 'state'); mkdirSync(state, { mode: 0o700 });
 const socket = join(state, 'worker.sock');
 process.env.PATH = bin + ':' + process.env.PATH;
 for (const name of Object.keys(process.env)) if (/^(HERDR_|HC_|PI_SUBAGENT_)/.test(name)) delete process.env[name];
-Object.assign(process.env, { PI_CODING_AGENT_DIR: profile, PI_WORKER_BACKEND: '1', PI_WORKER_SOCKET: socket, PI_WORKER_GRANT_FILE: join(state, 'grants/owner.json'), PI_WORKER_WORKTREE_ROOT: join(root, 'worktrees') });
+Object.assign(process.env, { PI_CODING_AGENT_DIR: profile, PI_WORKER_BACKEND: '1', PI_WORKER_TERMINAL_TRAP: join(root, 'terminal-calls'), PI_WORKER_SOCKET: socket, PI_WORKER_GRANT_FILE: join(state, 'grants/owner.json'), PI_WORKER_WORKTREE_ROOT: join(root, 'worktrees') });
 const journal = new Journal(join(state, 'journal'));
 const s = new Supervisor(state, journal, '1.5.2', Supervisor.rpcFactory('/home/exedev/.local/bin/pi'));
 const server = router(s); await listenPrivate(server, socket);
@@ -93,7 +93,7 @@ try {
   assert.equal(terminalCalls, '');
   const cancelProof = cancellation.flatMap(c => c.workers).find(w => w.worker_id === result.helped[0].evidence.worker_id && w.status === 'ready');
   assert.ok(cancelProof, 'writer-a stayed live at cancellation return');
-  Object.assign(summary, { outcome: 'pass', worktrees, parent: { worker_id: parent.worker_id, session_id: parent.session_id, pstack_mode_persisted: true, still_ready_after_children: true }, delivery_counts: resultCounts, reports: events, cancel: { status: 'confirmed', sibling_ready: true, retained: existsSync(result.cancelled[0].evidence.path) }, help_roundtrip: true, terminal_provider_calls: 0, terminal_evidence: 'PATH traps for herdr/hc/herdr-core unused; typed backend selected, no terminal binding/environment', child_count: s.list().length - 1, manifest_count: readdirSync(join(root, 'worktrees')).filter(n => n.endsWith('.jsonl')).length });
+  Object.assign(summary, { outcome: 'pass', worktrees, parent: { worker_id: parent.worker_id, session_id: parent.session_id, pstack_mode_persisted: true, still_ready_after_children: true }, delivery_counts: resultCounts, reports: events, cancel: { status: 'confirmed', sibling_ready: true, retained: existsSync(result.cancelled[0].evidence.path) }, help_roundtrip: true, terminal_provider_calls: 0, terminal_evidence: 'instrumented legacy/Core provider constructors and PATH traps for herdr/hc/herdr-core never called; typed backend selected', child_count: s.list().length - 1, manifest_count: readdirSync(join(root, 'worktrees')).filter(n => n.endsWith('.jsonl')).length });
 } catch (error) {
   summary.outcome = 'failed'; summary.error = error.message;
   summary.workers = s.list().map(w => ({ worker_id: w.worker_id, parent: w.parent_worker_id, status: w.status, foreground: w.foreground, role: w.launch_spec?.role, reports: w.child_reports?.map(r => ({ kind: r.kind, command_id: r.command_id })) }));
