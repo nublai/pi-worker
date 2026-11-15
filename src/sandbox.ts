@@ -4,6 +4,7 @@ import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Create } from './types.js';
 import { Refusal } from './types.js';
+import { gitWorktreeMounts } from './git-sandbox.js';
 export const inside = (root: string, path: string): boolean => path === root || path.startsWith(root === '/' ? '/' : root + '/');
 const runtime = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '');
 export function sandboxRoot(c: Create, stateDir: string): string | undefined {
@@ -30,7 +31,7 @@ function runtimePaths(): string[] {
 export function sandboxLaunch(root: string, command: string, args: string[], parent: NonNullable<Create['parent']>, workerId: string): { command: string; args: string[]; env: NodeJS.ProcessEnv } {
   const mounts = ['--unshare-user', '--unshare-pid', '--unshare-ipc', '--unshare-uts', '--new-session', '--cap-drop', 'ALL', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--tmpfs', '/run'];
   for (const path of ['/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc/ssl', '/etc/resolv.conf', '/etc/hosts', '/etc/nsswitch.conf', ...runtimePaths()]) if (existsSync(path)) mounts.push('--ro-bind', path, path);
-  mounts.push('--bind', root, root, '--chdir', root, '--dir', '/tmp/a0-home');
+  mounts.push('--bind', root, root, ...gitWorktreeMounts(root), '--chdir', root, '--dir', '/tmp/a0-home');
   return { command: 'bwrap', args: [...mounts, '--', command, ...args], env: {
     PATH: `${dirname(realpathSync(process.execPath))}:/usr/bin:/bin`, HOME: '/tmp/a0-home', LANG: 'C.UTF-8', TERM: 'dumb',
     PI_CODING_AGENT_DIR: join(root, '.a0-agent'), PI_WORKER_ID: workerId, PI_WORKER_REPORT_FD: '3', PI_WORKER_TASK_ID: parent.task_id, PI_SUBAGENT_ID: parent.task_id,
