@@ -26,8 +26,8 @@ class Host extends EventEmitter implements SessionHost {
   async stop() { this.stops++; this.emit('exit'); return this.stopOk; }
 }
 function fixture(initHost?: (host: Host) => void) {
-  mkdirSync('/tmp/a0', { recursive: true });
-  const dir = mkdtempSync('/tmp/a0/fix-test-'), journal = new Journal(join(dir, 'journal'));
+  mkdirSync('/tmp/a0s2', { recursive: true });
+  const dir = mkdtempSync('/tmp/a0s2/fix-test-'), journal = new Journal(join(dir, 'journal'));
   const hosts: Host[] = [];
   const supervisor = new Supervisor(dir, journal, '1.5.2', () => {
     const sid = `session-${hosts.length}`, file = join(dir, `${sid}.jsonl`);
@@ -123,7 +123,7 @@ for (const failure of ['journal', 'header']) test(`${failure} failure in a Pi ev
     await new Promise<void>(r => setImmediate(r));
     assert.ok(f.hosts[0]!.stops > 0); assert.equal(f.hosts[1]!.stops, 0);
     assert.equal(f.supervisor.get(w.worker_id).status, 'failed');
-    assert.equal(f.supervisor.get(w.worker_id).fence?.command_id, 'active');
+    assert.equal(f.supervisor.get(w.worker_id).fence, null, 'observed settlement is not a new uncertainty');
     assert.equal(f.supervisor.list().find(x => x.worker_id === healthy.worker_id)?.status, 'ready');
     assert.equal(f.supervisor.hello().protocol.major, 0);
     if (failure === 'journal') await assert.rejects(f.supervisor.prompt(healthy.worker_id, { ...binding(healthy, 'blocked'), message: 'no' }), /journal_failed/);
@@ -207,6 +207,48 @@ test('socket directory rejects symlink, public mode and foreign ownership before
     const server = router(f.supervisor);
     try { await assert.rejects(listenPrivate(server, join(foreign, 'a0-refusal-test.sock')), /socket directory must/); }
     finally { server.closeAllConnections(); server.close(); }
+  } finally { f.cleanup(); }
+});
+test('reads publish derived history in memory without journal writes or stopping workers (N-1)', async () => {
+  const f = fixture(); try {
+    const w = await f.create(), frames: unknown[] = [];
+    const detach = f.supervisor.require(w.worker_id).hub.attach(() => f.supervisor.get(w.worker_id), null, x => frames.push(x));
+    const before = readFileSync(f.journal.file);
+    writeFileSync(f.hosts[0]!.file, readFileSync(f.hosts[0]!.file, 'utf8') + JSON.stringify({ type: 'message', id: 'new-leaf', parentId: null }) + '\n');
+    f.journal.failed = true;
+    assert.equal(f.supervisor.get(w.worker_id).leaf_id, 'new-leaf');
+    f.supervisor.list(); detach();
+    assert.deepEqual(readFileSync(f.journal.file), before);
+    assert.equal(f.hosts[0]!.stops, 0);
+    assert.ok(frames.some(x => (x as { evidence?: string }).evidence === 'observed_memory'));
+  } finally { f.cleanup(); }
+});
+test('fault after settlement never fences the settled execution (N-2)', async () => {
+  const f = fixture(); try {
+    const w = await f.create();
+    await f.supervisor.prompt(w.worker_id, { ...binding(w, 'done'), message: 'hi' });
+    f.hosts[0]!.emit('event', { type: 'agent_settled' });
+    writeFileSync(f.hosts[0]!.file, JSON.stringify({ type: 'session', id: 'wrong' }) + '\n');
+    f.supervisor.get(w.worker_id);
+    await new Promise<void>(r => setImmediate(r));
+    assert.equal(f.supervisor.get(w.worker_id).execution?.state, 'settled');
+    assert.equal(f.supervisor.get(w.worker_id).fence, null);
+  } finally { f.cleanup(); }
+});
+test('restart 1 and restart 2 cannot reuse transport epochs (T-1)', async () => {
+  const f = fixture(); try {
+    const w = await f.create(); let cursor: import('../types.js').Cursor | undefined;
+    for (let i = 0; i < 3; i++) {
+      const log = new Journal(f.journal.file);
+      try {
+        const s = new Supervisor(f.dir, log, '1.5.2', () => { assert.fail('no replay'); }); await s.recover();
+        const old = cursor;
+        s.require(w.worker_id).hub.attach(() => s.get(w.worker_id), old ?? null, frame => {
+          if (old) { assert.notEqual(frame.cursor.worker_epoch, old.worker_epoch); assert.equal((frame as import('../types.js').Snapshot).resync_reason, 'epoch'); }
+          cursor = frame.cursor;
+        })();
+      } finally { log.close(); }
+    }
   } finally { f.cleanup(); }
 });
 test('B2 SSE closes a slow subscriber when the response queue exceeds 1 MiB (M4)', async () => {

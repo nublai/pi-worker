@@ -98,7 +98,7 @@ export class Supervisor {
     }
     live.worker.leaf_id = live.index.leafId;
     live.worker.history = { last_entry_id: live.index.leafId, lag: live.worker.foreground !== 'idle' || live.completedMessages > live.index.messageEntries, evidence: 'pi_session_file' };
-    if (JSON.stringify(live.worker) !== before) this.persist(live);
+    if (JSON.stringify(live.worker) !== before) live.hub.publish('worker_changed', { worker: structuredClone(live.worker) }, live.worker.execution?.execution_id ?? null, 'supervisor');
   }
   private binding(live: Live, b: Binding): void {
     const w = live.worker;
@@ -116,7 +116,7 @@ export class Supervisor {
     w.status = 'cleanup_pending'; w.cleanup = 'worker_fault; cleanup_unproven';
     w.foreground = 'unknown';
     const cause = this.journal.failed ? 'journal_failure' : error instanceof Refusal && error.message === 'pi_header_identity_changed' ? error.message : 'worker_event_failure';
-    if (w.execution) {
+    if (w.execution && w.execution.state !== 'settled') {
       try { this.receipts.unknown(w.execution.command_id); } catch { /* Storage may be unavailable. */ }
       try { this.fence(live, w.execution.command_id); } catch { /* In-memory fence still blocks writes. */ }
     }
