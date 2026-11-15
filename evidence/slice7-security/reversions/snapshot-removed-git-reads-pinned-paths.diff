@@ -1,0 +1,13 @@
+diff --git 1/home/g/.herdr/worktrees/pi-worker/a0-slice7-gate1/src/git-safe.ts 2/tmp/a0s7g/tmp/a0-owner-git-rev-2jwmsdib/src/git-safe.ts
+index d959172..f6eaa66 100644
+--- 1/home/g/.herdr/worktrees/pi-worker/a0-slice7-gate1/src/git-safe.ts
++++ 2/tmp/a0s7g/tmp/a0-owner-git-rev-2jwmsdib/src/git-safe.ts
+@@ -145,7 +145,7 @@ export function safeGitRun(root: string, pin: GitPin | null | undefined, args: s
+   try {
+     snapshot(root, pin, dir);
+     const home = join(dir, 'home'); mkdirSync(home, { mode: 0o700 });
+-    const result = spawnSync('git', ['-C', root, `--git-dir=${dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...guarded(args)], { env: cleanEnv(home, join(pin.common_dir, 'objects')), maxBuffer: options.maxBuffer ?? 256 * 1024 * 1024 });
++    const result = spawnSync('git', ['-C', root, `--git-dir=${pin.git_dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...guarded(args)], { env: (({ GIT_OBJECT_DIRECTORY, ...e }) => (void GIT_OBJECT_DIRECTORY, e))(cleanEnv(home, '')), maxBuffer: options.maxBuffer ?? 256 * 1024 * 1024 });
+     if (result.error) throw result.error;
+     return result;
+   } finally { rmSync(dir, { recursive: true, force: true }); }

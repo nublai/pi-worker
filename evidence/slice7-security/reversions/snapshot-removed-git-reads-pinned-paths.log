@@ -1,0 +1,76 @@
+✖ owner Git: racing a child admin commondir against safeGit diff/status never runs a planted driver or filter (1848.006861ms)
+✖ owner Git: racing a planted commondir in an ordinary .git against safeGit diff/status never runs a planted driver or filter (2032.366479ms)
+✔ owner Git: a repository config that defines a filter, diff driver, textconv or include is refused, not run (138.902281ms)
+✔ owner Git: ~/.gitconfig includes, XDG config/attributes and GIT_CONFIG_GLOBAL/SYSTEM are not honoured (82.531399ms)
+✔ owner Git: results match plain Git on an untouched checkout (snapshot is faithful) (99.471492ms)
+✖ kernel owner Git: a bwrap parent racing its child admin commondir cannot make owner safeGit run a planted driver (808.551405ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 3
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5047.419825
+
+✖ failing tests:
+
+test at dist/test/owner-git.test.js:90:1
+✖ owner Git: racing a child admin commondir against safeGit diff/status never runs a planted driver or filter (1848.006861ms)
+  AssertionError [ERR_ASSERTION]: owner ran the planted payload; tally {"passed":428,"refused":472,"other":[]}
+  + actual - expected
+  
+  + '328 run(s), first: RAN '
+  - 'none'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7g/tmp/a0-owner-git-rev-2jwmsdib/dist/test/owner-git.test.js:101:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '328 run(s), first: RAN ',
+    expected: 'none',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/owner-git.test.js:111:1
+✖ owner Git: racing a planted commondir in an ordinary .git against safeGit diff/status never runs a planted driver or filter (2032.366479ms)
+  AssertionError [ERR_ASSERTION]: owner ran the planted payload; tally {"passed":714,"refused":186,"other":[]}
+  + actual - expected
+  
+  + '24 run(s), first: RAN '
+  - 'none'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7g/tmp/a0-owner-git-rev-2jwmsdib/dist/test/owner-git.test.js:121:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '24 run(s), first: RAN ',
+    expected: 'none',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/owner-git.test.js:214:1
+✖ kernel owner Git: a bwrap parent racing its child admin commondir cannot make owner safeGit run a planted driver (808.551405ms)
+  AssertionError [ERR_ASSERTION]: owner ran the planted payload; tally {"passed":207,"refused":93,"other":[]}
+  + actual - expected
+  
+  + '26 run(s), first: RAN '
+  - 'none'
+  
+      at TestContext.<anonymous> (file:///tmp/a0s7g/tmp/a0-owner-git-rev-2jwmsdib/dist/test/owner-git.test.js:231:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '26 run(s), first: RAN ',
+    expected: 'none',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

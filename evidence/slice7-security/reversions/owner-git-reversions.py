@@ -14,13 +14,19 @@ import tempfile
 
 
 def read(path):
-    with open(path, encoding='utf8') as f:
-        return f.read()
+    try:
+        with open(path, encoding='utf8') as f:
+            return f.read()
+    except OSError as error:
+        raise OSError(f'cannot read {path}: {error}') from error
 
 
 def write(path, text):
-    with open(path, 'w', encoding='utf8') as f:
-        f.write(text)
+    try:
+        with open(path, 'w', encoding='utf8') as f:
+            f.write(text)
+    except OSError as error:
+        raise OSError(f'cannot write {path}: {error}') from error
 
 
 def reversions():
@@ -78,7 +84,10 @@ def run_one(src, out, r):
 
 def main():
     src, out = os.getcwd(), sys.argv[1]
-    os.makedirs(out, exist_ok=True)
+    try:
+        os.makedirs(out, exist_ok=True)
+    except OSError as error:
+        raise OSError(f'cannot create {out}: {error}') from error
     results = [run_one(src, out, r) for r in reversions()]
     write(os.path.join(out, 'owner-git-reversions-run.json'), json.dumps(results, indent=2) + '\n')
     print(json.dumps([{k: r[k] for k in ('name', 'killed', 'guards_failed', 'payload_runs')} for r in results]))
