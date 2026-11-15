@@ -1,6 +1,6 @@
 # THROWAWAY section 0.1 conformance fixtures
 
-`transitions.json` is data, not a TypeScript fixture. It has one row per contract revision 5 section 0.1 row. A future Go fake can replay the same table; no Go implementation or race-test claim is made here.
+`transitions.json` is data, not a TypeScript fixture. It has one row per contract revision 6 section 0.1 row. A future Go fake can replay the same table; no Go implementation or race-test claim is made here.
 
 Each row starts with a fresh idle worker, private socket, controller grant and an exclusive empty cwd. Save its initial binding as `initial`. `worker` is a fresh authoritative `workers.get` after each step. `child_cwd` is a separate available cwd. Expand `macro` steps recursively from the top-level `macros` map.
 
@@ -15,5 +15,7 @@ Steps:
 - `restart`: discard the old supervisor, recover its journal, and start a new transport epoch. Never adopt a host. The `unconfirmed_native_identity` profile supplies an untrusted/missing process token: cleanup must remain pending without attempting to signal an unrelated process.
 
 Assertions are generic dot-path equality against `{result,worker,disk,effects}`. `disk` is the latest fsynced worker record; `effects.prompts` counts actual native prompt submissions and `effects.hosts` native host launches, independently of receipts. Array indices are ordinary path segments. No assertion accepts an agent completion message as evidence.
+
+Row 07 injects `agent_settled` after uncertainty, creating exact fsynced settlement evidence. A delivered admission alone is insufficient. Row 10 restarts an idle worker: its fence stays null, and resume must refuse with `cleanup_pending_or_worker_not_ready`, not `session_fenced`.
 
 Row 01 exercises the binding rule with `new`; separate tests exercise fork and same-process resume, source-leaf checks and interaction invalidation. Pi 1.5.2 RPC has `get_tree`, but **no direct tree-navigation command**. That variant remains explicitly uncovered, not a green claim. The native lifecycle seam in these fixtures is deterministic; live Pi and actual supervisor SIGKILL evidence is separate.
