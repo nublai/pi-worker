@@ -1,0 +1,311 @@
+{
+  "M03_accepted_recovers_no_effect": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect",
+      "effect cut child launch: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut create: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut prompt: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut rebind: native evidence forbids no_effect and recovered buckets require fences",
+      "recovery separates undispatched intent from dispatch; neither is replayed"
+    ]
+  },
+  "M01_recover_no_fence_active": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect",
+      "abandon drops a recovered queue and its durable no-dispatch intent",
+      "contract 0.1 fixture 09-restart",
+      "crash after admission while running: journal unknown/fence, no prompt replay, rejected future write",
+      "resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation"
+    ]
+  },
+  "M02_recover_no_fence_unknown_receipts": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect",
+      "effect cut child launch: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut rebind: native evidence forbids no_effect and recovered buckets require fences",
+      "multiple uncertainties retained, generation monotonic after partial resolution and refence"
+    ]
+  },
+  "M04_revert_closed_append_guard": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "a late callback on a CLOSED journal cannot corrupt a newly opened journal via recycled fd"
+    ]
+  },
+  "M08_dispatch_after_pi_write": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "HTTP pi prompt response timeout: unknown and durable fence before response headers",
+      "HTTP stdin write failed: unknown and durable fence before response headers",
+      "SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect",
+      "cancel, interrupt and evidence reports allowed under fence without lifting it",
+      "contract 0.1 fixture 02-unknown",
+      "contract 0.1 fixture 03-fenced-write",
+      "contract 0.1 fixture 04-paused",
+      "contract 0.1 fixture 06-abandon",
+      "contract 0.1 fixture 08-generation",
+      "contract 0.1 fixture 11-control",
+      "effect cut child launch: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut create: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut prompt: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut rebind: native evidence forbids no_effect and recovered buckets require fences",
+      "observed accepts an exact fsynced settlement after restart, never a different run",
+      "observed refuses mere memory and unknown dispatch, accepts exact session settlement only",
+      "queued follow-up and pending child pause under fence then abandon",
+      "queued follow-up and pending child pause under fence then keep",
+      "resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation",
+      "supervisor dispatch marker with execution ID is fsynced before the host receives prompt"
+    ]
+  },
+  "M05_writable_ignores_fence": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "HTTP pi prompt response timeout: unknown and durable fence before response headers",
+      "HTTP stdin write failed: unknown and durable fence before response headers",
+      "contract 0.1 fixture 03-fenced-write",
+      "crash after admission while running: journal unknown/fence, no prompt replay, rejected future write",
+      "queued follow-up and pending child pause under fence then abandon",
+      "queued follow-up and pending child pause under fence then keep"
+    ]
+  },
+  "M06_no_generation_check": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "contract 0.1 fixture 08-generation",
+      "multiple uncertainties retained, generation monotonic after partial resolution and refence",
+      "resolve abandon: latch, generation, binding, final receipt and durable tombstone",
+      "resolve keep: latch, generation, binding, final receipt and durable tombstone",
+      "resolve observed: latch, generation, binding, final receipt and durable tombstone"
+    ]
+  },
+  "M07_observed_without_evidence": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "observed accepts an exact fsynced settlement after restart, never a different run",
+      "observed refuses mere memory and unknown dispatch, accepts exact session settlement only",
+      "observed rejects delivered admission, agent_end and attribution without settlement"
+    ]
+  },
+  "M08b_dispatch_record_after_write_issued": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect",
+      "effect cut prompt: native evidence forbids no_effect and recovered buckets require fences",
+      "supervisor dispatch marker with execution ID is fsynced before the host receives prompt"
+    ]
+  },
+  "M08e_child_dispatch_after_create": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect",
+      "effect cut child launch: native evidence forbids no_effect and recovered buckets require fences"
+    ]
+  },
+  "M08c_rebind_dispatch_after_pi": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "effect cut rebind: native evidence forbids no_effect and recovered buckets require fences"
+    ]
+  },
+  "M08d_create_dispatch_after_spawn": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "effect cut child launch: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut create: native evidence forbids no_effect and recovered buckets require fences"
+    ]
+  },
+  "M09_no_dispatch_grant_recheck": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "direct revoked create leaves no ghost worker or cwd reservation",
+      "direct revoked prompt leaves no running execution and never fences on exit"
+    ]
+  },
+  "M09b_flush_no_guard_and_no_dispatchguard": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "direct revoked create leaves no ghost worker or cwd reservation",
+      "direct revoked prompt leaves no running execution and never fences on exit",
+      "revocation between queue admission and dispatch blocks the actual Pi write"
+    ]
+  },
+  "M13_no_holder_check": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "new/fork/resume change same-process binding; stale delayed prompt and duplicate open name cause"
+    ]
+  },
+  "M11_client_always_no_effect": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "client failure before connect is no_effect; after write is unknown, one attempt and keepalive disabled"
+    ]
+  },
+  "M12_rebind_no_revision_bump": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "contract 0.1 fixture 01-binding",
+      "new/fork/resume change same-process binding; stale delayed prompt and duplicate open name cause"
+    ]
+  },
+  "M14_abandon_keeps_queue": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "abandon drops a recovered queue and its durable no-dispatch intent",
+      "contract 0.1 fixture 06-abandon",
+      "queued follow-up and pending child pause under fence then abandon"
+    ]
+  },
+  "M15_recover_skips_tombstone_intent": {
+    "killed": false,
+    "exit": 0,
+    "failing_tests": []
+  },
+  "M16_no_method_scope": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "registered caller/method/scope enforced and scoped inventory/SSE cannot disclose another worker"
+    ]
+  },
+  "M19_prompt_no_fence_after_unknown": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "HTTP pi prompt response timeout: unknown and durable fence before response headers",
+      "HTTP stdin write failed: unknown and durable fence before response headers",
+      "SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect",
+      "cancel, interrupt and evidence reports allowed under fence without lifting it",
+      "contract 0.1 fixture 02-unknown",
+      "contract 0.1 fixture 03-fenced-write",
+      "contract 0.1 fixture 04-paused",
+      "contract 0.1 fixture 06-abandon",
+      "contract 0.1 fixture 08-generation",
+      "contract 0.1 fixture 11-control",
+      "effect cut child launch: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut create: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut prompt: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut rebind: native evidence forbids no_effect and recovered buckets require fences",
+      "observed accepts an exact fsynced settlement after restart, never a different run",
+      "observed refuses mere memory and unknown dispatch, accepts exact session settlement only",
+      "queued follow-up and pending child pause under fence then abandon",
+      "queued follow-up and pending child pause under fence then keep",
+      "resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation"
+    ]
+  },
+  "M17_rebind_no_cleanup_or_ready_check": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "contract 0.1 fixture 10-cleanup-resume"
+    ]
+  },
+  "M18_sse_no_revocation_recheck": {
+    "killed": false,
+    "exit": 0,
+    "failing_tests": []
+  },
+  "M20_fence_no_persist": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "HTTP pi prompt response timeout: unknown and durable fence before response headers",
+      "HTTP stdin write failed: unknown and durable fence before response headers",
+      "contract 0.1 fixture 02-unknown"
+    ]
+  },
+  "M21_child_lineage_no_fence": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect",
+      "child recovery without fsynced report preserves parent launch uncertainty",
+      "effect cut create: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut prompt: native evidence forbids no_effect and recovered buckets require fences"
+    ]
+  },
+  "M22_resolve_no_persist_tombstone": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "resolve abandon: latch, generation, binding, final receipt and durable tombstone",
+      "resolve keep: latch, generation, binding, final receipt and durable tombstone",
+      "resolve observed: latch, generation, binding, final receipt and durable tombstone",
+      "resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation"
+    ]
+  },
+  "M23_flush_ignores_fence": {
+    "killed": false,
+    "exit": 0,
+    "failing_tests": []
+  },
+  "F2_auto_flush_as_owner_ready": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "automatic child flush is not owner-ready and recovers without redispatch eligibility",
+      "automatic follow_up flush is not owner-ready and recovers without redispatch eligibility"
+    ]
+  },
+  "F4_recovery_without_fencing": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect",
+      "abandon drops a recovered queue and its durable no-dispatch intent",
+      "contract 0.1 fixture 09-restart",
+      "crash after admission while running: journal unknown/fence, no prompt replay, rejected future write",
+      "effect cut child launch: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut prompt: native evidence forbids no_effect and recovered buckets require fences",
+      "effect cut rebind: native evidence forbids no_effect and recovered buckets require fences",
+      "multiple uncertainties retained, generation monotonic after partial resolution and refence",
+      "resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation"
+    ]
+  },
+  "F2_queue_ready_survives_recovery": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect",
+      "automatic child flush is not owner-ready and recovers without redispatch eligibility",
+      "automatic follow_up flush is not owner-ready and recovers without redispatch eligibility"
+    ]
+  },
+  "F8_admission_counts_as_settlement": {
+    "killed": true,
+    "exit": 1,
+    "failing_tests": [
+      "observed rejects delivered admission, agent_end and attribution without settlement"
+    ]
+  },
+  "M10_unbounded_sse_queue": {
+    "killed": true,
+    "exit": 124,
+    "failing_tests": [
+      "B2 SSE ends a slow subscriber with explicit overflow after bounded queue",
+      "one supervisor stream filters workers/types, snapshot barrier, bounded explicit overflow and resync",
+      "public client retains no_effect HTTP detail and supervisor-wide snapshot; overflow disables controls"
+    ]
+  }
+}

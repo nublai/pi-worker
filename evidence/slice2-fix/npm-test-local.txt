@@ -1,0 +1,103 @@
+
+> @nublai/pi-worker-a0@0.0.0-throwaway test
+> npm run build && node --test dist/test/*.test.js
+
+
+> @nublai/pi-worker-a0@0.0.0-throwaway build
+> tsc -p tsconfig.json
+
+✔ contract 0.1 fixture 01-binding (21.960164ms)
+✔ contract 0.1 fixture 02-unknown (4.38738ms)
+✔ contract 0.1 fixture 03-fenced-write (4.691269ms)
+✔ contract 0.1 fixture 04-paused (8.428752ms)
+✔ contract 0.1 fixture 05-keep (15.959811ms)
+✔ contract 0.1 fixture 06-abandon (9.802736ms)
+✔ contract 0.1 fixture 07-observed (5.228245ms)
+✔ contract 0.1 fixture 08-generation (4.685889ms)
+✔ contract 0.1 fixture 09-restart (6.374192ms)
+✔ contract 0.1 fixture 10-cleanup-resume (3.733194ms)
+✔ contract 0.1 fixture 11-control (5.909331ms)
+{"effect_kind":"prompt","cuts":5,"result":"pass"}
+{"effect_kind":"rebind","cuts":3,"result":"pass"}
+{"effect_kind":"create","cuts":3,"result":"pass"}
+{"effect_kind":"child launch","cuts":1,"result":"pass"}
+{"fsync_cuts":172,"result":"pass"}
+✔ effect cut prompt: native evidence forbids no_effect and recovered buckets require fences (560.537549ms)
+✔ effect cut rebind: native evidence forbids no_effect and recovered buckets require fences (320.175447ms)
+✔ effect cut create: native evidence forbids no_effect and recovered buckets require fences (326.140874ms)
+✔ effect cut child launch: native evidence forbids no_effect and recovered buckets require fences (144.573316ms)
+✔ SIGKILL after EVERY scenario fsync occurrence: recovery buckets, required fences and no duplicate effect (17701.84117ms)
+✔ supervisor dispatch marker with execution ID is fsynced before the host receives prompt (M2) (8.50277ms)
+✔ HTTP pi prompt response timeout: unknown and durable fence before response headers (M1, M6) (10.077771ms)
+✔ HTTP stdin write failed: unknown and durable fence before response headers (M1, M6) (2.32703ms)
+✔ Pi exit fences an admitted run durably without rewriting delivered admission (M9) (1.464023ms)
+✔ unknown stop never replaces the prompt fence; two restarts preserve fence and delivered receipt (2.342619ms)
+✔ journal failure in a Pi event faults only that worker and keeps inventory readable (2.099393ms)
+✔ header failure in a Pi event faults only that worker and keeps inventory readable (3.445195ms)
+✔ validation refusals consume no durable storage, ordinary capacity never blocks termination (130.701166ms)
+✔ failed create preserves the same group-only cleanup and cwd reservation as stop (m-1) (1.225706ms)
+✔ unsupported UI dialogs auto-cancel without resolver-consumed claims (m-2) (3.182733ms)
+✔ pending unsupported interactions close on tool_execution_end (m-2) (0.81157ms)
+✔ pending unsupported interactions close on agent_settled (m-2) (0.658424ms)
+✔ pending unsupported interactions close on expiry (m-2) (20.801122ms)
+✔ pending unsupported dialogs are bounded and cancellation failure faults closed (m-2) (2.393163ms)
+✔ socket directory rejects symlink, public mode and foreign ownership before listening (M5) (0.867966ms)
+✔ reads publish derived history in memory without journal writes or stopping workers (N-1) (0.996437ms)
+✔ fault after settlement never fences the settled execution (N-2) (1.32401ms)
+✔ restart 1 and restart 2 cannot reuse transport epochs (T-1) (1.402638ms)
+✔ B2 SSE ends a slow subscriber with explicit overflow after bounded queue (M4) (9.54881ms)
+✔ every OpenAPI method requires a bearer, including hello, history, SSE and receipts (16.015896ms)
+✔ registered caller/method/scope enforced and scoped inventory/SSE cannot disclose another worker (14.278401ms)
+✔ revocation between queue admission and dispatch blocks the actual Pi write (3.877655ms)
+✔ RPC host keeps LF framing across Unicode separators and split UTF8; drains events independently (36.997687ms)
+✔ unsupported UI cancellation uses the native ID and no RPC response waiter (24.184982ms)
+✔ RPC timeout is an error, never a resend; process exit rejects pending requests (62.46959ms)
+✔ resolve keep: latch, generation, binding, final receipt and durable tombstone (12.610827ms)
+✔ resolve abandon: latch, generation, binding, final receipt and durable tombstone (2.111366ms)
+✔ resolve observed: latch, generation, binding, final receipt and durable tombstone (2.450611ms)
+✔ observed refuses mere memory and unknown dispatch, accepts exact session settlement only (1.452151ms)
+✔ multiple uncertainties retained, generation monotonic after partial resolution and refence (1.743487ms)
+✔ queued follow-up and pending child pause under fence then keep (6.554761ms)
+✔ queued follow-up and pending child pause under fence then abandon (2.948664ms)
+✔ new/fork/resume change same-process binding; stale delayed prompt and duplicate open name cause (4.321487ms)
+✔ recovered intent only dispatches once after owner resolution and exact retry (4.442102ms)
+✔ child recovery without fsynced report preserves parent launch uncertainty (2.835513ms)
+✔ child recovery with fsynced report preserves parent launch uncertainty (5.434762ms)
+✔ abandon drops a recovered queue and its durable no-dispatch intent (2.126855ms)
+✔ resolved duplicate stays read-only, but a NEW crash of a kept live run relatches at the next generation (1.948832ms)
+✔ cancel, interrupt and evidence reports allowed under fence without lifting it (1.469944ms)
+✔ canonical idempotency ignores transport id, not operation content (5.859989ms)
+✔ intent and dispatch are durable before effect; duplicate attempts dispatch once (2.157182ms)
+✔ refusal versus uncertain timeout, plus no eviction at capacity (0.969997ms)
+✔ recovery separates undispatched intent from dispatch; neither is replayed (0.650969ms)
+✔ legacy intent_ready without an owner tombstone recovers as no_effect, not ready (0.269264ms)
+✔ journal admission reserves full result room and never begins an effect without it (0.227897ms)
+✔ a late callback on a CLOSED journal cannot corrupt a newly opened journal via recycled fd (0.291987ms)
+✔ journal truncates a torn final record, rejects complete corruption or sequence gaps (0.401753ms)
+✔ automatic follow_up flush is not owner-ready and recovers without redispatch eligibility (38.962298ms)
+✔ automatic child flush is not owner-ready and recovers without redispatch eligibility (35.174151ms)
+✔ direct revoked prompt leaves no running execution and never fences on exit (4.130469ms)
+✔ direct revoked create leaves no ghost worker or cwd reservation (0.831378ms)
+✔ post-write rebind collision is unknown and fenced (7.753206ms)
+✔ post-write rebind resume-mismatch is unknown and fenced (2.029002ms)
+✔ post-write rebind cancelled is unknown and fenced (1.711116ms)
+✔ observed accepts an exact fsynced settlement after restart, never a different run (2.725056ms)
+✔ observed rejects delivered admission, agent_end and attribution without settlement (1.46255ms)
+✔ SSE attach barrier: snapshot is first, no duplicate or missing event under reentrant emission (8.53444ms)
+✔ public HTTP/CLI client: identity, duplicate, stale binding, admission distinct from settlement, history, detach, stop (24.459697ms)
+✔ crash after admission while running: journal unknown/fence, no prompt replay, rejected future write (2.863084ms)
+✔ execution reservation cut before dispatch stays no_effect on recovery (1.37173ms)
+✔ supervisor projects admission, settlement, fence and stop to an already connected watcher (1.645262ms)
+✔ transport epoch changes across supervisor restart even when new seq catches the old cursor (1.045399ms)
+✔ history pages pin a branch watermark and ignore partial final JSONL (0.648225ms)
+✔ one supervisor stream filters workers/types, snapshot barrier, bounded explicit overflow and resync (8.740826ms)
+✔ client failure before connect is no_effect; after write is unknown, one attempt and keepalive disabled (6.94414ms)
+✔ public client retains no_effect HTTP detail and supervisor-wide snapshot; overflow disables controls (14.116779ms)
+ℹ tests 82
+ℹ suites 0
+ℹ pass 82
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19096.121865
