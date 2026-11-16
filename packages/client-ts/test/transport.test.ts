@@ -209,6 +209,80 @@ test('client: an unreadable grant file fails before the write; a grant is sent a
   }
 });
 
+/** Serves `body` as text/event-stream in pieces of at most `chunk` bytes, waiting a tick between pieces. */
+async function watchRaw(body: Buffer, chunk: number): Promise<{ frames: EventFrame[]; error?: unknown }> {
+  const t = tmp();
+  const socket = join(t.dir, 'worker.sock');
+  const server = httpServer(async (_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', Connection: 'close' });
+    for (let at = 0; at < body.length; at += chunk) {
+      if (!res.write(body.subarray(at, at + chunk))) await new Promise(r => res.once('drain', r));
+      if (chunk < body.length) await new Promise(r => setImmediate(r));
+    }
+    // A parser that misses the record sees the end of the stream as a disconnect.
+    res.end();
+  });
+  await listen(server, socket);
+  const frames: EventFrame[] = [];
+  try {
+    await new Client({ socketPath: socket }).watch(frame => {
+      frames.push(frame);
+      return false;
+    });
+    return { frames };
+  } catch (error) {
+    return { frames, error };
+  } finally {
+    await close(server);
+    t.cleanup();
+  }
+}
+
+const emptySnapshot = { type: 'snapshot', workers: [], cursor: { transport_epoch: 't', seq: 1 }, resync_reason: 'fresh' };
+
+test('client: SSE accepts LF, CRLF and CR line endings and data fields without a space, across chunk boundaries (review F3)', async () => {
+  const data = JSON.stringify(emptySnapshot);
+  const bodies: Record<string, string> = {
+    lf: `id: 1\ndata: ${data}\n\n`,
+    crlf: `id: 1\r\n: c\r\ndata: ${data}\r\n\r\n`,
+    cr: `id: 1\r: c\rdata: ${data}\r\r`,
+    'no space': `id:1\ndata:${data}\n\n`,
+    'split data': `data: {"type":"snapshot",\ndata:"workers":[],"cursor":{"transport_epoch":"t","seq":1},"resync_reason":"fresh"}\n\n`,
+  };
+  for (const [name, body] of Object.entries(bodies)) {
+    for (const chunk of [1, 7, body.length]) {
+      const { frames, error } = await watchRaw(Buffer.from(body), chunk);
+      assert.equal(error, undefined, `${name}, chunk ${chunk}: ${String(error)}`);
+      assert.deepEqual(frames, [emptySnapshot], `${name}, chunk ${chunk}`);
+    }
+  }
+});
+
+test('client: an SSE record over 1 MiB of bytes is frame_too_large; one at the cap and multi-byte text arrive whole', async () => {
+  const FRAME_LIMIT = 1024 * 1024;
+  // A record is its field lines with one line-ending byte each: 'data: ' + JSON + '\n'.
+  const record = (bytes: number, char: string) => {
+    const prefix = '{"type":"x.pad","pad":"';
+    const suffix = '"}';
+    const room = bytes - 'data: '.length - 1 - prefix.length - suffix.length;
+    const unit = Buffer.byteLength(char);
+    assert.equal(room % unit, 0);
+    return `${prefix}${char.repeat(room / unit)}${suffix}`;
+  };
+  for (const char of ['a', 'é']) {
+    const atCap = record(FRAME_LIMIT, char);
+    const ok = await watchRaw(Buffer.from(`data: ${atCap}\n\n`), 64 * 1024);
+    assert.equal(ok.error, undefined, `${char} at cap: ${String(ok.error)}`);
+    assert.equal(JSON.stringify(ok.frames[0]), atCap);
+  }
+  // Two-byte characters: under 1 MiB of UTF-16 code units, over 1 MiB of bytes.
+  const over = record(FRAME_LIMIT + 2, 'é');
+  assert.ok(over.length < FRAME_LIMIT);
+  const refused = await watchRaw(Buffer.from(`data: ${over}\n\n`), 64 * 1024);
+  assert.deepEqual(refused.frames, []);
+  assert.ok(refused.error instanceof ResyncRequired && refused.error.reason === 'frame_too_large', String(refused.error));
+});
+
 test('client: hello refuses an unknown protocol major', async () => {
   const t = tmp();
   const socket = join(t.dir, 'worker.sock');

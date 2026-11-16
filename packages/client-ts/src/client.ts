@@ -31,7 +31,78 @@ export interface CallOptions<O extends OperationId> {
 /** The protocol major this client speaks. A worker with another major is refused. */
 export const PROTOCOL_MAJOR = 0;
 const RESPONSE_LIMIT = 2 * 1024 * 1024;
+/** One SSE record: its field lines, each counted with one line-ending byte (api/b2.openapi.yaml, events.subscribe). */
 const FRAME_LIMIT = 1024 * 1024;
+
+const LF = 0x0a;
+const CR = 0x0d;
+
+/**
+ * Incremental text/event-stream parser over bytes. Lines end in LF, CRLF or a lone CR (also across chunks); one
+ * space after a field's colon is optional; lines starting with `:` are comments; a blank line ends a record. A line
+ * or record over `limit` bytes throws ResyncRequired('frame_too_large'); nothing is ever truncated.
+ */
+class EventStreamParser {
+  private parts: Buffer[] = [];
+  private lineBytes = 0;
+  private recordBytes = 0;
+  private pendingCR = false;
+  private data: string[] = [];
+
+  constructor(readonly limit: number = FRAME_LIMIT) {}
+
+  /** Feeds bytes; returns the `data` payloads of the records this chunk completes, in order. */
+  push(chunk: Uint8Array): string[] {
+    const out: string[] = [];
+    let start = 0;
+    if (this.pendingCR && chunk.length > 0) {
+      this.pendingCR = false;
+      if (chunk[0] === LF) start = 1;
+    }
+    for (let i = start; i < chunk.length; i++) {
+      const byte = chunk[i];
+      if (byte !== LF && byte !== CR) continue;
+      this.append(chunk.subarray(start, i));
+      this.endLine(out);
+      if (byte === CR) {
+        if (i + 1 === chunk.length) this.pendingCR = true;
+        else if (chunk[i + 1] === LF) i++;
+      }
+      start = i + 1;
+    }
+    this.append(chunk.subarray(start));
+    return out;
+  }
+
+  private append(part: Uint8Array): void {
+    if (part.length === 0) return;
+    this.lineBytes += part.length;
+    if (this.lineBytes > this.limit) throw new ResyncRequired('frame_too_large');
+    this.parts.push(Buffer.from(part));
+  }
+
+  private endLine(out: string[]): void {
+    const bytes = this.lineBytes;
+    const line = Buffer.concat(this.parts, bytes).toString('utf8');
+    this.parts = [];
+    this.lineBytes = 0;
+    if (bytes === 0) {
+      const payload = this.data.join('\n');
+      if (payload !== '') out.push(payload);
+      this.data = [];
+      this.recordBytes = 0;
+      return;
+    }
+    this.recordBytes += bytes + 1;
+    if (this.recordBytes > this.limit) throw new ResyncRequired('frame_too_large');
+    const colon = line.indexOf(':');
+    if (colon === 0) return; // a comment
+    const field = colon < 0 ? line : line.slice(0, colon);
+    let value = colon < 0 ? '' : line.slice(colon + 1);
+    if (value.startsWith(' ')) value = value.slice(1);
+    if (field === 'data') this.data.push(value);
+  }
+}
 
 export class ClientFailure extends Error {
   constructor(
@@ -232,21 +303,18 @@ export class Client {
             fail(new ResyncRequired(`HTTP ${res.statusCode}`));
             return;
           }
-          let pending = '';
-          res.setEncoding('utf8');
-          res.on('data', (chunk: string) => {
-            pending += chunk;
-            for (;;) {
-              const end = pending.indexOf('\n\n');
-              if (end < 0 || done) break;
-              const record = pending.slice(0, end);
-              pending = pending.slice(end + 2);
-              const data = record
-                .split('\n')
-                .filter(l => l.startsWith('data: '))
-                .map(l => l.slice(6))
-                .join('\n');
-              if (!data) continue;
+          const parser = new EventStreamParser();
+          res.on('data', (chunk: Buffer) => {
+            if (done) return;
+            let records: string[];
+            try {
+              records = parser.push(chunk);
+            } catch (error) {
+              fail(error as Error);
+              return;
+            }
+            for (const data of records) {
+              if (done) break;
               let frame: EventFrame;
               try {
                 frame = JSON.parse(data) as EventFrame;
@@ -266,7 +334,6 @@ export class Client {
                 resolve();
               }
             }
-            if (pending.length > FRAME_LIMIT) fail(new ResyncRequired('frame_too_large'));
           });
           res.on('error', fail);
           res.on('aborted', () => fail(new ResyncRequired('disconnected')));
