@@ -110,6 +110,8 @@ jobs:
           cache: false
       - run: go version
       - run: npm ci --ignore-scripts
+      # Some group commands run `npm test -w @nublai/pi-worker` directly, which needs the client's dist.
+      - run: npm run build -w @nublai/pi-worker-client
       - run: node harness/lib/reversions.mjs --group ${{ matrix.group }}
         env:
           TMPDIR: ${{ runner.temp }}
