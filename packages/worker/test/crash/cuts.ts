@@ -115,4 +115,20 @@ export const CUT_SCENARIOS: readonly CutScenario[] = [
       'fence.latch',
     ],
   },
+  {
+    scenario: 'resume',
+    file: 'resume.test.ts',
+    labels: [
+      ...OPEN,
+      'receipt.intent',
+      'receipt.dispatch',
+      'receipt.result',
+      'worker.create',
+      'worker.spawned',
+      'worker.identity',
+      'worker.ready',
+      'worker.recover',
+      'binding.rebind',
+    ],
+  },
 ];

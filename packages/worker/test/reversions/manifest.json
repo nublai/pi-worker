@@ -61,6 +61,12 @@
         "p1-7-no-native-move-refusal.diff",
         "p1-fix-f4-sessions-new-not-session-directed.diff"
       ]
+    },
+    "resume": {
+      "command": "npm run test:crash -- resume",
+      "diffs": [
+        "p1-fix2-create-resume-target-not-durable.diff"
+      ]
     }
   }
 }

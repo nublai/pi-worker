@@ -38,6 +38,8 @@ export function effect(root: string, value: Effect): void {
 /** A host whose native effects are independent artifacts. `effectCommand` names the control command in flight. */
 export class EffectHost extends Host {
   effectCommand?: string;
+  /** A create-with-resume's command: its open of the resume target is a native effect too. */
+  openCommand?: string;
   gate?: Promise<never>;
   release?: () => void;
   identified = false;
@@ -50,11 +52,11 @@ export class EffectHost extends Host {
     super(root, sid, file);
   }
 
-  private control(operation: string): void {
-    if (!this.effectCommand) return; // Only explicit controls, never recovery cleanup.
+  private control(operation: string, command = this.effectCommand): void {
+    if (!command) return; // Only explicit controls, never recovery cleanup.
     const native_file = join(this.root, 'native-controls.jsonl');
-    appendFileSync(native_file, `${JSON.stringify({ command_id: this.effectCommand, operation })}\n`);
-    effect(this.root, { kind: operation, command_id: this.effectCommand, operation, native_file });
+    appendFileSync(native_file, `${JSON.stringify({ command_id: command, operation })}\n`);
+    effect(this.root, { kind: operation, command_id: command, operation, native_file });
   }
 
   override async stop(): Promise<boolean> {
@@ -83,7 +85,7 @@ export class EffectHost extends Host {
     const result = await super.request(c);
     if (c.type === 'clear_queue' || c.type === 'abort') this.control(c.type);
     // A B2 binding move: a native artifact names its command (native moves pi makes alone are not B2 effects).
-    if (['new_session', 'switch_session', 'fork', 'navigate'].includes(c.type)) this.control(c.type);
+    if (['new_session', 'switch_session', 'fork', 'navigate'].includes(c.type)) this.control(c.type, this.effectCommand ?? (c.type === 'switch_session' ? this.openCommand : undefined));
     if (c.type === 'prompt' && this.gate) {
       const gate = this.gate;
       this.gate = undefined;
@@ -117,6 +119,7 @@ export function openWorld(root: string, scenario: boolean): World {
       writeFileSync(file, `${JSON.stringify({ type: 'session', id })}\n`);
       effect(root, { kind: 'create', command_id: launch.create.command_id, session_file: file, session_id: id });
       const host = new EffectHost(root, id, file);
+      if (launch.create.resume_session_id) host.openCommand = launch.create.command_id;
       if (launch.create.provider === 'fail') {
         const native = host.request.bind(host);
         host.request = async c => (c.type === 'inventory' ? { type: 'response', id: 'x', success: true, data: { extension_errors: ['/broken.ts'] } } : native(c));

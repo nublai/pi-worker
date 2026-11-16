@@ -161,6 +161,9 @@ export class Lifecycle {
         // reserved through opening, identity checks and failure cleanup (the same reservations as sessions.rebind).
         const target = c.resume_session_id;
         if (target) this.s.sessionReservations.set(target, w.worker_id);
+        // The reservation also becomes durable: the starting row (`worker.create`, before dispatch and before any host
+        // starts) carries the target, so a restart attributes it to this worker instead of releasing it.
+        if (target && resumeFile) live.resume = { session_id: target, file: resumeFile };
         try {
           return await this.launch(live, c, cwd, resumeFile);
         } finally {
@@ -191,7 +194,9 @@ export class Lifecycle {
     try {
       host = this.s.factory({ workerId: w.worker_id, create: c, cwd, sessionDir: this.sessionDir(live) });
     } catch (error) {
-      // No host was constructed: the row ends terminal with its reason; the receipt stays unknown.
+      // No host was constructed: the row ends terminal with its reason; the receipt stays unknown. Nothing opened the
+      // resume target.
+      delete live.resume;
       w.status = 'failed';
       w.cleanup = 'no_process_started';
       w.failure = { command_id: c.command_id, reason: reasonOf(error) };
@@ -237,6 +242,8 @@ export class Lifecycle {
       w.status = 'ready';
       w.cleanup = 'live_process_group';
       live.observedIdle = true;
+      // The binding to the target is recorded in this row: the session id now carries the reservation.
+      delete live.resume;
       this.s.persist(live, 'worker.ready');
       return {
         state: 'delivered',
@@ -258,6 +265,8 @@ export class Lifecycle {
       w.cleanup = gone ? GROUP_GONE : 'unresolved';
       if (gone) live.pid = null;
       w.failure = { command_id: c.command_id, reason: reasonOf(error) };
+      // Opened: the session id above carries the target. Not opened: switch_session was never sent.
+      delete live.resume;
       this.s.persist(live, 'worker.failed');
       throw error;
     }
@@ -306,12 +315,13 @@ export class Lifecycle {
       const w = live.worker;
       w.supervisor_epoch = this.s.supervisorEpoch;
       w.pending_interactions = []; // Old native resolvers no longer exist.
+      const attributed = this.attributeResume(live);
       live.index.setActiveLeaf(w.leaf_id);
       const before = JSON.stringify(w);
       for (const recover of this.recoverers) recover(live);
       if (!HOLDING.has(w.status)) {
         // A stopped or failed worker keeps its status; a fence recovery derived for it is still made durable.
-        if (JSON.stringify(w) !== before) this.s.persist(live, 'worker.recover');
+        if (attributed || JSON.stringify(w) !== before) this.s.persist(live, 'worker.recover');
         continue;
       }
       w.status = 'cleanup_pending';
@@ -324,6 +334,23 @@ export class Lifecycle {
       } else if (!w.cleanup.includes('descendants_unproven') && w.cleanup !== 'unresolved') w.cleanup = 'unresolved';
       this.s.persist(live, 'worker.recover');
     }
+  }
+
+  /**
+   * A durable resume target whose binding was never recorded: pi may have opened it before the crash. The worker holds
+   * it from now on, exactly as an in-process failed resume does, so the target is refused (naming this worker) and
+   * blocked by its unproven cleanup until that cleanup is confirmed. Its record then carries the target as its session.
+   */
+  private attributeResume(live: Live): boolean {
+    const target = live.resume;
+    if (!target) return false;
+    delete live.resume;
+    if (live.worker.session_id === target.session_id) return true;
+    live.worker.session_id = target.session_id;
+    live.worker.leaf_id = null;
+    live.sessionFile = target.file;
+    live.index = new SessionIndex(live.sessionFile);
+    return true;
   }
 
   /** Stops every live host; used on SIGTERM. Records what was observed. */
