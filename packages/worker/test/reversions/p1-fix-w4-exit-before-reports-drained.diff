@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/host/host.ts b/packages/worker/src/host/host.ts
+index 8280184..4627b47 100644
+--- a/packages/worker/src/host/host.ts
++++ b/packages/worker/src/host/host.ts
+@@ -148,6 +148,7 @@ export class LineHost extends EventEmitter implements SessionHost {
+ 
+   reportsSettled(): Promise<void> {
+     return Promise.race([
++      Promise.resolve(),
+       this.reportsClosed,
+       new Promise<void>(resolve => {
+         setTimeout(resolve, REPORT_DRAIN_MS).unref();

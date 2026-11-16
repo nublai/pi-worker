@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
-index 59d527d..3191419 100644
+index e380f37..1a066d2 100644
 --- a/packages/worker/src/supervisor/children.ts
 +++ b/packages/worker/src/supervisor/children.ts
-@@ -197,7 +197,6 @@ export class Children {
-           r.worker_id === child.worker.worker_id &&
-           r.state === 'delivered' &&
-           r.result?.task_id === task &&
--          r.result?.kind !== 'help' &&
-           (!typed || r.result?.channel === 'fd3'),
-       );
-       if (!reported) this.fenceParent(parentId, launch);
+@@ -90,7 +90,6 @@ export class Children {
+         r.worker_id === child.worker.worker_id &&
+         r.state === 'delivered' &&
+         r.result?.task_id === task &&
+-        r.result?.kind !== 'help' &&
+         (!typed || r.result?.channel === 'fd3'),
+     );
+     return reported ? null : launch;

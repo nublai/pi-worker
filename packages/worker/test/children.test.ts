@@ -423,6 +423,64 @@ test('children: every report path rechecks the creating grants: an untyped child
   }
 });
 
+test('children: a typed child that dies without a durable report fences its live parent; no replacement launches (invariant 4a, A0 W-4)', async () => {
+  const f = fixture();
+  try {
+    const p = await parent(f);
+    const c = child(f, p);
+    await f.supervisor.create(c);
+    // A help report is not a result: it does not discharge the launch either.
+    f.hosts[1]!.emit('report', { report_id: 'stuck', kind: 'help', message: 'blocked' });
+    await tick();
+    await tick();
+    f.hosts[1]!.emit('exit');
+    await tick();
+    await tick();
+    const fenced = f.supervisor.get(p.worker_id);
+    assert.deepEqual(fenced.fence?.uncertain_command_ids, [c.command_id], 'the live parent is fenced on the dead child launch');
+    // Durable before anything depends on it: the parent row in the journal carries the fence.
+    const rows = parseJournal(readFileSync(f.journalFile)).records.filter(r => r.kind === 'worker' && (r.value.worker as Worker).worker_id === p.worker_id);
+    assert.deepEqual((rows.at(-1)!.value.worker as Worker).fence?.uncertain_command_ids, [c.command_id]);
+    const cwd = join(f.dir, 'replacement');
+    mkdirSync(cwd);
+    await assert.rejects(() => f.supervisor.create({ ...c, command_id: 'replacement', cwd }), /fenced/);
+    assert.equal(f.hosts.length, 2, 'no replacement spawned');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('children: a typed child that reported its result through FD 3 and then exits leaves its parent unfenced', async () => {
+  const f = fixture();
+  try {
+    const p = await parent(f);
+    const c = child(f, p);
+    await f.supervisor.create(c);
+    f.hosts[1]!.emit('report', { report_id: 'done', kind: 'result', message: 'finished' });
+    f.hosts[1]!.emit('exit');
+    await tick();
+    await tick();
+    assert.equal(f.supervisor.get(p.worker_id).fence, null);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('children: a faulted typed child (bad report channel) fences its live parent like an exit', async () => {
+  const f = fixture();
+  try {
+    const p = await parent(f);
+    const c = child(f, p);
+    const r = await f.supervisor.create(c);
+    f.supervisor.lifecycle.fault(f.supervisor.state.require(r.worker_id!), new Error('invalid_child_report'));
+    await tick();
+    await tick();
+    assert.deepEqual(f.supervisor.get(p.worker_id).fence?.uncertain_command_ids, [c.command_id]);
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('children: a typed child refuses a sandboxed spec until P2 (bwrap and the parent channel)', async () => {
   const f = fixture();
   try {

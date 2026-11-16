@@ -2,10 +2,13 @@
  * The children crash scenario (P1-11), ported from A0 `src/test/fixtures/children-cut.ts`: a typed parent created
  * under a grant runs a prompt, launches a typed child (lineage in the child's starting row), the child runs, writes a
  * result report to its FD twice (one claim, one receipt, one notification), and is stopped. An untyped child is then
- * launched through `children.launch` under a second parent's running execution and flushed when it settles.
+ * launched through `children.launch` under a second parent's running execution and flushed when it settles. A third
+ * (typed) parent's child then dies without a report: the live parent is fenced on its launch and a replacement is
+ * refused before any spawn (invariant 4a, live; A0 W-4).
  * Native effects: each spawn (with the lineage its request named), the FD write (`claim:`), the report's delivery
  * notification (after its receipt is durable) and the stop.
  */
+import assert from 'node:assert/strict';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { authority } from '../../src/grants/authority.js';
@@ -73,6 +76,27 @@ export async function childrenScenario(root: string): Promise<void> {
   await world.call('launch_child', { ...bind(p2, 'p2-launch'), execution_id: executionId, launch: { command_id: 'p2-child', cwd: dir('p2-child'), provider: 'p', model: 'm', thinking: 'off' } }, p2.worker_id);
   world.hosts.at(-1)!.emit('event', { type: 'agent_settled' });
   for (let i = 0; i < 4; i++) await tick();
+  // A typed child that dies without a report: its live parent is fenced on that launch at once (invariant 4a, not
+  // only after a restart), so a replacement is refused before anything spawns.
+  const created3 = await authority.run(guard, () => world.call('create', { command_id: 'parent-3', cwd: dir('parent-3'), provider: 'p', model: 'm', thinking: 'off', launch_spec: spec }));
+  const p3: Worker = world.supervisor.get(created3.worker_id!);
+  await world.call('prompt', { ...bind(p3, 'p3-prompt'), message: 'p3-prompt' }, p3.worker_id);
+  const lost: Create = {
+    ...request,
+    command_id: 'p3-child',
+    cwd: dir('p3-child'),
+    parent: { worker_id: p3.worker_id, worker_epoch: p3.worker_epoch, session_id: p3.session_id!, binding_revision: p3.binding_revision, execution_id: world.supervisor.get(p3.worker_id).execution!.execution_id, task_id: 'job-3', generation_id: 'generation' },
+  };
+  const c3 = await authority.run(guard, () => world.call('create', lost as unknown as Record<string, unknown>));
+  world.hosts.find(h => h.file === world.supervisor.state.require(c3.worker_id!).sessionFile)!.emit('exit');
+  for (let i = 0; i < 4; i++) await tick();
+  assert.deepEqual(world.supervisor.get(p3.worker_id).fence?.uncertain_command_ids, ['p3-child'], 'the live parent is fenced on the dead child launch');
+  const spawned = world.hosts.length;
+  await assert.rejects(
+    authority.run(guard, () => world.call('create', { ...lost, command_id: 'p3-replacement', cwd: dir('p3-replacement') } as unknown as Record<string, unknown>)),
+    /fenced/,
+  );
+  assert.equal(world.hosts.length, spawned, 'no replacement spawned');
   world.state.close();
   world = openWorld(root, false);
   await world.supervisor.recover();

@@ -69,7 +69,11 @@ export const fences: Check = (pre, after) => {
       const lr = receipts.get(launch);
       if (!lr || lr.effect === 'no_effect') continue;
       const task = c.parent?.task_id ?? launch;
-      const reported = after.receipts.some(r => r.operation === 'children.report' && r.worker_id === c.worker_id && r.state === 'delivered' && r.result?.task_id === task && r.result?.kind !== 'help');
+      // A typed child's only report authority is its own FD 3: no other report discharges its launch.
+      const typed = !!(c.parent || c.launch_spec);
+      const reported = after.receipts.some(
+        r => r.operation === 'children.report' && r.worker_id === c.worker_id && r.state === 'delivered' && r.result?.task_id === task && r.result?.kind !== 'help' && (!typed || r.result?.channel === 'fd3'),
+      );
       if (!reported) required.add(launch);
     }
     for (const id of prior.fence?.uncertain_command_ids ?? []) {

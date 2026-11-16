@@ -28,6 +28,13 @@ process.stdin.on('data', (chunk: string) => {
       process.stdout.write(`${JSON.stringify({ type: 'report', report_id: 'forged-stdout', kind: 'result', message: 'not a channel' })}\n`);
       process.stdout.write(`${JSON.stringify({ type: 'profile', has_socket: !!process.env.PI_WORKER_SOCKET, has_grant: !!process.env.PI_WORKER_GRANT_FILE, fd: process.env.PI_WORKER_REPORT_FD ?? null, task: process.env.PI_WORKER_TASK_ID ?? null, piw: Object.keys(process.env).filter(k => k.startsWith('PIW_')) })}\n`);
     }
+    if (c.type === 'late_fd_report') {
+      // The leader exits at once; a grandchild that inherited FD 3 writes the result report a little later, so the
+      // report reaches the host after the leader's exit.
+      const late = `setTimeout(() => require('node:fs').writeSync(3, JSON.stringify({ report_id: 'late', kind: 'result', message: 'after exit' }) + String.fromCharCode(10)), 300)`;
+      spawn(process.execPath, ['-e', late], { stdio: ['ignore', 'ignore', 'ignore', 3] });
+      process.exit(0);
+    }
     if (c.type === 'huge_line') {
       process.stdout.write(`${JSON.stringify({ type: 'noise', data: 'x'.repeat(5 * 1024 * 1024) })}\n`);
       continue;

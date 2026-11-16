@@ -50,7 +50,7 @@ test('crash: SIGKILL after every children fsync: lineage before spawn, one repor
     assert.equal(full.status, 0, full.stderr);
     points = full.points;
     assert.ok(effectsAt(base.root).some(e => e.kind === 'report_delivery'));
-    assert.equal(effectsAt(base.root).filter(e => e.kind === 'create').length, 4, 'two parents and two children spawned');
+    assert.equal(effectsAt(base.root).filter(e => e.kind === 'create').length, 6, 'three parents and three children spawned; the refused replacement never spawned');
     await checkRecovery(base.root, [fences, lineage, delivery(base.root)]);
   } finally {
     base.cleanup();

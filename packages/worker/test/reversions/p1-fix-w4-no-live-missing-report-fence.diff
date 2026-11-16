@@ -1,0 +1,22 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 325a725..ad01d0f 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -119,8 +119,6 @@ export class Lifecycle {
+     const w = live.worker;
+     // The process and its resolvers are gone: every interaction of the worker is interrupted.
+     this.s.interactions?.invalidate(w.worker_id, 'interrupted');
+-    // A child that died without a durable result report fences its parent now, not only after a restart (4a).
+-    this.childEnded(live);
+     // A stop that already observed the group gone keeps that stronger evidence.
+     if (w.status === 'stopped' && live.pid === null) return;
+     if (live.moveTimer) {
+@@ -166,7 +164,7 @@ export class Lifecycle {
+     report();
+     // A faulted child is closed like an exit (its later exit event is ignored): the same live missing-report check.
+     try {
+-      this.childEnded(live);
++      void this.childEnded;
+     } catch {
+       /* storage may be unavailable; recovery fences the parent from the durable records */
+     }
