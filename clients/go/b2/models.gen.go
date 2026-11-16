@@ -124,19 +124,19 @@ func (e ChildReportedEventType) Valid() bool {
 
 // Defines values for CommandInvocation.
 const (
-	CommandsInvoke CommandInvocation = "commands.invoke"
-	Method         CommandInvocation = "method"
-	Unsupported    CommandInvocation = "unsupported"
+	CommandInvocationCommandsInvoke CommandInvocation = "commands.invoke"
+	CommandInvocationMethod         CommandInvocation = "method"
+	CommandInvocationUnsupported    CommandInvocation = "unsupported"
 )
 
 // Valid indicates whether the value is a known member of the CommandInvocation enum.
 func (e CommandInvocation) Valid() bool {
 	switch e {
-	case CommandsInvoke:
+	case CommandInvocationCommandsInvoke:
 		return true
-	case Method:
+	case CommandInvocationMethod:
 		return true
-	case Unsupported:
+	case CommandInvocationUnsupported:
 		return true
 	default:
 		return false
@@ -874,11 +874,14 @@ const (
 	ReceiptOperationAttachmentsStage            ReceiptOperation = "attachments.stage"
 	ReceiptOperationChildrenLaunch              ReceiptOperation = "children.launch"
 	ReceiptOperationChildrenReport              ReceiptOperation = "children.report"
+	ReceiptOperationCommandsInvoke              ReceiptOperation = "commands.invoke"
 	ReceiptOperationExecutionsCancel            ReceiptOperation = "executions.cancel"
 	ReceiptOperationExecutionsInterrupt         ReceiptOperation = "executions.interrupt"
 	ReceiptOperationInteractionsAnswerIfCurrent ReceiptOperation = "interactions.answer_if_current"
 	ReceiptOperationInteractionsRelease         ReceiptOperation = "interactions.release"
+	ReceiptOperationResourcesReload             ReceiptOperation = "resources.reload"
 	ReceiptOperationSessionConfigure            ReceiptOperation = "session.configure"
+	ReceiptOperationSessionsCompact             ReceiptOperation = "sessions.compact"
 	ReceiptOperationSessionsFollowUp            ReceiptOperation = "sessions.follow_up"
 	ReceiptOperationSessionsNew                 ReceiptOperation = "sessions.new"
 	ReceiptOperationSessionsPrompt              ReceiptOperation = "sessions.prompt"
@@ -899,6 +902,8 @@ func (e ReceiptOperation) Valid() bool {
 		return true
 	case ReceiptOperationChildrenReport:
 		return true
+	case ReceiptOperationCommandsInvoke:
+		return true
 	case ReceiptOperationExecutionsCancel:
 		return true
 	case ReceiptOperationExecutionsInterrupt:
@@ -907,7 +912,11 @@ func (e ReceiptOperation) Valid() bool {
 		return true
 	case ReceiptOperationInteractionsRelease:
 		return true
+	case ReceiptOperationResourcesReload:
+		return true
 	case ReceiptOperationSessionConfigure:
+		return true
+	case ReceiptOperationSessionsCompact:
 		return true
 	case ReceiptOperationSessionsFollowUp:
 		return true
@@ -1291,11 +1300,14 @@ const (
 	StopReceiptOperationAttachmentsStage            StopReceiptOperation = "attachments.stage"
 	StopReceiptOperationChildrenLaunch              StopReceiptOperation = "children.launch"
 	StopReceiptOperationChildrenReport              StopReceiptOperation = "children.report"
+	StopReceiptOperationCommandsInvoke              StopReceiptOperation = "commands.invoke"
 	StopReceiptOperationExecutionsCancel            StopReceiptOperation = "executions.cancel"
 	StopReceiptOperationExecutionsInterrupt         StopReceiptOperation = "executions.interrupt"
 	StopReceiptOperationInteractionsAnswerIfCurrent StopReceiptOperation = "interactions.answer_if_current"
 	StopReceiptOperationInteractionsRelease         StopReceiptOperation = "interactions.release"
+	StopReceiptOperationResourcesReload             StopReceiptOperation = "resources.reload"
 	StopReceiptOperationSessionConfigure            StopReceiptOperation = "session.configure"
+	StopReceiptOperationSessionsCompact             StopReceiptOperation = "sessions.compact"
 	StopReceiptOperationSessionsFollowUp            StopReceiptOperation = "sessions.follow_up"
 	StopReceiptOperationSessionsNew                 StopReceiptOperation = "sessions.new"
 	StopReceiptOperationSessionsPrompt              StopReceiptOperation = "sessions.prompt"
@@ -1316,6 +1328,8 @@ func (e StopReceiptOperation) Valid() bool {
 		return true
 	case StopReceiptOperationChildrenReport:
 		return true
+	case StopReceiptOperationCommandsInvoke:
+		return true
 	case StopReceiptOperationExecutionsCancel:
 		return true
 	case StopReceiptOperationExecutionsInterrupt:
@@ -1324,7 +1338,11 @@ func (e StopReceiptOperation) Valid() bool {
 		return true
 	case StopReceiptOperationInteractionsRelease:
 		return true
+	case StopReceiptOperationResourcesReload:
+		return true
 	case StopReceiptOperationSessionConfigure:
+		return true
+	case StopReceiptOperationSessionsCompact:
 		return true
 	case StopReceiptOperationSessionsFollowUp:
 		return true
@@ -1749,6 +1767,15 @@ type CommandList struct {
 // CommandListEvidence defines model for CommandList.Evidence.
 type CommandListEvidence string
 
+// Compact defines model for Compact.
+type Compact struct {
+	BindingRevision    int     `json:"binding_revision"`
+	CommandId          Id      `json:"command_id"`
+	CustomInstructions *string `json:"custom_instructions,omitempty"`
+	SessionId          Id      `json:"session_id"`
+	WorkerEpoch        Id      `json:"worker_epoch"`
+}
+
 // Configure defines model for Configure.
 type Configure struct {
 	BindingRevision int       `json:"binding_revision"`
@@ -2103,6 +2130,18 @@ type InteractionsChangedEventEvidence string
 
 // InteractionsChangedEventType defines model for InteractionsChangedEvent.Type.
 type InteractionsChangedEventType string
+
+// Invoke defines model for Invoke.
+type Invoke struct {
+	Args            *string `json:"args,omitempty"`
+	BindingRevision int     `json:"binding_revision"`
+	CommandId       Id      `json:"command_id"`
+
+	// Name The command's name without the leading slash.
+	Name        string `json:"name"`
+	SessionId   Id     `json:"session_id"`
+	WorkerEpoch Id     `json:"worker_epoch"`
+}
 
 // LaunchSpec defines model for LaunchSpec.
 type LaunchSpec struct {
@@ -2827,6 +2866,12 @@ type ExecutionsCancelJSONRequestBody = Control
 // ChildrenLaunchJSONRequestBody defines body for ChildrenLaunch for application/json ContentType.
 type ChildrenLaunchJSONRequestBody = ChildLaunch
 
+// CommandsInvokeJSONRequestBody defines body for CommandsInvoke for application/json ContentType.
+type CommandsInvokeJSONRequestBody = Invoke
+
+// SessionsCompactJSONRequestBody defines body for SessionsCompact for application/json ContentType.
+type SessionsCompactJSONRequestBody = Compact
+
 // SessionConfigureJSONRequestBody defines body for SessionConfigure for application/json ContentType.
 type SessionConfigureJSONRequestBody = Configure
 
@@ -2853,6 +2898,9 @@ type SessionsRebindJSONRequestBody = Rebind
 
 // WorkersRelaunchJSONRequestBody defines body for WorkersRelaunch for application/json ContentType.
 type WorkersRelaunchJSONRequestBody = Binding
+
+// ResourcesReloadJSONRequestBody defines body for ResourcesReload for application/json ContentType.
+type ResourcesReloadJSONRequestBody = Binding
 
 // ChildrenReportJSONRequestBody defines body for ChildrenReport for application/json ContentType.
 type ChildrenReportJSONRequestBody = Report

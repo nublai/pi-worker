@@ -1,0 +1,16 @@
+diff --git a/packages/worker/src/supervisor/session-commands.ts b/packages/worker/src/supervisor/session-commands.ts
+index 51eea46..a9c760e 100644
+--- a/packages/worker/src/supervisor/session-commands.ts
++++ b/packages/worker/src/supervisor/session-commands.ts
+@@ -84,10 +84,10 @@ export class SessionCommands {
+       operation,
+       { ...request, worker_id: id },
+       async (): Promise<ReceiptPatch> => {
+-        this.s.receipts.dispatch(request.command_id, { worker_id: id });
+         // A compaction or a reload replaces what live dialogs belong to: they are cancelled, never answered.
+         if (cancelDialogs) await this.s.interactions?.cancelAll(id, live.host!);
+         const response = await live.host!.request(command);
++        this.s.receipts.dispatch(request.command_id, { worker_id: id });
+         if (live.faulted) throw new Error('worker fault during session command');
+         if (!response.success && response.refused === 'before_input') {
+           throw new ProvenNoEffect(`pi_refused_${operation}: ${String(response.error).slice(0, 64)}`, 'host_refused_before_any_change');

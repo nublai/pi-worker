@@ -289,3 +289,11 @@ this supervisor bound), not pi's own session directories, because only those can
 `commands.list` for a cwd run a short-lived pi process in inventory mode that loads the cwd's settings and resources,
 opens no session and exits. In P1-14, extension commands, prompt templates and skills are listed but marked
 `unsupported`; `commands.invoke` (P1-15) makes extension commands invocable.
+
+**P1-15 decisions.** `sessions.compact`, `resources.reload` and `commands.invoke` are session writes (invariant 3
+names compact, command invoke and reload): refused `no_effect` under a fence, during a move and while an execution
+runs; a lost reply is `outcome_unknown` and fences. Compaction and reload cancel live dialogs at their exact resolvers
+first; neither moves the binding (same session file, same tree), so the bridge's binding stays valid. pi's own
+"nothing to compact" and "already compacted" preconditions, which pi checks before any hook, are `no_effect` only when
+the session is unchanged. `commands.invoke` runs extension commands only; skills and prompt templates stay
+`unsupported` until a later PR serves their expansion through `sessions.prompt`.

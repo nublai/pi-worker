@@ -17,6 +17,14 @@
           "method": "sessions.new"
         },
         {
+          "name": "compact",
+          "description": "Manually compact the session context",
+          "source": "builtin",
+          "argument_hint": null,
+          "invocation": "method",
+          "method": "sessions.compact"
+        },
+        {
           "name": "login",
           "description": "Configure provider authentication",
           "source": "builtin",
@@ -29,7 +37,7 @@
           "description": "Deploy the current branch",
           "source": "extension",
           "argument_hint": null,
-          "invocation": "unsupported",
+          "invocation": "commands.invoke",
           "method": null
         },
         {

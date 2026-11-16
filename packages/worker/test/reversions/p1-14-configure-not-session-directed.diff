@@ -1,5 +1,5 @@
 diff --git a/packages/worker/src/supervisor/fence.ts b/packages/worker/src/supervisor/fence.ts
-index 2b34f53..41c298c 100644
+index 79ac151..56f3185 100644
 --- a/packages/worker/src/supervisor/fence.ts
 +++ b/packages/worker/src/supervisor/fence.ts
 @@ -34,7 +34,6 @@ export const SESSION_DIRECTED = new Set<Receipt['operation']>([
@@ -7,6 +7,6 @@ index 2b34f53..41c298c 100644
    'interactions.answer_if_current',
    'interactions.release',
 -  'session.configure',
- ]);
- 
- /**
+   'sessions.compact',
+   'resources.reload',
+   'commands.invoke',

@@ -314,6 +314,15 @@ const runtimePromise = launch.inventory === true ? new Promise<never>(() => {}) 
   { cwd: process.cwd(), agentDir: getAgentDir(), sessionManager: SessionManager.create(process.cwd(), launch.sessionDir) },
 );
 
+/** pi's own commands for a session: extension commands, prompt templates, skills. */
+function ownCommands(session: AgentSession): CommandRow[] {
+  const commands: CommandRow[] = [];
+  for (const command of session.extensionRunner.getRegisteredCommands()) commands.push({ name: command.invocationName, description: describe(command.description), source: 'extension' });
+  for (const template of session.promptTemplates) commands.push({ name: template.name, description: describe(template.description), source: 'prompt' });
+  for (const skill of session.resourceLoader.getSkills().skills) commands.push({ name: `skill:${skill.name}`, description: describe(skill.description), source: 'skill' });
+  return commands;
+}
+
 let current: AgentSession | undefined;
 /** The supervisor execution the current run belongs to: its settlement is stamped into the session file. */
 let running: { execution_id: string; command_id: string } | null = null;
@@ -463,7 +472,55 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
         skills: loader.getSkills().skills.map(s => ({ name: s.name, path: s.filePath })),
         tools: session.getAllTools().map(t => ({ name: t.name, sourceInfo: t.sourceInfo })),
         active_tools: session.getActiveToolNames(),
+        commands: ownCommands(session).map(c => ({ name: c.name, source: c.source })),
       });
+      break;
+    }
+    case 'compact': {
+      // pi's own preconditions, checked before anything runs; anything after them that fails is unknown.
+      if (session.isStreaming) throw new RefusedBeforeInput('pi_busy');
+      if (session.isCompacting) throw new RefusedBeforeInput('pi_compacting');
+      if (!session.model) throw new RefusedBeforeInput('no_model_selected');
+      const before = session.sessionManager.getEntries().length;
+      const leaf = session.sessionManager.getLeafId();
+      try {
+        const result = await session.compact(typeof c.customInstructions === 'string' ? c.customInstructions : undefined);
+        reply({ tokens_before: result.tokensBefore, first_kept_entry_id: result.firstKeptEntryId ?? null });
+      } catch (error) {
+        // pi throws these two from its preparation, before any hook or summary: proven only if nothing was appended.
+        const message = error instanceof Error ? error.message : '';
+        const unchanged = session.sessionManager.getEntries().length === before && session.sessionManager.getLeafId() === leaf;
+        if (unchanged && message === 'Nothing to compact (session too small)') throw new RefusedBeforeInput('nothing_to_compact');
+        if (unchanged && message === 'Already compacted') throw new RefusedBeforeInput('already_compacted');
+        throw error;
+      }
+      break;
+    }
+    case 'reload': {
+      if (session.isStreaming) throw new RefusedBeforeInput('pi_busy');
+      if (session.isCompacting) throw new RefusedBeforeInput('pi_compacting');
+      cancelAll();
+      await session.reload();
+      const loader = runtime.services.resourceLoader;
+      reply({
+        extensions: loader.getExtensions().extensions.map(e => e.path),
+        extension_errors: loader.getExtensions().errors.map(e => e.path),
+        skills: loader.getSkills().skills.map(sk => ({ name: sk.name, path: sk.filePath })),
+        tools: session.getAllTools().map(t => ({ name: t.name, sourceInfo: t.sourceInfo })),
+        active_tools: session.getActiveToolNames(),
+        commands: ownCommands(session).map(cm => ({ name: cm.name, source: cm.source })),
+      });
+      emitConfig();
+      break;
+    }
+    case 'invoke': {
+      // Only an extension command pi has registered now; anything else would become a prompt to the model.
+      const name = String(c.name);
+      if (!session.extensionRunner.getRegisteredCommands().some(cm => cm.invocationName === name)) throw new RefusedBeforeInput('unknown_command');
+      if (session.isStreaming) throw new RefusedBeforeInput('pi_busy');
+      if (session.isCompacting) throw new RefusedBeforeInput('pi_compacting');
+      const text = `/${name}${typeof c.args === 'string' && c.args !== '' ? ` ${c.args}` : ''}`;
+      await session.prompt(text, { preflightResult: disposition => reply({ disposition }) });
       break;
     }
     case 'prompt':
@@ -525,10 +582,7 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
       reply({ tree: session.sessionManager.getTree() });
       break;
     case 'features': {
-      const commands: CommandRow[] = [];
-      for (const command of session.extensionRunner.getRegisteredCommands()) commands.push({ name: command.invocationName, description: describe(command.description), source: 'extension' });
-      for (const template of session.promptTemplates) commands.push({ name: template.name, description: describe(template.description), source: 'prompt' });
-      for (const skill of session.resourceLoader.getSkills().skills) commands.push({ name: `skill:${skill.name}`, description: describe(skill.description), source: 'skill' });
+      const commands = ownCommands(session);
       const model = session.model;
       reply({
         models: session.modelRuntime.getAvailableSnapshot().map(modelRow),

@@ -1,0 +1,16 @@
+diff --git a/packages/worker/src/supervisor/session-commands.ts b/packages/worker/src/supervisor/session-commands.ts
+index 51eea46..f1887e8 100644
+--- a/packages/worker/src/supervisor/session-commands.ts
++++ b/packages/worker/src/supervisor/session-commands.ts
+@@ -59,9 +59,8 @@ export class SessionCommands {
+       data => ({ disposition: typeof data.disposition === 'string' ? data.disposition : 'handled' }),
+       live => {
+         const builtin = BUILTIN_COMMANDS.find(b => b.name === v.name);
+-        if (builtin?.method) throw new Refusal('use_method', 'no_effect', undefined, { detail: builtin.method });
+-        if (builtin || v.name.startsWith('skill:')) throw new Refusal('unsupported_command');
+-        if (!extensionCommands(live).has(v.name)) throw new Refusal('unknown_command');
++        void builtin;
++        void extensionCommands;
+       },
+     );
+   }

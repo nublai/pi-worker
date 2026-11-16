@@ -82,6 +82,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/b2/workers/{worker_id}/compact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compact the bound session (pi's /compact)
+         * @description pi summarizes the session with its model and appends a compaction entry; live dialogs are cancelled at
+         *     their exact resolvers first. The binding does not move (same session file, same tree).
+         *     A session write: it names the binding it saw and is refused `no_effect` under a fence, during a binding
+         *     move and while an execution runs (`worker_busy`). Its dispatch record precedes the write to pi; after it,
+         *     only pi's explicit refusal before any change is `no_effect`, and a lost reply is `outcome_unknown` and
+         *     fences the session.
+         */
+        post: operations["sessions.compact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/b2/workers/{worker_id}/reload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reload extensions, skills, prompts and context files (pi's /reload)
+         * @description The receipt reports the loader errors after the reload; the worker row's `resources` follow. Live dialogs
+         *     are cancelled at their exact resolvers first.
+         *     A session write: it names the binding it saw and is refused `no_effect` under a fence, during a binding
+         *     move and while an execution runs (`worker_busy`). Its dispatch record precedes the write to pi; after it,
+         *     only pi's explicit refusal before any change is `no_effect`, and a lost reply is `outcome_unknown` and
+         *     fences the session.
+         */
+        post: operations["resources.reload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/b2/workers/{worker_id}/commands/invoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run an extension command (a slash command an extension registered)
+         * @description Only an extension command `commands.list` names with `invocation: commands.invoke`. A built-in that has
+         *     its own method (`/new`, `/model`, `/compact`, …) is refused `use_method` with the method in `detail`; any
+         *     other built-in, prompt template or skill is refused `unsupported_command`; an unknown name
+         *     `unknown_command`. All before any record.
+         *     A session write: it names the binding it saw and is refused `no_effect` under a fence, during a binding
+         *     move and while an execution runs (`worker_busy`). Its dispatch record precedes the write to pi; after it,
+         *     only pi's explicit refusal before any change is `no_effect`, and a lost reply is `outcome_unknown` and
+         *     fences the session.
+         */
+        post: operations["commands.invoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/b2/workers/{worker_id}/prompt": {
         parameters: {
             query?: never;
@@ -580,7 +663,8 @@ export interface paths {
          * The slash commands pi offers, for a worker or for a cwd before any worker exists
          * @description As `models.list` for `worker_id` and `cwd`. Each command says how it is invoked: an extension command
          *     through `commands.invoke`; a built-in that has its own method (`/new`, `/model`, `/compact`, …) names
-         *     that method; anything else is `unsupported` and refused explicitly.
+         *     that method; anything else (other built-ins, prompt templates, skills) is `unsupported` and refused
+         *     explicitly.
          */
         get: operations["commands.list"];
         put?: never;
@@ -1078,6 +1162,22 @@ export interface components {
             thinking?: components["schemas"]["Thinking"];
             name?: string;
         };
+        Compact: {
+            command_id: components["schemas"]["Id"];
+            worker_epoch: components["schemas"]["Id"];
+            session_id: components["schemas"]["Id"];
+            binding_revision: number;
+            custom_instructions?: string;
+        };
+        Invoke: {
+            command_id: components["schemas"]["Id"];
+            worker_epoch: components["schemas"]["Id"];
+            session_id: components["schemas"]["Id"];
+            binding_revision: number;
+            /** @description The command's name without the leading slash. */
+            name: string;
+            args?: string;
+        };
         /** @description Stable across appends to one session file; changes when the file is replaced. */
         FileIdentity: string;
         Sha256: string;
@@ -1168,7 +1268,7 @@ export interface components {
         Receipt: {
             command_id: components["schemas"]["Id"];
             /** @enum {string} */
-            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.new" | "sessions.follow_up" | "sessions.steer" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release" | "attachments.stage" | "session.configure";
+            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.new" | "sessions.follow_up" | "sessions.steer" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release" | "attachments.stage" | "session.configure" | "sessions.compact" | "resources.reload" | "commands.invoke";
             request_hash: string;
             /** @enum {string} */
             state: "intent" | "intent_recovered" | "accepted" | "delivered" | "rejected" | "outcome_unknown" | "queued" | "queue_ready" | "intent_ready";
@@ -1600,6 +1700,75 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["Configure"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Receipt"];
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            413: components["responses"]["TooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["Unknown"];
+        };
+    };
+    "sessions.compact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Compact"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Receipt"];
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            413: components["responses"]["TooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["Unknown"];
+        };
+    };
+    "resources.reload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Binding"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Receipt"];
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            413: components["responses"]["TooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["Unknown"];
+        };
+    };
+    "commands.invoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Invoke"];
             };
         };
         responses: {

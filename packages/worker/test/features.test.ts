@@ -33,7 +33,7 @@ test('features: models.list and commands.list answer from the worker or from an 
     assert.deepEqual([byName.get('new')!.invocation, byName.get('new')!.method], ['method', 'sessions.new'], 'a built-in with its own method names it');
     assert.deepEqual([byName.get('model')!.method, byName.get('name')!.method], ['session.configure', 'session.configure']);
     assert.equal(byName.get('login')!.invocation, 'unsupported', 'other built-ins are refused explicitly');
-    assert.deepEqual([byName.get('deploy')!.source, byName.get('deploy')!.invocation], ['extension', 'unsupported'], 'pi’s own commands are listed');
+    assert.deepEqual([byName.get('deploy')!.source, byName.get('deploy')!.invocation], ['extension', 'commands.invoke'], 'pi’s own commands are listed');
     // By cwd, before any worker exists: a short-lived inventory process, stopped after it answers.
     const inventory = new Host(f.dir, 'none', join(f.dir, 'none.jsonl'));
     let asked: { cwd: string; trusted: boolean } | undefined;
@@ -236,7 +236,7 @@ test('features (real pi): models and commands for a cwd come from an inventory p
     assert.equal(list.evidence, 'pi_inventory_process');
     assert.deepEqual(list.models.find(m => m.provider === 'piw-test'), { provider: 'piw-test', id: 'echo', name: 'Echo', reasoning: false, input: ['text', 'image'], context_window: 100000, max_tokens: 1000 });
     const commands = (await memory.request('GET', `/b2/commands?cwd=${encodeURIComponent(f.cwd)}`)).body as { commands: { name: string; source: string; description: string | null }[] };
-    assert.deepEqual(commands.commands.find(c => c.name === 'deploy'), { name: 'deploy', description: 'Deploy it', source: 'extension', argument_hint: null, invocation: 'unsupported', method: null });
+    assert.deepEqual(commands.commands.find(c => c.name === 'deploy'), { name: 'deploy', description: 'Deploy it', source: 'extension', argument_hint: null, invocation: 'commands.invoke', method: null });
     const sessionFiles = (dir: string): string[] => (existsSync(dir) ? readdirSync(dir, { recursive: true }).map(String).filter(n => n.endsWith('.jsonl')) : []);
     assert.deepEqual([...sessionFiles(f.agent), ...sessionFiles(join(f.state, 'sessions')), ...sessionFiles(f.home), ...sessionFiles(f.cwd)], [], 'the inventory process wrote no session file');
     // A worker: its own pi answers, with its current model; configure changes thinking and name through pi.

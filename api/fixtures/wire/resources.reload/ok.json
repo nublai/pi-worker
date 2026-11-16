@@ -1,0 +1,30 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "command_id": "cmd-reload-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "command_id": "cmd-reload-1",
+      "operation": "resources.reload",
+      "request_hash": "sha256-1a2b3c",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+        "extension_errors": []
+      }
+    }
+  }
+}

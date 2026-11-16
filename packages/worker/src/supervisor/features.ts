@@ -54,9 +54,9 @@ export const BUILTIN_COMMANDS: readonly { name: string; description: string; arg
   { name: 'login', description: 'Configure provider authentication', argument_hint: '<provider>', method: null },
   { name: 'logout', description: 'Remove provider authentication', method: null },
   { name: 'new', description: 'Start a new session', method: 'sessions.new' },
-  { name: 'compact', description: 'Manually compact the session context', method: null },
+  { name: 'compact', description: 'Manually compact the session context', method: 'sessions.compact' },
   { name: 'resume', description: 'Resume another session', method: 'sessions.rebind' },
-  { name: 'reload', description: 'Reload keybindings, extensions, skills, prompts, themes, and context files', method: null },
+  { name: 'reload', description: 'Reload keybindings, extensions, skills, prompts, themes, and context files', method: 'resources.reload' },
   { name: 'quit', description: 'Quit pi', method: null },
 ];
 
@@ -70,8 +70,15 @@ export function commandRows(own: readonly { name: string; description: string | 
     invocation: b.method ? 'method' : 'unsupported',
     method: b.method,
   }));
-  // Extension commands, prompt templates and skills are not invocable through B2 yet (commands.invoke is P1-15).
-  const rest: Command[] = own.map(c => ({ name: c.name.slice(0, 256), description: c.description, source: c.source, argument_hint: null, invocation: 'unsupported', method: null }));
+  // Extension commands run through commands.invoke; prompt templates and skills are not served through B2 yet.
+  const rest: Command[] = own.map(c => ({
+    name: c.name.slice(0, 256),
+    description: c.description,
+    source: c.source,
+    argument_hint: null,
+    invocation: c.source === 'extension' ? 'commands.invoke' : 'unsupported',
+    method: null,
+  }));
   return [...builtins, ...rest];
 }
 
@@ -80,7 +87,7 @@ const THINKING = new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'm
 export class Features {
   /** The inventory process for `cwd` queries; without it they refuse `inventory_unavailable`. */
   inventory?: InventoryFactory;
-  /** Builds the command rows from pi's own commands (P1-15 extends it with commands.invoke). */
+  /** Builds the command rows from pi's own commands. */
   rows = commandRows;
 
   constructor(

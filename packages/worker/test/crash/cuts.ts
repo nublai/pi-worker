@@ -281,4 +281,22 @@ export const CUT_SCENARIOS: readonly CutScenario[] = [
       'fence.resolve',
     ],
   },
+  {
+    scenario: 'session-commands',
+    file: 'session-commands.test.ts',
+    labels: [
+      ...OPEN,
+      'receipt.intent',
+      'receipt.dispatch',
+      'receipt.result',
+      'worker.create',
+      'worker.spawned',
+      'worker.identity',
+      'worker.ready',
+      'worker.recover',
+      'session.command',
+      'fence.latch',
+      'fence.resolve',
+    ],
+  },
 ];

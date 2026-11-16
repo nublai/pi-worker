@@ -97,6 +97,14 @@ export class EffectHost extends Host {
     }
     // A session write without input text (session.configure): the command in flight names it.
     if (c.type === 'configure' && !this.configureRefusal) this.control('configure');
+    // Session commands (P1-15): a compaction is an entry in the session file (its native artifact); a reload and an
+    // extension command are the fake host's own logs.
+    if ((c.type === 'reload' || c.type === 'invoke') && !this.commandRefusal) this.control(c.type);
+    if (c.type === 'compact' && !this.commandRefusal && this.effectCommand) {
+      const id = `compaction-${this.effectCommand}`;
+      appendFileSync(this.file, `${JSON.stringify({ type: 'compaction', id, parentId: null, summary: 'fixture', firstKeptEntryId: null, tokensBefore: 1, command_id: this.effectCommand, operation: 'compact' })}\n`);
+      effect(this.root, { kind: 'compact', command_id: this.effectCommand, operation: 'compact', native_file: this.file, entry_id: id });
+    }
     if (c.type === 'prompt' || c.type === 'steer') {
       const id = String(c.message);
       appendFileSync(this.file, `${JSON.stringify({ type: 'message', id, parentId: null, message: { role: 'user', content: [] } })}\n`);
@@ -197,6 +205,9 @@ export function openWorld(root: string, scenario: boolean): World {
         // A retry after a restart sends a different value: the recorded outcome comes back without revalidating it.
         return supervisor.answer(id!, scenario ? b : ({ ...body, value: 'DIFFERENT_AFTER_RESTART' } as never));
       case 'configure':
+      case 'compact':
+      case 'reload':
+      case 'invoke':
       case 'stop':
       case 'cancel':
       case 'interrupt':
@@ -208,6 +219,9 @@ export function openWorld(root: string, scenario: boolean): World {
           if (op === 'rebind') return await supervisor.rebind(id!, b);
           if (op === 'new') return await supervisor.newSession(id!, b);
           if (op === 'configure') return await supervisor.configure(id!, b);
+          if (op === 'compact') return await supervisor.compact(id!, b);
+          if (op === 'reload') return await supervisor.reload(id!, b);
+          if (op === 'invoke') return await supervisor.invoke(id!, b);
           return op === 'stop' ? await supervisor.stop(id!, b) : await supervisor.control(id!, b, op === 'interrupt');
         } finally {
           if (h) h.effectCommand = undefined;
