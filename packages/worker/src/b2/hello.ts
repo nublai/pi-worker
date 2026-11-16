@@ -40,7 +40,7 @@ export interface HelloSource {
   piVersion?: string | null;
 }
 
-/** The supervisor id is per start in P0; P1 persists it in the state directory with the journal. */
+/** main.ts passes the supervisor id persisted in the journal and the epoch of this start (journal/state.ts). */
 export function createHello(source: HelloSource = {}): () => Hello {
   const hello: Hello = {
     protocol: { ...PROTOCOL },

@@ -1,0 +1,10 @@
+--- a/packages/worker/src/journal/labels.ts
++++ b/packages/worker/src/journal/labels.ts
+@@ -9,6 +9,7 @@
+   'journal.open_directory',
+   // The supervisor start record: persistent supervisor id, fresh epoch.
+   'supervisor.start',
++  'journal.compact',
+ ] as const;
+ 
+ export type DurableLabel = (typeof DURABLE_LABELS)[number];
