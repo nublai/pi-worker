@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -105,6 +106,94 @@ func TestWatchOversizedFrame(t *testing.T) {
 	var resync *ResyncRequired
 	if !errors.As(err, &resync) || resync.Reason != "frame_too_large" {
 		t.Fatalf("got %v", err)
+	}
+}
+
+// rawSSEServer writes body in chunks of at most chunk bytes, flushing after each, so records and lines cross reads.
+func rawSSEServer(t *testing.T, body string, chunk int) string {
+	path := socketPath(t)
+	serveHTTP(t, path, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(200)
+		for rest := body; rest != ""; {
+			n := min(chunk, len(rest))
+			io.WriteString(w, rest[:n])
+			w.(http.Flusher).Flush()
+			rest = rest[n:]
+		}
+	})
+	return path
+}
+
+// A valid snapshot well above the reader's 64 KiB buffer and below the 1 MiB frame cap arrives whole (review F1:
+// the long line used to be cut at the buffer boundary and the frame refused as invalid_frame).
+func TestWatchLargeSnapshotAboveReaderBuffer(t *testing.T) {
+	const n = 1500
+	workers := make([]string, n)
+	for i := range workers {
+		workers[i] = strings.Replace(worker, `"worker_id":"w1"`, fmt.Sprintf(`"worker_id":"w%d"`, i), 1)
+	}
+	data := fmt.Sprintf(`{"type":"snapshot","workers":[%s],"cursor":{"transport_epoch":"t","seq":3},"resync_reason":"fresh"}`, strings.Join(workers, ","))
+	if len(data) < 4*64<<10 || len(data) > frameLimit-1024 {
+		t.Fatalf("sample is %d bytes; want between 256 KiB and the frame cap", len(data))
+	}
+	for _, chunk := range []int{len(data) + 64, 4096, 1} {
+		if chunk == 1 && testing.Short() {
+			continue
+		}
+		path := rawSSEServer(t, "id: 1\ndata: "+data+"\n\n", chunk)
+		var got Frame
+		if err := New(path).Watch(context.Background(), WatchOptions{}, func(f Frame) bool { got = f; return false }); err != nil {
+			t.Fatalf("chunk %d: %v", chunk, err)
+		}
+		snap, ok := got.Event.(*SnapshotEvent)
+		if !ok || len(snap.Workers) != n || snap.Workers[n-1].WorkerId != fmt.Sprintf("w%d", n-1) || string(got.Raw) != data {
+			t.Fatalf("chunk %d: got %T with %d bytes", chunk, got.Event, len(got.Raw))
+		}
+	}
+}
+
+// A record exactly at the cap is accepted; one byte more is refused as frame_too_large, never truncated.
+func TestWatchFrameCapIsExact(t *testing.T) {
+	frame := func(total int) string {
+		prefix, suffix := `{"type":"x.pad","pad":"`, `"}`
+		// The cap counts the record's field lines with their line endings: "data: " + JSON + "\n".
+		return prefix + strings.Repeat("a", total-len("data: ")-1-len(prefix)-len(suffix)) + suffix
+	}
+	for _, tc := range []struct {
+		total int
+		want  string
+	}{{frameLimit, ""}, {frameLimit + 1, "frame_too_large"}} {
+		data := frame(tc.total)
+		path := rawSSEServer(t, "data: "+data+"\n\n", 32<<10)
+		var got Frame
+		err := New(path).Watch(context.Background(), WatchOptions{}, func(f Frame) bool { got = f; return false })
+		var resync *ResyncRequired
+		switch {
+		case tc.want == "" && (err != nil || string(got.Raw) != data || got.Type != "x.pad"):
+			t.Fatalf("at the cap: %v, %d bytes", err, len(got.Raw))
+		case tc.want != "" && (!errors.As(err, &resync) || resync.Reason != tc.want || got.Raw != nil):
+			t.Fatalf("over the cap: %v", err)
+		}
+	}
+}
+
+// SSE line endings are LF, CRLF or a lone CR, and the space after the field colon is optional.
+func TestWatchLineEndingsAndFieldSpacing(t *testing.T) {
+	snap := snapshot("fresh")
+	for name, body := range map[string]string{
+		"lf":       "id: 1\ndata: " + snap + "\n\n",
+		"crlf":     "id: 1\r\n: c\r\ndata: " + snap + "\r\n\r\n",
+		"cr":       "id: 1\r: c\rdata: " + snap + "\r\r",
+		"no space": "id:1\ndata:" + snap + "\n\n",
+	} {
+		for _, chunk := range []int{1, 7, len(body)} {
+			var got Frame
+			err := New(rawSSEServer(t, body, chunk)).Watch(context.Background(), WatchOptions{}, func(f Frame) bool { got = f; return false })
+			if err != nil || got.Type != "snapshot" || got.ID != "1" {
+				t.Fatalf("%s, chunk %d: %v %+v", name, chunk, err, got)
+			}
+		}
 	}
 }
 

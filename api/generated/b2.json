@@ -1023,7 +1023,7 @@
       "get": {
         "operationId": "events.subscribe",
         "summary": "One supervisor-wide SSE stream; a snapshot first on every attach",
-        "description": "Each SSE `data` field is one `EventFrame` as JSON. The worker never replays: a reconnect gets a fresh\n`snapshot` whose `resync_reason` says why. A subscriber queue that overflows gets `overflow`, then the\nstream closes.\n",
+        "description": "Each SSE `data` field is one `EventFrame` as JSON. The worker never replays: a reconnect gets a fresh\n`snapshot` whose `resync_reason` says why. A subscriber queue that overflows gets `overflow`, then the\nstream closes. One SSE record (its field lines, each with one line-ending byte) is at most 1 MiB\n(1048576 bytes); a client reads lines of any length up to that cap and refuses a longer record as\n`frame_too_large`, never truncating it.\n",
         "tags": [
           "readback"
         ],

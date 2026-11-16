@@ -376,7 +376,9 @@ export interface paths {
          * One supervisor-wide SSE stream; a snapshot first on every attach
          * @description Each SSE `data` field is one `EventFrame` as JSON. The worker never replays: a reconnect gets a fresh
          *     `snapshot` whose `resync_reason` says why. A subscriber queue that overflows gets `overflow`, then the
-         *     stream closes.
+         *     stream closes. One SSE record (its field lines, each with one line-ending byte) is at most 1 MiB
+         *     (1048576 bytes); a client reads lines of any length up to that cap and refuses a longer record as
+         *     `frame_too_large`, never truncating it.
          */
         get: operations["events.subscribe"];
         put?: never;

@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 )
 
+// frameLimit caps one SSE record: the bytes of its field lines, each counted with one line-ending byte. The worker
+// never sends more (api/b2.openapi.yaml, events.subscribe); a longer record is refused, never truncated.
 const frameLimit = 1 << 20
 
 // Frame is one SSE record from the events stream.
@@ -77,35 +79,84 @@ func (c *Client) Watch(ctx context.Context, opts WatchOptions, onFrame func(Fram
 	return readFrames(resp.Body, onFrame)
 }
 
-// readFrames parses text/event-stream records: `id:` and `data:` fields, a blank line ends a record, `:` lines are
-// comments. A record over 1 MiB ends the watch.
+var errLineTooLong = errors.New("b2: SSE line over the frame limit")
+
+// lineReader yields whole SSE lines of any length up to max bytes. Lines end in LF, CRLF or a lone CR. A longer line
+// is an error: it is never cut into pieces that could be parsed as fields.
+type lineReader struct {
+	r         *bufio.Reader
+	max       int
+	line      []byte
+	pendingCR bool
+}
+
+func (l *lineReader) next() ([]byte, error) {
+	if l.pendingCR {
+		// The previous line ended in CR; an LF right after it belongs to the same line ending.
+		l.pendingCR = false
+		if b, err := l.r.Peek(1); err != nil {
+			return nil, err
+		} else if b[0] == '\n' {
+			l.r.Discard(1)
+		}
+	}
+	l.line = l.line[:0]
+	for {
+		if l.r.Buffered() == 0 {
+			if _, err := l.r.Peek(1); err != nil {
+				return nil, err
+			}
+		}
+		buf, _ := l.r.Peek(l.r.Buffered())
+		i := bytes.IndexAny(buf, "\r\n")
+		if i < 0 {
+			if len(l.line)+len(buf) > l.max {
+				return nil, errLineTooLong
+			}
+			l.line = append(l.line, buf...)
+			l.r.Discard(len(buf))
+			continue
+		}
+		if len(l.line)+i > l.max {
+			return nil, errLineTooLong
+		}
+		l.line = append(l.line, buf[:i]...)
+		l.pendingCR = buf[i] == '\r'
+		l.r.Discard(i + 1)
+		return l.line, nil
+	}
+}
+
+// readFrames parses text/event-stream records: `id` and `data` fields (the space after the colon is optional), a
+// blank line ends a record, lines starting with `:` are comments, other fields are ignored. A record over
+// frameLimit ends the watch with frame_too_large.
 func readFrames(body io.Reader, onFrame func(Frame) bool) error {
-	reader := bufio.NewReaderSize(body, 64<<10)
+	lines := &lineReader{r: bufio.NewReaderSize(body, 64<<10), max: frameLimit}
 	var id string
 	var data bytes.Buffer
+	hasData := false
 	size := 0
 	for {
-		line, err := reader.ReadSlice('\n')
-		if errors.Is(err, bufio.ErrBufferFull) {
-			// Keep reading the long line, bounded by the frame limit.
-			size += len(line)
-			if size > frameLimit {
-				return &ResyncRequired{Reason: "frame_too_large"}
-			}
-			data.Write(bytes.TrimPrefix(line, []byte("data: ")))
-			continue
+		line, err := lines.next()
+		if errors.Is(err, errLineTooLong) {
+			return &ResyncRequired{Reason: "frame_too_large"}
 		}
 		if err != nil {
 			return &ResyncRequired{Reason: "disconnected"}
 		}
-		size += len(line)
-		if size > frameLimit {
-			return &ResyncRequired{Reason: "frame_too_large"}
+		if len(line) > 0 {
+			size += len(line) + 1
+			if size > frameLimit {
+				return &ResyncRequired{Reason: "frame_too_large"}
+			}
 		}
-		text := strings.TrimRight(string(line), "\r\n")
+		field, value := string(line), ""
+		if i := strings.IndexByte(field, ':'); i >= 0 {
+			field, value = field[:i], strings.TrimPrefix(field[i+1:], " ")
+		}
 		switch {
-		case text == "":
-			if data.Len() > 0 {
+		case len(line) == 0:
+			if hasData && data.Len() > 0 {
 				raw := json.RawMessage(bytes.Clone(data.Bytes()))
 				event, err := DecodeEvent(raw)
 				if err != nil {
@@ -120,16 +171,17 @@ func readFrames(body io.Reader, onFrame func(Frame) bool) error {
 					return nil
 				}
 			}
-			id, size = "", 0
+			id, size, hasData = "", 0, false
 			data.Reset()
-		case strings.HasPrefix(text, ":"):
-		case strings.HasPrefix(text, "id:"):
-			id = strings.TrimPrefix(strings.TrimPrefix(text, "id:"), " ")
-		case strings.HasPrefix(text, "data:"):
-			if data.Len() > 0 {
+		case field == "": // a comment
+		case field == "id":
+			id = value
+		case field == "data":
+			if hasData {
 				data.WriteByte('\n')
 			}
-			data.WriteString(strings.TrimPrefix(strings.TrimPrefix(text, "data:"), " "))
+			data.WriteString(value)
+			hasData = true
 		}
 	}
 }
