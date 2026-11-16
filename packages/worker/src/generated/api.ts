@@ -355,10 +355,13 @@ export interface paths {
         /**
          * Page the bound session's pi entries
          * @description Raw pi entries on the visible path from the session root to a
-         *     pinned watermark (the current leaf when no watermark is given),
-         *     oldest first. An entry too large for a page is a `too_large`
-         *     stub; read it with `items.read`. History never creates a live
-         *     interaction.
+         *     pinned watermark, oldest first. Without a watermark it pins the
+         *     worker's history marker: the newest entry on pi's selected path
+         *     that is in the session file (never an entry pi has not written;
+         *     a session with nothing written yet reads as an empty page). An
+         *     entry too large for a page is a `too_large` stub; read it with
+         *     `items.read`. History never creates a live interaction. Reading
+         *     an archived session by `session_id` with no worker is P1-14.
          */
         get: operations["history.page"];
         put?: never;

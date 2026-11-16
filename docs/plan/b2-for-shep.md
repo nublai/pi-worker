@@ -68,15 +68,15 @@ saw. "A0" means the method exists in A0's spec and has crash evidence; "new" mea
 | One chat | — | `workers.get` | `GET /b2/workers/{worker_id}` | P1-4 | A0 |
 | Archived sessions, Resume list | `shep.sessions`, `shep.session_info` | `sessions.list` (per cwd, up to 100, title, preview, last activity, stats, per-model cost), `sessions.get` | `GET /b2/sessions`, `GET /b2/sessions/{session_id}` | P1-14 | new |
 | New chat | `shep.conversation.create` | `workers.create` (`cwd`, `model`, `thinking`, `name`, optional `first_prompt`, `command_id`); idempotent by `command_id` | `POST /b2/workers` | P1-4 | A0 + new fields |
-| Resume a saved session | `shep.conversation.create {resume_session}` | "view archived": `history.page` by `session_id`, no worker; "reattach live": `workers.create {resume_session_id}`, refused with the holder when another worker holds it | as above | P1-4; view archived P1-8 | A0 refusal, new split |
+| Resume a saved session | `shep.conversation.create {resume_session}` | "view archived": `history.page` by `session_id`, no worker; "reattach live": `workers.create {resume_session_id}`, refused with the holder when another worker holds it | as above | P1-4; view archived P1-14 (moved from P1-8, 2026-11-16) | A0 refusal, new split |
 | Send | `shep.send` | `sessions.prompt` with `if_busy` (`steer`, `follow_up` or `reject`) and `attachments[]` | `POST /b2/workers/{worker_id}/prompt` | P1-5; `attachments[]` P1-16 | A0 + `if_busy` |
 | Stop | Escape via `agent.send_keys` | `executions.interrupt` (cancel dialogs, clear queued input, abort; reports `settled`, `forced_termination` or `unknown`) | `POST /b2/workers/{worker_id}/interrupt` | P1-5 | A0 |
 | Close chat | `shep.conversation.close` | `workers.stop` (keeps session and environment; reports observed or unknown; `close_stops_work` capability) | `POST /b2/workers/{worker_id}/stop` | P1-4 | A0 |
 | Needs-you cards | screen read, `activity.dialog` | `interactions.list` plus `interactions.changed` events (all four kinds, prefill, options with ids, absolute deadline) | `GET /b2/workers/{worker_id}/interactions` | P1-10 | A0 |
 | Answer a dialog | `shep.dialog_answer {pane_id, dialog_id, answer}` | `interactions.answer_if_current {interaction_id, revision, kind, binding, answer_id, command_id, outcome, value or option_id, actor}` | `POST /b2/workers/{worker_id}/interactions/answer` | P1-10 | A0 |
 | Answer status | — | `interactions.status`, `receipts.get` | `GET …/interactions/status`, `GET /b2/receipts/{command_id}` | P1-10; `receipts.get` P1-2 | A0 |
-| History page | `shep.history` | `history.page` (see section 4) | `GET /b2/sessions/{session_id}/history` | P1-8 | A0, format open (S-1) |
-| Item part, blob | `shep.item`, `shep.blob` | `items.read`, `blobs.read` | `GET …/entries/{entry_id}`, `GET …/entries/{entry_id}/blobs/{index}` | P1-8 | new |
+| History page | `shep.history` | `history.page` (see section 4) | `GET /b2/sessions/{session_id}/history` | P1-8 for a worker's bound session (`GET /b2/workers/{worker_id}/history`); by `session_id` with no worker P1-14 | A0, format open (S-1) |
+| Item part, blob | `shep.item`, `shep.blob` | `items.read`, `blobs.read` | `GET …/entries/{entry_id}`, `GET …/entries/{entry_id}/blobs/{index}` | `items.read` P1-8; `blobs.read` P1-16 (moved from P1-8, 2026-11-16) | new |
 | Photo message | HTTP upload, then `shep.send {photo_message_id}` | `attachments.stage`: a streamed binary upload of one JPEG (`Content-Type: image/jpeg`; SHA-256, `command_id`, worker and binding in headers), up to 2 MiB, never through the 256 KiB JSON path; then `sessions.prompt {attachments}`, up to 4 per message and 8 MiB in total. Limits are in `hello` and equal today's [shep bridge/photos.go:49-55]. Whether the bridge keeps its own copy first is S-4 | `PUT /b2/attachments/{attachment_id}` | P1-16 | new |
 | Photo status | `shep.photo_status` | `attachments.status`, `receipts.get`: after an upload whose response was lost, the bridge reads status by `attachment_id` and never re-uploads | `GET /b2/attachments/{attachment_id}` | P1-16 | new |
 | Composer features | `shep.agent_features` | `models.list`, `commands.list` (per cwd before a worker exists, or per worker), `workers.get` for current model, thinking, name, skills | `GET /b2/models`, `GET /b2/commands` | P1-14 | new |
@@ -111,7 +111,7 @@ under a fence" means `no_effect` naming the uncertain command. After its dispatc
 | `sessions.list`, `sessions.get` | P1-14 | read, grant cwd scope | — | allowed |
 | `models.list`, `commands.list` | P1-14 | read | — | allowed |
 | `events.subscribe` | P1-8 (interaction events P1-10) | read, filtered by grant scope | — | allowed |
-| `history.page`, `items.read`, `blobs.read` | P1-8 | read, grant scope | — | allowed |
+| `history.page`, `items.read`, `blobs.read` | P1-8 (worker-bound `history.page`, `items.read`); P1-14 (archived `history.page`); P1-16 (`blobs.read`) | read, grant scope | — | allowed |
 | `interactions.list`, `interactions.status` | P1-10 | read | — | allowed |
 | `receipts.get` | P1-2 | read; only receipts of workers in scope | — | allowed |
 | `attachments.status` | P1-16 | read | — | allowed |
