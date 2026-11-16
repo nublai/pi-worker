@@ -1,7 +1,8 @@
 /**
  * Client transport classification. The second test is ported from A0 `src/test/transport.test.ts` with every
  * assertion kept; the third keeps the client-side assertions of A0's third test against a fake worker (the
- * supervisor-side ones wait for the event hub in P1-8; see packages/worker/test/PORTED.md).
+ * supervisor-side ones run against the real event hub in packages/worker/test/events.test.ts since P1-8; see
+ * packages/worker/test/PORTED.md).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

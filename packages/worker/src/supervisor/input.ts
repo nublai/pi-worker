@@ -100,6 +100,7 @@ export class Input {
       }
       this.s.refresh(live);
       this.s.persist(live, 'execution.settle');
+      if (w.execution) this.s.events.publish('execution.settled', { worker_id: w.worker_id, execution_id: w.execution.execution_id, data: { disposition: w.execution.disposition ?? 'agent_settled' } });
       setImmediate(() => void this.flush(live));
     }
   }
@@ -143,6 +144,7 @@ export class Input {
         }
         this.s.refresh(live);
         this.s.persist(live, 'execution.reply');
+        if (disposition === 'handled') this.s.events.publish('execution.settled', { worker_id: id, execution_id: w.execution!.execution_id, data: { disposition } });
         const patch: ReceiptPatch = { state: 'delivered', stage: 'forwarded', effect: 'observed', admission: 'accepted', disposition, history_lag: w.history.lag };
         return patch;
       },

@@ -962,12 +962,12 @@
       "get": {
         "operationId": "history.page",
         "summary": "Page the bound session's pi entries",
+        "description": "Raw pi entries on the visible path from the session root to a\npinned watermark (the current leaf when no watermark is given),\noldest first. An entry too large for a page is a `too_large`\nstub; read it with `items.read`. History never creates a live\ninteraction.\n",
         "tags": [
           "readback"
         ],
         "x-piw-mutation": false,
         "x-piw-body": "none",
-        "x-piw-status": "unsupported",
         "parameters": [
           {
             "name": "watermark",
@@ -1006,6 +1006,56 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HistoryPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/entries/{entry_id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        },
+        {
+          "name": "entry_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Id"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "items.read",
+        "summary": "Read one whole pi entry of the bound session",
+        "description": "The full entry a history page stubbed as `too_large`, up to\n1 MiB of its raw line; a longer entry is refused\n`entry_too_large`, `no_effect`. Image bytes are read with\n`blobs.read` (P1-16).\n",
+        "tags": [
+          "readback"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-body": "none",
+        "responses": {
+          "200": {
+            "description": "The entry.",
+            "x-piw-response": "json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryItem"
                 }
               }
             }
@@ -1249,7 +1299,6 @@
         ],
         "x-piw-mutation": false,
         "x-piw-body": "none",
-        "x-piw-status": "unsupported",
         "parameters": [
           {
             "name": "worker_id",
@@ -3084,6 +3133,30 @@
           }
         }
       },
+      "HistoryItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "entry",
+          "bytes",
+          "evidence"
+        ],
+        "properties": {
+          "entry": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The size of the entry's raw line in the session file."
+          },
+          "evidence": {
+            "type": "string",
+            "const": "pi_session_file"
+          }
+        }
+      },
       "FileRead": {
         "type": "object",
         "additionalProperties": false,
@@ -3432,8 +3505,10 @@
                   "new",
                   "fork",
                   "resume",
-                  "navigate"
-                ]
+                  "navigate",
+                  "native"
+                ],
+                "description": "The move. `native` when pi moved on its own and the worker cannot tell which move it was."
               },
               "source": {
                 "type": "string",

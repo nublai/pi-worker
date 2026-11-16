@@ -12,6 +12,8 @@ import type { SessionHost } from '../host/host.js';
 import type { Journal } from '../journal/journal.js';
 import type { DurableLabel } from '../journal/labels.js';
 import { SessionIndex } from '../history/session-index.js';
+import { EventHub } from '../events/hub.js';
+import type { JournalAppended } from '../generated/events.js';
 import type { ReceiptStore } from '../receipts/receipts.js';
 
 export type Worker = components['schemas']['Worker'];
@@ -79,6 +81,8 @@ export class SupervisorState {
   readonly sessionFiles = new Map<string, { file: string; worker_id: string }>();
   /** Sessions a binding change is moving to, before pi reports them. */
   readonly sessionReservations = new Map<string, string>();
+  /** The supervisor-wide event stream; its transport epoch is this start's supervisor epoch. */
+  readonly events: EventHub;
 
   constructor(
     readonly journal: Journal,
@@ -87,6 +91,7 @@ export class SupervisorState {
     readonly stateDir: string,
     readonly factory: HostFactory,
   ) {
+    this.events = new EventHub(supervisorEpoch);
     for (const record of journal.records) {
       if (record.kind !== 'worker') continue;
       // SAFETY: every `worker` record is written by persist() below from a Persisted value, and the journal
@@ -101,8 +106,11 @@ export class SupervisorState {
     if (p.worker.session_id && p.sessionFile) this.sessionFiles.set(p.worker.session_id, { file: p.sessionFile, worker_id: p.worker.worker_id });
   }
 
-  /** Journals the worker record under `label`. */
-  persist(live: Live, label: DurableLabel): void {
+  /**
+   * Journals the worker record under `label`, then publishes the row as `worker.updated` with the append's proof.
+   * Returns that proof for a durable event that depends on this record (session.rebound, fence.resolved).
+   */
+  persist(live: Live, label: DurableLabel): JournalAppended {
     this.catalog(live);
     const record: Persisted = {
       worker: live.worker,
@@ -113,7 +121,21 @@ export class SupervisorState {
       ...(live.resume ? { resume: live.resume } : {}),
     };
     // SAFETY: Persisted is a plain JSON object (no methods, no cycles); the journal stores it as a record value.
-    this.journal.append('worker', record as unknown as Record<string, unknown>, label);
+    const { appended } = this.journal.append('worker', record as unknown as Record<string, unknown>, label);
+    this.published.set(live.worker.worker_id, JSON.stringify(live.worker));
+    this.events.publish('worker.updated', { worker_id: live.worker.worker_id, execution_id: live.worker.execution?.execution_id ?? null, data: { worker: this.view(live) }, appended });
+    return appended;
+  }
+
+  /** The last row published per worker, so a read that changes a derived field publishes it once (in memory). */
+  private readonly published = new Map<string, string>();
+
+  /** Publishes the row as an in-memory `worker.updated` when it differs from the last published one. */
+  publishChanged(live: Live): void {
+    const row = JSON.stringify(live.worker);
+    if (this.published.get(live.worker.worker_id) === row) return;
+    this.published.set(live.worker.worker_id, row);
+    this.events.publish('worker.updated', { worker_id: live.worker.worker_id, execution_id: live.worker.execution?.execution_id ?? null, data: { worker: this.view(live) } });
   }
 
   require(id: string): Live {

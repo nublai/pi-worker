@@ -8,7 +8,7 @@ import { chmodSync, lstatSync, unlinkSync } from 'node:fs';
 import { connect } from 'node:net';
 import { dirname, isAbsolute } from 'node:path';
 import { acquireLock } from '../lock.js';
-import type { B2Request, RequestHandler } from './router.js';
+import type { B2Request, B2Stream, RequestHandler, StreamSink } from './router.js';
 
 function headersOf(req: IncomingMessage): Record<string, string | undefined> {
   const out: Record<string, string | undefined> = {};
@@ -27,12 +27,35 @@ function send(res: ServerResponse, status: number, body: unknown): void {
   res.end(text);
 }
 
+/** Starts an SSE response: headers now, then one validated record per hub frame until the hub or the peer ends it. */
+function stream(res: ServerResponse, b2: B2Stream): void {
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'close', 'X-Accel-Buffering': 'no' });
+  res.flushHeaders();
+  let ended = false;
+  const sink: StreamSink = {
+    write: record => (res.destroyed || ended ? false : res.write(record)),
+    end: () => {
+      if (ended) return;
+      ended = true;
+      res.end();
+      // A peer that never drains cannot keep even the final bounded transport buffer forever.
+      setTimeout(() => {
+        if (!res.destroyed) res.destroy();
+      }, 1000).unref();
+    },
+    destroy: () => res.destroy(),
+    onDrain: listener => res.on('drain', listener),
+    onClose: listener => res.once('close', listener),
+  };
+  b2.sse(sink);
+}
+
 /** An HTTP server that answers every request through `handle`. One request per connection (no keep-alive). */
 export function createB2Server(handle: RequestHandler): Server {
   const server = createServer((req, res) => {
     const request: B2Request = { method: req.method ?? 'GET', url: req.url ?? '/', headers: headersOf(req), body: req };
     handle(request).then(
-      response => send(res, response.status, response.body),
+      response => (response.stream ? stream(res, response.stream) : send(res, response.status, response.body)),
       () => {
         // handle() turns every failure into a validated reply; reaching here means the reply itself failed.
         if (res.headersSent) res.destroy();

@@ -24,6 +24,22 @@ export function createMemoryTransport(handle: RequestHandler): MemoryTransport {
       }
       if (body) headers['content-length'] ??= String(body.byteLength);
       const response = await handle({ method, url, headers, ...(body ? { body } : {}) });
+      if (response.stream) {
+        // Embedded SSE: the frames the stream writes synchronously at attach (its snapshot, then anything queued),
+        // then the stream is closed. The body is the list of frames, each the JSON of its `data` line.
+        const records: string[] = [];
+        const closers: (() => void)[] = [];
+        response.stream.sse({
+          write: record => (records.push(record), true),
+          end: () => {},
+          destroy: () => {},
+          onDrain: () => {},
+          onClose: listener => closers.push(listener),
+        });
+        for (const close of closers) close();
+        const frames = records.map(r => JSON.parse(r.split('\n').find(l => l.startsWith('data: '))!.slice(6)) as unknown);
+        return { status: response.status, body: frames };
+      }
       // Same bytes a socket client would see: a JSON round trip, so no object identity leaks across.
       return { status: response.status, body: JSON.parse(JSON.stringify(response.body)) };
     },

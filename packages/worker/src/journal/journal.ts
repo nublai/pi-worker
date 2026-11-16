@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
 import { durable } from './fsync.js';
 import type { DurableLabel } from './labels.js';
+import type { JournalAppended } from '../generated/events.js';
 
 export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement'] as const;
 export type JournalKind = (typeof JOURNAL_KINDS)[number];
@@ -104,7 +105,7 @@ export class Journal {
    * command's own final record); other appends must fit beside every reservation. Any failure marks the journal
    * failed. A closed journal refuses, so a late callback of a discarded supervisor never writes.
    */
-  append(kind: JournalKind, value: Record<string, unknown>, label: DurableLabel, reservation?: string): JournalRecord {
+  append(kind: JournalKind, value: Record<string, unknown>, label: DurableLabel, reservation?: string): JournalRecord & { appended: JournalAppended } {
     if (this.closed) throw new Error('journal closed; late callback has no write authority');
     if (this.failed) throw new Error('journal failed; supervisor fenced globally');
     const record = structuredClone({ seq: this.records.length + 1, kind, value }) as JournalRecord;
@@ -116,7 +117,8 @@ export class Journal {
       while (offset < data.length) offset += writeSync(this.fd, data, offset, data.length - offset);
       durable(this.fd, label);
       this.records.push(record);
-      return record;
+      // The proof a durable event needs (generated/events.ts): only a fsynced append creates one.
+      return { ...record, appended: { fsynced: true, label } };
     } catch (error) {
       this.failed = true;
       throw error;

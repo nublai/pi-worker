@@ -73,7 +73,11 @@ export class Bindings {
       w.foreground = w.fence ? 'unknown' : 'idle';
     }
     this.s.refresh(live);
-    this.s.persist(live, 'binding.native');
+    const appended = this.s.persist(live, 'binding.native');
+    if (initialized) {
+      const action = event.action === 'tree' ? 'navigate' : 'native';
+      this.s.events.publish('session.rebound', { worker_id: w.worker_id, execution_id: null, data: { session_id: w.session_id, binding_revision: w.binding_revision, action, source: 'native' }, appended });
+    }
   }
 
   /** After a native move that never bound: bind what pi reports now, or fault (stop stays available). */
@@ -148,7 +152,8 @@ export class Bindings {
           w.foreground = 'idle';
           live.observedIdle = true;
           this.s.refresh(live);
-          this.s.persist(live, 'binding.rebind');
+          const appended = this.s.persist(live, 'binding.rebind');
+          this.s.events.publish('session.rebound', { worker_id: id, execution_id: null, data: { session_id: w.session_id, binding_revision: w.binding_revision, action: b.action }, appended });
           return { state: 'delivered', stage: 'forwarded', effect: 'observed', result: { session_id: w.session_id, binding_revision: w.binding_revision } };
         } finally {
           live.rebinding = false;

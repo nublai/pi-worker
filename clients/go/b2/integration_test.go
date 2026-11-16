@@ -90,8 +90,9 @@ func TestIntegrationHelloAnd501(t *testing.T) {
 	if !errors.As(err, &f) || f.Status != 400 || f.Effect != NoEffect || f.Body.Error != "request_schema_mismatch" {
 		t.Fatalf("invalid prompt: %v", err)
 	}
-	var resync *ResyncRequired
-	if err := c.Watch(ctx, WatchOptions{}, func(Frame) bool { return false }); !errors.As(err, &resync) || resync.Status != 501 {
-		t.Fatalf("watch: %v", err)
+	// events.subscribe is served from P1-8: the first frame is a fresh snapshot.
+	var first Frame
+	if err := c.Watch(ctx, WatchOptions{}, func(frame Frame) bool { first = frame; return false }); err != nil || first.Type != "snapshot" {
+		t.Fatalf("watch: %v %+v", err, first)
 	}
 }
