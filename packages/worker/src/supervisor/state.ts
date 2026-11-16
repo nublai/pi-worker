@@ -189,9 +189,10 @@ export class SupervisorState {
       live.worker.session_identity_evidence = 'pi_session_file';
     }
     live.worker.leaf_id = live.index.leafId;
+    // The history marker is the verified file watermark, never an SDK leaf pi has not written; such a leaf is lag.
     live.worker.history = {
-      last_entry_id: live.index.leafId,
-      lag: live.worker.foreground !== 'idle' || live.completedMessages > live.index.messageEntries,
+      last_entry_id: live.index.watermark,
+      lag: live.worker.foreground !== 'idle' || live.completedMessages > live.index.messageEntries || live.index.pending,
       evidence: 'pi_session_file',
     };
   }

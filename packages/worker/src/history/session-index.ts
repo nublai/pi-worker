@@ -35,8 +35,20 @@ export class SessionIndex {
   private ino = -1;
   private leaf: string | null = null;
   private activeLeaf: string | null | undefined;
+  /** The newest SDK-selected leaf seen in the file (null until one is). */
+  private verified: string | null = null;
   /** Native SDK selection is authoritative; appending is not navigation. */
-  setActiveLeaf(id: string | null): void { this.activeLeaf = id; }
+  setActiveLeaf(id: string | null): void {
+    this.activeLeaf = id;
+    this.verify();
+  }
+
+  /** Moves the verified watermark to pi's selection once that entry is in the file; drops one the file lost. */
+  private verify(): void {
+    if (this.activeLeaf === null) this.verified = null;
+    else if (this.activeLeaf !== undefined && this.byId.has(this.activeLeaf)) this.verified = this.activeLeaf;
+    else if (this.verified !== null && !this.byId.has(this.verified)) this.verified = null;
+  }
   private messages = 0;
   private readonly rawLimit: number;
   file: string | null;
@@ -51,8 +63,22 @@ export class SessionIndex {
     return openSync(this.file!, 'r');
   }
 
+  /** pi's selected leaf (memory): it may run ahead of the file, which pi writes only once there is a conversation. */
   get leafId(): string | null {
     return this.activeLeaf === undefined ? this.leaf : this.activeLeaf;
+  }
+
+  /**
+   * The history watermark: the newest entry on pi's selected path that is known to be in the session file. Without
+   * an SDK selection, the file's last entry. Never an entry pi has not written.
+   */
+  get watermark(): string | null {
+    return this.activeLeaf === undefined ? this.leaf : this.verified;
+  }
+
+  /** pi selected an entry the file does not have yet: history is behind pi (lag). */
+  get pending(): boolean {
+    return typeof this.activeLeaf === 'string' && !this.byId.has(this.activeLeaf);
   }
   /** Message entries indexed so far (persisted `message_end`s). */
   get messageEntries(): number {
@@ -74,7 +100,9 @@ export class SessionIndex {
     try {
       fd = this.openFile();
     } catch {
+      // No file yet (pi writes it at the first message) or it went away: nothing is verified in it.
       this.reset();
+      this.verify();
       return;
     }
     try {
@@ -87,6 +115,7 @@ export class SessionIndex {
     } finally {
       closeSync(fd);
     }
+    this.verify();
   }
 
   private scan(fd: number, size: number): void {
@@ -207,13 +236,13 @@ export class SessionIndex {
   }
 
   /**
-   * One page of history. `cursor: null` pins the watermark at the current leaf. Errors are
-   * returned as text for a `bad_request`.
+   * One page of history. `cursor: null` pins the verified watermark (an empty transcript reads as an empty page).
+   * Errors are returned as text for a `bad_request`.
    */
   page(cursor: HistoryCursor | null, limit: number): HistoryPage | { error: string } {
     this.refresh();
-    const watermark = cursor === null ? this.leafId : cursor.watermark;
-    const leafId = this.leafId;
+    const watermark = cursor === null ? this.watermark : cursor.watermark;
+    const leafId = this.watermark;
     if (watermark === null) return { entries: [], watermark: null, next: null, leafId, truncated: false, evidence: 'pi_session_file' };
     const path = this.path(watermark);
     if (path === null) return { error: `unknown watermark ${watermark}` };
