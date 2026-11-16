@@ -1,0 +1,21 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index 7a68f29..558b6c7 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -85,7 +85,6 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+    * the same refusal for a missing worker as for one outside its scope, so it cannot probe for other workers.
+    */
+   const inScope = (caller: Caller | undefined, id: string): void => {
+-    if (!seesAll(caller) && !visible(caller, id)) throw new Refusal('grant_scope_denied');
+     const w = worker(id);
+     if (!caller || !allowsWorker(caller, w)) throw new Refusal('grant_scope_denied');
+   };
+@@ -144,7 +143,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+       if (types?.some(t => !(t in eventManifest))) throw new Refusal('unknown_event_type', 'no_effect', undefined, {}, 400);
+       const workerIds = query.worker_id?.split(',');
+       // A scoped grant naming a missing worker is refused exactly like one naming a worker outside its scope.
+-      for (const id of workerIds ?? []) if ((s.state.workers.has(id) || !seesAll(caller)) && !visible(caller, id)) throw new Refusal('grant_scope_denied');
++      for (const id of workerIds ?? []) if (s.state.workers.has(id) && !visible(caller, id)) throw new Refusal('grant_scope_denied');
+       const grants = options.grants;
+       return {
+         sse: sink => {

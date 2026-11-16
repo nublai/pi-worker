@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, ClientFailure } from '@nublai/pi-worker-client';
 import { createApp } from '../src/b2/app.js';
+import { createMemoryTransport } from '../src/b2/memory.js';
 import { Refusal } from '../src/b2/errors.js';
 import { createB2Server, listenPrivate } from '../src/b2/server.js';
 import { authority } from '../src/grants/authority.js';
@@ -299,6 +300,35 @@ test('grants: a revoked grant ends its event stream at the next frame, with no f
     assert.equal(f.supervisor.events.size, 0);
   } finally {
     await s.close();
+    f.cleanup();
+  }
+});
+
+test('grants: a scoped grant cannot tell a worker outside its scope from a missing one (worker routes and filtered streams)', async () => {
+  const f = fixture();
+  try {
+    const a = await f.create();
+    const b = await f.create();
+    const grants = f.supervisor.state.grants!;
+    const { token } = grants.register({ caller: 'scoped', grant_id: 'scoped', scope: { worker_ids: [a.worker_id], cwd_roots: [] }, methods: ['*'] });
+    const api = createMemoryTransport(createApp({ supervisor: f.supervisor, grants }).handle, { authorization: `Bearer ${token}` });
+    const missing = 'no-such-worker';
+    for (const path of ['', '/history', '/interactions']) {
+      const other = await api.request('GET', `/b2/workers/${b.worker_id}${path}`);
+      const absent = await api.request('GET', `/b2/workers/${missing}${path}`);
+      assert.equal(absent.status, other.status, path);
+      assert.deepEqual(absent.body, other.body, `${path}: the same refusal for a missing and an out-of-scope worker`);
+      assert.deepEqual(other.body, { error: 'grant_scope_denied', effect: 'no_effect' });
+    }
+    const otherStream = await api.request('GET', `/b2/events?worker_id=${b.worker_id}`);
+    const absentStream = await api.request('GET', `/b2/events?worker_id=${missing}`);
+    assert.equal(absentStream.status, otherStream.status);
+    assert.deepEqual(absentStream.body, otherStream.body);
+    // A grant over every worker learns nothing from the difference: it still gets unknown_worker.
+    const { token: all } = grants.register({ caller: 'all', grant_id: 'all', scope: { worker_ids: ['*'], cwd_roots: [] }, methods: ['*'] });
+    const wide = createMemoryTransport(createApp({ supervisor: f.supervisor, grants }).handle, { authorization: `Bearer ${all}` });
+    assert.deepEqual((await wide.request('GET', `/b2/workers/${missing}`)).body, { error: 'unknown_worker', effect: 'no_effect' });
+  } finally {
     f.cleanup();
   }
 });

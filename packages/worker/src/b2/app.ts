@@ -78,8 +78,14 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     const live = options.supervisor?.state.workers.get(id);
     return !!caller && !!live && allowsWorker(caller, live.worker);
   };
-  /** Every route with a worker in its path: the worker must exist and be in the caller's scope. */
+  /** A grant over every worker learns nothing from telling a missing worker from an existing one. */
+  const seesAll = (caller: Caller | undefined): boolean => !!caller?.scope.worker_ids.includes('*');
+  /**
+   * Every route with a worker in its path: the worker must exist and be in the caller's scope. A scoped grant gets
+   * the same refusal for a missing worker as for one outside its scope, so it cannot probe for other workers.
+   */
   const inScope = (caller: Caller | undefined, id: string): void => {
+    if (!seesAll(caller) && !visible(caller, id)) throw new Refusal('grant_scope_denied');
     const w = worker(id);
     if (!caller || !allowsWorker(caller, w)) throw new Refusal('grant_scope_denied');
   };
@@ -137,7 +143,8 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
       const types = query.types?.split(',');
       if (types?.some(t => !(t in eventManifest))) throw new Refusal('unknown_event_type', 'no_effect', undefined, {}, 400);
       const workerIds = query.worker_id?.split(',');
-      for (const id of workerIds ?? []) if (s.state.workers.has(id) && !visible(caller, id)) throw new Refusal('grant_scope_denied');
+      // A scoped grant naming a missing worker is refused exactly like one naming a worker outside its scope.
+      for (const id of workerIds ?? []) if ((s.state.workers.has(id) || !seesAll(caller)) && !visible(caller, id)) throw new Refusal('grant_scope_denied');
       const grants = options.grants;
       return {
         sse: sink => {
