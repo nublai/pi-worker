@@ -16,6 +16,7 @@ import type { components } from '../generated/api.js';
 import { ProvenNoEffect, Refusal } from '../b2/errors.js';
 import type { Journal } from '../journal/journal.js';
 import type { DurableLabel } from '../journal/labels.js';
+import { recheck } from '../grants/authority.js';
 
 export type Receipt = components['schemas']['Receipt'];
 export type Operation = Receipt['operation'];
@@ -168,6 +169,9 @@ export class ReceiptStore {
           throw error;
         }
         try {
+          // The caller's grant is rechecked at dispatch, after the intent and before any effect: a revocation since the
+          // request arrived (or since a queued item was admitted) ends the command rejected `no_effect`.
+          recheck();
           const patch = await effect(intent);
           const current = this.all.get(commandId)!;
           // An exit may have finalized an accepted command while the effect awaited.

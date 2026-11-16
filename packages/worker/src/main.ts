@@ -7,6 +7,7 @@ import { createB2Server, listenPrivate } from './b2/server.js';
 import { resolvePaths } from './config.js';
 import { pinnedPiVersion, SdkHost } from './host/host.js';
 import { openState } from './journal/state.js';
+import { GrantStore } from './grants/store.js';
 import { ReceiptStore } from './receipts/receipts.js';
 import { Supervisor } from './supervisor/supervisor.js';
 
@@ -44,7 +45,9 @@ const supervisor = new Supervisor({
 // Recovery before the socket listens: undispatched intents become intent_recovered, dispatched ones outcome_unknown,
 // and every worker that held a session is cleanup_pending with its old pi process group killed. No replay.
 await supervisor.recover();
-const app = createApp({ supervisorId: state.supervisorId, supervisorEpoch: state.supervisorEpoch, piVersion: pinnedPiVersion(), supervisor });
+// Every request needs a bearer grant registered by the owner with the local `grant` command (src/grant.ts).
+const grants = new GrantStore(paths.stateDir);
+const app = createApp({ supervisorId: state.supervisorId, supervisorEpoch: state.supervisorEpoch, piVersion: pinnedPiVersion(), supervisor, grants });
 const server = createB2Server(app.handle);
 await listenPrivate(server, paths.socketPath);
 console.error(JSON.stringify({ event: 'listening', socket: paths.socketPath, pid: process.pid }));

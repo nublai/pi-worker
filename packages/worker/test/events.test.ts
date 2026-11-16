@@ -14,17 +14,20 @@ import { EventHub, FRAME_BYTES, QUEUE_BYTES, QUEUE_EVENTS, type Snapshot } from 
 import { validateEventFrame, type EventFrame, type EventOf } from '../src/generated/events.js';
 import type { Worker } from '../src/supervisor/state.js';
 import { bind, fixture, tick, type Fixture } from './supervisor-fixture.js';
-import { sseRecords, type SseRecord } from './helpers.js';
+import { ownerGrant, sseRecords, type SseRecord } from './helpers.js';
 
 type Frame = EventFrame;
 const settled = (w: Worker, disposition: string) => ({ worker_id: w.worker_id, execution_id: 'x', data: { disposition } });
 
-async function serve(f: Fixture): Promise<{ socket: string; close: () => Promise<void> }> {
-  const server = createB2Server(createApp({ supervisor: f.supervisor, piVersion: '1.5.2' }).handle);
+async function serve(f: Fixture): Promise<{ socket: string; grantFile: string; headers: Record<string, string>; close: () => Promise<void> }> {
+  const owner = ownerGrant(f.dir);
+  const server = createB2Server(createApp({ supervisor: f.supervisor, piVersion: '1.5.2', grants: owner.grants }).handle);
   const socket = join(f.dir, 'b2.sock');
   await listenPrivate(server, socket);
   return {
     socket,
+    grantFile: owner.file,
+    headers: owner.headers,
     close: () =>
       new Promise<void>(r => {
         server.closeAllConnections();
@@ -181,7 +184,7 @@ test('events: public client retains no_effect HTTP detail and the supervisor-wid
   const s = await serve(f);
   try {
     const w = await f.create();
-    const client = new Client({ socketPath: s.socket });
+    const client = new Client({ socketPath: s.socket, grantFile: s.grantFile });
     await assert.rejects(
       client.call('sessions.prompt', { path: { worker_id: w.worker_id }, body: { ...bind(w, 'stale'), binding_revision: 50, message: 'no' } }),
       (e: unknown) => e instanceof ClientFailure && e.phase === 'http' && e.effect === 'no_effect' && e.details.received_binding_revision === 50,
@@ -246,14 +249,24 @@ test('events: an invalid frame is never sent; its subscribers get overflow, the 
     );
     assert.equal(f.supervisor.events.size, 0);
     const onB: SseRecord[] = [];
-    const watchB = sseRecords(s.socket, `/b2/events?worker_id=${b.worker_id}`, r => {
-      onB.push(r);
-      return onB.length < 2;
-    });
-    const seen = await sseRecords(s.socket, `/b2/events?worker_id=${a.worker_id}`, record => {
-      if (record.event === 'snapshot') f.supervisor.events.publish('worker.updated', { worker_id: a.worker_id, execution_id: null, data: { worker: bad } });
-      return true;
-    });
+    const watchB = sseRecords(
+      s.socket,
+      `/b2/events?worker_id=${b.worker_id}`,
+      r => {
+        onB.push(r);
+        return onB.length < 2;
+      },
+      s.headers,
+    );
+    const seen = await sseRecords(
+      s.socket,
+      `/b2/events?worker_id=${a.worker_id}`,
+      record => {
+        if (record.event === 'snapshot') f.supervisor.events.publish('worker.updated', { worker_id: a.worker_id, execution_id: null, data: { worker: bad } });
+        return true;
+      },
+      s.headers,
+    );
     assert.equal(seen.status, 200);
     assert.equal(seen.contentType, 'text/event-stream');
     assert.deepEqual(
@@ -303,11 +316,16 @@ test('events: every frame a scenario produces validates against its schema, and 
     const records: SseRecord[] = [];
     let attached!: () => void;
     const snapshot = new Promise<void>(r => (attached = r));
-    const watching = sseRecords(s.socket, '/b2/events', record => {
-      records.push(record);
-      if (record.event === 'snapshot') attached();
-      return !(record.event === 'worker.updated' && record.data.includes('"status":"stopped"'));
-    });
+    const watching = sseRecords(
+      s.socket,
+      '/b2/events',
+      record => {
+        records.push(record);
+        if (record.event === 'snapshot') attached();
+        return !(record.event === 'worker.updated' && record.data.includes('"status":"stopped"'));
+      },
+      s.headers,
+    );
     await snapshot;
     await f.supervisor.prompt(id, { ...bind(w, 'turn'), message: 'hello' });
     f.hosts[0]!.emit('event', { type: 'agent_settled' });
@@ -347,13 +365,13 @@ test('events: the stream refuses an unknown event type or a malformed Last-Event
   const s = await serve(f);
   try {
     await f.create();
-    const unknown = await sseRecords(s.socket, '/b2/events?types=chosen');
+    const unknown = await sseRecords(s.socket, '/b2/events?types=chosen', undefined, s.headers);
     assert.equal(unknown.status, 400);
     assert.deepEqual(unknown.body, { error: 'unknown_event_type', effect: 'no_effect' });
-    const cursor = await sseRecords(s.socket, '/b2/events', undefined, { 'Last-Event-ID': '{"transport_epoch":1}' });
+    const cursor = await sseRecords(s.socket, '/b2/events', undefined, { ...s.headers, 'Last-Event-ID': '{"transport_epoch":1}' });
     assert.equal(cursor.status, 400);
     assert.deepEqual(cursor.body, { error: 'invalid_last_event_id', effect: 'no_effect' });
-    const resumed = await sseRecords(s.socket, '/b2/events', () => false, { 'Last-Event-ID': JSON.stringify({ transport_epoch: 'older-start', seq: 4 }) });
+    const resumed = await sseRecords(s.socket, '/b2/events', () => false, { ...s.headers, 'Last-Event-ID': JSON.stringify({ transport_epoch: 'older-start', seq: 4 }) });
     assert.equal((JSON.parse(resumed.records[0]!.data) as Snapshot).resync_reason, 'epoch');
   } finally {
     await s.close();

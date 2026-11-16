@@ -78,6 +78,17 @@
         "p1-8-snapshot-not-validated.diff",
         "p1-8-unbounded-queue.diff"
       ]
+    },
+    "grants": {
+      "command": "npm test -- grants",
+      "diffs": [
+        "p1-9-no-bearer-check.diff",
+        "p1-9-bearer-stored-in-registry.diff",
+        "p1-9-no-scope-check.diff",
+        "p1-9-queued-dispatch-skips-grant.diff",
+        "p1-9-no-recheck-at-dispatch.diff",
+        "p1-9-stream-ignores-revocation.diff"
+      ]
     }
   }
 }

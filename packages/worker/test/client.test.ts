@@ -6,15 +6,16 @@ import { Client, ClientFailure } from '@nublai/pi-worker-client';
 import { createApp } from '../src/b2/app.js';
 import { createB2Server, listenPrivate } from '../src/b2/server.js';
 import { response_hello_200 } from '../src/generated/validators.js';
-import { privateTmp } from './helpers.js';
+import { ownerGrant, privateTmp } from './helpers.js';
 
 test('client-ts: hello succeeds and an unsupported operation is an HTTP 501 no_effect refusal', async () => {
   const tmp = privateTmp();
-  const server = createB2Server(createApp().handle);
+  const owner = ownerGrant(tmp.dir);
+  const server = createB2Server(createApp({ grants: owner.grants }).handle);
   try {
     const socketPath = join(tmp.dir, 'b2.sock');
     await listenPrivate(server, socketPath);
-    const client = new Client({ socketPath });
+    const client = new Client({ socketPath, grantFile: owner.file });
     const hello = await client.hello();
     assert.equal(response_hello_200(hello), true);
     // files.read stays unsupported until P2-4.

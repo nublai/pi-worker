@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/receipts/receipts.ts b/packages/worker/src/receipts/receipts.ts
+index a49fa37..f7ae383 100644
+--- a/packages/worker/src/receipts/receipts.ts
++++ b/packages/worker/src/receipts/receipts.ts
+@@ -171,7 +171,7 @@ export class ReceiptStore {
+         try {
+           // The caller's grant is rechecked at dispatch, after the intent and before any effect: a revocation since the
+           // request arrived (or since a queued item was admitted) ends the command rejected `no_effect`.
+-          recheck();
++          void recheck;
+           const patch = await effect(intent);
+           const current = this.all.get(commandId)!;
+           // An exit may have finalized an accepted command while the effect awaited.

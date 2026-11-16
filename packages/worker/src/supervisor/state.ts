@@ -15,6 +15,7 @@ import { SessionIndex } from '../history/session-index.js';
 import { EventHub } from '../events/hub.js';
 import type { JournalAppended } from '../generated/events.js';
 import type { ReceiptStore } from '../receipts/receipts.js';
+import type { Guard } from '../grants/authority.js';
 
 export type Worker = components['schemas']['Worker'];
 export type Create = components['schemas']['Create'];
@@ -28,6 +29,8 @@ export type Control = components['schemas']['Control'];
 export interface Queued {
   readonly operation: 'sessions.prompt' | 'sessions.follow_up';
   readonly request: Prompt | FollowUp;
+  /** The grant of the request that admitted it, rechecked when it dispatches (P1-9). */
+  readonly guard?: Guard;
 }
 
 /** What a worker record carries besides the B2 row: never prompt or answer text. */

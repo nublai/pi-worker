@@ -17,6 +17,14 @@ state="$HOME/.local/state/pi-worker-p0"
 uid=$(id -u)
 cgroup="/sys/fs/cgroup/user.slice/user-$uid.slice/user@$uid.service/app.slice/$unit.service"
 
+# Every B2 request needs a bearer grant (P1-9): register one by local file access before the daemon starts.
+# The bearer stays out of the evidence directory ($run) and is deleted when the journey ends.
+grant_file="$(dirname "$state")/p0-hello.grant.json"
+rm -f "$grant_file"
+trap 'rm -f "$grant_file"' EXIT
+PIW_STATE_DIR="$state" "$node_dir/bin/node" "$repo/packages/worker/dist/src/grant.js" register --caller p0-hello --out "$grant_file" >/dev/null
+export PIW_GRANT_FILE="$grant_file"
+
 systemd-run --user --unit="$unit" -p Delegate=yes -p Type=exec --collect \
   --setenv=PIW_SOCKET="$socket" --setenv=PIW_STATE_DIR="$state" \
   "$node_dir/bin/node" "$repo/packages/worker/dist/src/main.js" >/dev/null

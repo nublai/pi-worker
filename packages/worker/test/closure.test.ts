@@ -11,9 +11,16 @@ import { validateEventFrame } from '../src/generated/events.js';
 import { error as validateError } from '../src/generated/validators.js';
 import { join } from 'node:path';
 import { createB2Server, listenPrivate } from '../src/b2/server.js';
-import { bundledSpec, privateTmp, socketRaw, specOperationIds, urlFor, wireFixtures, type WireFixture } from './helpers.js';
+import { after } from 'node:test';
+import { bundledSpec, ownerGrant, privateTmp, socketRaw, specOperationIds, urlFor, wireFixtures, type WireFixture } from './helpers.js';
 
 const table: Record<string, Route> = routes;
+// Every B2 request needs a bearer (P1-9): these closure checks run as the owner.
+const grantDir = privateTmp();
+after(() => grantDir.cleanup());
+const owner = ownerGrant(grantDir.dir);
+const auth = owner.headers;
+const app = (options: Parameters<typeof createApp>[0] = {}) => createApp({ grants: owner.grants, ...options });
 const binding = { command_id: 'cmd-1', worker_epoch: 'epoch-1', session_id: 'session-1', binding_revision: 1 };
 
 function send(handle: RequestHandler, operationId: string, request: WireFixture['request']) {
@@ -22,7 +29,7 @@ function send(handle: RequestHandler, operationId: string, request: WireFixture[
     request.bodyBase64 !== undefined
       ? { raw: Buffer.from(request.bodyBase64, 'base64'), headers: request.headers ?? {} }
       : { headers: request.headers ?? {}, ...(request.body === undefined ? {} : { json: request.body }) };
-  return createMemoryTransport(handle).request(route.method, urlFor(route.path, request), init);
+  return createMemoryTransport(handle, auth).request(route.method, urlFor(route.path, request), init);
 }
 
 /** A route table where sessions.prompt is served, to exercise mutation rules before any mutation is built. */
@@ -37,7 +44,7 @@ test('closure: every spec operation is routed (its handler when served, 501 no_e
   // Served operations need supervisor state; this embedded router has none, so a served operation answers hello's
   // 200 or `409 supervisor_state_unavailable`, both from its handler. Each served operation's own test replays its
   // wire fixtures against real state (receipts-get.test.ts, and the supervisor tests from P1-4).
-  const { handle } = createApp();
+  const { handle } = app();
   const fixtures = new Map(wireFixtures().map(f => [f.operationId, f.fixture]));
   for (const operationId of specOperationIds()) {
     const route = table[operationId];
@@ -52,7 +59,7 @@ test('closure: every spec operation is routed (its handler when served, 501 no_e
 test('closure: every route is in the spec and every served operation has a handler', () => {
   assert.deepEqual(Object.keys(table).sort(), specOperationIds().sort());
   const served = Object.values(table).filter(r => r.supported).map(r => r.operationId);
-  assert.deepEqual(Object.keys(createApp().handlers).sort(), served.sort());
+  assert.deepEqual(Object.keys(app().handlers).sort(), served.sort());
 });
 
 test('closure: every operation has at least one wire fixture, and every fixture names an operation', () => {
@@ -116,7 +123,7 @@ test('closure: a mutation whose response fails its schema is 500 unknown naming 
 
 test('closure: a refusal status the operation does not declare is a response_schema_mismatch', async () => {
   const handlers: Handlers = {
-    ...createApp().handlers,
+    ...app().handlers,
     hello: () => {
       throw new Refusal('teapot', 'no_effect', undefined, {}, 418);
     },
@@ -172,6 +179,7 @@ test('closure: malformed requests are refused no_effect before any handler runs'
 const MiB = 1024 * 1024;
 const attachment = '/b2/attachments/photo-1';
 const attachmentHeaders = (extra: Record<string, string> = {}) => ({
+  ...auth,
   'content-type': 'image/jpeg',
   'piw-command-id': 'cmd-a',
   'piw-worker-id': 'w1',
@@ -209,7 +217,7 @@ test('closure: every operation declares its body and response modes, and the spe
 });
 
 test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE frame cap)', async () => {
-  const hello = await createMemoryTransport(createApp().handle).request('GET', '/b2/hello');
+  const hello = await createMemoryTransport(app().handle, auth).request('GET', '/b2/hello');
   assert.equal(hello.status, 200);
   const limits = (hello.body as { limits: Record<string, number> }).limits;
   assert.deepEqual(limits, {
@@ -222,7 +230,7 @@ test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE
 });
 
 test('closure: a 1 MiB body reaches the binary route (its 501), the same body to a JSON route is 413', async () => {
-  const memory = createMemoryTransport(createApp().handle);
+  const memory = createMemoryTransport(app().handle, auth);
   const oneMiB = Buffer.alloc(MiB, 0xff);
   const binary = await memory.request('PUT', attachment, { raw: oneMiB, headers: attachmentHeaders() });
   assert.deepEqual(binary, { status: 501, body: { error: 'operation_not_implemented', effect: 'no_effect' } });
@@ -231,7 +239,7 @@ test('closure: a 1 MiB body reaches the binary route (its 501), the same body to
 });
 
 test('closure: binary body modes refuse over-limit bodies, wrong media types and bad headers no_effect', async () => {
-  const memory = createMemoryTransport(createApp().handle);
+  const memory = createMemoryTransport(app().handle, auth);
   const limit = table['attachments.stage']!.maxBodyBytes;
   const cases: [string, Promise<{ status: number; body: unknown }>, number, string][] = [
     ['at the limit', memory.request('PUT', attachment, { raw: Buffer.alloc(limit), headers: attachmentHeaders() }), 501, 'operation_not_implemented'],
@@ -280,7 +288,7 @@ test('closure: a served binary route hands its handler the counted stream; the b
 
 test('closure: over the Unix socket, 1 MiB reaches the binary 501, a JSON MiB is 413, a chunked body past the binary limit is 413', async () => {
   const tmp = privateTmp();
-  const server = createB2Server(createApp().handle);
+  const server = createB2Server(app().handle);
   try {
     const socket = join(tmp.dir, 'b2.sock');
     await listenPrivate(server, socket);
@@ -289,7 +297,7 @@ test('closure: over the Unix socket, 1 MiB reaches the binary 501, a JSON MiB is
     assert.deepEqual(binary, { status: 501, body: { error: 'operation_not_implemented', effect: 'no_effect' } });
     const chunked = await socketRaw(socket, 'PUT', attachment, attachmentHeaders(), Buffer.alloc(MiB, 1));
     assert.equal(chunked.status, 501);
-    const json = await socketRaw(socket, 'POST', '/b2/workers/w1/prompt', { 'content-type': 'application/json' }, Buffer.alloc(MiB, 0x20));
+    const json = await socketRaw(socket, 'POST', '/b2/workers/w1/prompt', { ...auth, 'content-type': 'application/json' }, Buffer.alloc(MiB, 0x20));
     assert.deepEqual(json, { status: 413, body: { error: 'request_too_large', effect: 'no_effect' } });
     const over = await socketRaw(socket, 'PUT', attachment, attachmentHeaders(), Buffer.alloc(limit + 64 * 1024, 1));
     assert.deepEqual(over, { status: 413, body: { error: 'request_too_large', effect: 'no_effect' } });

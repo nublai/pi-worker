@@ -12,11 +12,12 @@ export interface MemoryTransport {
   request(method: string, url: string, init?: MemoryRequest): Promise<B2Response>;
 }
 
-export function createMemoryTransport(handle: RequestHandler): MemoryTransport {
+/** `defaults` are headers sent with every request (for example a test's bearer); a request's own headers win. */
+export function createMemoryTransport(handle: RequestHandler, defaults: Record<string, string> = {}): MemoryTransport {
   return {
     async request(method, url, init = {}) {
       const headers: Record<string, string> = {};
-      for (const [k, v] of Object.entries(init.headers ?? {})) headers[k.toLowerCase()] = v;
+      for (const [k, v] of Object.entries({ ...defaults, ...init.headers })) headers[k.toLowerCase()] = v;
       let body: Uint8Array | undefined = init.raw;
       if (init.json !== undefined) {
         body = Buffer.from(JSON.stringify(init.json));

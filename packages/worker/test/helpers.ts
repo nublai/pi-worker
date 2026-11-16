@@ -4,6 +4,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { GrantStore, writeBearerFile } from '../src/grants/store.js';
 
 /** Tests run from packages/worker/dist/test. */
 export const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -45,7 +46,7 @@ export function privateTmp(): { dir: string; cleanup: () => void } {
 }
 
 /** One HTTP request over a Unix socket; resolves with status and parsed JSON body. */
-export function socketCall(socketPath: string, method: string, path: string, body?: unknown): Promise<{ status: number; body: unknown }> {
+export function socketCall(socketPath: string, method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<{ status: number; body: unknown }> {
   const data = body === undefined ? undefined : JSON.stringify(body);
   return new Promise((resolve, reject) => {
     const req = request(
@@ -54,7 +55,7 @@ export function socketCall(socketPath: string, method: string, path: string, bod
         method,
         path,
         agent: false,
-        headers: { Connection: 'close', ...(data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {}) },
+        headers: { Connection: 'close', ...headers, ...(data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {}) },
       },
       res => {
         const chunks: Buffer[] = [];
@@ -180,4 +181,13 @@ export function sseRecords(
     req.on('error', error => reject(error));
     req.end();
   });
+}
+
+/** An owner grant (every method, every worker and cwd) in `stateDir`, its bearer file and the header to send. */
+export function ownerGrant(stateDir: string, id = 'owner'): { grants: GrantStore; token: string; file: string; headers: Record<string, string> } {
+  const grants = new GrantStore(stateDir);
+  const { token } = grants.register({ caller: 'test-owner', scope: { worker_ids: ['*'], cwd_roots: ['*'] }, methods: ['*'], answers_for_person: true, grant_id: id });
+  const file = join(stateDir, `${id}.grant.json`);
+  writeBearerFile(file, token);
+  return { grants, token, file, headers: { authorization: `Bearer ${token}` } };
 }

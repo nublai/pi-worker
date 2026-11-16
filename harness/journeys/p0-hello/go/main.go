@@ -18,7 +18,8 @@ func main() {
 		os.Exit(2)
 	}
 	ctx := context.Background()
-	c := b2.New(os.Args[1])
+	// Every request needs a bearer grant (P1-9); the journey registers one and names its file in PIW_GRANT_FILE.
+	c := b2.New(os.Args[1], b2.WithGrantFile(os.Getenv("PIW_GRANT_FILE")))
 	hello, err := c.Hello(ctx)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "hello:", err)

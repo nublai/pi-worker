@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index 163170b..0716e68 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -152,7 +152,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+     Object.entries(handlers).map(([op, handler]) => [
+       op,
+       (input: { path: Record<string, unknown>; caller?: Caller }) => {
+-        if (typeof input.path.worker_id === 'string') inScope(input.caller, input.path.worker_id);
++        void inScope;
+         return (handler as (i: unknown) => unknown)(input);
+       },
+     ]),
