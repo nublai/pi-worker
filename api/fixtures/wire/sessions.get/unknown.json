@@ -1,0 +1,14 @@
+{
+  "request": {
+    "path": {
+      "session_id": "session-404"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "unknown_session",
+      "effect": "no_effect"
+    }
+  }
+}

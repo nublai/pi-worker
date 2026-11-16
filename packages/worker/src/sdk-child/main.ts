@@ -39,12 +39,15 @@ import {
 import { Resolvers, type PiEvent, type UIAnswer } from './resolvers.js';
 
 type LaunchSpec = { tools: string[]; denied_tools: string[]; resources: { extensions: string[]; skills: string[] } };
-/** `launchSpec`: a typed child gets its explicit tools, denials and resources, and nothing discovered (P1-11). */
-type Launch = { sessionDir: string; provider: string; model: string; thinking: string; projectTrusted: boolean; launchSpec?: LaunchSpec | null };
+/**
+ * `launchSpec`: a typed child gets its explicit tools, denials and resources, and nothing discovered (P1-11).
+ * `inventory`: no session at all; load the cwd's settings and resources, answer `features`, and exit (P1-14).
+ */
+type Launch = { sessionDir: string; provider: string; model: string; thinking: string; projectTrusted: boolean; launchSpec?: LaunchSpec | null; inventory?: boolean };
 let launch: Launch;
 try {
   launch = JSON.parse(process.argv[2] ?? '') as Launch;
-  if (typeof launch.sessionDir !== 'string' || typeof launch.provider !== 'string' || typeof launch.model !== 'string') throw new Error('launch');
+  if (launch.inventory !== true && (typeof launch.sessionDir !== 'string' || typeof launch.provider !== 'string' || typeof launch.model !== 'string')) throw new Error('launch');
 } catch {
   console.error('invalid_launch');
   process.exit(1);
@@ -170,6 +173,10 @@ const toolGate: ExtensionFactory = pi => {
 // session_tree is an extension lifecycle event, not an AgentSession.subscribe event: appends and settlement alone
 // miss a native move that adds no entry.
 const bindingObserver: ExtensionFactory = pi => {
+  // The worker row's model, thinking level and title follow pi, whoever changed them (session.configure or natively).
+  pi.on('model_select', () => emitConfig());
+  pi.on('thinking_level_select', () => emitConfig());
+  pi.on('session_info_changed', () => emitConfig());
   pi.on('session_tree', (_event, ctx) => {
     cancelAll();
     emit({
@@ -182,8 +189,88 @@ const bindingObserver: ExtensionFactory = pi => {
   });
 };
 
+/** The worker's interrupt marker (S-5): the same line and rule as Shep's bridge (ADR-0006, R9). */
+const INTERRUPT_MARKER = '[The previous request was interrupted by the user before it finished.]';
+/** The custom entry that stamps a supervisor command into pi's session before its input (contract 8.1). */
+const INPUT_STAMP = 'pi-worker.input';
+
+/** A model as B2 lists it. */
+function modelRow(m: { provider: string; id: string; name?: string; reasoning?: boolean; input?: string[]; contextWindow?: number; maxTokens?: number }) {
+  return {
+    provider: m.provider,
+    id: m.id,
+    name: String(m.name ?? m.id).slice(0, 256),
+    reasoning: m.reasoning === true,
+    input: (m.input ?? ['text']).filter(i => i === 'text' || i === 'image'),
+    context_window: Number.isSafeInteger(m.contextWindow) ? m.contextWindow! : 0,
+    max_tokens: Number.isSafeInteger(m.maxTokens) ? m.maxTokens! : 0,
+  };
+}
+
+type CommandRow = { name: string; description: string | null; source: 'extension' | 'prompt' | 'skill' };
+const describe = (d: unknown) => (typeof d === 'string' && d ? d.slice(0, 4096) : null);
+
+/**
+ * Inventory mode (`commands.list` and `models.list` for a cwd before any worker exists): services only, no session
+ * runtime, so no session file. Extensions load as they would for a worker of that cwd; nothing is prompted.
+ */
+async function inventory(): Promise<void> {
+  const services = await createAgentSessionServices({
+    cwd: process.cwd(),
+    agentDir: getAgentDir(),
+    settingsManager: SettingsManager.create(process.cwd(), getAgentDir(), { projectTrusted: launch.projectTrusted }),
+    resourceLoaderOptions: {
+      extensionFactories: [
+        { name: 'codemode', builtin: true, factory: createCodemodeExtension() },
+        { name: 'tool_search', builtin: true, factory: createToolSearchExtension() },
+        { name: 'mcp', builtin: true, factory: createMcpExtension() },
+      ],
+    },
+  });
+  const loader = services.resourceLoader;
+  const commands: CommandRow[] = [];
+  for (const extension of loader.getExtensions().extensions) for (const c of extension.commands.values()) commands.push({ name: c.name, description: describe(c.description), source: 'extension' });
+  for (const t of loader.getPrompts().prompts) commands.push({ name: t.name, description: describe(t.description), source: 'prompt' });
+  for (const skill of loader.getSkills().skills) commands.push({ name: `skill:${skill.name}`, description: describe(skill.description), source: 'skill' });
+  const features = {
+    models: services.modelRuntime.getAvailableSnapshot().map(modelRow),
+    current: null,
+    thinking: null,
+    thinking_levels: [],
+    commands,
+    extension_errors: loader.getExtensions().errors.map(e => e.path),
+  };
+  const decoder = new StringDecoder('utf8');
+  let buffer = '';
+  process.stdin.on('data', (chunk: Buffer) => {
+    buffer += decoder.write(chunk);
+    for (;;) {
+      const n = buffer.indexOf('\n');
+      if (n < 0) break;
+      const line = buffer.slice(0, n);
+      buffer = buffer.slice(n + 1);
+      let c: { type?: unknown; id?: unknown };
+      try {
+        c = JSON.parse(line) as typeof c;
+      } catch {
+        continue;
+      }
+      if (c.type === 'features') output({ type: 'response', id: c.id, success: true, data: features });
+      else output({ type: 'response', id: c.id, success: false, error: 'inventory_only' });
+    }
+  });
+  process.stdin.on('end', () => process.exit(0));
+}
+
+if (launch.inventory === true) {
+  await inventory().catch(error => {
+    console.error('inventory_failed', error instanceof Error ? error.message : '');
+    process.exit(1);
+  });
+}
+
 const spec = launch.launchSpec ?? null;
-const runtimePromise = createAgentSessionRuntime(
+const runtimePromise = launch.inventory === true ? new Promise<never>(() => {}) : createAgentSessionRuntime(
   async options => {
     const services = await createAgentSessionServices({
       ...options,
@@ -228,6 +315,34 @@ const runtimePromise = createAgentSessionRuntime(
 );
 
 let current: AgentSession | undefined;
+/** The supervisor execution the current run belongs to: its settlement is stamped into the session file. */
+let running: { execution_id: string; command_id: string } | null = null;
+
+function emitConfig(): void {
+  const session = current;
+  if (!session) return;
+  const model = session.model;
+  emit({ type: 'host_config', model: model ? { provider: model.provider, id: model.id } : null, thinking: session.thinkingLevel ?? null, name: session.sessionName ?? null });
+}
+
+/**
+ * The interrupt rule (Shep's ADR-0006, R9), derived from the log: the newest turn on the active path ended `aborted`
+ * and no user message came after it, and the new text starts a turn (not `/…` or `!…`).
+ */
+function afterAbortedTurn(session: AgentSession, text: string): boolean {
+  const t = text.replace(/^[ \t\r\n]+/, '');
+  if (t === '' || t.startsWith('/') || t.startsWith('!')) return false;
+  const branch = session.sessionManager.getBranch();
+  for (let i = branch.length - 1; i >= 0; i--) {
+    const entry = branch[i]!;
+    if (entry.type !== 'message') continue;
+    const message = entry.message as { role?: string; stopReason?: string };
+    if (message.role === 'user') return false;
+    if (message.role === 'assistant') return message.stopReason === 'aborted';
+  }
+  return false;
+}
+
 async function bind(session: AgentSession): Promise<void> {
   const replaced = current !== undefined && current !== session;
   current = session;
@@ -241,7 +356,12 @@ async function bind(session: AgentSession): Promise<void> {
   // SAFETY: SDK events are plain records with a string type, the host seam's only requirement.
   session.subscribe(event => {
     if (current !== session) return;
-    emit(event as unknown as PiEvent);
+    if (event.type === 'agent_settled' && running) {
+      // Settlement evidence in pi's own file, attributed to the exact execution and command (fence `observed`).
+      session.sessionManager.appendCustomEntry('agent_settled', { execution_id: running.execution_id, command_id: running.command_id });
+      running = null;
+    }
+    emit(sanitize(event) as PiEvent);
     if (event.type === 'entry_appended' || event.type === 'agent_settled') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
   });
   await session.bindExtensions({
@@ -267,6 +387,7 @@ async function bind(session: AgentSession): Promise<void> {
       void shutdown();
     },
   });
+  emitConfig();
 }
 
 const ready = runtimePromise.then(async runtime => {
@@ -278,6 +399,22 @@ const ready = runtimePromise.then(async runtime => {
   await bind(runtime.session);
   return runtime;
 });
+
+/**
+ * An SDK event as the supervisor receives it: image bytes are replaced by their size and media type (the session file
+ * keeps them; `blobs.read` serves them), so no stdout line carries megabytes of base64.
+ */
+function sanitize(value: unknown, depth = 0): unknown {
+  if (depth > 64 || value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(v => sanitize(v, depth + 1));
+  const record = value as Record<string, unknown>;
+  if (record.type === 'image' && typeof record.data === 'string') {
+    return { type: 'image', mimeType: record.mimeType, data_omitted: true, base64_chars: record.data.length };
+  }
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(record)) out[k] = sanitize(v, depth + 1);
+  return out;
+}
 
 type Command = PiEvent & { id?: unknown };
 
@@ -335,8 +472,29 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
       // input hooks before its first await): nothing has run.
       if (session.isStreaming) throw new RefusedBeforeInput('pi_busy');
       if (session.isCompacting) throw new RefusedBeforeInput('pi_compacting');
-      // The reply is pi's admission (preflight), sent as soon as it is known; settlement is the agent_settled event.
-      await session.prompt(String(c.message), { preflightResult: disposition => reply({ disposition }) });
+      {
+        const text = String(c.message);
+        // The worker owns the interrupt marker (S-5): the model gets it, the stamp keeps the text the user typed.
+        const marked = afterAbortedTurn(session, text);
+        const delivered = marked ? `${INTERRUPT_MARKER}\n${text}` : text;
+        if (typeof c.command_id === 'string' && typeof c.execution_id === 'string') {
+          // The command id in pi's own file, right before its input (contract 8.1), so `observed` can match it.
+          session.sessionManager.appendCustomEntry(INPUT_STAMP, {
+            command_id: c.command_id,
+            execution_id: c.execution_id,
+            interrupt_marker: marked,
+            ...(marked ? { display_text: text } : {}),
+          });
+          running = { execution_id: c.execution_id, command_id: c.command_id };
+        }
+        // The reply is pi's admission (preflight), sent as soon as it is known; settlement is the agent_settled event.
+        await session.prompt(delivered, {
+          preflightResult: disposition => {
+            if (disposition !== 'started') running = null;
+            reply({ disposition, ...(marked ? { interrupt_marker: true } : {}) });
+          },
+        });
+      }
       break;
     case 'steer':
       reply({ disposition: await session.steer(String(c.message)) });
@@ -366,6 +524,38 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
     case 'get_tree':
       reply({ tree: session.sessionManager.getTree() });
       break;
+    case 'features': {
+      const commands: CommandRow[] = [];
+      for (const command of session.extensionRunner.getRegisteredCommands()) commands.push({ name: command.invocationName, description: describe(command.description), source: 'extension' });
+      for (const template of session.promptTemplates) commands.push({ name: template.name, description: describe(template.description), source: 'prompt' });
+      for (const skill of session.resourceLoader.getSkills().skills) commands.push({ name: `skill:${skill.name}`, description: describe(skill.description), source: 'skill' });
+      const model = session.model;
+      reply({
+        models: session.modelRuntime.getAvailableSnapshot().map(modelRow),
+        current: model ? { provider: model.provider, id: model.id } : null,
+        thinking: session.thinkingLevel ?? null,
+        thinking_levels: session.getAvailableThinkingLevels(),
+        commands,
+      });
+      break;
+    }
+    case 'configure': {
+      // Every check that can refuse runs before the first change: nothing has happened when one fails.
+      if (session.isStreaming) throw new RefusedBeforeInput('pi_busy');
+      if (session.isCompacting) throw new RefusedBeforeInput('pi_compacting');
+      const want = c.model as { provider?: unknown; id?: unknown } | undefined;
+      const model = want ? session.modelRuntime.getAvailableSnapshot().find(m => m.provider === want.provider && m.id === want.id) : undefined;
+      if (want && !model) throw new RefusedBeforeInput('model_not_available');
+      const name = typeof c.name === 'string' ? c.name.trim() : undefined;
+      if (c.name !== undefined && !name) throw new RefusedBeforeInput('session_name_empty');
+      if (model) await session.setModel(model);
+      // SAFETY: the supervisor passes a value of the spec's Thinking enum, which is pi's ThinkingLevel.
+      if (typeof c.thinking === 'string') session.setThinkingLevel(c.thinking as 'off');
+      if (name) session.setSessionName(name);
+      const now = session.model;
+      reply({ model: now ? { provider: now.provider, id: now.id } : null, thinking: session.thinkingLevel ?? null, name: session.sessionName ?? null });
+      break;
+    }
     default:
       throw new Error('unsupported_sdk_command');
   }

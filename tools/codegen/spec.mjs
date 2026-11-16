@@ -77,18 +77,33 @@ export function operations(spec) {
       const responses = Object.entries(op.responses).map(([status, raw]) => {
         const response = deref(spec, raw);
         const entries = Object.entries(response.content ?? {});
-        if (entries.length !== 1) throw new Error(`${op.operationId} ${status}: exactly one content type expected`);
-        const [contentType, media] = entries[0];
         // Error responses are JSON (piw/error-responses); a success response declares its mode.
         const mode = /^2/.test(status) ? response['x-piw-response'] : 'json';
-        if (mode === 'ndjson' || mode === 'binary') {
-          // Header-schema validators for these modes land with the first operation that uses one (plan 4.2).
-          throw new Error(`${op.operationId} ${status}: x-piw-response ${mode} is not supported by the generator yet`);
-        }
-        if (mode !== 'json' && mode !== 'sse') throw new Error(`${op.operationId} ${status}: x-piw-response must be declared`);
+        if (!['json', 'sse', 'ndjson', 'binary'].includes(mode)) throw new Error(`${op.operationId} ${status}: x-piw-response must be declared`);
+        // A binary response may declare several media types (an image allowlist); every other mode exactly one.
+        if (entries.length === 0 || (mode !== 'binary' && entries.length !== 1)) throw new Error(`${op.operationId} ${status}: exactly one content type expected`);
+        const contentTypes = entries.map(([type]) => type);
+        const [contentType, media] = entries[0];
         const maxFrameBytes = mode === 'sse' ? response['x-piw-max-frame-bytes'] : null;
         if (mode === 'sse' && !(Number.isInteger(maxFrameBytes) && maxFrameBytes > 0)) throw new Error(`${op.operationId}: sse needs x-piw-max-frame-bytes`);
-        return { status, contentType, schema: media.schema, mode, maxFrameBytes };
+        // ndjson and binary bodies are bytes: a byte cap and a header schema the router validates (plan 4.2).
+        let maxBytes = null;
+        let headers = null;
+        let headerKinds = null;
+        if (mode === 'ndjson' || mode === 'binary') {
+          maxBytes = response['x-piw-max-bytes'];
+          if (!(Number.isInteger(maxBytes) && maxBytes > 0)) throw new Error(`${op.operationId} ${status}: ${mode} needs x-piw-max-bytes`);
+          const declared = Object.entries(response.headers ?? {});
+          if (declared.length === 0) throw new Error(`${op.operationId} ${status}: ${mode} needs headers`);
+          headerKinds = Object.fromEntries(declared.map(([name, h]) => [name.toLowerCase(), scalarKind(spec, deref(spec, h).schema)]));
+          headers = {
+            type: 'object',
+            additionalProperties: false,
+            required: declared.filter(([, h]) => deref(spec, h).required === true).map(([name]) => name.toLowerCase()),
+            properties: Object.fromEntries(declared.map(([name, h]) => [name.toLowerCase(), deref(spec, h).schema])),
+          };
+        }
+        return { status, contentType, contentTypes, schema: media.schema, mode, maxFrameBytes, maxBytes, headers, headerKinds };
       });
       const ok = responses.find(r => r.status === '200');
       if (!ok) throw new Error(`${op.operationId}: no 200 response`);
@@ -109,6 +124,7 @@ export function operations(spec) {
         responseMode: ok.mode,
         maxFrameBytes: ok.maxFrameBytes,
         stream: ok.mode === 'sse',
+        raw: ok.mode === 'ndjson' || ok.mode === 'binary',
       });
     }
   }

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index 78f0ff9..11f7be0 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -158,7 +158,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+     'sessions.list': ({ query, caller }) => supervisor().features.list(row => sessionVisible(caller, row), query),
+     'sessions.get': ({ path, caller }) => sessionRow(caller, path.session_id),
+     'sessions.history': ({ path, query, caller }) => {
+-      sessionRow(caller, path.session_id);
++      void caller;
+       return supervisor().features.history(path.session_id, query);
+     },
+     'models.list': ({ query, caller }) => supervisor().features.models(featureTarget(caller, query)),

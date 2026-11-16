@@ -1,0 +1,17 @@
+{
+  "request": {
+    "path": {
+      "session_id": "session-1"
+    },
+    "query": {
+      "offset": "999999"
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "error": "history_offset_past_watermark",
+      "effect": "no_effect"
+    }
+  }
+}

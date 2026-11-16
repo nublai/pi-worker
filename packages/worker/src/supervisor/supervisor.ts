@@ -16,6 +16,7 @@ import { Children, type Report } from './children.js';
 import type { GrantStore } from '../grants/store.js';
 import { Interactions, type Answer, type Interaction } from '../interactions/interactions.js';
 import { Input } from './input.js';
+import { Features, type Configure, type InventoryFactory } from './features.js';
 import { Lifecycle } from './lifecycle.js';
 import { SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker, type ChildLaunch } from './state.js';
 
@@ -31,6 +32,8 @@ export interface SupervisorOptions {
   readonly factory: HostFactory;
   /** The grant registry: a typed child's reports and children recheck the grants that created it and its parent. */
   readonly grants?: GrantStore;
+  /** A short-lived pi process for `models.list` and `commands.list` by cwd (P1-14). */
+  readonly inventory?: InventoryFactory;
 }
 
 export class Supervisor {
@@ -41,6 +44,7 @@ export class Supervisor {
   readonly bindings: Bindings;
   readonly interactions: Interactions;
   readonly children: Children;
+  readonly features: Features;
 
   constructor(options: SupervisorOptions) {
     this.state = new SupervisorState(options.journal, options.receipts, options.supervisorEpoch, options.stateDir, options.factory);
@@ -65,6 +69,12 @@ export class Supervisor {
     if (options.grants) this.state.grants = options.grants;
     this.children = new Children(this.state, this.lifecycle, this.input, this.fence);
     this.state.childClaims = w => this.children.claims(w);
+    this.features = new Features(this.state, this.lifecycle, this.input, this.fence);
+    if (options.inventory) this.features.inventory = options.inventory;
+  }
+
+  configure(id: string, c: Configure): Promise<Receipt> {
+    return this.features.configure(id, c);
   }
 
   get receipts(): ReceiptStore {

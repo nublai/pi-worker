@@ -12,7 +12,8 @@ export const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
 export interface WireFixture {
   /** `headers` carry header parameters and a binary body's Content-Type; `bodyBase64` is a binary body. */
   request: { path?: Record<string, string>; query?: Record<string, string>; headers?: Record<string, string>; body?: unknown; bodyBase64?: string };
-  response: { status: number; body?: unknown; frames?: unknown[] };
+  /** An ndjson or binary 200 carries its wire headers, media type and `bodyText` (ndjson) or `bodyBase64` bytes. */
+  response: { status: number; body?: unknown; frames?: unknown[]; headers?: Record<string, string>; contentType?: string; bodyText?: string; bodyBase64?: string };
 }
 
 export function wireFixtures(): { operationId: string; name: string; fixture: WireFixture }[] {

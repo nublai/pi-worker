@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index cfea8ae..3037dcc 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -479,7 +479,8 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
+         const delivered = marked ? `${INTERRUPT_MARKER}\n${text}` : text;
+         if (typeof c.command_id === 'string' && typeof c.execution_id === 'string') {
+           // The command id in pi's own file, right before its input (contract 8.1), so `observed` can match it.
+-          session.sessionManager.appendCustomEntry(INPUT_STAMP, {
++          void INPUT_STAMP;
++          ({
+             command_id: c.command_id,
+             execution_id: c.execution_id,
+             interrupt_marker: marked,

@@ -1,5 +1,5 @@
 /** Embedded mode: the same request handler over an in-memory transport, for tests and single-process callers. */
-import type { B2Response, RequestHandler } from './router.js';
+import type { RequestHandler } from './router.js';
 
 export interface MemoryRequest {
   readonly headers?: Record<string, string>;
@@ -8,8 +8,16 @@ export interface MemoryRequest {
   readonly raw?: Uint8Array;
 }
 
+/** A reply as a socket client sees it; an ndjson or binary 200 carries its bytes and headers instead of JSON. */
+export interface MemoryResponse {
+  readonly status: number;
+  readonly body: unknown;
+  readonly headers?: Readonly<Record<string, string>>;
+  readonly contentType?: string;
+}
+
 export interface MemoryTransport {
-  request(method: string, url: string, init?: MemoryRequest): Promise<B2Response>;
+  request(method: string, url: string, init?: MemoryRequest): Promise<MemoryResponse>;
 }
 
 /** `defaults` are headers sent with every request (for example a test's bearer); a request's own headers win. */
@@ -41,6 +49,7 @@ export function createMemoryTransport(handle: RequestHandler, defaults: Record<s
         const frames = records.map(r => JSON.parse(r.split('\n').find(l => l.startsWith('data: '))!.slice(6)) as unknown);
         return { status: response.status, body: frames };
       }
+      if (response.raw) return { status: response.status, body: Buffer.from(response.raw.body), headers: { ...response.raw.headers }, contentType: response.raw.contentType };
       // Same bytes a socket client would see: a JSON round trip, so no object identity leaks across.
       return { status: response.status, body: JSON.parse(JSON.stringify(response.body)) };
     },

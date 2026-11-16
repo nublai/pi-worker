@@ -56,6 +56,10 @@ rules:
       - interactions.status
       - events.subscribe
       - history.page
+      # Shep's answer S-1 (2026-11-16): history.page's byte-range
+      # JSONL form by session_id, with or without a worker. Its own
+      # grant method, so a grant names it explicitly.
+      - sessions.history
       - items.read
       - blobs.read
       - files.read

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/b2/router.ts b/packages/worker/src/b2/router.ts
+index ce169c1..0e0d51b 100644
+--- a/packages/worker/src/b2/router.ts
++++ b/packages/worker/src/b2/router.ts
+@@ -205,7 +205,7 @@ export function createRouter(options: RouterOptions): RequestHandler {
+     if (!spec.headers?.(r.headers)) return fail(`headers ${describe(spec.headers?.errors)}`);
+     if (!spec.contentTypes.includes(r.contentType)) return fail('content type not declared');
+     if (spec.maxBytes === null || r.body.length > spec.maxBytes) return fail('body over x-piw-max-bytes');
+-    if (spec.mode === 'ndjson') {
++    if (spec.mode === 'ndjson' && r.contentType === 'never') {
+       if (r.body.length > 0 && r.body[r.body.length - 1] !== 0x0a) return fail('ndjson body does not end on a line boundary');
+       let start = 0;
+       while (start < r.body.length) {

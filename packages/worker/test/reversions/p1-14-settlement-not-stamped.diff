@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index cfea8ae..54a781a 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -358,7 +358,7 @@ async function bind(session: AgentSession): Promise<void> {
+     if (current !== session) return;
+     if (event.type === 'agent_settled' && running) {
+       // Settlement evidence in pi's own file, attributed to the exact execution and command (fence `observed`).
+-      session.sessionManager.appendCustomEntry('agent_settled', { execution_id: running.execution_id, command_id: running.command_id });
++      void running.execution_id;
+       running = null;
+     }
+     emit(sanitize(event) as PiEvent);

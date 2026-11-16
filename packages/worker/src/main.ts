@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /** pi-worker supervisor entry: config, private directories, B2 socket, signals. */
-import { lstatSync, mkdirSync } from 'node:fs';
+import { chmodSync, chownSync, lstatSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createApp } from './b2/app.js';
 import { createB2Server, listenPrivate } from './b2/server.js';
-import { resolvePaths } from './config.js';
+import { resolvePaths, resolveSocketAccess, socketModes, type SocketAccess } from './config.js';
 import { pinnedPiVersion, SdkHost } from './host/host.js';
 import { openState } from './journal/state.js';
 import { GrantStore } from './grants/store.js';
@@ -19,11 +19,22 @@ function privateDir(path: string): void {
   }
 }
 
+/** The socket's directory: 0700, or with group access (S-6) 0750 in the configured group. */
+function socketDir(path: string, access: SocketAccess): void {
+  if (access.mode === 'owner') return privateDir(path);
+  mkdirSync(path, { recursive: true, mode: 0o700 });
+  const st = lstatSync(path);
+  if (!st.isDirectory() || st.isSymbolicLink() || st.uid !== process.getuid?.()) throw new Error(`${path} must be an owned, non-symlink directory`);
+  chownSync(path, st.uid, access.gid);
+  chmodSync(path, socketModes(access).dir);
+}
+
 const paths = resolvePaths();
+const access = resolveSocketAccess();
 // Every file and socket the supervisor creates is private from the moment it exists.
 process.umask(0o077);
 privateDir(paths.stateDir);
-privateDir(dirname(paths.socketPath));
+socketDir(dirname(paths.socketPath), access);
 
 // Every request needs a bearer grant registered by the owner with the local `grant` command (src/grant.ts).
 const grants = new GrantStore(paths.stateDir);
@@ -47,13 +58,15 @@ const supervisor = new Supervisor({
       taskId: launch.create.parent?.task_id ?? null,
     }),
   grants,
+  // models.list and commands.list for a cwd before any worker exists: a pi process that opens no session.
+  inventory: (cwd, projectTrusted) => new SdkHost({ cwd, sessionDir: '', provider: '', model: '', thinking: 'off', projectTrusted, inventory: true }),
 });
 // Recovery before the socket listens: undispatched intents become intent_recovered, dispatched ones outcome_unknown,
 // and every worker that held a session is cleanup_pending with its old pi process group killed. No replay.
 await supervisor.recover();
 const app = createApp({ supervisorId: state.supervisorId, supervisorEpoch: state.supervisorEpoch, piVersion: pinnedPiVersion(), supervisor, grants });
 const server = createB2Server(app.handle);
-await listenPrivate(server, paths.socketPath);
+await listenPrivate(server, paths.socketPath, access);
 console.error(JSON.stringify({ event: 'listening', socket: paths.socketPath, pid: process.pid }));
 
 let stopping = false;

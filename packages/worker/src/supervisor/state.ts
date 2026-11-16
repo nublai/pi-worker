@@ -6,6 +6,8 @@
  * depends on it is observable (a fence before the refusal or reply it causes).
  */
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import type { components } from '../generated/api.js';
 import { Refusal } from '../b2/errors.js';
 import type { SessionHost } from '../host/host.js';
@@ -13,6 +15,7 @@ import { budgetKey, fenceKey, recordBytes, type Journal } from '../journal/journ
 import { SESSION_DIRECTED } from './fence.js';
 import type { DurableLabel } from '../journal/labels.js';
 import { SessionIndex } from '../history/session-index.js';
+import { Summaries, type Summary } from '../history/session-file.js';
 import { EventHub } from '../events/hub.js';
 import type { JournalAppended } from '../generated/events.js';
 import type { Interactions } from '../interactions/interactions.js';
@@ -55,6 +58,10 @@ export interface Persisted {
 export interface Live extends Persisted {
   host?: SessionHost;
   index: SessionIndex;
+  /** The session file's summary at the last refresh (preview, activity, title; memory only). */
+  summary?: Summary;
+  /** The file identity and watermark last published as `history.appended`. */
+  appended?: string;
   /** Messages pi reported complete; history lags while the session file has fewer. */
   completedMessages: number;
   faulted?: boolean;
@@ -78,6 +85,14 @@ export interface HostLaunch {
 }
 
 export type HostFactory = (launch: HostLaunch) => SessionHost;
+
+/** The name of the Git work tree holding `cwd` (nearest ancestor with `.git`), else the cwd's base name. */
+export function repoLabel(cwd: string): string {
+  for (let dir = cwd; ; dir = dirname(dir)) {
+    if (existsSync(join(dir, '.git'))) return basename(dir) || dir;
+    if (dirname(dir) === dir) return basename(cwd) || cwd;
+  }
+}
 
 /** Statuses that hold a session and an environment. */
 export const HOLDING = new Set<Worker['status']>(['starting', 'ready', 'cleanup_pending']);
@@ -108,6 +123,10 @@ export class SupervisorState {
   readonly sessionFiles = new Map<string, { file: string; worker_id: string }>();
   /** Sessions a binding change is moving to, before pi reports them. */
   readonly sessionReservations = new Map<string, string>();
+  /** Incremental session-file summaries (session rows, worker previews). */
+  readonly summaries = new Summaries();
+  /** The status each worker row was last journaled with: a change stamps `status_since`. */
+  private readonly journaledStatus = new Map<string, Worker['status']>();
   /** The supervisor-wide event stream; its transport epoch is this start's supervisor epoch. */
   readonly events: EventHub;
   /** Live interactions (set by the Supervisor once every module exists). */
@@ -144,6 +163,7 @@ export class SupervisorState {
       // checksums each record, so a parsed `worker` record is that Persisted value.
       const persisted = structuredClone(record.value) as unknown as Persisted;
       this.catalog(persisted);
+      this.journaledStatus.set(persisted.worker.worker_id, persisted.worker.status);
       this.workers.set(persisted.worker.worker_id, { ...persisted, index: new SessionIndex(persisted.sessionFile), completedMessages: 0 });
       this.rowSize.set(persisted.worker.worker_id, recordBytes(record.value));
     }
@@ -208,6 +228,9 @@ export class SupervisorState {
    */
   persist(live: Live, label: DurableLabel): JournalAppended {
     this.catalog(live);
+    const w = live.worker;
+    if (!w.status_since || this.journaledStatus.get(w.worker_id) !== w.status) w.status_since = new Date().toISOString();
+    this.journaledStatus.set(w.worker_id, w.status);
     const record = this.record(live);
     const id = live.worker.worker_id;
     // SAFETY: Persisted is a plain JSON object (no methods, no cycles); the journal stores it as a record value.
@@ -259,6 +282,11 @@ export class SupervisorState {
       cleanup: 'not_started',
       pending_interactions: [],
       host: 'sdk',
+      status_since: new Date().toISOString(),
+      settle_count: 0,
+      repo_label: repoLabel(cwd),
+      model: { provider: create.provider, id: create.model },
+      thinking: create.thinking,
     };
     const live: Live = { worker, sessionFile: null, pid: null, token: null, create: { ...create, cwd }, index: new SessionIndex(null), completedMessages: 0 };
     this.workers.set(worker.worker_id, live);
@@ -281,6 +309,18 @@ export class SupervisorState {
       lag: live.worker.foreground !== 'idle' || live.completedMessages > live.index.messageEntries || live.index.pending,
       evidence: 'pi_session_file',
     };
+    // The file's identity and complete size, published once per change as `history.appended` (sessions.history's
+    // Piw-Watermark for the same bytes).
+    live.summary = this.summaries.get(live.sessionFile);
+    const appended = `${live.summary.identity}:${live.summary.watermark}`;
+    if (live.worker.session_id && live.appended !== appended) {
+      live.appended = appended;
+      this.events.publish('history.appended', {
+        worker_id: live.worker.worker_id,
+        execution_id: live.worker.execution?.execution_id ?? null,
+        data: { session_id: live.worker.session_id, file_identity: live.summary.identity, watermark: live.summary.watermark, last_entry_id: live.index.watermark },
+      });
+    }
   }
 
   /** A session-directed mutation names the binding it saw; any difference is `stale_binding`, `no_effect`. */
@@ -330,6 +370,17 @@ export class SupervisorState {
   /** A snapshot of the worker row for readers, with its live interaction cards (payload included, memory only). */
   view(live: Live): Worker {
     const row: Worker = { ...structuredClone(live.worker), pending_interactions: this.interactions?.list(live.worker.worker_id) ?? [] };
+    // The phone's chat row (contract 8.1, S-3, S-8): identity, lineage, label, title, preview and activity.
+    row.chat_id = row.worker_id;
+    row.runtime = 'worker';
+    row.lineage = row.parent_worker_id ? 'child' : 'root';
+    row.repo_label ??= repoLabel(row.cwd);
+    row.settle_count ??= 0;
+    row.title = row.title ?? live.summary?.title ?? null;
+    row.preview = live.summary?.preview ?? null;
+    row.last_activity_at = live.summary?.last_activity_at ?? null;
+    row.model ??= live.create ? { provider: live.create.provider, id: live.create.model } : null;
+    row.thinking ??= live.create?.thinking ?? null;
     if (row.parent_worker_id && this.childClaims) row.child_reports = this.childClaims(row);
     return row;
   }

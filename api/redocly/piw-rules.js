@@ -149,7 +149,14 @@ function responseModeProblem(response, status) {
   const mode = response?.['x-piw-response'];
   const types = Object.keys(response?.content ?? {});
   if (!Object.hasOwn(RESPONSE_MODES, mode)) return `response ${status} must declare x-piw-response (${Object.keys(RESPONSE_MODES).join(', ')})`;
-  if (types.length !== 1 || !RESPONSE_MODES[mode](types[0])) return `response ${status}: x-piw-response ${mode} does not match its content type`;
+  const many = mode === 'binary' ? types.length >= 1 : types.length === 1;
+  if (!many || !types.every(RESPONSE_MODES[mode])) return `response ${status}: x-piw-response ${mode} does not match its content type`;
+  if ((mode === 'ndjson' || mode === 'binary') && !positiveInt(response['x-piw-max-bytes'])) {
+    return `response ${status}: an ${mode} response must declare a positive integer x-piw-max-bytes`;
+  }
+  if ((mode === 'ndjson' || mode === 'binary') && Object.keys(response.headers ?? {}).length === 0) {
+    return `response ${status}: an ${mode} response must declare its headers`;
+  }
   if (mode === 'sse' && !positiveInt(response['x-piw-max-frame-bytes'])) {
     return `response ${status}: an sse response must declare a positive integer x-piw-max-frame-bytes`;
   }

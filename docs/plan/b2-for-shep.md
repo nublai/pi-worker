@@ -1,7 +1,7 @@
 # B2 for Shep's Go driver: a proposal for Shep to review
 
-Status: **proposal, revision 2** (2026-11-16, after the independent review: PR per method, authority table,
-photo upload limits), from root. Shep owns its bridge driver and decides what it needs; root owns
+Status: **proposal, revision 3** (2026-11-16: Shep's answers recorded in section 8 and applied to the API from
+P1-14; revision 2 added the PR per method, the authority table and the photo upload limits), from root. Shep owns its bridge driver and decides what it needs; root owns
 pi-worker, the B2 contract and the generated clients. Nothing here is frozen. The method catalog stays draft until
 P6 (contract sections 4 onward).
 
@@ -75,7 +75,7 @@ saw. "A0" means the method exists in A0's spec and has crash evidence; "new" mea
 | Needs-you cards | screen read, `activity.dialog` | `interactions.list` plus `interactions.changed` events (all four kinds, prefill, options with ids, absolute deadline) | `GET /b2/workers/{worker_id}/interactions` | P1-10 | A0 |
 | Answer a dialog | `shep.dialog_answer {pane_id, dialog_id, answer}` | `interactions.answer_if_current {interaction_id, revision, kind, binding, answer_id, command_id, outcome, value or option_id, actor}` | `POST /b2/workers/{worker_id}/interactions/answer` | P1-10 | A0 |
 | Answer status | — | `interactions.status`, `receipts.get` | `GET …/interactions/status`, `GET /b2/receipts/{command_id}` | P1-10; `receipts.get` P1-2 | A0 |
-| History page | `shep.history` | `history.page` (see section 4) | `GET /b2/sessions/{session_id}/history` | P1-8 for a worker's bound session (`GET /b2/workers/{worker_id}/history`); by `session_id` with no worker P1-14 | A0, format open (S-1) |
+| History page | `shep.history` | `sessions.history` (shape (a), S-1; section 4) for the bridge; `history.page` entry pages for orchestrators | `GET /b2/sessions/{session_id}/history` (any catalog session, live or archived) | P1-14; `history.page` for a worker's bound session (`GET /b2/workers/{worker_id}/history`) P1-8 | new |
 | Item part, blob | `shep.item`, `shep.blob` | `items.read`, `blobs.read` | `GET …/entries/{entry_id}`, `GET …/entries/{entry_id}/blobs/{index}` | `items.read` P1-8; `blobs.read` P1-16 (moved from P1-8, 2026-11-16) | new |
 | Photo message | HTTP upload, then `shep.send {photo_message_id}` | `attachments.stage`: a streamed binary upload of one JPEG (`Content-Type: image/jpeg`; SHA-256, `command_id`, worker and binding in headers), up to 2 MiB, never through the 256 KiB JSON path; then `sessions.prompt {attachments}`, up to 4 per message and 8 MiB in total. Limits are in `hello` and equal today's [shep bridge/photos.go:49-55]. Whether the bridge keeps its own copy first is S-4 | `PUT /b2/attachments/{attachment_id}` | P1-16 | new |
 | Photo status | `shep.photo_status` | `attachments.status`, `receipts.get`: after an upload whose response was lost, the bridge reads status by `attachment_id` and never re-uploads | `GET /b2/attachments/{attachment_id}` | P1-16 | new |
@@ -126,7 +126,7 @@ under a fence" means `no_effect` naming the uncertain command. After its dispatc
 | `sessions.list`, `sessions.get` | P1-14 | read, grant cwd scope | — | allowed |
 | `models.list`, `commands.list` | P1-14 | read | — | allowed |
 | `events.subscribe` | P1-8 (interaction events P1-10) | read, filtered by grant scope | — | allowed |
-| `history.page`, `items.read`, `blobs.read` | P1-8 (worker-bound `history.page`, `items.read`); P1-14 (archived `history.page`); P1-16 (`blobs.read`) | read, grant scope | — | allowed |
+| `history.page`, `items.read`, `sessions.history`, `blobs.read` | P1-8 (worker-bound `history.page`, `items.read`); P1-14 (`sessions.history`, any session by `session_id`); P1-16 (`blobs.read`) | read, grant scope (a session: its cwd in cwd scope and its last owner in worker scope) | — | allowed |
 | `interactions.list`, `interactions.status` | P1-10 | read | — | allowed |
 | `receipts.get` | P1-2 | read; only receipts of workers in scope | — | allowed |
 | `attachments.status` | P1-16 | read | — | allowed |
@@ -262,3 +262,30 @@ sessions live under the sandbox root, so reading the file directly from the brid
 - **S-12. R22 approvals on the worker.** exmach approval cards arrive as select interactions titled
   `exmach-approval:`. The contract keeps title reading as the named compatibility path until a typed
   `tool_approval` exists [nubl .pi/plan/worker-contract.md:165]. Is that still how the app wants them?
+
+## 8. Shep's answers (2026-11-16) and what the worker does
+
+Shep answered all twelve questions at `12bdff9` (`research/worker-api/answers-2026-11-16.md`, read at pi-worker
+`79e0d6c`); root accepted every answer. In Shep's docs this boundary is now "the worker API" (S-11).
+
+| Q | Shep's answer | What the worker does | PR |
+| --- | --- | --- | --- |
+| **S-1** history | Shape (a): byte-range JSONL with `max_bytes`, complete lines only, a file identity, the next offset, a watermark matching `history.appended`, a reset flag on replace, shrink or rewrite in place, and a typed error for an offset past the watermark or not on a line start | New operation **`sessions.history`** (`GET /b2/sessions/{session_id}/history?format=jsonl&offset&max_bytes&identity&tail`, its own grant method): the session file's complete lines from `offset`, at most `max_bytes` (up to 16 MiB) unless one line alone is longer (then that line, up to 64 MiB), with headers `Piw-File-Identity`, `Piw-Offset`, `Piw-Next-Offset`, `Piw-Watermark`, `Piw-Reset` and `Piw-Tail-Sha256`. The reader sends back `identity` and `tail`; another identity or a tail that does not match the line before `offset` resets to byte 0. Without a tail, an offset past the watermark is `400 history_offset_past_watermark` and one inside a line `400 history_offset_not_line_start`. The new `history.appended` event carries the same watermark. It reads any session of the worker catalog, so an archived session reads with no worker. (b) stays as `history.page` for TypeScript orchestrators | P1-14 |
+| **S-2** Go client | Vendored copy at `bridge/internal/b2` with a stamp file and `scripts/vendor-b2.sh`; `workerfake` the same way | The Go module stays stdlib-only and Go 1.24; `workerfake` and the hand-written byte reads and streamed upload land in P1-17 | P1-17 |
+| **S-3** chat identity | Ship before the wire break, additively: an opaque `chat_id` plus `runtime` on every chat-addressed message | Worker rows carry `chat_id` (the `worker_id`) and `runtime: worker`; session rows carry `chat_id` (the `session_id`) and `runtime: worker`, so the bridge passes them through | P1-14 |
+| **S-4** photos | Keep bridge-side staging, then forward each JPEG with `attachments.stage` under the same `attachment_id` and SHA-256; staging idempotent by `attachment_id` plus SHA-256 with status read-back, never a re-upload; limits 4 × 2 MiB and 8 MiB per message; real image blocks in the model request and the same image in history | `attachments.stage`, `attachments.status`, `attachments.release`, `sessions.prompt {attachments}`, `blobs.read` | P1-16 |
+| **S-5** interrupt marker | The worker owns it: the rule from the log (the newest turn on the active path ended `aborted`, no user message since, the new text starts a turn), Shep's text, delivered and display text recorded separately, the entry flagged | The SDK child applies the rule to every prompt from any caller. The model gets `[The previous request was interrupted by the user before it finished.]` and a line feed in front of the text; a `pi-worker.input` custom entry right before the user message records `{command_id, execution_id, interrupt_marker, display_text}` (display text only when marked); the receipt's `result.interrupt_marker` says whether it applied; previews strip it. The bridge's worker driver sends plain text | P1-14 |
+| **S-6** bridge user | Not blocking; make the socket directory's group and mode configurable now (0750 directory, 0660 socket, a `piw` group) | `PIW_SOCKET_GROUP` (a group name or gid) selects group access: the socket directory must be exactly 0750 in that group and the socket is 0660 in it; unset, 0700 and 0600 as before. The bearer grant is still required on every request | P1-14 |
+| **S-7** push seeding | The contract rule: seed on cold start only, diff on resync, dedupe by `interaction_id` and `execution_id` | Nothing new in the worker: the snapshot already carries `interaction_id`s and `settle_count` | — |
+| **S-8** activity | Add `last_activity_at` and a short `preview` (marker stripped) to the worker row | Worker rows carry `last_activity_at` (the newest entry's time in the session file), `preview` (the newest user or assistant text, at most 280 characters, marker stripped), `title`, `status_since`, `settle_count`, `lineage`, `repo_label`, `model` and `thinking` | P1-14 |
+| **S-9** cross-driver opens | Refuse in the bridge with its duplicate-open reservations | Nothing in the worker | — |
+| **S-10** mixed machines | One merged list keyed by `{machine, runtime, chat_id}` | `runtime` and `chat_id` on rows (S-3) | P1-14 |
+| **S-11** naming | "Worker API" in Shep's docs | — | — |
+| **S-12** R22 approvals | The title-prefix path is acceptable for P5; a typed `tool_approval` as soon as there is one | The worker already has the typed `tool_approval` kind for gates (P1-10); title reading stays the bridge's named exception | — |
+
+**Other P1-14 decisions.** `sessions.list` and `sessions.get` list the worker's resume catalog (sessions a worker of
+this supervisor bound), not pi's own session directories, because only those can be resumed with
+`workers.create {resume_session_id}`; a session started in a herdr pi stays the bridge's (S-9). `models.list` and
+`commands.list` for a cwd run a short-lived pi process in inventory mode that loads the cwd's settings and resources,
+opens no session and exits. In P1-14, extension commands, prompt templates and skills are listed but marked
+`unsupported`; `commands.invoke` (P1-15) makes extension commands invocable.

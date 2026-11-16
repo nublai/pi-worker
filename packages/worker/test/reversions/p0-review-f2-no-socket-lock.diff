@@ -1,11 +1,11 @@
 diff --git a/packages/worker/src/b2/server.ts b/packages/worker/src/b2/server.ts
-index f336f74..e732b29 100644
+index 5583cdd..b2da31e 100644
 --- a/packages/worker/src/b2/server.ts
 +++ b/packages/worker/src/b2/server.ts
-@@ -71,7 +71,7 @@ export async function listenPrivate(server: Server, socketPath: string): Promise
-   if (!dir.isDirectory() || dir.isSymbolicLink() || dir.uid !== process.getuid?.() || (dir.mode & 0o777) !== 0o700) {
-     throw new Error('socket directory must be owned, non-symlink 0700');
-   }
+@@ -111,7 +111,7 @@ export async function listenPrivate(server: Server, socketPath: string, access:
+   if (!isAbsolute(socketPath)) throw new Error('socket path must be absolute');
+   const modes = socketModes(access);
+   checkSocketDir(dirname(socketPath), access);
 -  const lock = acquireLock(`${socketPath}.lock`);
 +  const lock = { release() {} }; void acquireLock;
    try {

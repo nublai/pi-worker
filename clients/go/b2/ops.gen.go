@@ -20,7 +20,7 @@ type Operation struct {
 	MediaTypes []string
 	// MaxBodyBytes is the most request body bytes the worker accepts (413 beyond).
 	MaxBodyBytes int64
-	// Response is x-piw-response of the 200 response: "json" or "sse".
+	// Response is x-piw-response of the 200 response: "json", "sse", "ndjson" or "binary".
 	Response string
 	// MaxFrameBytes is, for an sse response, the most bytes one record may carry.
 	MaxFrameBytes int
@@ -31,6 +31,7 @@ var (
 	OpWorkersList                 = Operation{ID: "workers.list", Method: "GET", Path: "/b2/workers", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpWorkersCreate               = Operation{ID: "workers.create", Method: "POST", Path: "/b2/workers", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpWorkersGet                  = Operation{ID: "workers.get", Method: "GET", Path: "/b2/workers/{worker_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpSessionConfigure            = Operation{ID: "session.configure", Method: "POST", Path: "/b2/workers/{worker_id}/configure", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpSessionsPrompt              = Operation{ID: "sessions.prompt", Method: "POST", Path: "/b2/workers/{worker_id}/prompt", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpSessionsFollowUp            = Operation{ID: "sessions.follow_up", Method: "POST", Path: "/b2/workers/{worker_id}/follow_up", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpSessionsSteer               = Operation{ID: "sessions.steer", Method: "POST", Path: "/b2/workers/{worker_id}/steer", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
@@ -50,6 +51,11 @@ var (
 	OpItemsRead                   = Operation{ID: "items.read", Method: "GET", Path: "/b2/workers/{worker_id}/entries/{entry_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpFilesRead                   = Operation{ID: "files.read", Method: "POST", Path: "/b2/workers/{worker_id}/files/read", Mutation: false, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpAttachmentsStage            = Operation{ID: "attachments.stage", Method: "PUT", Path: "/b2/attachments/{attachment_id}", Mutation: true, Stream: false, Body: "binary", MediaTypes: []string{"image/jpeg", "image/png", "image/webp"}, MaxBodyBytes: 2097152, Response: "json", MaxFrameBytes: 0}
+	OpSessionsList                = Operation{ID: "sessions.list", Method: "GET", Path: "/b2/sessions", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpSessionsGet                 = Operation{ID: "sessions.get", Method: "GET", Path: "/b2/sessions/{session_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpSessionsHistory             = Operation{ID: "sessions.history", Method: "GET", Path: "/b2/sessions/{session_id}/history", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "ndjson", MaxFrameBytes: 0}
+	OpModelsList                  = Operation{ID: "models.list", Method: "GET", Path: "/b2/models", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpCommandsList                = Operation{ID: "commands.list", Method: "GET", Path: "/b2/commands", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpReceiptsGet                 = Operation{ID: "receipts.get", Method: "GET", Path: "/b2/receipts/{command_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpEventsSubscribe             = Operation{ID: "events.subscribe", Method: "GET", Path: "/b2/events", Mutation: false, Stream: true, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "sse", MaxFrameBytes: 1048576}
 )
@@ -60,6 +66,7 @@ var Operations = []Operation{
 	OpWorkersList,
 	OpWorkersCreate,
 	OpWorkersGet,
+	OpSessionConfigure,
 	OpSessionsPrompt,
 	OpSessionsFollowUp,
 	OpSessionsSteer,
@@ -79,6 +86,11 @@ var Operations = []Operation{
 	OpItemsRead,
 	OpFilesRead,
 	OpAttachmentsStage,
+	OpSessionsList,
+	OpSessionsGet,
+	OpSessionsHistory,
+	OpModelsList,
+	OpCommandsList,
 	OpReceiptsGet,
 	OpEventsSubscribe,
 }
@@ -92,6 +104,7 @@ var EventTypes = []string{
 	"execution.settled",
 	"fence.resolved",
 	"interactions.changed",
+	"history.appended",
 	"child.reported",
 }
 
@@ -117,6 +130,15 @@ func (c *Client) WorkersCreate(ctx context.Context, body Create) (*Receipt, erro
 func (c *Client) WorkersGet(ctx context.Context, workerID string) (*Worker, error) {
 	var out Worker
 	if err := c.do(ctx, OpWorkersGet, []string{workerID}, nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SessionConfigure calls session.configure (POST /b2/workers/{worker_id}/configure). A mutation: sent once, never retried.
+func (c *Client) SessionConfigure(ctx context.Context, workerID string, body Configure) (*Receipt, error) {
+	var out Receipt
+	if err := c.do(ctx, OpSessionConfigure, []string{workerID}, nil, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -293,6 +315,75 @@ func (c *Client) ItemsRead(ctx context.Context, workerID string, entryID string)
 func (c *Client) FilesRead(ctx context.Context, workerID string, body FileRead) (*FileContent, error) {
 	var out FileContent
 	if err := c.do(ctx, OpFilesRead, []string{workerID}, nil, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SessionsList calls sessions.list (GET /b2/sessions).
+func (c *Client) SessionsList(ctx context.Context, params *SessionsListParams) (*SessionList, error) {
+	q := url.Values{}
+	if params != nil {
+		if params.Cwd != nil {
+			q.Set("cwd", *params.Cwd)
+		}
+		if params.Limit != nil {
+			q.Set("limit", strconv.Itoa(*params.Limit))
+		}
+	}
+	var out SessionList
+	if err := c.do(ctx, OpSessionsList, nil, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SessionsGet calls sessions.get (GET /b2/sessions/{session_id}).
+func (c *Client) SessionsGet(ctx context.Context, sessionID string) (*SessionRow, error) {
+	var out SessionRow
+	if err := c.do(ctx, OpSessionsGet, []string{sessionID}, nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ModelsList calls models.list (GET /b2/models).
+func (c *Client) ModelsList(ctx context.Context, params *ModelsListParams) (*ModelList, error) {
+	q := url.Values{}
+	if params != nil {
+		if params.WorkerId != nil {
+			q.Set("worker_id", *params.WorkerId)
+		}
+		if params.Cwd != nil {
+			q.Set("cwd", *params.Cwd)
+		}
+		if params.ProjectTrusted != nil {
+			q.Set("project_trusted", strconv.FormatBool(*params.ProjectTrusted))
+		}
+	}
+	var out ModelList
+	if err := c.do(ctx, OpModelsList, nil, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CommandsList calls commands.list (GET /b2/commands).
+func (c *Client) CommandsList(ctx context.Context, params *CommandsListParams) (*CommandList, error) {
+	q := url.Values{}
+	if params != nil {
+		if params.WorkerId != nil {
+			q.Set("worker_id", *params.WorkerId)
+		}
+		if params.Cwd != nil {
+			q.Set("cwd", *params.Cwd)
+		}
+		if params.ProjectTrusted != nil {
+			q.Set("project_trusted", strconv.FormatBool(*params.ProjectTrusted))
+		}
+	}
+	var out CommandList
+	if err := c.do(ctx, OpCommandsList, nil, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

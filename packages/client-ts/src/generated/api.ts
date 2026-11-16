@@ -58,6 +58,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/b2/workers/{worker_id}/configure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the bound session's model, thinking level or name
+         * @description A session write (contract 8.1): it names the binding it saw, is refused under a fence and while an
+         *     execution runs, and after its dispatch record a lost reply is `outcome_unknown` and fences the session.
+         *     At least one of `model`, `thinking` and `name`.
+         */
+        post: operations["session.configure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/b2/workers/{worker_id}/prompt": {
         parameters: {
             query?: never;
@@ -360,8 +384,9 @@ export interface paths {
          *     that is in the session file (never an entry pi has not written;
          *     a session with nothing written yet reads as an empty page). An
          *     entry too large for a page is a `too_large` stub; read it with
-         *     `items.read`. History never creates a live interaction. Reading
-         *     an archived session by `session_id` with no worker is P1-14.
+         *     `items.read`. History never creates a live interaction. A session's
+         *     raw lines by byte range, with or without a worker, are
+         *     `sessions.history`.
          */
         get: operations["history.page"];
         put?: never;
@@ -436,6 +461,129 @@ export interface paths {
          *     are written is `effect: unknown`: read the receipt, never re-upload blindly. Served from P1-16.
          */
         put: operations["attachments.stage"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/b2/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the sessions this worker catalog knows, newest activity first
+         * @description The sessions a worker of this supervisor has bound (the resume catalog), live or archived, up to
+         *     `limit` (at most 100) per call, filtered by `cwd` when given. A session is listed when its cwd is in the
+         *     grant's cwd scope and its last owner is in the grant's worker scope. `holder_worker_id` names the worker
+         *     holding it now ("open in"). Rows come from the session file; a file pi has not written yet reads as an
+         *     empty session.
+         */
+        get: operations["sessions.list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/b2/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        /** Read one session row */
+        get: operations["sessions.get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/b2/sessions/{session_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read a session file's complete lines by byte range, with or without a worker
+         * @description Shep's shape (a) of `history.page` (question S-1): pi's session-file lines from byte `offset`, complete
+         *     lines only, ending on a line boundary, at most `max_bytes` unless one line alone is longer (then that one
+         *     line, up to `Piw-History-Line-Max`). It reads any session of the catalog, so an archived session reads by
+         *     `session_id` with no worker bound to it; scope is as for `sessions.get`.
+         *
+         *     Headers: `Piw-File-Identity` is stable across appends and changes when the file is replaced;
+         *     `Piw-Watermark` is the file's complete size (the byte after its last complete line), the value
+         *     `history.appended` carries; `Piw-Next-Offset` is where the next read starts; `Piw-Tail-Sha256` is the
+         *     SHA-256 of the last line read (with its line feed), to send back as `tail`.
+         *
+         *     Reset: send back `identity` and `tail` with the next `offset`. When the identity differs, or the line
+         *     ending at `offset` is not the one `tail` names (the file was replaced, shrank or was rewritten in place),
+         *     the worker reads from byte 0 and sets `Piw-Reset: true`. Without `tail`, an offset past the watermark
+         *     is `history_offset_past_watermark` and one not on a line start `history_offset_not_line_start`, both
+         *     `400 no_effect`: a bad offset never reads as an empty page.
+         */
+        get: operations["sessions.history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/b2/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The model catalog pi reports, for a worker or for a cwd before any worker exists
+         * @description Name exactly one of `worker_id` (the worker's pi process answers, with its current model and thinking
+         *     level) or `cwd` (a short-lived pi process loads that cwd's settings and resources, opens no session and
+         *     exits). `project_trusted` applies to `cwd` as it does to `workers.create`.
+         */
+        get: operations["models.list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/b2/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The slash commands pi offers, for a worker or for a cwd before any worker exists
+         * @description As `models.list` for `worker_id` and `cwd`. Each command says how it is invoked: an extension command
+         *     through `commands.invoke`; a built-in that has its own method (`/new`, `/model`, `/compact`, …) names
+         *     that method; anything else is `unsupported` and refused explicitly.
+         */
+        get: operations["commands.list"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -599,6 +747,10 @@ export interface components {
              *     record. Callers mint every `command_id` as a UUIDv7 (RFC 9562).
              */
             receipt_expired_ids_max: number;
+            /** @description The largest `max_bytes` one `sessions.history` read accepts. */
+            history_max_bytes?: number;
+            /** @description The longest single session-file line `sessions.history` returns. */
+            history_line_max_bytes?: number;
         };
         Binding: {
             command_id: components["schemas"]["Id"];
@@ -887,11 +1039,136 @@ export interface components {
             resources?: {
                 [key: string]: unknown;
             };
+            /** @description The phone's chat identity for this worker (its `worker_id`), passed through unchanged (S-3). */
+            chat_id?: components["schemas"]["Id"];
+            /** @constant */
+            runtime?: "worker";
+            /** @description RFC 3339 time the status last changed. */
+            status_since?: string;
+            /** @description Executions pi reported settled on this worker (finished-unseen on the phone). */
+            settle_count?: number;
+            lineage?: components["schemas"]["Lineage"];
+            /** @description The name of the Git work tree holding the cwd, else the cwd's base name. */
+            repo_label?: string | null;
+            /** @description The session's display name (pi's session_info), set by `session.configure` or natively. */
+            title?: string | null;
+            preview?: components["schemas"]["Preview"];
+            /** @description RFC 3339 time of the newest entry in the session file. */
+            last_activity_at?: string | null;
+            model?: components["schemas"]["ModelRef"] | null;
+            thinking?: components["schemas"]["Thinking"] | null;
+        };
+        /**
+         * @description A child names its parent; old and natively launched sessions are unknown, never roots.
+         * @enum {string}
+         */
+        Lineage: "root" | "child" | "unknown";
+        /** @description The newest user or assistant text in the session file, without the worker's interrupt marker, at most 280 characters. */
+        Preview: string | null;
+        ModelRef: {
+            provider: string;
+            id: string;
+        };
+        Configure: {
+            command_id: components["schemas"]["Id"];
+            worker_epoch: components["schemas"]["Id"];
+            session_id: components["schemas"]["Id"];
+            binding_revision: number;
+            model?: components["schemas"]["ModelRef"];
+            thinking?: components["schemas"]["Thinking"];
+            name?: string;
+        };
+        /** @description Stable across appends to one session file; changes when the file is replaced. */
+        FileIdentity: string;
+        Sha256: string;
+        SessionTokens: {
+            input: number;
+            output: number;
+            cache_read: number;
+            cache_write: number;
+            total: number;
+        };
+        SessionStats: {
+            user_messages: number;
+            assistant_messages: number;
+            tool_calls: number;
+            tokens: components["schemas"]["SessionTokens"];
+            cost_total: number;
+            /** @description Per-model usage and cost, from the assistant messages' own usage records. */
+            models: {
+                provider: string;
+                model: string;
+                assistant_messages: number;
+                tokens_total: number;
+                cost_total: number;
+            }[];
+        };
+        SessionRow: {
+            session_id: components["schemas"]["Id"];
+            /** @description The phone's chat identity for an archived chat (its `session_id`), passed through (S-3). */
+            chat_id: components["schemas"]["Id"];
+            /** @constant */
+            runtime: "worker";
+            cwd: components["schemas"]["AbsolutePath"];
+            title: string | null;
+            preview: components["schemas"]["Preview"];
+            created_at: string | null;
+            last_activity_at: string | null;
+            message_count: number;
+            /** @description The worker that holds the session now ("open in"); null when no worker holds it. */
+            holder_worker_id: string | null;
+            last_worker_id: components["schemas"]["Id"];
+            /** @description The last owner's fence is unresolved; resume is refused `target_session_fenced`. */
+            fenced: boolean;
+            lineage: components["schemas"]["Lineage"];
+            stats: components["schemas"]["SessionStats"];
+            /** @constant */
+            evidence: "pi_session_file";
+        };
+        SessionList: {
+            sessions: components["schemas"]["SessionRow"][];
+            /** @description More sessions matched than `limit`. */
+            truncated: boolean;
+        };
+        Model: {
+            provider: string;
+            id: string;
+            name: string;
+            reasoning: boolean;
+            input: ("text" | "image")[];
+            context_window: number;
+            max_tokens: number;
+        };
+        ModelList: {
+            models: components["schemas"]["Model"][];
+            current: components["schemas"]["ModelRef"] | null;
+            thinking: components["schemas"]["Thinking"] | null;
+            thinking_levels: components["schemas"]["Thinking"][];
+            /** @enum {string} */
+            evidence: "pi_worker_process" | "pi_inventory_process";
+        };
+        Command: {
+            name: string;
+            description: string | null;
+            /** @enum {string} */
+            source: "builtin" | "extension" | "prompt" | "skill";
+            argument_hint: string | null;
+            /**
+             * @description How the command runs through B2: `commands.invoke`; `method`, the typed method in `method` (a built-in with its own operation); or `unsupported`, refused explicitly.
+             * @enum {string}
+             */
+            invocation: "commands.invoke" | "method" | "unsupported";
+            method: string | null;
+        };
+        CommandList: {
+            commands: components["schemas"]["Command"][];
+            /** @enum {string} */
+            evidence: "pi_worker_process" | "pi_inventory_process";
         };
         Receipt: {
             command_id: components["schemas"]["Id"];
             /** @enum {string} */
-            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.new" | "sessions.follow_up" | "sessions.steer" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release" | "attachments.stage";
+            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.new" | "sessions.follow_up" | "sessions.steer" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release" | "attachments.stage" | "session.configure";
             request_hash: string;
             /** @enum {string} */
             state: "intent" | "intent_recovered" | "accepted" | "delivered" | "rejected" | "outcome_unknown" | "queued" | "queue_ready" | "intent_ready";
@@ -979,7 +1256,7 @@ export interface components {
         /** @enum {string} */
         EventEvidence: "observed_memory" | "supervisor_journal_fsynced";
         /** @description One SSE frame. `type` selects the member. */
-        EventFrame: components["schemas"]["SnapshotEvent"] | components["schemas"]["OverflowEvent"] | components["schemas"]["WorkerUpdatedEvent"] | components["schemas"]["SessionReboundEvent"] | components["schemas"]["ExecutionSettledEvent"] | components["schemas"]["FenceResolvedEvent"] | components["schemas"]["InteractionsChangedEvent"] | components["schemas"]["ChildReportedEvent"];
+        EventFrame: components["schemas"]["SnapshotEvent"] | components["schemas"]["OverflowEvent"] | components["schemas"]["WorkerUpdatedEvent"] | components["schemas"]["SessionReboundEvent"] | components["schemas"]["ExecutionSettledEvent"] | components["schemas"]["FenceResolvedEvent"] | components["schemas"]["InteractionsChangedEvent"] | components["schemas"]["HistoryAppendedEvent"] | components["schemas"]["ChildReportedEvent"];
         /** @description Sent first on every attach, at a synchronous barrier. `workers` is authoritative. No event replay. */
         SnapshotEvent: {
             /** @constant */
@@ -1117,6 +1394,24 @@ export interface components {
                 interactions: components["schemas"]["Interactions"];
             };
         };
+        /** @description A worker's session file grew or was replaced. `watermark` is the file's complete size, the value `sessions.history` returns in `Piw-Watermark` for the same bytes. */
+        HistoryAppendedEvent: {
+            /** @constant */
+            type: "history.appended";
+            cursor: components["schemas"]["Cursor"];
+            event_id: components["schemas"]["Id"];
+            producer: components["schemas"]["Producer"];
+            execution_id: string | null;
+            /** @constant */
+            evidence: "observed_memory";
+            worker_id: components["schemas"]["Id"];
+            data: {
+                session_id: components["schemas"]["Id"];
+                file_identity: components["schemas"]["FileIdentity"];
+                watermark: number;
+                last_entry_id: string | null;
+            };
+        };
     };
     responses: {
         /** @description The command's receipt. */
@@ -1185,6 +1480,12 @@ export interface components {
     };
     parameters: {
         WorkerId: components["schemas"]["Id"];
+        SessionId: components["schemas"]["Id"];
+        /** @description Ask this worker's pi process. Exactly one of worker_id and cwd. */
+        FeatureWorker: components["schemas"]["Id"];
+        /** @description Ask a short-lived pi process for this cwd. Exactly one of worker_id and cwd. */
+        FeatureCwd: components["schemas"]["AbsolutePath"];
+        FeatureTrust: boolean;
     };
     requestBodies: never;
     headers: never;
@@ -1285,6 +1586,29 @@ export interface operations {
             409: components["responses"]["Refused"];
             500: components["responses"]["Unknown"];
             501: components["responses"]["NotImplemented"];
+        };
+    };
+    "session.configure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Configure"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Receipt"];
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            413: components["responses"]["TooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["Unknown"];
         };
     };
     "sessions.prompt": {
@@ -1781,6 +2105,156 @@ export interface operations {
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["Unknown"];
             501: components["responses"]["NotImplemented"];
+        };
+    };
+    "sessions.list": {
+        parameters: {
+            query?: {
+                cwd?: components["schemas"]["AbsolutePath"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session rows. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            500: components["responses"]["Unknown"];
+        };
+    };
+    "sessions.get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The session row. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionRow"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            500: components["responses"]["Unknown"];
+        };
+    };
+    "sessions.history": {
+        parameters: {
+            query?: {
+                format?: "jsonl";
+                offset?: number;
+                max_bytes?: number;
+                identity?: components["schemas"]["FileIdentity"];
+                tail?: components["schemas"]["Sha256"];
+            };
+            header?: never;
+            path: {
+                session_id: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete session-file lines. */
+            200: {
+                headers: {
+                    "Piw-Session-Id": components["schemas"]["Id"];
+                    "Piw-File-Identity": components["schemas"]["FileIdentity"];
+                    /** @description The byte the body starts at (0 after a reset). */
+                    "Piw-Offset": number;
+                    "Piw-Next-Offset": number;
+                    "Piw-Watermark": number;
+                    "Piw-Reset": boolean;
+                    /** @description Absent when nothing precedes `Piw-Next-Offset`. */
+                    "Piw-Tail-Sha256"?: components["schemas"]["Sha256"];
+                    "Piw-History-Line-Max": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-ndjson": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            500: components["responses"]["Unknown"];
+        };
+    };
+    "models.list": {
+        parameters: {
+            query?: {
+                /** @description Ask this worker's pi process. Exactly one of worker_id and cwd. */
+                worker_id?: components["parameters"]["FeatureWorker"];
+                /** @description Ask a short-lived pi process for this cwd. Exactly one of worker_id and cwd. */
+                cwd?: components["parameters"]["FeatureCwd"];
+                project_trusted?: components["parameters"]["FeatureTrust"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The models. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            500: components["responses"]["Unknown"];
+        };
+    };
+    "commands.list": {
+        parameters: {
+            query?: {
+                /** @description Ask this worker's pi process. Exactly one of worker_id and cwd. */
+                worker_id?: components["parameters"]["FeatureWorker"];
+                /** @description Ask a short-lived pi process for this cwd. Exactly one of worker_id and cwd. */
+                cwd?: components["parameters"]["FeatureCwd"];
+                project_trusted?: components["parameters"]["FeatureTrust"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The commands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            500: components["responses"]["Unknown"];
         };
     };
     "receipts.get": {

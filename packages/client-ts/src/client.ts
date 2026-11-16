@@ -269,6 +269,79 @@ export class Client {
   }
 
   /**
+   * Reads an `ndjson` or `binary` operation (sessions.history, blobs.read): one GET, once. Resolves with the 200's
+   * headers (lower-case names), media type and bytes, refusing a body over the route's x-piw-max-bytes; a refusal
+   * rejects with ClientFailure as for `call`. These are reads: any failure is `no_effect` or `unknown` as usual.
+   */
+  read<O extends OperationId>(op: O, options: { path?: PathParams<O>; query?: QueryParams<O> } = {}): Promise<{ headers: Record<string, string>; contentType: string; body: Buffer }> {
+    const route = routes[op];
+    // Widened: the table's literal modes grow as byte-read operations are added (blobs.read is P1-16).
+    const mode: string = route.responseMode;
+    if (mode !== 'ndjson' && mode !== 'binary') return Promise.reject(new ClientFailure('operation_is_not_a_byte_read', 'no_effect', 'before_write'));
+    const limit = route.maxResponseBytes ?? 0;
+    let path: string;
+    let auth: Record<string, string>;
+    try {
+      path = fillPath(route.path, options.path as Record<string, unknown> | undefined) + queryString(options.query as Record<string, unknown> | undefined);
+      auth = this.headers();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    return new Promise((resolve, reject) => {
+      let wrote = false;
+      let settled = false;
+      const fail = (e: unknown) => {
+        if (settled) return;
+        settled = true;
+        reject(e instanceof ClientFailure ? e : new ClientFailure(e instanceof Error ? e.message : 'transport_failure', wrote ? 'unknown' : 'no_effect', wrote ? 'after_write' : 'before_write'));
+      };
+      const req = request({ socketPath: this.socketPath, method: route.method, path, agent: false, headers: { ...auth, Connection: 'close' } }, res => {
+        const chunks: Buffer[] = [];
+        let bytes = 0;
+        const cap = res.statusCode === 200 ? limit : RESPONSE_LIMIT;
+        res.on('data', (b: Buffer) => {
+          bytes += b.length;
+          if (bytes > cap) {
+            res.destroy(new Error('response too large'));
+            return;
+          }
+          chunks.push(b);
+        });
+        res.on('error', fail);
+        res.on('aborted', () => fail(new Error('response_aborted')));
+        res.on('end', () => {
+          if (settled) return;
+          const body = Buffer.concat(chunks);
+          if (res.statusCode === 200) {
+            settled = true;
+            const headers = Object.fromEntries(Object.entries(res.headers).filter(([, v]) => typeof v === 'string')) as Record<string, string>;
+            resolve({ headers, contentType: String(res.headers['content-type'] ?? ''), body });
+            return;
+          }
+          let value: unknown;
+          try {
+            value = JSON.parse(body.toString('utf8'));
+          } catch (error) {
+            fail(error);
+            return;
+          }
+          settled = true;
+          const refusal = value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+          reject(new ClientFailure(typeof refusal?.error === 'string' ? refusal.error : 'HTTP refusal without a B2 Error body', refusal?.effect === 'no_effect' ? 'no_effect' : 'unknown', 'http', res.statusCode, refusal ?? {}));
+        });
+      });
+      req.setTimeout(this.timeoutMs, () => req.destroy(new Error('HTTP timeout')));
+      req.on('error', fail);
+      req.once('socket', socket => {
+        socket.once('connect', () => {
+          wrote = true;
+          req.end();
+        });
+      });
+    });
+  }
+
+  /**
    * Reads the supervisor-wide SSE stream. `onFrame` returning false ends the watch (resolves). An `overflow` frame is
    * delivered, then the watch rejects with ResyncRequired('overflow'); a disconnect rejects with
    * ResyncRequired('disconnected'). The caller decides whether to reconnect; a reconnect always starts with a snapshot.

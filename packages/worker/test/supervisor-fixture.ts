@@ -30,6 +30,18 @@ export class Host extends EventEmitter implements SessionHost {
   cancelled: string[] = [];
   /** Cancellations never return while set (a resolver that hangs). */
   holdUI = false;
+  /** The next `configure` changes pi, then its reply is lost. */
+  configureFailure = false;
+  /** The next `configure` is refused by the child before any change. */
+  configureRefusal: string | null = null;
+  /** What `features` answers (pi's own commands and models). */
+  features: Record<string, unknown> = {
+    models: [{ provider: 'p', id: 'm', name: 'M', reasoning: false, input: ['text', 'image'], context_window: 1000, max_tokens: 100 }],
+    current: { provider: 'p', id: 'm' },
+    thinking: 'off',
+    thinking_levels: ['off', 'low', 'high'],
+    commands: [{ name: 'deploy', description: 'Deploy', source: 'extension' }],
+  };
   /** The exact resolver's acknowledgement of an answer (the SDK child's `Resolvers.answer`). */
   answerUI: (nativeId: string, answer: Record<string, unknown>) => Promise<{ consumed: boolean; outcome?: string }> = async () => ({ consumed: true, outcome: 'answered' });
 
@@ -66,6 +78,12 @@ export class Host extends EventEmitter implements SessionHost {
       if (this.failure) throw new Error('lost_prompt_reply');
       return { type: 'response', id: 'x', success: true, data: { disposition: 'started' } };
     }
+    if (c.type === 'configure') {
+      if (this.configureRefusal) return { type: 'response', id: 'x', success: false, error: this.configureRefusal, refused: 'before_input' };
+      if (this.configureFailure) throw new Error('lost_configure_reply');
+      return { type: 'response', id: 'x', success: true, data: { model: c.model ?? { provider: 'p', id: 'm' }, thinking: c.thinking ?? 'off', name: c.name ?? null } };
+    }
+    if (c.type === 'features') return { type: 'response', id: 'x', success: true, data: structuredClone(this.features) };
     if (c.type === 'steer') return { type: 'response', id: 'x', success: true, data: { disposition: 'queued' } };
     if (c.type === 'inventory') return { type: 'response', id: 'x', success: true, data: { extensions: [], extension_errors: [], skills: [], tools: [], active_tools: [] } };
     if (c.type === 'abort') this.emit('event', { type: 'agent_settled', aborted: true });

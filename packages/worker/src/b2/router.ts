@@ -45,11 +45,23 @@ export interface B2Stream {
   readonly sse: (sink: StreamSink) => void;
 }
 
+/**
+ * What an `ndjson` or `binary` handler returns: typed header values by the spec's header names (lower-case), the
+ * body's media type and its bytes. The router validates all three before a byte is written.
+ */
+export interface RawReply {
+  readonly headers: Readonly<Record<string, string | number | boolean>>;
+  readonly contentType: string;
+  readonly body: Buffer;
+}
+
 export interface B2Response {
   readonly status: number;
   readonly body: unknown;
   /** Present for a 200 of an `sse` operation; every frame is validated by the event hub before it is written. */
   readonly stream?: B2Stream;
+  /** Present for a 200 of an `ndjson` or `binary` operation, after its checks: header strings, media type, bytes. */
+  readonly raw?: { readonly headers: Readonly<Record<string, string>>; readonly contentType: string; readonly body: Buffer };
 }
 
 const isStream = (value: unknown): value is B2Stream => typeof (value as B2Stream | null)?.sse === 'function';
@@ -180,6 +192,36 @@ export function createRouter(options: RouterOptions): RequestHandler {
     return { status: 500, body: failure };
   }
 
+  /**
+   * Checks an ndjson or binary reply before it is sent: its headers against the response's header schema, its media
+   * type against the declared ones, its size against x-piw-max-bytes, and for ndjson that it is complete lines, each
+   * one JSON value. A failure is never sent: 500 `response_schema_mismatch`, `no_effect` (these are reads).
+   */
+  function rawReply(route: Route, result: unknown): B2Response {
+    const spec = route.responses['200']!;
+    const r = result as RawReply;
+    const fail = (detail: string): B2Response => ({ status: 500, body: { error: 'response_schema_mismatch', effect: 'no_effect', detail } });
+    if (!r || typeof r !== 'object' || !Buffer.isBuffer(r.body) || typeof r.headers !== 'object' || r.headers === null) return fail('raw reply expected');
+    if (!spec.headers?.(r.headers)) return fail(`headers ${describe(spec.headers?.errors)}`);
+    if (!spec.contentTypes.includes(r.contentType)) return fail('content type not declared');
+    if (spec.maxBytes === null || r.body.length > spec.maxBytes) return fail('body over x-piw-max-bytes');
+    if (spec.mode === 'ndjson') {
+      if (r.body.length > 0 && r.body[r.body.length - 1] !== 0x0a) return fail('ndjson body does not end on a line boundary');
+      let start = 0;
+      while (start < r.body.length) {
+        const end = r.body.indexOf(0x0a, start);
+        try {
+          JSON.parse(r.body.subarray(start, end).toString('utf8'));
+        } catch {
+          return fail(`ndjson line at byte ${start} is not one JSON value`);
+        }
+        start = end + 1;
+      }
+    }
+    const headers = Object.fromEntries(Object.entries(r.headers).map(([k, v]) => [k, String(v)]));
+    return { status: 200, body: null, raw: { headers, contentType: r.contentType, body: r.body } };
+  }
+
   return async function handle(request: B2Request): Promise<B2Response> {
     let url: URL;
     let segments: string[];
@@ -240,6 +282,7 @@ export function createRouter(options: RouterOptions): RequestHandler {
         if (!isStream(result)) throw new Error('stream operation returned no stream');
         return { status: 200, body: null, stream: result };
       }
+      if (route.raw) return rawReply(route, result);
       return reply(route, 200, result, commandId);
     } catch (error) {
       if (error instanceof Refusal) return reply(route, error.status, error.toBody(), commandId);

@@ -1,0 +1,27 @@
+{
+  "request": {
+    "path": {
+      "session_id": "session-1"
+    },
+    "query": {
+      "format": "jsonl",
+      "offset": "0",
+      "max_bytes": "1048576"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Piw-Session-Id": "session-1",
+      "Piw-File-Identity": "c0542a5886d8d0e8a5a469c0fb8a76a782c28dce3065649d4b1e9a3af210e0cf",
+      "Piw-Offset": "0",
+      "Piw-Next-Offset": "471",
+      "Piw-Watermark": "471",
+      "Piw-Reset": "false",
+      "Piw-Tail-Sha256": "406bd4e4d9c2d87fb8501495db55da42389198bd302ac3da24beca16b53568f0",
+      "Piw-History-Line-Max": "67108864"
+    },
+    "contentType": "application/x-ndjson",
+    "bodyText": "{\"type\":\"session\",\"version\":3,\"id\":\"session-1\",\"timestamp\":\"2026-11-16T04:00:00Z\",\"cwd\":\"/home/u/project\"}\n{\"type\":\"custom\",\"customType\":\"pi-worker.input\",\"id\":\"e1\",\"parentId\":null,\"timestamp\":\"2026-11-16T04:00:01Z\",\"data\":{\"command_id\":\"cmd-1\",\"execution_id\":\"exec-1\",\"interrupt_marker\":false}}\n{\"type\":\"message\",\"id\":\"e2\",\"parentId\":\"e1\",\"timestamp\":\"2026-11-16T04:00:01Z\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Fix the login bug\"}],\"timestamp\":0}}\n"
+  }
+}

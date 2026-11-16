@@ -80,6 +80,8 @@ export function generateValidators(spec, ops, eventInfo) {
     if (op.body) add(`request_${op.key}`, op.body);
     for (const r of op.responses) {
       if (r.contentType === 'application/json') add(`response_${op.key}_${r.status}`, r.schema);
+      // ndjson and binary responses: their headers, by lower-case name, as typed values.
+      if (r.headers) add(`response_headers_${op.key}_${r.status}`, r.headers);
     }
   }
   for (const m of eventInfo.members) add(`event_${m.name}`, { $ref: `#/components/schemas/${m.name}` });

@@ -76,6 +76,9 @@ export const DURABLE_LABELS = [
   'interaction.gate_close',
   'interaction.cancel',
   'interaction.recover',
+  // Features (supervisor/features.ts): the worker row after `session.configure` changed the model, thinking level or
+  // name (an unknown one latches the fence under `fence.latch`).
+  'session.configure',
 ] as const;
 
 export type DurableLabel = (typeof DURABLE_LABELS)[number];

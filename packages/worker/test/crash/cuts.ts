@@ -263,4 +263,22 @@ export const CUT_SCENARIOS: readonly CutScenario[] = [
       'grant.revoke_directory',
     ],
   },
+  {
+    scenario: 'features',
+    file: 'features.test.ts',
+    labels: [
+      ...OPEN,
+      'receipt.intent',
+      'receipt.dispatch',
+      'receipt.result',
+      'worker.create',
+      'worker.spawned',
+      'worker.identity',
+      'worker.ready',
+      'worker.recover',
+      'session.configure',
+      'fence.latch',
+      'fence.resolve',
+    ],
+  },
 ];

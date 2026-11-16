@@ -96,6 +96,19 @@ test('closure: every wire fixture validates (parameters, body, response or SSE f
     if (response.contentType === 'text/event-stream') {
       assert.ok(fixture.response.frames?.length, `${label} needs frames`);
       for (const frame of fixture.response.frames!) assert.equal(validateEventFrame(frame), true, `${label} frame: ${JSON.stringify(validateEventFrame.errors)}`);
+    } else if (response.mode === 'ndjson' || response.mode === 'binary') {
+      // Bytes with headers: the headers convert from their wire strings by kind and validate; the media type is
+      // declared; an ndjson body is complete lines, each one JSON value.
+      const wire = Object.fromEntries(Object.entries(fixture.response.headers ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
+      const typed = Object.fromEntries(Object.entries(wire).map(([k, v]) => [k, convertParam(v, response.headerKinds?.[k] ?? 'string')]));
+      assert.equal(response.headers!(typed), true, `${label} headers: ${JSON.stringify(response.headers!.errors)}`);
+      assert.ok(response.contentTypes.includes(fixture.response.contentType ?? ''), `${label} content type`);
+      const bytes = fixture.response.bodyText !== undefined ? Buffer.from(fixture.response.bodyText) : Buffer.from(fixture.response.bodyBase64 ?? '', 'base64');
+      assert.ok(bytes.length <= response.maxBytes!, `${label} within x-piw-max-bytes`);
+      if (response.mode === 'ndjson') {
+        assert.ok(bytes.length === 0 || bytes[bytes.length - 1] === 0x0a, `${label} ends on a line boundary`);
+        for (const line of bytes.toString('utf8').split('\n').slice(0, -1)) assert.doesNotThrow(() => JSON.parse(line), `${label} line is one JSON value`);
+      }
     } else {
       assert.equal(response.validate!(fixture.response.body), true, `${label} response: ${JSON.stringify(response.validate!.errors)}`);
     }
@@ -202,7 +215,12 @@ test('closure: every operation declares its body and response modes, and the spe
       const route = table[op.operationId]!;
       assert.ok(['json', 'binary', 'none'].includes(op['x-piw-body'] ?? ''), `${op.operationId} declares x-piw-body`);
       assert.equal(route.body, op['x-piw-body'], op.operationId);
-      assert.ok(['json', 'sse'].includes(route.responseMode), `${op.operationId} response mode`);
+      assert.ok(['json', 'sse', 'ndjson', 'binary'].includes(route.responseMode), `${op.operationId} response mode`);
+      // A byte response declares its cap and its headers, and the router has their validator.
+      if (route.raw) {
+        const ok = route.responses['200']!;
+        assert.ok(ok.maxBytes !== null && ok.maxBytes > 0 && ok.headers !== null && ok.headerKinds !== null, `${op.operationId} byte response declares x-piw-max-bytes and headers`);
+      }
       if (route.body === 'none') assert.equal(route.maxBodyBytes, 0, op.operationId);
       if (route.body === 'json') assert.equal(route.maxBodyBytes, op['x-piw-max-bytes'] ?? REQUEST_BODY_LIMIT, op.operationId);
       if (route.body === 'binary') assert.ok(route.maxBodyBytes > REQUEST_BODY_LIMIT && route.maxBodyBytes === op['x-piw-max-bytes'], op.operationId);
@@ -232,6 +250,8 @@ test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE
     ordinary_receipts_max: 4096,
     receipt_retention_min_seconds: 3600,
     receipt_expired_ids_max: 16384,
+    history_max_bytes: 16 * MiB,
+    history_line_max_bytes: 64 * MiB,
   });
 });
 

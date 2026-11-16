@@ -1,4 +1,6 @@
-# Fails piw/body-and-response-modes: a binary body without x-piw-max-bytes, and an SSE response without x-piw-response.
+# Fails piw/body-and-response-modes: a binary body without
+# x-piw-max-bytes, an SSE response without x-piw-response,
+# and an ndjson response without x-piw-max-bytes or headers.
 openapi: 3.1.0
 info:
   title: lint fixture
@@ -89,6 +91,32 @@ paths:
                 $ref: '#/components/schemas/Error'
         '501':
           description: Not implemented.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /b2/sessions/{session_id}/history:
+    get:
+      operationId: sessions.history
+      summary: History
+      x-piw-mutation: false
+      x-piw-body: none
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lines.
+          x-piw-response: ndjson
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+        '400':
+          description: Bad request.
           content:
             application/json:
               schema:
