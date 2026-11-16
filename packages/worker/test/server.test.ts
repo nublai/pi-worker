@@ -84,6 +84,94 @@ test('server: never replaces a live socket or a non-socket file; removes a stale
   }
 });
 
+/** A socket file whose listener was SIGKILLed: the path stays and nothing answers on it. */
+async function staleSocket(path: string): Promise<void> {
+  const holder = spawn(process.execPath, ['-e', `require('node:net').createServer().listen(${JSON.stringify(path)}, () => console.log('up'))`], {
+    stdio: ['ignore', 'pipe', 'inherit'],
+  });
+  await once(holder.stdout, 'data');
+  holder.kill('SIGKILL');
+  await once(holder, 'exit');
+  assert.ok(existsSync(path));
+}
+
+test('server: concurrent starts over one stale socket: exactly one listens, the other never replaces it (review F2)', async () => {
+  const tmp = privateTmp();
+  const servers = [0, 1, 2].map(() => createB2Server(createApp().handle));
+  try {
+    const socket = join(tmp.dir, 'b2.sock');
+    await staleSocket(socket);
+    const results = await Promise.allSettled(servers.map(server => listenPrivate(server, socket)));
+    const won = results.flatMap((r, i) => (r.status === 'fulfilled' ? [i] : []));
+    assert.equal(won.length, 1, `exactly one start wins, got ${JSON.stringify(results.map(r => r.status))}`);
+    for (const r of results) if (r.status === 'rejected') assert.match(String(r.reason), /another supervisor|another process answers/);
+    const winner = servers[won[0]!]!;
+    assert.equal(winner.listening, true);
+    assert.equal(servers.filter(s => s.listening).length, 1);
+    const before = lstatSync(socket).ino;
+    assert.equal((await socketCall(socket, 'GET', '/b2/hello')).status, 200);
+    // A later start while the winner lives is refused and leaves the winner's socket in place.
+    await assert.rejects(listenPrivate(createB2Server(createApp().handle), socket), /another supervisor|another process answers/);
+    assert.equal(lstatSync(socket).ino, before);
+    assert.equal((await socketCall(socket, 'GET', '/b2/hello')).status, 200);
+    // Closing the winner removes its socket and frees the path for the next start.
+    await close(winner);
+    assert.equal(existsSync(socket), false);
+    const next = createB2Server(createApp().handle);
+    await listenPrivate(next, socket);
+    assert.equal((await socketCall(socket, 'GET', '/b2/hello')).status, 200);
+    await close(next);
+  } finally {
+    for (const server of servers) if (server.listening) await close(server);
+    tmp.cleanup();
+  }
+});
+
+test('server: a SIGKILLed daemon leaves its socket stale; the next daemon takes it over', async () => {
+  const tmp = privateTmp();
+  const socket = join(tmp.dir, 'run', 'b2.sock');
+  const daemons: ReturnType<typeof startDaemon>[] = [];
+  try {
+    const first = startDaemon(socket, join(tmp.dir, 'state'));
+    daemons.push(first);
+    await first.listening;
+    first.child.kill('SIGKILL');
+    await once(first.child, 'exit');
+    assert.ok(existsSync(socket), 'SIGKILL leaves the socket file');
+    const second = startDaemon(socket, join(tmp.dir, 'state'));
+    daemons.push(second);
+    await second.listening;
+    assert.equal((await socketCall(socket, 'GET', '/b2/hello')).status, 200);
+    // A third start while the second lives exits non-zero and leaves the socket answering.
+    const third = startDaemon(socket, join(tmp.dir, 'state'));
+    daemons.push(third);
+    await assert.rejects(third.listening, /exited 1/);
+    assert.equal((await socketCall(socket, 'GET', '/b2/hello')).status, 200);
+  } finally {
+    for (const d of daemons) if (d.child.exitCode === null && d.child.signalCode === null) d.child.kill('SIGKILL');
+    tmp.cleanup();
+  }
+});
+
+function startDaemon(socket: string, stateDir: string) {
+  const main = fileURLToPath(new URL('../src/main.js', import.meta.url));
+  const child = spawn(process.execPath, [main], {
+    env: { PATH: process.env.PATH, PIW_SOCKET: socket, PIW_STATE_DIR: stateDir },
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  let stderr = '';
+  child.stderr.setEncoding('utf8');
+  const listening = new Promise<void>((resolve, reject) => {
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
+      if (stderr.includes('"listening"')) resolve();
+    });
+    child.once('exit', code => reject(new Error(`daemon exited ${code}: ${stderr}`)));
+  });
+  listening.catch(() => {});
+  return { child, listening };
+}
+
 test('main: the daemon creates private directories, serves hello on PIW_SOCKET and removes the socket on SIGTERM', async () => {
   const tmp = privateTmp();
   const socket = join(tmp.dir, 'run', 'pi-worker', 'b2.sock');

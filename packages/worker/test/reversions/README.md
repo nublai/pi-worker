@@ -11,3 +11,4 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | --- | --- | --- |
 | `p0-4-no-response-validation.diff` | response validation in the router | closure tests on invalid responses |
 | `p0-4-drop-one-route.diff` | one route (`workers.stop`) | `closure: every spec operation is routed` |
+| `p0-review-f2-no-socket-lock.diff` | the socket takeover lock in `listenPrivate` | `server: concurrent starts over one stale socket` (command: `--test-name-pattern=server`) |

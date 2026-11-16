@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** pi-worker supervisor entry: config, private directories, B2 socket, signals. */
-import { lstatSync, mkdirSync, rmSync } from 'node:fs';
+import { lstatSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createApp } from './b2/app.js';
 import { createB2Server, listenPrivate } from './b2/server.js';
@@ -30,10 +30,9 @@ function shutdown(): void {
   if (stopping) return;
   stopping = true;
   server.closeAllConnections();
-  server.close(() => {
-    rmSync(paths.socketPath, { force: true });
-    process.exit(0);
-  });
+  // Closing removes the socket file, then releases the socket lock. Removing the path after that could delete a
+  // successor's socket, so main never unlinks it itself.
+  server.close(() => process.exit(0));
 }
 process.once('SIGTERM', shutdown);
 process.once('SIGINT', shutdown);

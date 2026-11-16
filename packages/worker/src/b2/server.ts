@@ -7,6 +7,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { chmodSync, lstatSync, unlinkSync } from 'node:fs';
 import { connect } from 'node:net';
 import { dirname, isAbsolute } from 'node:path';
+import { acquireLock } from '../lock.js';
 import type { B2Request, RequestHandler } from './router.js';
 
 function headersOf(req: IncomingMessage): Record<string, string | undefined> {
@@ -55,9 +56,14 @@ function liveSocket(path: string): Promise<boolean> {
 }
 
 /**
- * Listen on `socketPath`. The parent directory must be an owned, non-symlink 0700 directory. A stale socket is
- * removed only if it is a socket we own and nothing answers on it, so a second supervisor never steals a live one.
- * The caller sets `process.umask(0o077)` first, so the socket is never wider than 0600, even before the chmod.
+ * Listen on `socketPath`. The parent directory must be an owned, non-symlink 0700 directory.
+ *
+ * Takeover is serialized by an exclusive lock on `<socketPath>.lock`, taken before the socket is examined and held
+ * until the server closes. Under the lock, a stale socket is removed only if it is a socket we own and nothing
+ * answers on it. So of two concurrent starts over one stale socket only one gets past the lock, and a second
+ * supervisor never replaces a live one (review F2). The lock dies with the process, so a SIGKILLed supervisor's
+ * stale socket is taken over by the next start. On close, Node removes the socket file before the lock is released.
+ * The caller sets `process.umask(0o077)` first, so the socket and lock are never wider than 0600.
  */
 export async function listenPrivate(server: Server, socketPath: string): Promise<void> {
   if (!isAbsolute(socketPath)) throw new Error('socket path must be absolute');
@@ -65,20 +71,28 @@ export async function listenPrivate(server: Server, socketPath: string): Promise
   if (!dir.isDirectory() || dir.isSymbolicLink() || dir.uid !== process.getuid?.() || (dir.mode & 0o777) !== 0o700) {
     throw new Error('socket directory must be owned, non-symlink 0700');
   }
+  const lock = acquireLock(`${socketPath}.lock`);
   try {
-    const sock = lstatSync(socketPath);
-    if (!sock.isSocket() || sock.uid !== process.getuid?.()) throw new Error('refusing to unlink a non-owned or non-socket path');
-    if (await liveSocket(socketPath)) throw new Error('another process answers on the socket; refusing to replace it');
-    unlinkSync(socketPath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(socketPath, () => {
-      server.off('error', reject);
-      resolve();
+    try {
+      const sock = lstatSync(socketPath);
+      if (!sock.isSocket() || sock.uid !== process.getuid?.()) throw new Error('refusing to unlink a non-owned or non-socket path');
+      if (await liveSocket(socketPath)) throw new Error('another process answers on the socket; refusing to replace it');
+      unlinkSync(socketPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(socketPath, () => {
+        server.off('error', reject);
+        resolve();
+      });
     });
-  });
-  chmodSync(socketPath, 0o600);
+    chmodSync(socketPath, 0o600);
+  } catch (error) {
+    if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
+    lock.release();
+    throw error;
+  }
+  server.once('close', () => lock.release());
 }
