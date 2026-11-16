@@ -15,3 +15,5 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `p0-4-no-binary-byte-limit.diff` | the body byte counter and the binary declared-length check | `closure: binary body modes refuse over-limit bodies…` and the socket case |
 | `p0-review-f2-no-socket-lock.diff` | the socket takeover lock in `listenPrivate` | `server: concurrent starts over one stale socket` (command: `--test-name-pattern=server`) |
 | `p1-1-label-without-cut.diff` | a durable label without a cut scenario | `crash: every durable label has a cut scenario…` (group `journal`) |
+| `p1-2-refusal-after-dispatch-no-effect.diff` | a default `Refusal` after the dispatch record counts as `no_effect` | `receipts: a default Refusal after the dispatch record is outcome_unknown…` (group `receipts`) |
+| `p1-2-dispatch-marker-after-write.diff` | the dispatch marker is written after the write to pi starts | `receipts: dispatchThen makes the dispatch marker durable…` and the native-effect cut test (group `receipts`) |

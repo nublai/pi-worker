@@ -6,6 +6,7 @@ import { createApp } from './b2/app.js';
 import { createB2Server, listenPrivate } from './b2/server.js';
 import { resolvePaths } from './config.js';
 import { openState } from './journal/state.js';
+import { ReceiptStore } from './receipts/receipts.js';
 
 function privateDir(path: string): void {
   mkdirSync(path, { recursive: true, mode: 0o700 });
@@ -23,7 +24,10 @@ privateDir(dirname(paths.socketPath));
 
 // One supervisor per state directory: the journal lock refuses a second one before anything is read.
 const state = openState(paths.stateDir);
-const app = createApp({ supervisorId: state.supervisorId, supervisorEpoch: state.supervisorEpoch });
+// Recovery before the socket listens: undispatched intents become intent_recovered, dispatched ones outcome_unknown.
+const receipts = new ReceiptStore(state.journal);
+receipts.recover();
+const app = createApp({ supervisorId: state.supervisorId, supervisorEpoch: state.supervisorEpoch, receipts });
 const server = createB2Server(app.handle);
 await listenPrivate(server, paths.socketPath);
 console.error(JSON.stringify({ event: 'listening', socket: paths.socketPath, pid: process.pid }));

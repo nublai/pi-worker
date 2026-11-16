@@ -2,15 +2,30 @@
   "groups": {
     "closure": {
       "command": "npm test -w @nublai/pi-worker -- --test-name-pattern=closure",
-      "diffs": ["p0-4-no-response-validation.diff", "p0-4-drop-one-route.diff", "p0-4-no-binary-byte-limit.diff"]
+      "diffs": [
+        "p0-4-no-response-validation.diff",
+        "p0-4-drop-one-route.diff",
+        "p0-4-no-binary-byte-limit.diff"
+      ]
     },
     "server": {
       "command": "npm test -w @nublai/pi-worker -- --test-name-pattern=server",
-      "diffs": ["p0-review-f2-no-socket-lock.diff"]
+      "diffs": [
+        "p0-review-f2-no-socket-lock.diff"
+      ]
     },
     "journal": {
       "command": "npm run test:crash -- journal",
-      "diffs": ["p1-1-label-without-cut.diff"]
+      "diffs": [
+        "p1-1-label-without-cut.diff"
+      ]
+    },
+    "receipts": {
+      "command": "npm test -- receipts",
+      "diffs": [
+        "p1-2-refusal-after-dispatch-no-effect.diff",
+        "p1-2-dispatch-marker-after-write.diff"
+      ]
     }
   }
 }

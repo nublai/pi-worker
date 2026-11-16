@@ -9,6 +9,15 @@ export const DURABLE_LABELS = [
   'journal.open_directory',
   // The supervisor start record: persistent supervisor id, fresh epoch.
   'supervisor.start',
+  // Receipts (receipts/receipts.ts): intent, dispatch marker, result, recovery transitions, a late outcome_unknown,
+  // an automatic queue flush and the owner's disposition of a recovered or queued intent.
+  'receipt.intent',
+  'receipt.dispatch',
+  'receipt.result',
+  'receipt.recover',
+  'receipt.unknown',
+  'receipt.queue_ready',
+  'receipt.resolve_intent',
 ] as const;
 
 export type DurableLabel = (typeof DURABLE_LABELS)[number];
