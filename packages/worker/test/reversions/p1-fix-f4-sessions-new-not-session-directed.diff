@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/fence.ts b/packages/worker/src/supervisor/fence.ts
+index 97548b2..0ea3c40 100644
+--- a/packages/worker/src/supervisor/fence.ts
++++ b/packages/worker/src/supervisor/fence.ts
+@@ -28,7 +28,6 @@ export const SESSION_DIRECTED = new Set<Receipt['operation']>([
+   'sessions.follow_up',
+   'sessions.steer',
+   'sessions.rebind',
+-  'sessions.new',
+   'children.launch',
+   'interactions.answer_if_current',
+   'interactions.release',

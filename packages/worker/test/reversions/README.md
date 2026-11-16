@@ -31,3 +31,4 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `p1-6-any-fence-generation.diff` | the fence generation check of `resolve_unknown` | row `08-generation`, invariants (group `fence`) |
 | `p1-7-rebind-keeps-revision.diff` | the binding revision bump of a B2 move | row `01-binding` (group `binding`) |
 | `p1-7-no-native-move-refusal.diff` | the write refusal while a native move is in flight | `m4: a native move that never completes…`, `m3 (SDK)…` (group `binding`) |
+| `p1-fix-f4-sessions-new-not-session-directed.diff` | `sessions.new` is a session write whose unknown outcome fences on recovery (review F4) | `crash: SIGKILL right after the sessions.new dispatch record…`, the binding-scenario fsync cuts through the independent fence oracle, and `fence: the supervisor recovers exactly the contract session writes…` (group `binding`; `npm test -- binding` includes `crash/binding.test.js`) |

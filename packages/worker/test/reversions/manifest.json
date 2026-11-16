@@ -58,7 +58,8 @@
       "command": "npm run test:conformance -- 01 10 && npm test -- binding",
       "diffs": [
         "p1-7-rebind-keeps-revision.diff",
-        "p1-7-no-native-move-refusal.diff"
+        "p1-7-no-native-move-refusal.diff",
+        "p1-fix-f4-sessions-new-not-session-directed.diff"
       ]
     }
   }
