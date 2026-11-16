@@ -162,6 +162,31 @@ test('client: an HTTP refusal without an explicit no_effect, or an unreadable re
   }
 });
 
+test('client: a refusal whose JSON is not an object (null, scalar, array) rejects as unknown, never throws (review F4)', async () => {
+  const t = tmp();
+  const socket = join(t.dir, 'worker.sock');
+  const bodies = ['null', '42', '"no_effect"', 'true', '[]', '[{"effect":"no_effect"}]'];
+  let next = 0;
+  const server = httpServer((_req, res) => {
+    res.writeHead(next % 2 ? 409 : 500, { 'Content-Type': 'application/json' });
+    res.end(bodies[next++]);
+  });
+  await listen(server, socket);
+  try {
+    const client = new Client({ socketPath: socket });
+    for (const [i, body] of bodies.entries()) {
+      await assert.rejects(
+        client.call('workers.stop', { path: { worker_id: 'w1' }, body: binding(`stop-${i}`) }),
+        (e: unknown) => e instanceof ClientFailure && e.phase === 'http' && e.status === (i % 2 ? 409 : 500) && e.effect === 'unknown',
+        body,
+      );
+    }
+  } finally {
+    await close(server);
+    t.cleanup();
+  }
+});
+
 test('client: a timeout after the write is unknown and is not retried', async () => {
   const t = tmp();
   const socket = join(t.dir, 'worker.sock');

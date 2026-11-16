@@ -232,19 +232,24 @@ export class Client {
           res.on('aborted', () => fail(new Error('response_aborted_reconcile_command_id')));
           res.on('end', () => {
             if (settled) return;
-            let value: Record<string, unknown>;
+            let value: unknown;
             try {
-              value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
+              value = JSON.parse(Buffer.concat(chunks).toString('utf8'));
             } catch (error) {
               fail(error);
               return;
             }
             settled = true;
-            if (res.statusCode === 200) resolve(value as OkBody<O>);
-            else {
-              const effect = value.effect === 'no_effect' ? 'no_effect' : 'unknown';
-              reject(new ClientFailure(String(value.error ?? 'HTTP refusal'), effect, 'http', res.statusCode, value));
+            if (res.statusCode === 200) {
+              resolve(value as OkBody<O>);
+              return;
             }
+            // A refusal keeps the worker's effect only from a B2 Error object; anything else (null, a scalar, an
+            // array) is an unreadable refusal: unknown.
+            const refusal = value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+            const effect = refusal?.effect === 'no_effect' ? 'no_effect' : 'unknown';
+            const message = typeof refusal?.error === 'string' ? refusal.error : 'HTTP refusal without a B2 Error body';
+            reject(new ClientFailure(message, effect, 'http', res.statusCode, refusal ?? {}));
           });
         },
       );
