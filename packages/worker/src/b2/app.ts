@@ -63,8 +63,8 @@ function authorizer(grants: GrantStore | undefined): (request: B2Request, route:
 }
 
 export function createApp(options: AppOptions = {}): { handle: RequestHandler; handlers: Handlers } {
-  const hello = createHello(options);
   const receipts = options.receipts ?? options.supervisor?.receipts;
+  const hello = createHello({ ...options, ...(receipts ? { retention: receipts.limits } : {}) });
   const supervisor = (): Supervisor => {
     if (!options.supervisor) throw unavailable();
     return options.supervisor;
@@ -94,11 +94,17 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     'receipts.get': ({ path, caller }) => {
       if (!receipts) throw unavailable();
       const receipt = receipts.all.get(path.command_id);
-      // An unknown or expired command_id is never proof that nothing ran.
-      if (!receipt) throw new Refusal('unknown_command_id_is_not_proof_of_no_effect', 'unknown', undefined, {}, 409);
       // Only receipts of workers in scope; a receipt with no worker only for a grant over every worker.
-      const readable = receipt.worker_id ? (options.supervisor ? visible(caller, receipt.worker_id) : !!caller?.scope.worker_ids.includes('*')) : !!caller?.scope.worker_ids.includes('*');
-      if (!readable) throw new Refusal('grant_scope_denied');
+      const readable = (workerId: string | undefined) =>
+        workerId ? (options.supervisor ? visible(caller, workerId) : !!caller?.scope.worker_ids.includes('*')) : !!caller?.scope.worker_ids.includes('*');
+      if (!receipt) {
+        // An evicted receipt (P1-12) or an unknown command_id is never proof that nothing ran. A caller that could not
+        // read the receipt cannot tell an evicted one from an unknown one either.
+        const gone = receipts.expired.get(path.command_id);
+        if (gone && readable(gone.worker_id)) throw new Refusal('receipt_expired', 'unknown', path.command_id, {}, 409);
+        throw new Refusal('unknown_command_id_is_not_proof_of_no_effect', 'unknown', undefined, {}, 409);
+      }
+      if (!readable(receipt.worker_id)) throw new Refusal('grant_scope_denied');
       return receipt;
     },
     'workers.list': ({ caller }) => supervisor().list().filter(w => !!caller && allowsWorker(caller, w)),

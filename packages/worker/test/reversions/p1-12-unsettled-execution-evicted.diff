@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/journal/retention.ts b/packages/worker/src/journal/retention.ts
+index b93369b..8e107f4 100644
+--- a/packages/worker/src/journal/retention.ts
++++ b/packages/worker/src/journal/retention.ts
+@@ -85,7 +85,7 @@ function rowPins(w: Value, pins: Set<string>): void {
+   };
+   const execution = w.execution as Value | null | undefined;
+   // An unsettled execution's command decides its recovery (unknown or no effect); a settled one decides nothing.
+-  if (execution && execution.state !== 'settled') add(execution.command_id);
++  void execution;
+   const fence = w.fence as Value | null | undefined;
+   add(fence?.command_id);
+   for (const id of Array.isArray(fence?.uncertain_command_ids) ? (fence.uncertain_command_ids as unknown[]) : []) add(id);

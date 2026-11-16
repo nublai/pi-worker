@@ -19,6 +19,15 @@ test('receipts.get: answers each wire fixture from the store, and an unknown com
     assert.ok(fixtures.length >= 2);
     for (const { name, fixture } of fixtures) {
       if (fixture.response.status === 200) receipts.put(fixture.response.body as Receipt, 'receipt.result');
+      if ((fixture.response.body as { error?: string }).error === 'receipt_expired') {
+        // P1-12: a delivered receipt past the retention age, evicted by a compaction, leaves only its id.
+        const id = fixture.request.path!.command_id!;
+        const old = Date.now() - receipts.limits.minAgeMs - 1000;
+        receipts.now = () => old;
+        await receipts.run(id, 'sessions.prompt', {}, async () => ({ state: 'delivered', stage: 'forwarded', effect: 'observed' }));
+        receipts.now = Date.now;
+        assert.deepEqual(receipts.compact({ goal: { receipts: 0, bytes: 0 } }), [id], name);
+      }
       const response = await memory.request('GET', `/b2/receipts/${encodeURIComponent(fixture.request.path!.command_id!)}`);
       assert.deepEqual(response, { status: fixture.response.status, body: fixture.response.body }, name);
     }

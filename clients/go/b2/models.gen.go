@@ -1863,6 +1863,40 @@ type Limits struct {
 	// EventFrameBytes The most bytes one `events.subscribe` SSE record may carry.
 	EventFrameBytes int `json:"event_frame_bytes"`
 
+	// JournalControlReserveBytes Journal room only quota-exempt commands may use (`workers.stop`,
+	// `executions.cancel`, `executions.interrupt`,
+	// `sessions.resolve_unknown`, `children.report`): an ordinary command
+	// is refused `journal_result_capacity` (`no_effect`) before it reaches
+	// this reserve.
+	JournalControlReserveBytes int `json:"journal_control_reserve_bytes"`
+
+	// JournalMaxBytes The supervisor journal never grows past this many bytes. Compaction
+	// rewrites it to the retained records (each worker's and interaction's
+	// latest record, retained receipts, expired command ids) before it
+	// fills.
+	JournalMaxBytes int `json:"journal_max_bytes"`
+
+	// ReceiptExpiredIdsMax How many evicted command ids the worker still remembers. Reusing
+	// one, or reading its receipt, is refused `receipt_expired` with
+	// `effect: unknown`: never run again, never proof that nothing ran. An
+	// id evicted longer ago than this is forgotten.
+	ReceiptExpiredIdsMax int `json:"receipt_expired_ids_max"`
+
+	// ReceiptRetentionMinSeconds A final receipt is retained at least this long after its command
+	// was created.
+	ReceiptRetentionMinSeconds int `json:"receipt_retention_min_seconds"`
+
+	// ReceiptsMax The most receipts retained. At the bound the oldest evictable
+	// receipts are evicted: final, older than
+	// `receipt_retention_min_seconds`, and not part of any pending
+	// decision. Never evicted: an unresolved `outcome_unknown`, an
+	// unfinished command, the command that created a worker, and a
+	// command a worker's unsettled execution, fence, queue or child
+	// lineage names. When nothing is evictable an ordinary command is
+	// refused `receipt_capacity` (`no_effect`); quota-exempt commands are
+	// never refused for count.
+	ReceiptsMax int `json:"receipts_max"`
+
 	// RequestBodyBytes The JSON request body cap (`x-piw-json-max-bytes`).
 	RequestBodyBytes int `json:"request_body_bytes"`
 }

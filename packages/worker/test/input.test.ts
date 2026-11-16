@@ -399,7 +399,8 @@ for (const failure of ['journal', 'header']) {
 }
 
 test('validation refusals consume no durable storage, ordinary capacity never blocks termination', async () => {
-  const f = fixture();
+  // A0's ordinary quota was 512 receipts; P1-12 raised the default, so this port runs with A0's bound.
+  const f = fixture({ receiptCap: 512 });
   try {
     const w = await f.create();
     const before = readFileSync(f.journalFile);

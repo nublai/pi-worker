@@ -3,7 +3,11 @@
  * state with a deterministic host whose native effects (spawn, prompt entry, control, binding move) are written to
  * `effects.jsonl` and to native artifacts before anything can record them. `PIW_CRASH_EFFECT=<n>` SIGKILLs right
  * after the n-th native effect. Every B2-level call is logged to `requests.jsonl` before it runs, so recovery can
- * retry each exactly and prove no replay.
+ * retry each exactly and prove no replay, and its reply (state and effect, or the refusal) to `replies.jsonl` when it
+ * returns: the client's own record of what it was told, independent of the journal.
+ *
+ * Retention (P1-12): a scenario may write `world.json` with the journal bound and receipt retention it runs under;
+ * every world opened over that root (the scenario, its restart, the oracle's recovery) uses the same limits.
  */
 import assert from 'node:assert/strict';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -11,6 +15,8 @@ import { join } from 'node:path';
 import type { PiRecord, PiResponse } from '../../src/host/host.js';
 import { openState, type SupervisorState as OpenState } from '../../src/journal/state.js';
 import { ReceiptStore, type Receipt } from '../../src/receipts/receipts.js';
+import { Refusal } from '../../src/b2/errors.js';
+import type { RetentionLimits } from '../../src/journal/retention.js';
 import type { Worker } from '../../src/supervisor/state.js';
 import { Supervisor } from '../../src/supervisor/supervisor.js';
 import { GrantStore } from '../../src/grants/store.js';
@@ -18,7 +24,10 @@ import { Host } from '../supervisor-fixture.js';
 
 export type Effect = { kind: string; command_id: string; session_file?: string; session_id?: string; entry_id?: string; native_file?: string; operation?: string };
 export type Logged = { op: string; id?: string; body: Record<string, unknown> };
-export type Summary = { receipts: Receipt[]; workers: Worker[] };
+export type Reply = { command_id: string; state?: string; effect?: string; error?: string };
+export type Summary = { receipts: Receipt[]; workers: Worker[]; /** Ids retention evicted (P1-12). */ expired: string[] };
+/** The limits a retention scenario runs under (`world.json`). */
+export type WorldLimits = Partial<Omit<RetentionLimits, 'receipts'>> & { receipts?: number };
 
 const lines = <T>(file: string): T[] =>
   existsSync(file)
@@ -29,6 +38,8 @@ const lines = <T>(file: string): T[] =>
     : [];
 export const effectsAt = (root: string) => lines<Effect>(join(root, 'effects.jsonl'));
 export const requestsAt = (root: string) => lines<Logged>(join(root, 'requests.jsonl'));
+export const repliesAt = (root: string) => lines<Reply>(join(root, 'replies.jsonl'));
+export const limitsAt = (root: string): WorldLimits => (existsSync(join(root, 'world.json')) ? (JSON.parse(readFileSync(join(root, 'world.json'), 'utf8')) as WorldLimits) : {});
 
 let effectCount = 0;
 export function effect(root: string, value: Effect): void {
@@ -112,11 +123,12 @@ export interface World {
 
 /** Opens the supervisor over `root`. In `recover` mode the factory refuses: recovery never launches or adopts. */
 export function openWorld(root: string, scenario: boolean): World {
-  const state = openState(root);
+  const { journalBytes, receipts: count, ...retention } = limitsAt(root);
+  const state = openState(root, { ...(journalBytes ? { maxBytes: journalBytes } : {}), retention: { ...retention, ...(count ? { receipts: count } : {}) } });
   const hosts: EffectHost[] = [];
   const supervisor = new Supervisor({
     journal: state.journal,
-    receipts: new ReceiptStore(state.journal),
+    receipts: new ReceiptStore(state.journal, count, undefined, retention),
     supervisorEpoch: state.supervisorEpoch,
     stateDir: root,
     grants: new GrantStore(root),
@@ -149,7 +161,19 @@ export function openWorld(root: string, scenario: boolean): World {
     },
   });
   const call = async (op: string, body: Record<string, unknown>, id?: string): Promise<Receipt> => {
-    if (scenario) appendFileSync(join(root, 'requests.jsonl'), `${JSON.stringify({ op, body, id })}\n`);
+    if (!scenario) return dispatch(op, body, id);
+    appendFileSync(join(root, 'requests.jsonl'), `${JSON.stringify({ op, body, id })}\n`);
+    const reply = (r: Reply) => appendFileSync(join(root, 'replies.jsonl'), `${JSON.stringify(r)}\n`);
+    try {
+      const r = await dispatch(op, body, id);
+      reply({ command_id: String(body.command_id), state: r.state, effect: r.effect });
+      return r;
+    } catch (error) {
+      reply({ command_id: String(body.command_id), error: error instanceof Error ? error.message : String(error), ...(error instanceof Refusal ? { effect: error.effect } : {}) });
+      throw error;
+    }
+  };
+  const dispatch = async (op: string, body: Record<string, unknown>, id?: string): Promise<Receipt> => {
     // SAFETY: bodies are the scenario's own literal requests in the shape of each operation's schema.
     const b = body as never;
     switch (op) {
@@ -197,7 +221,15 @@ export async function recoverWorld(root: string): Promise<Summary> {
   const world = openWorld(root, false);
   await world.supervisor.recover();
   for (const request of requestsAt(root)) {
-    const prior = world.supervisor.receipts.all.get(String(request.body.command_id));
+    const id = String(request.body.command_id);
+    const prior = world.supervisor.receipts.all.get(id);
+    if (!prior && world.supervisor.receipts.expired.has(id)) {
+      // An evicted receipt's command never runs again: its retry is refused unknown, with nothing written (P1-12).
+      const records = world.state.journal.records.length;
+      await assert.rejects(world.call(request.op, request.body, request.id), (e: unknown) => e instanceof Refusal && e.message === 'receipt_expired' && e.effect === 'unknown', `retry of evicted ${id}`);
+      assert.equal(world.state.journal.records.length, records, `the refused retry of evicted ${id} wrote nothing`);
+      continue;
+    }
     if (!prior || prior.state === 'intent_ready') continue; // No automatic dispatch, even after owner consent.
     let retry: Receipt;
     try {
@@ -207,7 +239,7 @@ export async function recoverWorld(root: string): Promise<Summary> {
     }
     assert.deepEqual(retry, prior, 'a duplicate lookup must not change a receipt or replay');
   }
-  const summary = { receipts: [...world.supervisor.receipts.all.values()], workers: world.supervisor.list() };
+  const summary = { receipts: [...world.supervisor.receipts.all.values()], workers: world.supervisor.list(), expired: [...world.supervisor.receipts.expired.keys()] };
   world.state.close();
   return summary;
 }

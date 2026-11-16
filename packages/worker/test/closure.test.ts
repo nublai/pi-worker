@@ -216,7 +216,7 @@ test('closure: every operation declares its body and response modes, and the spe
   assert.equal(table['attachments.stage']!.supported, false);
 });
 
-test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE frame cap)', async () => {
+test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE frame cap) and the retention limits', async () => {
   const hello = await createMemoryTransport(app().handle, auth).request('GET', '/b2/hello');
   assert.equal(hello.status, 200);
   const limits = (hello.body as { limits: Record<string, number> }).limits;
@@ -226,6 +226,12 @@ test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE
     attachments_per_message: 4,
     attachments_total_bytes: 8 * MiB,
     event_frame_bytes: table['events.subscribe']!.responses['200']!.maxFrameBytes,
+    // Retention (P1-12): the journal bound, the control reserve, the receipt bound, the minimum age, expired ids.
+    journal_max_bytes: 32 * MiB,
+    journal_control_reserve_bytes: MiB,
+    receipts_max: 4096,
+    receipt_retention_min_seconds: 3600,
+    receipt_expired_ids_max: 16384,
   });
 });
 

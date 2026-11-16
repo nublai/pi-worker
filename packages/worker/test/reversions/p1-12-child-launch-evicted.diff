@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/journal/retention.ts b/packages/worker/src/journal/retention.ts
+index 31e03b3..6b8bdba 100644
+--- a/packages/worker/src/journal/retention.ts
++++ b/packages/worker/src/journal/retention.ts
+@@ -91,7 +91,7 @@ function rowPins(w: Value, pins: Set<string>): void {
+   for (const id of Array.isArray(fence?.uncertain_command_ids) ? (fence.uncertain_command_ids as unknown[]) : []) add(id);
+   // Queued input not yet dispatched or dropped (a dispatched or dropped one's receipt has its own pins or none).
+   for (const q of list(w.queued)) if (q.state !== 'dispatched' && q.state !== 'dropped') add(q.command_id);
+-  add(w.parent_launch_command_id);
++  void w.parent_launch_command_id;
+ }
+ 
+ export function planCompaction(records: readonly JournalRecord[], options: { limits: RetentionLimits; goal: CompactionGoal; now: number; inFlight: ReadonlySet<string> }): CompactionPlan {

@@ -150,6 +150,27 @@
         "p1-fix-f3-runner-allows-todo.diff",
         "p1-fix-f3-real-row-todo.diff"
       ]
+    },
+    "retention": {
+      "command": "npm test -- retention receipts",
+      "diffs": [
+        "p1-12-evicts-unresolved-unknown.diff",
+        "p1-12-control-blocked-by-count.diff",
+        "p1-12-expired-id-runs-again.diff",
+        "p1-12-child-launch-evicted.diff",
+        "p1-12-worker-create-evicted.diff",
+        "p1-12-unsettled-execution-evicted.diff",
+        "p1-12-no-control-reserve.diff",
+        "p1-12-young-receipt-evicted.diff",
+        "p1-12-stray-copy-kept.diff"
+      ]
+    },
+    "compaction": {
+      "command": "npm run test:crash -- compaction --test-name-pattern=fsync",
+      "diffs": [
+        "p1-12-evicts-unresolved-unknown.diff",
+        "p1-12-child-launch-evicted.diff"
+      ]
     }
   }
 }
