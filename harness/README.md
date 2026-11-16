@@ -16,7 +16,9 @@ harness/run.sh p0-hello --keep-vm  # keep the VM for debugging (delete it with h
 | `lib/evidence.mjs` | `checks.json` bound to commit and tree, platform, checks, cleanup proof, attention record, privacy scan. |
 | `lib/privacy-scan.mjs` | Fails on credential-like text; reports file, line and pattern name, never the match. |
 | `test/run.test.mjs` | No-network tests of the VM lifecycle with an `ssh` stub (`npm run test:harness`). |
+| `test/kernel-units.test.mjs` | Tests of `ci/units.sh` with a `systemctl` stub: an unloading or not-loaded unit is gone, a unit still loaded at the bound is reported (`npm run test:harness`). |
 | `ci/kernel.sh` | The kernel tier (see `ci/README.md`). |
+| `ci/units.sh` | Sourced by `kernel.sh`: the leftover `piw-*` unit check, polled with a bound so a unit systemd is still unloading is not a leftover. |
 
 Evidence lands in `docs/evidence/<milestone>/<UTC stamp>-<commit>/`. A failed attempt keeps its directory with
 `status: fail` and `counted: false`.

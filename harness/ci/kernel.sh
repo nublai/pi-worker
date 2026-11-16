@@ -51,11 +51,15 @@ systemd-run --user --pipe --wait --collect --quiet --unit="$unit" -p Delegate=ye
 status=${PIPESTATUS[0]}
 set -e
 
-left=$(systemctl --user list-units --all --plain --no-legend 'piw-*' | awk '{print $1}')
+# A unit systemd still lists while it unloads (the wrapper's own service, just collected) is not a leftover; one still
+# loaded after the bounded wait is (units.sh).
+# shellcheck source=harness/ci/units.sh
+. "$repo/harness/ci/units.sh"
+left=$(piw_leftover_units)
 if [ -n "$left" ]; then
-  # shellcheck disable=SC2086
-  systemctl --user stop $left || true
-  fail "piw-* units left behind: $left"
+  # shellcheck disable=SC2046
+  systemctl --user stop $(printf '%s\n' "$left" | cut -d: -f1) || true
+  fail "piw-* units left behind: $(printf '%s\n' "$left" | paste -sd' ')"
 fi
 
 count() { sed -n "s/^ℹ $1 \([0-9]*\)$/\1/p" "$log" | tail -1; }

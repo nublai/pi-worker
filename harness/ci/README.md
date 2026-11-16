@@ -4,7 +4,8 @@
 (`systemd-run --user --pipe --wait -p Delegate=yes`) with `PIW_TEST_KERNEL=1`, after a fixed shell moves itself into
 the service's `runner` leaf and exports `PIW_CGROUP_ROOT`. Outside that unit the kernel tests skip; with
 `PIW_TEST_KERNEL=1` a missing facility fails, never skips. `kernel.sh` fails on any skip, any todo, zero tests or a
-leftover `piw-*` unit, and prints the platform (kernel, bwrap, systemd, delegated controllers, the AppArmor user
+leftover `piw-*` unit (one still loaded after a bounded wait, `units.sh`; a unit systemd is still unloading, or
+lists as not loaded, is not one), and prints the platform (kernel, bwrap, systemd, delegated controllers, the AppArmor user
 namespace setting) before the tests.
 
 ```sh
