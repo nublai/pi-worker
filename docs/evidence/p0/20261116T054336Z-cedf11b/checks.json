@@ -1,0 +1,18 @@
+{
+  "journey": null,
+  "status": "fail",
+  "counted": false,
+  "commit": "cedf11b9fe600a1432488b307063f5dee62107a4",
+  "tree": "27191f706ef48e1ddf2a87c5aa213df69f582494",
+  "vm": "piw-p0-hello-11160543",
+  "recorded_at": "2026-11-16T05:49:21.854Z",
+  "platform": null,
+  "checks": null,
+  "cleanup": null,
+  "attention": [],
+  "privacy_scan": {
+    "scanned": 1,
+    "findings": 0
+  },
+  "note": "failed at: create. harness/vm/create.sh probed SSH with BatchMode and no host-key policy, so the new VM's unknown host key was refused for 5 minutes; fixed by a run-local known_hosts with accept-new"
+}
