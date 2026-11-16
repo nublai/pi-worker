@@ -567,6 +567,8 @@ export interface components {
             thinking: components["schemas"]["Thinking"];
             host?: components["schemas"]["Host"];
             project_trusted?: boolean;
+            /** @description Reattach a session this worker catalog knows. Refused `session_already_bound`, naming the holder, while another worker holds it. */
+            resume_session_id?: components["schemas"]["Id"];
         };
         ChildLaunch: {
             command_id: components["schemas"]["Id"];

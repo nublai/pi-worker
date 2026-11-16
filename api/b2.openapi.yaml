@@ -86,7 +86,6 @@ paths:
       tags: [inventory]
       x-piw-mutation: false
       x-piw-body: none
-      x-piw-status: unsupported
       responses:
         '200':
           description: Worker rows.
@@ -111,7 +110,6 @@ paths:
       tags: [lifecycle]
       x-piw-mutation: true
       x-piw-body: json
-      x-piw-status: unsupported
       requestBody:
         required: true
         content:
@@ -142,7 +140,6 @@ paths:
       tags: [inventory]
       x-piw-mutation: false
       x-piw-body: none
-      x-piw-status: unsupported
       responses:
         '200':
           description: The worker row.
@@ -292,7 +289,6 @@ paths:
       tags: [lifecycle]
       x-piw-mutation: true
       x-piw-body: json
-      x-piw-status: unsupported
       requestBody:
         required: true
         content:
@@ -1234,6 +1230,11 @@ components:
           $ref: '#/components/schemas/Host'
         project_trusted:
           type: boolean
+        resume_session_id:
+          $ref: '#/components/schemas/Id'
+          description: >-
+            Reattach a session this worker catalog knows. Refused `session_already_bound`, naming the holder, while
+            another worker holds it.
     ChildLaunch:
       type: object
       additionalProperties: false

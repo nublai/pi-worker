@@ -11,22 +11,33 @@ export interface CutScenario {
   readonly labels: readonly string[];
 }
 
+const OPEN = ['journal.open_file', 'journal.open_directory', 'supervisor.start'];
+
 export const CUT_SCENARIOS: readonly CutScenario[] = [
-  { scenario: 'journal', file: 'journal.test.ts', labels: ['journal.open_file', 'journal.open_directory', 'supervisor.start'] },
+  { scenario: 'journal', file: 'journal.test.ts', labels: OPEN },
   {
     scenario: 'receipts',
     file: 'receipts.test.ts',
+    labels: [...OPEN, 'receipt.intent', 'receipt.dispatch', 'receipt.result', 'receipt.recover', 'receipt.unknown', 'receipt.queue_ready', 'receipt.resolve_intent'],
+  },
+  {
+    scenario: 'lifecycle',
+    file: 'lifecycle.test.ts',
     labels: [
-      'journal.open_file',
-      'journal.open_directory',
-      'supervisor.start',
+      ...OPEN,
       'receipt.intent',
       'receipt.dispatch',
       'receipt.result',
-      'receipt.recover',
-      'receipt.unknown',
-      'receipt.queue_ready',
-      'receipt.resolve_intent',
+      'worker.create',
+      'worker.spawned',
+      'worker.identity',
+      'worker.ready',
+      'worker.failed',
+      'worker.stop',
+      'worker.stopped',
+      'worker.exit',
+      'worker.fault',
+      'worker.recover',
     ],
   },
 ];

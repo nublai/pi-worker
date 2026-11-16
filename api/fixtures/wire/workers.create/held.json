@@ -1,0 +1,20 @@
+{
+  "request": {
+    "body": {
+      "command_id": "cmd-3",
+      "cwd": "/home/u/third",
+      "provider": "anthropic",
+      "model": "claude",
+      "thinking": "medium",
+      "resume_session_id": "session-1"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "session_already_bound",
+      "effect": "no_effect",
+      "holder_worker_id": "worker-1"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "command_id": "cmd-2",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 2
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "stale_binding",
+      "effect": "no_effect",
+      "expected_binding_revision": 1,
+      "received_binding_revision": 2
+    }
+  }
+}
