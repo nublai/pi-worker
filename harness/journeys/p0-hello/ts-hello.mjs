@@ -7,10 +7,8 @@ const hello = await client.hello();
 let status = null;
 let effect = null;
 try {
-  await client.call('sessions.prompt', {
-    path: { worker_id: 'w1' },
-    body: { command_id: 'p0-hello-ts', worker_epoch: 'e1', session_id: 's1', binding_revision: 1, message: 'p0' },
-  });
+  // files.read stays unsupported until P2-4 (sessions.prompt is served from P1-5).
+  await client.call('files.read', { path: { worker_id: 'w1' }, body: { path: '/r/file', roots: ['/r'] } });
 } catch (error) {
   if (!(error instanceof ClientFailure)) throw error;
   status = error.status ?? null;

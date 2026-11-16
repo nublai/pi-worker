@@ -26,6 +26,8 @@ export type Observer = (live: Live, event: PiRecord) => void;
 /** Per-domain event observers; lifecycle's own runs first. Other modules register theirs (input, binding). */
 export class Lifecycle {
   readonly observers: Observer[] = [];
+  /** Per-domain recovery steps, run for every worker before its cleanup is recorded (input, fence). */
+  readonly recoverers: ((live: Live) => void)[] = [];
   /** Called when a worker's execution can no longer settle (exit, fault, restart): the input module records it. */
   onUncertain: (live: Live, commandId: string, label: 'worker.exit' | 'worker.fault' | 'worker.recover') => void = () => {};
 
@@ -287,8 +289,8 @@ export class Lifecycle {
       w.supervisor_epoch = this.s.supervisorEpoch;
       w.pending_interactions = []; // Old native resolvers no longer exist.
       live.index.setActiveLeaf(w.leaf_id);
+      for (const recover of this.recoverers) recover(live);
       if (!HOLDING.has(w.status)) continue;
-      if (w.execution && w.execution.state !== 'settled') this.onUncertain(live, w.execution.command_id, 'worker.recover');
       w.status = 'cleanup_pending';
       if (live.pid !== null) {
         const gone = await killGroup(live.pid, live.token);

@@ -18,3 +18,5 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `p1-2-refusal-after-dispatch-no-effect.diff` | a default `Refusal` after the dispatch record counts as `no_effect` | `receipts: a default Refusal after the dispatch record is outcome_unknown…` (group `receipts`) |
 | `p1-2-dispatch-marker-after-write.diff` | the dispatch marker is written after the write to pi starts | `receipts: dispatchThen makes the dispatch marker durable…` and the native-effect cut test (group `receipts`) |
 | `p1-4-no-one-writer.diff` | the one-live-writer check (`noOtherWriter` ignores a holding worker) | `lifecycle: one live writer per session; a duplicate open is refused naming the holder…` (group `lifecycle`) |
+| `p1-5-no-binding-check.diff` | the binding check on session-directed mutations (`SupervisorState.binding` never refuses) | `input: every session-directed mutation refuses a stale binding…` (group `input`) |
+| `p1-2-dispatch-marker-after-write.diff` (again) | write-ahead dispatch, at the supervisor | `supervisor dispatch marker with execution ID is fsynced before the host receives prompt (M2)` and the control effect cuts (group `input`) |

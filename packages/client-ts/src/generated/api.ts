@@ -96,6 +96,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/b2/workers/{worker_id}/steer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Steer the named running execution (delivered after its current turn) */
+        post: operations["sessions.steer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/b2/workers/{worker_id}/rebind": {
         parameters: {
             query?: never;
@@ -482,8 +501,21 @@ export interface components {
             session_id: components["schemas"]["Id"];
             binding_revision: number;
             message: components["schemas"]["Text"];
+            /**
+             * @description What to do when an execution is running: `steer` it, queue a `follow_up` after it, or `reject` the prompt (`worker_busy`, `no_effect`). Absent means `reject`.
+             * @enum {string}
+             */
+            if_busy?: "steer" | "follow_up" | "reject";
         };
         FollowUp: {
+            command_id: components["schemas"]["Id"];
+            worker_epoch: components["schemas"]["Id"];
+            session_id: components["schemas"]["Id"];
+            binding_revision: number;
+            message: components["schemas"]["Text"];
+            execution_id: components["schemas"]["Id"];
+        };
+        Steer: {
             command_id: components["schemas"]["Id"];
             worker_epoch: components["schemas"]["Id"];
             session_id: components["schemas"]["Id"];
@@ -748,7 +780,7 @@ export interface components {
         Receipt: {
             command_id: components["schemas"]["Id"];
             /** @enum {string} */
-            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.follow_up" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release" | "attachments.stage";
+            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.follow_up" | "sessions.steer" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release" | "attachments.stage";
             request_hash: string;
             /** @enum {string} */
             state: "intent" | "intent_recovered" | "accepted" | "delivered" | "rejected" | "outcome_unknown" | "queued" | "queue_ready" | "intent_ready";
@@ -1157,6 +1189,29 @@ export interface operations {
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["Unknown"];
             501: components["responses"]["NotImplemented"];
+        };
+    };
+    "sessions.steer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Steer"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Receipt"];
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            413: components["responses"]["TooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["Unknown"];
         };
     };
     "sessions.rebind": {

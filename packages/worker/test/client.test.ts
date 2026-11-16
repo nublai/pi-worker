@@ -17,11 +17,9 @@ test('client-ts: hello succeeds and an unsupported operation is an HTTP 501 no_e
     const client = new Client({ socketPath });
     const hello = await client.hello();
     assert.equal(response_hello_200(hello), true);
+    // files.read stays unsupported until P2-4.
     await assert.rejects(
-      client.call('sessions.prompt', {
-        path: { worker_id: 'w1' },
-        body: { command_id: 'c1', worker_epoch: 'e1', session_id: 's1', binding_revision: 1, message: 'm' },
-      }),
+      client.call('files.read', { path: { worker_id: 'w1' }, body: { path: '/r/file', roots: ['/r'] } }),
       (e: unknown) => e instanceof ClientFailure && e.phase === 'http' && e.status === 501 && e.effect === 'no_effect',
     );
     await assert.rejects(

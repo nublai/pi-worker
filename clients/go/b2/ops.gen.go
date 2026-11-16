@@ -33,6 +33,7 @@ var (
 	OpWorkersGet                  = Operation{ID: "workers.get", Method: "GET", Path: "/b2/workers/{worker_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpSessionsPrompt              = Operation{ID: "sessions.prompt", Method: "POST", Path: "/b2/workers/{worker_id}/prompt", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpSessionsFollowUp            = Operation{ID: "sessions.follow_up", Method: "POST", Path: "/b2/workers/{worker_id}/follow_up", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpSessionsSteer               = Operation{ID: "sessions.steer", Method: "POST", Path: "/b2/workers/{worker_id}/steer", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpSessionsRebind              = Operation{ID: "sessions.rebind", Method: "POST", Path: "/b2/workers/{worker_id}/rebind", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpSessionsResolveUnknown      = Operation{ID: "sessions.resolve_unknown", Method: "POST", Path: "/b2/workers/{worker_id}/resolve_unknown", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpWorkersStop                 = Operation{ID: "workers.stop", Method: "POST", Path: "/b2/workers/{worker_id}/stop", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
@@ -59,6 +60,7 @@ var Operations = []Operation{
 	OpWorkersGet,
 	OpSessionsPrompt,
 	OpSessionsFollowUp,
+	OpSessionsSteer,
 	OpSessionsRebind,
 	OpSessionsResolveUnknown,
 	OpWorkersStop,
@@ -128,6 +130,15 @@ func (c *Client) SessionsPrompt(ctx context.Context, workerID string, body Promp
 func (c *Client) SessionsFollowUp(ctx context.Context, workerID string, body FollowUp) (*Receipt, error) {
 	var out Receipt
 	if err := c.do(ctx, OpSessionsFollowUp, []string{workerID}, nil, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SessionsSteer calls sessions.steer (POST /b2/workers/{worker_id}/steer). A mutation: sent once, never retried.
+func (c *Client) SessionsSteer(ctx context.Context, workerID string, body Steer) (*Receipt, error) {
+	var out Receipt
+	if err := c.do(ctx, OpSessionsSteer, []string{workerID}, nil, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

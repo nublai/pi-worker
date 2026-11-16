@@ -494,6 +494,27 @@ func (e Producer) Valid() bool {
 	}
 }
 
+// Defines values for PromptIfBusy.
+const (
+	PromptIfBusyFollowUp PromptIfBusy = "follow_up"
+	PromptIfBusyReject   PromptIfBusy = "reject"
+	PromptIfBusySteer    PromptIfBusy = "steer"
+)
+
+// Valid indicates whether the value is a known member of the PromptIfBusy enum.
+func (e PromptIfBusy) Valid() bool {
+	switch e {
+	case PromptIfBusyFollowUp:
+		return true
+	case PromptIfBusyReject:
+		return true
+	case PromptIfBusySteer:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for QueuedInputKind.
 const (
 	QueuedInputKindChild    QueuedInputKind = "child"
@@ -633,6 +654,7 @@ const (
 	ReceiptOperationSessionsPrompt              ReceiptOperation = "sessions.prompt"
 	ReceiptOperationSessionsRebind              ReceiptOperation = "sessions.rebind"
 	ReceiptOperationSessionsResolveUnknown      ReceiptOperation = "sessions.resolve_unknown"
+	ReceiptOperationSessionsSteer               ReceiptOperation = "sessions.steer"
 	ReceiptOperationWorkersCreate               ReceiptOperation = "workers.create"
 	ReceiptOperationWorkersRelaunch             ReceiptOperation = "workers.relaunch"
 	ReceiptOperationWorkersStop                 ReceiptOperation = "workers.stop"
@@ -662,6 +684,8 @@ func (e ReceiptOperation) Valid() bool {
 	case ReceiptOperationSessionsRebind:
 		return true
 	case ReceiptOperationSessionsResolveUnknown:
+		return true
+	case ReceiptOperationSessionsSteer:
 		return true
 	case ReceiptOperationWorkersCreate:
 		return true
@@ -1008,6 +1032,7 @@ const (
 	StopReceiptOperationSessionsPrompt              StopReceiptOperation = "sessions.prompt"
 	StopReceiptOperationSessionsRebind              StopReceiptOperation = "sessions.rebind"
 	StopReceiptOperationSessionsResolveUnknown      StopReceiptOperation = "sessions.resolve_unknown"
+	StopReceiptOperationSessionsSteer               StopReceiptOperation = "sessions.steer"
 	StopReceiptOperationWorkersCreate               StopReceiptOperation = "workers.create"
 	StopReceiptOperationWorkersRelaunch             StopReceiptOperation = "workers.relaunch"
 	StopReceiptOperationWorkersStop                 StopReceiptOperation = "workers.stop"
@@ -1037,6 +1062,8 @@ func (e StopReceiptOperation) Valid() bool {
 	case StopReceiptOperationSessionsRebind:
 		return true
 	case StopReceiptOperationSessionsResolveUnknown:
+		return true
+	case StopReceiptOperationSessionsSteer:
 		return true
 	case StopReceiptOperationWorkersCreate:
 		return true
@@ -1751,12 +1778,18 @@ type Producer string
 
 // Prompt defines model for Prompt.
 type Prompt struct {
-	BindingRevision int  `json:"binding_revision"`
-	CommandId       Id   `json:"command_id"`
-	Message         Text `json:"message"`
-	SessionId       Id   `json:"session_id"`
-	WorkerEpoch     Id   `json:"worker_epoch"`
+	BindingRevision int `json:"binding_revision"`
+	CommandId       Id  `json:"command_id"`
+
+	// IfBusy What to do when an execution is running: `steer` it, queue a `follow_up` after it, or `reject` the prompt (`worker_busy`, `no_effect`). Absent means `reject`.
+	IfBusy      *PromptIfBusy `json:"if_busy,omitempty"`
+	Message     Text          `json:"message"`
+	SessionId   Id            `json:"session_id"`
+	WorkerEpoch Id            `json:"worker_epoch"`
 }
+
+// PromptIfBusy What to do when an execution is running: `steer` it, queue a `follow_up` after it, or `reject` the prompt (`worker_busy`, `no_effect`). Absent means `reject`.
+type PromptIfBusy string
 
 // Protocol defines model for Protocol.
 type Protocol struct {
@@ -1919,6 +1952,16 @@ type SnapshotEventResyncReason string
 
 // SnapshotEventType defines model for SnapshotEvent.Type.
 type SnapshotEventType string
+
+// Steer defines model for Steer.
+type Steer struct {
+	BindingRevision int  `json:"binding_revision"`
+	CommandId       Id   `json:"command_id"`
+	ExecutionId     Id   `json:"execution_id"`
+	Message         Text `json:"message"`
+	SessionId       Id   `json:"session_id"`
+	WorkerEpoch     Id   `json:"worker_epoch"`
+}
 
 // StopReceipt defines model for StopReceipt.
 type StopReceipt struct {
@@ -2153,6 +2196,9 @@ type ChildrenReportJSONRequestBody = Report
 
 // SessionsResolveUnknownJSONRequestBody defines body for SessionsResolveUnknown for application/json ContentType.
 type SessionsResolveUnknownJSONRequestBody = Resolve
+
+// SessionsSteerJSONRequestBody defines body for SessionsSteer for application/json ContentType.
+type SessionsSteerJSONRequestBody = Steer
 
 // WorkersStopJSONRequestBody defines body for WorkersStop for application/json ContentType.
 type WorkersStopJSONRequestBody = Binding

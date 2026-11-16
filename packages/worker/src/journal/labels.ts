@@ -31,6 +31,18 @@ export const DURABLE_LABELS = [
   'worker.exit',
   'worker.fault',
   'worker.recover',
+  // Input and executions (supervisor/input.ts): the admitted execution before its dispatch record, pi's start, the
+  // admission reply, settlement (the worker row and the separate settlement evidence record), an execution whose
+  // outcome became unknown, a follow-up queued and flushed, and a control request's result.
+  'execution.admit',
+  'execution.start',
+  'execution.reply',
+  'execution.settle',
+  'execution.unknown',
+  'settlement.record',
+  'queue.add',
+  'queue.flush',
+  'control.done',
 ] as const;
 
 export type DurableLabel = (typeof DURABLE_LABELS)[number];

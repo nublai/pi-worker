@@ -28,7 +28,8 @@ func main() {
 		"client": "go", "hello": "ok", "protocol_major": hello.Protocol.Major,
 		"supervisor_epoch": hello.SupervisorEpoch, "limits": hello.Limits,
 	}
-	_, err = c.SessionsPrompt(ctx, "w1", b2.Prompt{CommandId: "p0-hello-go", WorkerEpoch: "e1", SessionId: "s1", BindingRevision: 1, Message: "p0"})
+	// files.read stays unsupported until P2-4 (sessions.prompt is served from P1-5).
+	_, err = c.FilesRead(ctx, "w1", b2.FileRead{Path: "/r/file", Roots: []string{"/r"}})
 	var f *b2.ClientFailure
 	if errors.As(err, &f) {
 		out["prompt_status"], out["prompt_effect"] = f.Status, string(f.Effect)

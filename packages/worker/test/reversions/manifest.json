@@ -32,6 +32,13 @@
       "diffs": [
         "p1-4-no-one-writer.diff"
       ]
+    },
+    "input": {
+      "command": "npm test -- input && npm run test:crash -- control",
+      "diffs": [
+        "p1-5-no-binding-check.diff",
+        "p1-2-dispatch-marker-after-write.diff"
+      ]
     }
   }
 }
