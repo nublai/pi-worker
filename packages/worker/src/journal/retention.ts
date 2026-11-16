@@ -10,6 +10,10 @@
  * answer or release, a child's latest discharging report, or a command still in flight. The oldest (by their latest
  * record) go first. An evicted receipt leaves its id, so a reuse is refused `receipt_expired` instead of running again;
  * the newest `expiredIds` ids are kept.
+ *
+ * An expired id that rolls over is not forgotten as evidence (contract rule "no replay past retention",
+ * docs/plan/b2-for-shep.md): the `forgotten_ids` horizon keeps the newest issue time of a forgotten UUIDv7 command id
+ * and whether any other id was forgotten, so a command id the worker may have admitted is refused, never run again.
  */
 import type { JournalKind, JournalRecord } from './journal.js';
 
@@ -41,6 +45,53 @@ export interface ExpiredId {
   request_hash: string;
   /** The receipt's worker, so only a caller that could read the receipt learns it expired. */
   worker_id?: string;
+}
+
+/**
+ * What the forgotten expired ids leave behind: the newest issue time of a forgotten UUIDv7 id and whether an id that is
+ * not a UUIDv7 was forgotten. A command id the worker does not remember is refused when it could be one of them.
+ */
+export interface ForgottenIds {
+  /** The newest UUIDv7 timestamp (Unix ms) among forgotten ids; null when none was a UUIDv7. */
+  uuidv7_through_ms: number | null;
+  /** Some forgotten id was not a UUIDv7: no id that is not one can be told apart from it any more. */
+  untimed: boolean;
+}
+
+const UUIDV7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** The issue time (Unix ms) a UUIDv7 (RFC 9562) command id carries; null for any other id. */
+export function uuidv7Time(id: string): number | null {
+  return UUIDV7.test(id) ? parseInt(id.slice(0, 8) + id.slice(9, 13), 16) : null;
+}
+
+/** The horizon after `ids` are forgotten too. */
+export function forget(horizon: ForgottenIds | null, ids: readonly string[]): ForgottenIds | null {
+  let next = horizon;
+  for (const id of ids) {
+    const t = uuidv7Time(id);
+    const prev = next ?? { uuidv7_through_ms: null, untimed: false };
+    next = t === null ? { ...prev, untimed: true } : { ...prev, uuidv7_through_ms: Math.max(prev.uuidv7_through_ms ?? t, t) };
+  }
+  return next;
+}
+
+/**
+ * Whether `id`, which the worker remembers neither as a receipt nor as an expired id, could be one it forgot: a
+ * UUIDv7 issued no later than the newest forgotten one, or any other id once such an id was forgotten. Errs toward
+ * refusal: a fresh id it refuses did nothing and the caller mints a new one.
+ */
+export function mayBeForgotten(horizon: ForgottenIds | null, id: string): boolean {
+  if (!horizon) return false;
+  const t = uuidv7Time(id);
+  if (t === null) return horizon.untimed;
+  return horizon.uuidv7_through_ms !== null && t <= horizon.uuidv7_through_ms;
+}
+
+/** A `forgotten_ids` record's value (written only by planCompaction, checksummed by the journal). */
+export function readForgotten(v: Record<string, unknown>): ForgottenIds {
+  const t = v.uuidv7_through_ms;
+  return { uuidv7_through_ms: typeof t === 'number' ? t : null, untimed: v.untimed === true };
 }
 
 export interface CompactionGoal {
@@ -104,6 +155,7 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
   const settlements: Value[] = [];
   const effects: Value[] = [];
   const expired = new Map<string, ExpiredId>();
+  let horizon: ForgottenIds | null = null;
   for (const r of records) {
     const v = r.value;
     if (r.kind === 'supervisor') supervisors.push(v);
@@ -118,6 +170,7 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
     else if (r.kind === 'interaction') interactions.set(str(v.interaction_id)!, v);
     else if (r.kind === 'settlement') settlements.push(v);
     else if (r.kind === 'interaction_effect') effects.push(v);
+    else if (r.kind === 'forgotten_ids') horizon = readForgotten(v);
   }
   // Workers keep their first-appearance order (the worker table and every recovery iterate in it).
   const order: string[] = [];
@@ -195,7 +248,10 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
     expired.delete(id);
     expired.set(id, expiredId(r));
   }
-  const expiredKept = [...expired.values()].slice(Math.max(0, expired.size - limits.expiredIds));
+  const rollover = Math.max(0, expired.size - limits.expiredIds);
+  const expiredKept = [...expired.values()].slice(rollover);
+  // An expired id that rolls over moves the horizon: it is refused from now on, never run again.
+  horizon = forget(horizon, [...expired.keys()].slice(0, rollover));
   const keptIds = new Set([...receipts.keys()].filter(id => !gone.has(id)));
   // Settlement evidence for a retained command only, once each.
   const settled = new Set<string>();
@@ -209,6 +265,7 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
   const keptEffects = effects.filter(e => keptInteractions.has(str(e.interaction_id) ?? ''));
   for (const e of keptEffects) bytes += size(e);
   for (const e of expiredKept) bytes += size({ ...e });
+  if (horizon) bytes += size({ ...horizon });
 
   const entries: CompactionPlan['entries'] = [
     ...fixed.slice(0, 1).map(value => ({ kind: 'supervisor' as const, value })),
@@ -216,6 +273,7 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
     // Receipts keep their first-appearance order (the receipt table and recovery iterate in it).
     ...[...receipts].filter(([id]) => !gone.has(id)).map(([, value]) => ({ kind: 'receipt' as const, value })),
     ...expiredKept.map(value => ({ kind: 'receipt_expired' as const, value: { ...value } })),
+    ...(horizon ? [{ kind: 'forgotten_ids' as const, value: { ...horizon } }] : []),
     ...keptSettlements.map(value => ({ kind: 'settlement' as const, value })),
     ...[...keptInteractions.values()].map(value => ({ kind: 'interaction' as const, value })),
     ...keptEffects.map(value => ({ kind: 'interaction_effect' as const, value })),

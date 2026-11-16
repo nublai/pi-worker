@@ -18,8 +18,11 @@ import type { DurableLabel } from './labels.js';
 import { DEFAULT_RETENTION } from './retention.js';
 import type { JournalAppended } from '../generated/events.js';
 
-/** `receipt_expired`: the id of a receipt retention evicted, so a reuse is refused rather than run again (P1-12). */
-export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement', 'interaction', 'interaction_effect', 'receipt_expired'] as const;
+/**
+ * `receipt_expired`: the id of a receipt retention evicted, so a reuse is refused rather than run again (P1-12).
+ * `forgotten_ids`: what the expired ids that rolled over leave behind, so none of them runs again (journal/retention.ts).
+ */
+export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement', 'interaction', 'interaction_effect', 'receipt_expired', 'forgotten_ids'] as const;
 export type JournalKind = (typeof JOURNAL_KINDS)[number];
 export type JournalRecord = { seq: number; kind: JournalKind; value: Record<string, unknown> };
 

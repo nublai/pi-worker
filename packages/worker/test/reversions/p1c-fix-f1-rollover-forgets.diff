@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/journal/retention.ts b/packages/worker/src/journal/retention.ts
+--- a/packages/worker/src/journal/retention.ts
++++ b/packages/worker/src/journal/retention.ts
+@@ -251,7 +251,7 @@
+   const rollover = Math.max(0, expired.size - limits.expiredIds);
+   const expiredKept = [...expired.values()].slice(rollover);
+   // An expired id that rolls over moves the horizon: it is refused from now on, never run again.
+-  horizon = forget(horizon, [...expired.keys()].slice(0, rollover));
++  horizon = forget(horizon, []);
+   const keptIds = new Set([...receipts.keys()].filter(id => !gone.has(id)));
+   // Settlement evidence for a retained command only, once each.
+   const settled = new Set<string>();

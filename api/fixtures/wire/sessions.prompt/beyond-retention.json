@@ -1,0 +1,21 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "command_id": "0190b2a4-1c00-7a3e-8b1f-3c5d7e9f1a2b",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "message": "sent long ago"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "command_id_beyond_retention",
+      "effect": "no_effect"
+    }
+  }
+}

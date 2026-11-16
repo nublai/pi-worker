@@ -16,7 +16,7 @@ import type { components } from '../generated/api.js';
 import { ProvenNoEffect, Refusal } from '../b2/errors.js';
 import type { Journal } from '../journal/journal.js';
 import type { DurableLabel } from '../journal/labels.js';
-import { DEFAULT_RETENTION, goalFor, planCompaction, type CompactionGoal, type ExpiredId, type RetentionLimits } from '../journal/retention.js';
+import { DEFAULT_RETENTION, goalFor, mayBeForgotten, planCompaction, readForgotten, type CompactionGoal, type ExpiredId, type ForgottenIds, type RetentionLimits } from '../journal/retention.js';
 import { recheck } from '../grants/authority.js';
 import type { JournalAppended } from '../generated/events.js';
 
@@ -57,6 +57,8 @@ export class ReceiptStore {
   readonly all = new Map<string, Receipt>();
   /** Ids of receipts retention evicted: a reuse is refused `receipt_expired`, never run again. */
   readonly expired = new Map<string, ExpiredId>();
+  /** What the expired ids that rolled over leave behind: an id that may be one of them is refused, never run. */
+  forgotten: ForgottenIds | null = null;
   /** The fsynced append of each receipt's latest record in this process (a durable event's proof). */
   readonly appended = new Map<string, JournalAppended>();
   private inFlight = new Map<string, { hash: string; operation: Operation; promise: Promise<Receipt> }>();
@@ -84,6 +86,7 @@ export class ReceiptStore {
   private load(): void {
     this.all.clear();
     this.expired.clear();
+    this.forgotten = null;
     for (const record of this.journal.records) {
       if (record.kind === 'receipt') {
         const receipt = record.value as Receipt;
@@ -92,7 +95,7 @@ export class ReceiptStore {
         // SAFETY: a `receipt_expired` record is written only by planCompaction from an ExpiredId (checksummed).
         const id = record.value as unknown as ExpiredId;
         this.expired.set(id.command_id, id);
-      }
+      } else if (record.kind === 'forgotten_ids') this.forgotten = readForgotten(record.value);
     }
     for (const id of [...this.appended.keys()]) if (!this.all.has(id)) this.appended.delete(id);
   }
@@ -230,6 +233,9 @@ export class ReceiptStore {
       if (gone.operation !== operation || gone.request_hash !== hash) throw new Refusal('command_id_conflict');
       throw new Refusal('receipt_expired', 'unknown', commandId, {}, 409);
     }
+    // An id whose expired record rolled over is not proof of a fresh command (contract rule "no replay past
+    // retention"): an id that may be one the worker forgot is refused before anything is written.
+    if (!pending && !prior && mayBeForgotten(this.forgotten, commandId)) throw new Refusal('command_id_beyond_retention', 'no_effect', undefined, {}, 409);
     const result = Promise.resolve()
       .then(async () => {
         // Validation and reservation run atomically with the synchronous pre-dispatch part of effect().

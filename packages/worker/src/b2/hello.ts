@@ -14,7 +14,7 @@ export const NAMED_LIMITS: readonly string[] = [
   'Private sockets and bearer grants do not isolate hostile code running as the same OS user, including project extensions.',
   'The worker cannot read the peer credentials of a Unix-socket client; its boundary is file modes plus the bearer grant.',
   'A journal on a bring-your-own machine dies with the machine.',
-  'Receipts are retained within the advertised limits; an evicted receipt reads as receipt_expired (unknown) only while its id is among the most recent receipt_expired_ids_max evicted ids, and is forgotten after that.',
+  'Receipts are retained within the advertised limits; an evicted receipt reads as receipt_expired (unknown) while its id is among the most recent receipt_expired_ids_max evicted ids. After that its command still never runs again: an id the worker may have forgotten (a UUIDv7 command_id not issued after the newest forgotten one, or any other id once one such was forgotten) is refused command_id_beyond_retention (no_effect), so callers mint UUIDv7 command ids.',
   'Linux results are not macOS results.',
 ];
 
