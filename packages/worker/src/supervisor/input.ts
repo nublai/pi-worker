@@ -93,6 +93,8 @@ export class Input {
     if (event.type === 'agent_settled') {
       w.foreground = w.fence ? 'unknown' : 'idle';
       live.observedIdle = true;
+      // The phone's finished-unseen counter (contract 8.1): every settlement pi reports for this worker.
+      w.settle_count = (w.settle_count ?? 0) + 1;
       if (w.execution) {
         w.execution.state = 'settled'; // Observed in memory even if persistence fails.
         this.s.journal.append(
@@ -125,7 +127,8 @@ export class Input {
         live.observedIdle = false;
         this.s.persist(live, 'execution.admit');
         const response = await this.s.receipts.dispatchThen(p.command_id, { worker_id: id, execution_id: w.execution.execution_id }, () =>
-          live.host!.request({ type: 'prompt', message: p.message }),
+          // The command and execution ids go with the input: the child stamps them into pi's session file.
+          live.host!.request({ type: 'prompt', message: p.message, command_id: p.command_id, execution_id: w.execution!.execution_id }),
         );
         if (live.faulted) throw new Error('worker fault during prompt');
         if (!response.success) {
@@ -149,7 +152,16 @@ export class Input {
         this.s.refresh(live);
         this.s.persist(live, 'execution.reply');
         if (disposition === 'handled') this.s.events.publish('execution.settled', { worker_id: id, execution_id: w.execution!.execution_id, data: { disposition } });
-        const patch: ReceiptPatch = { state: 'delivered', stage: 'forwarded', effect: 'observed', admission: 'accepted', disposition, history_lag: w.history.lag };
+        const patch: ReceiptPatch = {
+          state: 'delivered',
+          stage: 'forwarded',
+          effect: 'observed',
+          admission: 'accepted',
+          disposition,
+          history_lag: w.history.lag,
+          // The worker's interrupt marker (S-5): whether pi got it in front of this input.
+          result: { interrupt_marker: response.data?.interrupt_marker === true },
+        };
         return patch;
       },
       () => {

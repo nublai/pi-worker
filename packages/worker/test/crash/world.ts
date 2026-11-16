@@ -95,6 +95,8 @@ export class EffectHost extends Host {
       this.identified = true;
       this.emit('event', { type: 'host_identity', sessionId: this.sid, sessionFile: this.file, leafId: null });
     }
+    // A session write without input text (session.configure): the command in flight names it.
+    if (c.type === 'configure' && !this.configureRefusal) this.control('configure');
     if (c.type === 'prompt' || c.type === 'steer') {
       const id = String(c.message);
       appendFileSync(this.file, `${JSON.stringify({ type: 'message', id, parentId: null, message: { role: 'user', content: [] } })}\n`);
@@ -194,6 +196,7 @@ export function openWorld(root: string, scenario: boolean): World {
       case 'answer':
         // A retry after a restart sends a different value: the recorded outcome comes back without revalidating it.
         return supervisor.answer(id!, scenario ? b : ({ ...body, value: 'DIFFERENT_AFTER_RESTART' } as never));
+      case 'configure':
       case 'stop':
       case 'cancel':
       case 'interrupt':
@@ -204,6 +207,7 @@ export function openWorld(root: string, scenario: boolean): World {
         try {
           if (op === 'rebind') return await supervisor.rebind(id!, b);
           if (op === 'new') return await supervisor.newSession(id!, b);
+          if (op === 'configure') return await supervisor.configure(id!, b);
           return op === 'stop' ? await supervisor.stop(id!, b) : await supervisor.control(id!, b, op === 'interrupt');
         } finally {
           if (h) h.effectCommand = undefined;

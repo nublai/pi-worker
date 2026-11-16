@@ -1,0 +1,47 @@
+{
+  "request": {
+    "query": {
+      "worker_id": "worker-1"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "commands": [
+        {
+          "name": "new",
+          "description": "Start a new session",
+          "source": "builtin",
+          "argument_hint": null,
+          "invocation": "method",
+          "method": "sessions.new"
+        },
+        {
+          "name": "login",
+          "description": "Configure provider authentication",
+          "source": "builtin",
+          "argument_hint": "<provider>",
+          "invocation": "unsupported",
+          "method": null
+        },
+        {
+          "name": "deploy",
+          "description": "Deploy the current branch",
+          "source": "extension",
+          "argument_hint": null,
+          "invocation": "unsupported",
+          "method": null
+        },
+        {
+          "name": "skill:review",
+          "description": "Review a change",
+          "source": "skill",
+          "argument_hint": null,
+          "invocation": "unsupported",
+          "method": null
+        }
+      ],
+      "evidence": "pi_worker_process"
+    }
+  }
+}

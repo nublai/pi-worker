@@ -28,7 +28,21 @@
       "pending_interactions": [],
       "queued": [],
       "fence_generation": 0,
-      "host": "sdk"
+      "host": "sdk",
+      "chat_id": "worker-1",
+      "runtime": "worker",
+      "status_since": "2026-11-16T04:29:00Z",
+      "settle_count": 3,
+      "lineage": "root",
+      "repo_label": "project",
+      "title": "Fix the login bug",
+      "preview": "Done: the login form now validates the email.",
+      "last_activity_at": "2026-11-16T04:30:00Z",
+      "model": {
+        "provider": "anthropic",
+        "id": "claude-sonnet-4-5"
+      },
+      "thinking": "medium"
     }
   }
 }

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/features.ts b/packages/worker/src/supervisor/features.ts
+index 96723c4..9b98be0 100644
+--- a/packages/worker/src/supervisor/features.ts
++++ b/packages/worker/src/supervisor/features.ts
+@@ -258,7 +258,7 @@ export class Features {
+     if (fresh && receipt.state === 'outcome_unknown') {
+       // The change may have happened: the fence is durable before the receipt is returned (invariant 3).
+       const uncertain = this.s.require(id);
+-      if (this.fence.latch(uncertain, c.command_id)) this.s.persist(uncertain, 'fence.latch');
++      void uncertain;
+     }
+     return receipt;
+   }

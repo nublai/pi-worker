@@ -1,0 +1,48 @@
+{
+  "request": {
+    "path": {
+      "session_id": "session-1"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "session_id": "session-1",
+      "chat_id": "session-1",
+      "runtime": "worker",
+      "cwd": "/home/u/project",
+      "title": "Fix the login bug",
+      "preview": "Done: the login form now validates the email.",
+      "created_at": "2026-11-16T04:00:00Z",
+      "last_activity_at": "2026-11-16T04:30:00Z",
+      "message_count": 12,
+      "holder_worker_id": null,
+      "last_worker_id": "worker-1",
+      "fenced": false,
+      "lineage": "root",
+      "stats": {
+        "user_messages": 4,
+        "assistant_messages": 8,
+        "tool_calls": 5,
+        "tokens": {
+          "input": 1200,
+          "output": 800,
+          "cache_read": 4000,
+          "cache_write": 300,
+          "total": 6300
+        },
+        "cost_total": 0.0421,
+        "models": [
+          {
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-5",
+            "assistant_messages": 8,
+            "tokens_total": 6300,
+            "cost_total": 0.0421
+          }
+        ]
+      },
+      "evidence": "pi_session_file"
+    }
+  }
+}

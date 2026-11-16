@@ -34,6 +34,7 @@ export const SESSION_DIRECTED = new Set<Receipt['operation']>([
   'children.launch',
   'interactions.answer_if_current',
   'interactions.release',
+  'session.configure',
 ]);
 
 /**

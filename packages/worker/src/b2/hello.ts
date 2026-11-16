@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import type { components } from '../generated/api.js';
 import { jsonBodyLimit, routes } from '../generated/routes.js';
 import { DEFAULT_RETENTION, type RetentionLimits } from '../journal/retention.js';
+import { HISTORY_LINE_MAX_BYTES, HISTORY_MAX_BYTES } from '../history/session-file.js';
 
 export type Hello = components['schemas']['Hello'];
 
@@ -49,7 +50,15 @@ export const LIMITS: Hello['limits'] = {
   attachments_total_bytes: ATTACHMENTS_TOTAL_BYTES,
   event_frame_bytes: routes['events.subscribe'].responses['200'].maxFrameBytes,
   ...retentionLimits(DEFAULT_RETENTION),
+  history_max_bytes: HISTORY_MAX_BYTES,
+  history_line_max_bytes: HISTORY_LINE_MAX_BYTES,
 };
+
+/**
+ * What this worker does beyond the base catalog: byte-range JSONL history (S-1), the worker-owned interrupt marker
+ * (S-5) and the command id stamped into pi's session file (contract 8.1).
+ */
+export const CAPABILITIES: readonly string[] = ['history.jsonl', 'interrupt_marker', 'command_stamp'];
 
 export interface HelloSource {
   supervisorId?: string;
@@ -67,7 +76,7 @@ export function createHello(source: HelloSource = {}): () => Hello {
     supervisor_id: source.supervisorId ?? randomUUID(),
     supervisor_epoch: source.supervisorEpoch ?? randomUUID(),
     pi_version: source.piVersion ?? null,
-    capabilities: [],
+    capabilities: [...CAPABILITIES],
     limits: { ...LIMITS, ...(source.retention ? retentionLimits(source.retention) : {}) },
     named_limits: [...NAMED_LIMITS],
   };

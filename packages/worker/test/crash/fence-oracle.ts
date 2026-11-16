@@ -21,6 +21,8 @@ export const FENCES_WHEN_UNKNOWN: Readonly<Record<Operation, boolean | typeof NA
   'sessions.rebind': true, // new, fork, resume and tree moves
   'sessions.new': true, // the /new move under its own operation
   'children.launch': true,
+  // Contract 8.1: a model, thinking or name change writes the session (pi's model_change, session_info entries).
+  'session.configure': true,
   'interactions.answer_if_current': true,
   'interactions.release': true,
   // A create with `resume_session_id` binds that session: pi may have run its switch hooks or opened it. A plain

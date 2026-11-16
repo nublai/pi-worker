@@ -89,6 +89,23 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     const w = worker(id);
     if (!caller || !allowsWorker(caller, w)) throw new Refusal('grant_scope_denied');
   };
+  /**
+   * A catalog session is visible when its cwd is in the caller's cwd scope and its last owner is a worker the caller
+   * may see. A scoped grant gets the same refusal for an unknown session as for one outside its scope.
+   */
+  const sessionVisible = (caller: Caller | undefined, row: { cwd: string; last_worker_id: string }): boolean => !!caller && allowsCwd(caller, row.cwd) && visible(caller, row.last_worker_id);
+  const sessionRow = (caller: Caller | undefined, sessionId: string) => {
+    const row = supervisor().features.row(sessionId);
+    if (!row) throw new Refusal(seesAll(caller) ? 'unknown_session' : 'grant_scope_denied');
+    if (!sessionVisible(caller, row)) throw new Refusal('grant_scope_denied');
+    return row;
+  };
+  /** models.list and commands.list: a worker in scope, or a cwd in the caller's cwd scope. */
+  const featureTarget = (caller: Caller | undefined, q: { worker_id?: string; cwd?: string; project_trusted?: boolean }) => {
+    if (q.worker_id !== undefined) inScope(caller, q.worker_id);
+    if (q.cwd !== undefined && (!caller || !allowsCwd(caller, q.cwd))) throw new Refusal('grant_scope_denied');
+    return q;
+  };
   const handlers: Handlers = {
     hello: () => hello(),
     'receipts.get': ({ path, caller }) => {
@@ -143,6 +160,15 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
       return supervisor().answer(path.worker_id, body, { caller: caller.caller, grant_id: caller.grant_id });
     },
     'items.read': ({ path }) => supervisor().item(path.worker_id, path.entry_id),
+    'session.configure': ({ path, body }) => supervisor().configure(path.worker_id, body),
+    'sessions.list': ({ query, caller }) => supervisor().features.list(row => sessionVisible(caller, row), query),
+    'sessions.get': ({ path, caller }) => sessionRow(caller, path.session_id),
+    'sessions.history': ({ path, query, caller }) => {
+      sessionRow(caller, path.session_id);
+      return supervisor().features.history(path.session_id, query);
+    },
+    'models.list': ({ query, caller }) => supervisor().features.models(featureTarget(caller, query)),
+    'commands.list': ({ query, caller }) => supervisor().features.commands(featureTarget(caller, query)),
     'events.subscribe': ({ query, header, caller }) => {
       const s = supervisor();
       const since = cursorOf(header['last-event-id']);

@@ -4,7 +4,7 @@
     "title": "pi-worker B2",
     "version": "0.1.0",
     "summary": "Caller-to-worker API (B2) of nubl's pi-worker supervisor.",
-    "description": "HTTP/1.1 over a private Unix socket (`$XDG_RUNTIME_DIR/pi-worker/b2.sock`, 0700 directory, 0600 socket).\nThere is no TCP listener. This document is the single source for the server's request and response\nvalidators, the TypeScript types and the Go models (`npm run generate`).\n\nSeeded from A0 (`prototype/a0` at `ee66117`, `openapi.json`). The method catalog is draft until P6\n(contract revision 8, sections 4 onward); the behavioural invariants (sections 0, 0.1, 0.2) are frozen.\n\nExtensions:\n- `x-piw-mutation` (every operation): `true` when the operation changes state. A mutation's body\n  requires `command_id`, a UUIDv7 (RFC 9562) the caller mints\n  when it creates the command; a client never retries it; a\n  failure after the request bytes are written is\n  `effect: unknown`. A command id the worker may have admitted\n  never runs again: past its retained receipt and expired id it\n  is refused `command_id_beyond_retention`, `effect: no_effect`\n  (see `receipt_expired_ids_max`).\n- `x-piw-status: unsupported`: the server routes and validates the operation and answers `501` with\n  `effect: no_effect`.\n- `x-piw-event` (every event schema): the event manifest (type, producer, durability, visibility).\n- `x-piw-body` (every operation): the request body mode. `json`: `application/json` only, at most\n  `x-piw-json-max-bytes` (below) unless the operation declares a smaller `x-piw-max-bytes`, validated\n  against its schema. `binary`: the declared media types only, streamed with a byte counter and refused\n  at `x-piw-max-bytes`, which a binary operation must declare. `none`: no body. The router enforces the\n  mode before any handler: a wrong content type is `415`, a body over the limit `413`, a body on a `none`\n  operation `400`, all `effect: no_effect`.\n- `x-piw-response` (every success response): `json`, `sse`, `ndjson` or `binary`. An `sse` response\n  declares `x-piw-max-frame-bytes`, the most bytes one record may carry.\n\nNamed limit (invariant 8): private sockets and bearer grants do not isolate hostile code running as the\nsame OS user.\n",
+    "description": "HTTP/1.1 over a private Unix socket (`$XDG_RUNTIME_DIR/pi-worker/b2.sock`, 0700 directory, 0600 socket).\nThere is no TCP listener. This document is the single source for the server's request and response\nvalidators, the TypeScript types and the Go models (`npm run generate`).\n\nSeeded from A0 (`prototype/a0` at `ee66117`, `openapi.json`). The method catalog is draft until P6\n(contract revision 8, sections 4 onward); the behavioural invariants (sections 0, 0.1, 0.2) are frozen.\n\nExtensions:\n- `x-piw-mutation` (every operation): `true` when the operation changes state. A mutation's body\n  requires `command_id`, a UUIDv7 (RFC 9562) the caller mints\n  when it creates the command; a client never retries it; a\n  failure after the request bytes are written is\n  `effect: unknown`. A command id the worker may have admitted\n  never runs again: past its retained receipt and expired id it\n  is refused `command_id_beyond_retention`, `effect: no_effect`\n  (see `receipt_expired_ids_max`).\n- `x-piw-status: unsupported`: the server routes and validates the operation and answers `501` with\n  `effect: no_effect`.\n- `x-piw-event` (every event schema): the event manifest (type, producer, durability, visibility).\n- `x-piw-body` (every operation): the request body mode. `json`: `application/json` only, at most\n  `x-piw-json-max-bytes` (below) unless the operation declares a smaller `x-piw-max-bytes`, validated\n  against its schema. `binary`: the declared media types only, streamed with a byte counter and refused\n  at `x-piw-max-bytes`, which a binary operation must declare. `none`: no body. The router enforces the\n  mode before any handler: a wrong content type is `415`, a body over the limit `413`, a body on a `none`\n  operation `400`, all `effect: no_effect`.\n- `x-piw-response` (every success response): `json`, `sse`, `ndjson` or `binary`. An `sse` response\n  declares `x-piw-max-frame-bytes`, the most bytes one record may carry. An `ndjson` or `binary` response\n  declares `x-piw-max-bytes` (the most body bytes) and its `headers`; the router validates the headers\n  against their schemas, the content type against the declared media types and the length against the\n  cap before anything is written, and an `ndjson` body must be complete lines, each one JSON value.\n\nNamed limit (invariant 8): private sockets and bearer grants do not isolate hostile code running as the\nsame OS user.\n",
     "license": {
       "name": "MIT",
       "identifier": "MIT"
@@ -58,6 +58,10 @@
     {
       "name": "children",
       "description": "Child launch and child reports."
+    },
+    {
+      "name": "features",
+      "description": "Models, commands and session settings (contract 8.1)."
     }
   ],
   "paths": {
@@ -212,6 +216,53 @@
           },
           "501": {
             "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/configure": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "session.configure",
+        "summary": "Change the bound session's model, thinking level or name",
+        "description": "A session write (contract 8.1): it names the binding it saw, is refused under a fence and while an\nexecution runs, and after its dispatch record a lost reply is `outcome_unknown` and fences the session.\nAt least one of `model`, `thinking` and `name`.\n",
+        "tags": [
+          "features"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-body": "json",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Configure"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
           }
         }
       }
@@ -957,7 +1008,7 @@
       "get": {
         "operationId": "history.page",
         "summary": "Page the bound session's pi entries",
-        "description": "Raw pi entries on the visible path from the session root to a\npinned watermark, oldest first. Without a watermark it pins the\nworker's history marker: the newest entry on pi's selected path\nthat is in the session file (never an entry pi has not written;\na session with nothing written yet reads as an empty page). An\nentry too large for a page is a `too_large` stub; read it with\n`items.read`. History never creates a live interaction. Reading\nan archived session by `session_id` with no worker is P1-14.\n",
+        "description": "Raw pi entries on the visible path from the session root to a\npinned watermark, oldest first. Without a watermark it pins the\nworker's history marker: the newest entry on pi's selected path\nthat is in the session file (never an entry pi has not written;\na session with nothing written yet reads as an empty page). An\nentry too large for a page is a `too_large` stub; read it with\n`items.read`. History never creates a live interaction. A session's\nraw lines by byte range, with or without a worker, are\n`sessions.history`.\n",
         "tags": [
           "readback"
         ],
@@ -1237,6 +1288,329 @@
         }
       }
     },
+    "/b2/sessions": {
+      "get": {
+        "operationId": "sessions.list",
+        "summary": "List the sessions this worker catalog knows, newest activity first",
+        "description": "The sessions a worker of this supervisor has bound (the resume catalog), live or archived, up to\n`limit` (at most 100) per call, filtered by `cwd` when given. A session is listed when its cwd is in the\ngrant's cwd scope and its last owner is in the grant's worker scope. `holder_worker_id` names the worker\nholding it now (\"open in\"). Rows come from the session file; a file pi has not written yet reads as an\nempty session.\n",
+        "tags": [
+          "inventory"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-body": "none",
+        "parameters": [
+          {
+            "name": "cwd",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AbsolutePath"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session rows.",
+            "x-piw-response": "json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          }
+        }
+      }
+    },
+    "/b2/sessions/{session_id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/SessionId"
+        }
+      ],
+      "get": {
+        "operationId": "sessions.get",
+        "summary": "Read one session row",
+        "tags": [
+          "inventory"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-body": "none",
+        "responses": {
+          "200": {
+            "description": "The session row.",
+            "x-piw-response": "json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionRow"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          }
+        }
+      }
+    },
+    "/b2/sessions/{session_id}/history": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/SessionId"
+        }
+      ],
+      "get": {
+        "operationId": "sessions.history",
+        "summary": "Read a session file's complete lines by byte range, with or without a worker",
+        "description": "Shep's shape (a) of `history.page` (question S-1): pi's session-file lines from byte `offset`, complete\nlines only, ending on a line boundary, at most `max_bytes` unless one line alone is longer (then that one\nline, up to `Piw-History-Line-Max`). It reads any session of the catalog, so an archived session reads by\n`session_id` with no worker bound to it; scope is as for `sessions.get`.\n\nHeaders: `Piw-File-Identity` is stable across appends and changes when the file is replaced;\n`Piw-Watermark` is the file's complete size (the byte after its last complete line), the value\n`history.appended` carries; `Piw-Next-Offset` is where the next read starts; `Piw-Tail-Sha256` is the\nSHA-256 of the last line read (with its line feed), to send back as `tail`.\n\nReset: send back `identity` and `tail` with the next `offset`. When the identity differs, or the line\nending at `offset` is not the one `tail` names (the file was replaced, shrank or was rewritten in place),\nthe worker reads from byte 0 and sets `Piw-Reset: true`. Without `tail`, an offset past the watermark\nis `history_offset_past_watermark` and one not on a line start `history_offset_not_line_start`, both\n`400 no_effect`: a bad offset never reads as an empty page.\n",
+        "tags": [
+          "readback"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-body": "none",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "jsonl"
+              ],
+              "default": "jsonl"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "max_bytes",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16777216,
+              "default": 1048576
+            }
+          },
+          {
+            "name": "identity",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FileIdentity"
+            }
+          },
+          {
+            "name": "tail",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Sha256"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Complete session-file lines.",
+            "x-piw-response": "ndjson",
+            "x-piw-max-bytes": 67108864,
+            "headers": {
+              "Piw-Session-Id": {
+                "required": true,
+                "schema": {
+                  "$ref": "#/components/schemas/Id"
+                }
+              },
+              "Piw-File-Identity": {
+                "required": true,
+                "schema": {
+                  "$ref": "#/components/schemas/FileIdentity"
+                }
+              },
+              "Piw-Offset": {
+                "required": true,
+                "description": "The byte the body starts at (0 after a reset).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "Piw-Next-Offset": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "Piw-Watermark": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "Piw-Reset": {
+                "required": true,
+                "schema": {
+                  "type": "boolean"
+                }
+              },
+              "Piw-Tail-Sha256": {
+                "description": "Absent when nothing precedes `Piw-Next-Offset`.",
+                "schema": {
+                  "$ref": "#/components/schemas/Sha256"
+                }
+              },
+              "Piw-History-Line-Max": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string",
+                  "description": "pi's session-file lines, unparsed; B2 does not own their schema."
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          }
+        }
+      }
+    },
+    "/b2/models": {
+      "get": {
+        "operationId": "models.list",
+        "summary": "The model catalog pi reports, for a worker or for a cwd before any worker exists",
+        "description": "Name exactly one of `worker_id` (the worker's pi process answers, with its current model and thinking\nlevel) or `cwd` (a short-lived pi process loads that cwd's settings and resources, opens no session and\nexits). `project_trusted` applies to `cwd` as it does to `workers.create`.\n",
+        "tags": [
+          "features"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-body": "none",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FeatureWorker"
+          },
+          {
+            "$ref": "#/components/parameters/FeatureCwd"
+          },
+          {
+            "$ref": "#/components/parameters/FeatureTrust"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The models.",
+            "x-piw-response": "json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          }
+        }
+      }
+    },
+    "/b2/commands": {
+      "get": {
+        "operationId": "commands.list",
+        "summary": "The slash commands pi offers, for a worker or for a cwd before any worker exists",
+        "description": "As `models.list` for `worker_id` and `cwd`. Each command says how it is invoked: an extension command\nthrough `commands.invoke`; a built-in that has its own method (`/new`, `/model`, `/compact`, …) names\nthat method; anything else is `unsupported` and refused explicitly.\n",
+        "tags": [
+          "features"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-body": "none",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FeatureWorker"
+          },
+          {
+            "$ref": "#/components/parameters/FeatureCwd"
+          },
+          {
+            "$ref": "#/components/parameters/FeatureTrust"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The commands.",
+            "x-piw-response": "json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          }
+        }
+      }
+    },
     "/b2/receipts/{command_id}": {
       "parameters": [
         {
@@ -1379,6 +1753,37 @@
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Id"
+        }
+      },
+      "SessionId": {
+        "name": "session_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "FeatureWorker": {
+        "name": "worker_id",
+        "in": "query",
+        "description": "Ask this worker's pi process. Exactly one of worker_id and cwd.",
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "FeatureCwd": {
+        "name": "cwd",
+        "in": "query",
+        "description": "Ask a short-lived pi process for this cwd. Exactly one of worker_id and cwd.",
+        "schema": {
+          "$ref": "#/components/schemas/AbsolutePath"
+        }
+      },
+      "FeatureTrust": {
+        "name": "project_trusted",
+        "in": "query",
+        "schema": {
+          "type": "boolean"
         }
       }
     },
@@ -1666,6 +2071,16 @@
             "type": "integer",
             "minimum": 0,
             "description": "How many evicted command ids the worker still remembers. Reusing\none, or reading its receipt, is refused `receipt_expired` with\n`effect: unknown`: never run again, never proof that nothing ran.\nAn id evicted longer ago than this still never runs again (contract\nrule \"no replay past retention\"): the worker keeps the newest issue\ntime of a forgotten UUIDv7 `command_id` and whether any other id was\nforgotten, and refuses a command id it may have forgotten (a UUIDv7\nnot issued after that time, or any other id once one was forgotten)\n`command_id_beyond_retention` with `effect: no_effect`, before any\nrecord. Callers mint every `command_id` as a UUIDv7 (RFC 9562).\n"
+          },
+          "history_max_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The largest `max_bytes` one `sessions.history` read accepts."
+          },
+          "history_line_max_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The longest single session-file line `sessions.history` returns."
           }
         }
       },
@@ -2902,6 +3317,561 @@
           "resources": {
             "type": "object",
             "additionalProperties": true
+          },
+          "chat_id": {
+            "$ref": "#/components/schemas/Id",
+            "description": "The phone's chat identity for this worker (its `worker_id`), passed through unchanged (S-3)."
+          },
+          "runtime": {
+            "type": "string",
+            "const": "worker"
+          },
+          "status_since": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "RFC 3339 time the status last changed."
+          },
+          "settle_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Executions pi reported settled on this worker (finished-unseen on the phone)."
+          },
+          "lineage": {
+            "$ref": "#/components/schemas/Lineage"
+          },
+          "repo_label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 256,
+            "description": "The name of the Git work tree holding the cwd, else the cwd's base name."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 512,
+            "description": "The session's display name (pi's session_info), set by `session.configure` or natively."
+          },
+          "preview": {
+            "$ref": "#/components/schemas/Preview"
+          },
+          "last_activity_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64,
+            "description": "RFC 3339 time of the newest entry in the session file."
+          },
+          "model": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thinking": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Thinking"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Lineage": {
+        "type": "string",
+        "enum": [
+          "root",
+          "child",
+          "unknown"
+        ],
+        "description": "A child names its parent; old and natively launched sessions are unknown, never roots."
+      },
+      "Preview": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 512,
+        "description": "The newest user or assistant text in the session file, without the worker's interrupt marker, at most 280 characters."
+      },
+      "ModelRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "id"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      },
+      "Configure": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelRef"
+          },
+          "thinking": {
+            "$ref": "#/components/schemas/Thinking"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "FileIdentity": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$",
+        "description": "Stable across appends to one session file; changes when the file is replaced."
+      },
+      "Sha256": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "SessionTokens": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "input",
+          "output",
+          "cache_read",
+          "cache_write",
+          "total"
+        ],
+        "properties": {
+          "input": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "output": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cache_read": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cache_write": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "SessionStats": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_messages",
+          "assistant_messages",
+          "tool_calls",
+          "tokens",
+          "cost_total",
+          "models"
+        ],
+        "properties": {
+          "user_messages": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "assistant_messages": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tool_calls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/SessionTokens"
+          },
+          "cost_total": {
+            "type": "number",
+            "minimum": 0
+          },
+          "models": {
+            "type": "array",
+            "maxItems": 64,
+            "description": "Per-model usage and cost, from the assistant messages' own usage records.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "provider",
+                "model",
+                "assistant_messages",
+                "tokens_total",
+                "cost_total"
+              ],
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                "model": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "assistant_messages": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "tokens_total": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "cost_total": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "SessionRow": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "session_id",
+          "chat_id",
+          "runtime",
+          "cwd",
+          "title",
+          "preview",
+          "created_at",
+          "last_activity_at",
+          "message_count",
+          "holder_worker_id",
+          "last_worker_id",
+          "fenced",
+          "lineage",
+          "stats",
+          "evidence"
+        ],
+        "properties": {
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "chat_id": {
+            "$ref": "#/components/schemas/Id",
+            "description": "The phone's chat identity for an archived chat (its `session_id`), passed through (S-3)."
+          },
+          "runtime": {
+            "type": "string",
+            "const": "worker"
+          },
+          "cwd": {
+            "$ref": "#/components/schemas/AbsolutePath"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 512
+          },
+          "preview": {
+            "$ref": "#/components/schemas/Preview"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          },
+          "last_activity_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          },
+          "message_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "holder_worker_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The worker that holds the session now (\"open in\"); null when no worker holds it."
+          },
+          "last_worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "fenced": {
+            "type": "boolean",
+            "description": "The last owner's fence is unresolved; resume is refused `target_session_fenced`."
+          },
+          "lineage": {
+            "$ref": "#/components/schemas/Lineage"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/SessionStats"
+          },
+          "evidence": {
+            "type": "string",
+            "const": "pi_session_file"
+          }
+        }
+      },
+      "SessionList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sessions",
+          "truncated"
+        ],
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/SessionRow"
+            }
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More sessions matched than `limit`."
+          }
+        }
+      },
+      "Model": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "id",
+          "name",
+          "reasoning",
+          "input",
+          "context_window",
+          "max_tokens"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "reasoning": {
+            "type": "boolean"
+          },
+          "input": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "enum": [
+                "text",
+                "image"
+              ]
+            }
+          },
+          "context_window": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ModelList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "models",
+          "current",
+          "thinking",
+          "thinking_levels",
+          "evidence"
+        ],
+        "properties": {
+          "models": {
+            "type": "array",
+            "maxItems": 2048,
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            }
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thinking": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Thinking"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thinking_levels": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "$ref": "#/components/schemas/Thinking"
+            }
+          },
+          "evidence": {
+            "type": "string",
+            "enum": [
+              "pi_worker_process",
+              "pi_inventory_process"
+            ]
+          }
+        }
+      },
+      "Command": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "description",
+          "source",
+          "argument_hint",
+          "invocation",
+          "method"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "builtin",
+              "extension",
+              "prompt",
+              "skill"
+            ]
+          },
+          "argument_hint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 256
+          },
+          "invocation": {
+            "type": "string",
+            "enum": [
+              "commands.invoke",
+              "method",
+              "unsupported"
+            ],
+            "description": "How the command runs through B2: `commands.invoke`; `method`, the typed method in `method` (a built-in with its own operation); or `unsupported`, refused explicitly."
+          },
+          "method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          }
+        }
+      },
+      "CommandList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "commands",
+          "evidence"
+        ],
+        "properties": {
+          "commands": {
+            "type": "array",
+            "maxItems": 4096,
+            "items": {
+              "$ref": "#/components/schemas/Command"
+            }
+          },
+          "evidence": {
+            "type": "string",
+            "enum": [
+              "pi_worker_process",
+              "pi_inventory_process"
+            ]
           }
         }
       },
@@ -2940,7 +3910,8 @@
               "executions.interrupt",
               "interactions.answer_if_current",
               "interactions.release",
-              "attachments.stage"
+              "attachments.stage",
+              "session.configure"
             ]
           },
           "request_hash": {
@@ -3284,6 +4255,9 @@
           },
           {
             "$ref": "#/components/schemas/InteractionsChangedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/HistoryAppendedEvent"
           },
           {
             "$ref": "#/components/schemas/ChildReportedEvent"
@@ -3851,6 +4825,87 @@
             "properties": {
               "interactions": {
                 "$ref": "#/components/schemas/Interactions"
+              }
+            }
+          }
+        }
+      },
+      "HistoryAppendedEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A worker's session file grew or was replaced. `watermark` is the file's complete size, the value `sessions.history` returns in `Piw-Watermark` for the same bytes.",
+        "x-piw-event": {
+          "type": "history.appended",
+          "producer": "supervisor",
+          "durability": "memory",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "history.appended"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidence": {
+            "type": "string",
+            "const": "observed_memory"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "session_id",
+              "file_identity",
+              "watermark",
+              "last_entry_id"
+            ],
+            "properties": {
+              "session_id": {
+                "$ref": "#/components/schemas/Id"
+              },
+              "file_identity": {
+                "$ref": "#/components/schemas/FileIdentity"
+              },
+              "watermark": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "last_entry_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 128
               }
             }
           }

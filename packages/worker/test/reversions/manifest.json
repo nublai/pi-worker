@@ -189,6 +189,27 @@
         "p1-2-dispatch-marker-after-write.diff",
         "p1-11-no-missing-report-fence.diff"
       ]
+    },
+    "inventory": {
+      "command": "npm test -- inventory",
+      "diffs": [
+        "p1-14-archived-history-skips-scope.diff",
+        "p1-14-history-bad-offset-reads-empty.diff",
+        "p1-14-history-ignores-tail.diff",
+        "p1-14-ndjson-unchecked.diff",
+        "p1-14-socket-group-any-mode.diff"
+      ]
+    },
+    "features": {
+      "command": "npm test -- features",
+      "diffs": [
+        "p1-14-configure-ignores-fence.diff",
+        "p1-14-configure-unknown-not-fenced.diff",
+        "p1-14-configure-not-session-directed.diff",
+        "p1-14-no-command-stamp.diff",
+        "p1-14-settlement-not-stamped.diff",
+        "p1-14-marker-ignores-abort-rule.diff"
+      ]
     }
   }
 }

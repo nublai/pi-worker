@@ -39,6 +39,8 @@ func DecodeEvent(data []byte) (any, error) {
 		target = &InteractionsChangedEvent{}
 	case "child.reported":
 		target = &ChildReportedEvent{}
+	case "history.appended":
+		target = &HistoryAppendedEvent{}
 	case "":
 		return nil, fmt.Errorf("b2: event frame without a type")
 	default:

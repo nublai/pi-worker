@@ -7,7 +7,8 @@ export function routeTable(ops, jsonCap) {
     const responses = op.responses
       .map(r => {
         const validate = r.contentType === 'application/json' ? `v.response_${op.key}_${r.status}` : 'null';
-        return `      '${r.status}': { contentType: ${q(r.contentType)}, mode: ${q(r.mode)}, maxFrameBytes: ${r.maxFrameBytes ?? 'null'}, validate: ${validate} },`;
+        const headers = r.headers ? `v.response_headers_${op.key}_${r.status}` : 'null';
+        return `      '${r.status}': { contentType: ${q(r.contentType)}, contentTypes: ${q(r.contentTypes)}, mode: ${q(r.mode)}, maxFrameBytes: ${r.maxFrameBytes ?? 'null'}, maxBytes: ${r.maxBytes ?? 'null'}, validate: ${validate}, headers: ${headers}, headerKinds: ${r.headerKinds ? q(r.headerKinds) : 'null'} },`;
       })
       .join('\n');
     const params = op.params.map(p => `{ name: ${q(p.name)}, in: ${q(p.in)}, required: ${p.required}, kind: ${q(p.kind)} }`);
@@ -21,6 +22,7 @@ export function routeTable(ops, jsonCap) {
       `    supported: ${op.supported},`,
       `    grantMethod: ${q(op.operationId)},`,
       `    stream: ${op.stream},`,
+      `    raw: ${op.raw},`,
       `    body: ${q(op.bodyMode)},`,
       `    mediaTypes: ${q(op.mediaTypes)},`,
       `    maxBodyBytes: ${op.maxBodyBytes},`,
@@ -46,14 +48,23 @@ export interface ParamSpec {
   readonly kind: ParamKind;
 }
 export type BodyMode = 'json' | 'binary' | 'none';
-export type ResponseMode = 'json' | 'sse';
+export type ResponseMode = 'json' | 'sse' | 'ndjson' | 'binary';
 export interface ResponseSpec {
-  readonly contentType: 'application/json' | 'text/event-stream';
+  /** The first declared media type (the only one, except for a binary response's allowlist). */
+  readonly contentType: string;
+  /** Every declared media type: a binary response may name an allowlist. */
+  readonly contentTypes: readonly string[];
   /** x-piw-response for a success response; error responses are json. */
   readonly mode: ResponseMode;
   /** x-piw-max-frame-bytes for an sse response: the most bytes one record may carry. */
   readonly maxFrameBytes: number | null;
+  /** x-piw-max-bytes for an ndjson or binary response: the most body bytes. */
+  readonly maxBytes: number | null;
   readonly validate: Validator | null;
+  /** For an ndjson or binary response: validates its headers, by lower-case name, as typed values. */
+  readonly headers: Validator | null;
+  /** For an ndjson or binary response: each header's scalar kind, by lower-case name (wire strings convert to it). */
+  readonly headerKinds: Readonly<Record<string, ParamKind>> | null;
 }
 export interface Route {
   readonly operationId: string;
@@ -69,6 +80,8 @@ export interface Route {
   readonly grantMethod: string;
   /** The 200 response is text/event-stream; frames validate against the event union. */
   readonly stream: boolean;
+  /** The 200 response is ndjson or binary bytes with validated headers. */
+  readonly raw: boolean;
   /** x-piw-body: how the router reads the request body before any handler. */
   readonly body: BodyMode;
   /** The accepted request media types (empty for none). */
@@ -102,7 +115,7 @@ export const operationIds = Object.keys(routes) as OperationId[];
 /** The client's table: no validators (the client has no runtime dependencies), just what a request needs. */
 export function clientRouteTable(ops) {
   const entry = op =>
-    `  ${q(op.operationId)}: { method: ${q(op.method)}, path: ${q(op.path)}, mutation: ${op.mutation}, stream: ${op.stream}, body: ${q(op.bodyMode)}, mediaTypes: ${q(op.mediaTypes)}, maxBodyBytes: ${op.maxBodyBytes}, responseMode: ${q(op.responseMode)}, maxFrameBytes: ${op.maxFrameBytes ?? 'null'} },`;
+    `  ${q(op.operationId)}: { method: ${q(op.method)}, path: ${q(op.path)}, mutation: ${op.mutation}, stream: ${op.stream}, body: ${q(op.bodyMode)}, mediaTypes: ${q(op.mediaTypes)}, maxBodyBytes: ${op.maxBodyBytes}, responseMode: ${q(op.responseMode)}, maxFrameBytes: ${op.maxFrameBytes ?? 'null'}, maxResponseBytes: ${op.responses.find(r => r.status === '200').maxBytes ?? 'null'} },`;
   return `${HEADER}
 export interface ClientRoute {
   readonly method: 'GET' | 'PUT' | 'POST' | 'DELETE' | 'PATCH';
@@ -117,9 +130,11 @@ export interface ClientRoute {
   /** The worker refuses a larger body with 413. */
   readonly maxBodyBytes: number;
   /** x-piw-response of the 200 response. */
-  readonly responseMode: 'json' | 'sse';
+  readonly responseMode: 'json' | 'sse' | 'ndjson' | 'binary';
   /** For an sse response, the most bytes one record may carry; a longer record is refused, never truncated. */
   readonly maxFrameBytes: number | null;
+  /** For an ndjson or binary response, the most body bytes the worker sends. */
+  readonly maxResponseBytes: number | null;
 }
 
 export const routes = {

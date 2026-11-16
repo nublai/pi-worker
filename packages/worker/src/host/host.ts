@@ -242,6 +242,8 @@ export interface SdkLaunch {
   readonly launchSpec?: LaunchSpec | null;
   /** A typed child's job: it gets the FD 3 report channel scoped to this task, and nothing else. */
   readonly taskId?: string | null;
+  /** Inventory only (models.list, commands.list by cwd): load the cwd's resources, open no session, answer features. */
+  readonly inventory?: boolean;
 }
 
 export type LaunchSpec = import('../generated/api.js').components['schemas']['LaunchSpec'];

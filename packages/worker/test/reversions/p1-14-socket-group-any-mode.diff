@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/b2/server.ts b/packages/worker/src/b2/server.ts
+index 5583cdd..72463cc 100644
+--- a/packages/worker/src/b2/server.ts
++++ b/packages/worker/src/b2/server.ts
+@@ -89,7 +89,7 @@ function liveSocket(path: string): Promise<boolean> {
+ function checkSocketDir(path: string, access: SocketAccess): void {
+   const want = socketModes(access).dir;
+   const dir = lstatSync(path);
+-  if (!dir.isDirectory() || dir.isSymbolicLink() || dir.uid !== process.getuid?.() || (dir.mode & 0o777) !== want) {
++  if (!dir.isDirectory() || dir.isSymbolicLink() || dir.uid !== process.getuid?.() || (access.mode === 'owner' && (dir.mode & 0o777) !== want)) {
+     throw new Error(`socket directory must be owned, non-symlink ${want.toString(8).padStart(4, '0')}`);
+   }
+   if (access.mode === 'group' && dir.gid !== access.gid) throw new Error('socket directory must belong to the configured socket group');

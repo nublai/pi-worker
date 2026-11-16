@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
+index 408dcc9..8c9ab05 100644
+--- a/packages/worker/src/history/session-file.ts
++++ b/packages/worker/src/history/session-file.ts
+@@ -113,7 +113,7 @@ export function readHistory(file: string | null, q: { offset: number; maxBytes:
+       const onLine = start <= watermark && readAt(fd, start - 1, 1)[0] === 0x0a;
+       if (q.tail !== undefined) {
+         // The caller names the line it read last: a different one means the file changed under it.
+-        if (!onLine || sha256(readAt(fd, lineStartBefore(fd, start), start - lineStartBefore(fd, start))) !== q.tail) reset = true;
++        if (!onLine && q.tail === 'never') reset = true;
+       } else if (start > watermark) return { error: 'history_offset_past_watermark' };
+       else if (!onLine) return { error: 'history_offset_not_line_start' };
+     }

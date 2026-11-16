@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index cfea8ae..be37c16 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -475,7 +475,7 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
+       {
+         const text = String(c.message);
+         // The worker owns the interrupt marker (S-5): the model gets it, the stamp keeps the text the user typed.
+-        const marked = afterAbortedTurn(session, text);
++        const marked = afterAbortedTurn(session, text) && text === 'never';
+         const delivered = marked ? `${INTERRUPT_MARKER}\n${text}` : text;
+         if (typeof c.command_id === 'string' && typeof c.execution_id === 'string') {
+           // The command id in pi's own file, right before its input (contract 8.1), so `observed` can match it.

@@ -327,7 +327,7 @@ func TestRedirectIsNotFollowed(t *testing.T) {
 }
 
 func TestOperationTablePaths(t *testing.T) {
-	if OpEventsSubscribe.Response != "sse" || frameLimit != 1<<20 || OpAttachmentsStage.Body != "binary" || OpAttachmentsStage.MaxBodyBytes != 2<<20 || OpHello.Body != "none" || OpSessionsPrompt.MaxBodyBytes != 256<<10 {
+	if OpSessionsHistory.Response != "ndjson" || OpEventsSubscribe.Response != "sse" || frameLimit != 1<<20 || OpAttachmentsStage.Body != "binary" || OpAttachmentsStage.MaxBodyBytes != 2<<20 || OpHello.Body != "none" || OpSessionsPrompt.MaxBodyBytes != 256<<10 {
 		t.Fatalf("modes: %+v %+v", OpEventsSubscribe, OpAttachmentsStage)
 	}
 	got, err := fillPath(OpReceiptsGet, []string{"a/b c"})
@@ -344,7 +344,9 @@ func TestOperationTablePaths(t *testing.T) {
 		}
 		seen[op.ID] = true
 	}
-	if len(Operations) != 25 { // 22 in P0, plus sessions.steer (P1-5), sessions.new (P1-7) and items.read (P1-8)
+	// 22 in P0, plus sessions.steer (P1-5), sessions.new (P1-7), items.read (P1-8), and session.configure,
+	// sessions.list, sessions.get, sessions.history, models.list and commands.list (P1-14).
+	if len(Operations) != 31 {
 		t.Fatalf("operations = %d", len(Operations))
 	}
 }

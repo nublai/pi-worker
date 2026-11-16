@@ -1,7 +1,7 @@
 /** Handler types derived from the generated operations, so a handler's input and output match the spec. */
 import type { operations } from '../generated/api.js';
 import type { SupportedOperationId } from '../generated/routes.js';
-import type { B2Stream } from './router.js';
+import type { B2Stream, RawReply } from './router.js';
 import type { Caller } from '../grants/store.js';
 
 type OpOf<K extends keyof operations> = operations[K];
@@ -24,7 +24,9 @@ export type OkBody<K extends keyof operations> = OpOf<K> extends { responses: { 
   ? R
   : OpOf<K> extends { responses: { 200: { content: { 'text/event-stream': unknown } } } }
     ? B2Stream
-    : never;
+    : OpOf<K> extends { responses: { 200: { content: object } } }
+      ? RawReply
+      : never;
 
 export interface HandlerInput<K extends keyof operations> {
   readonly path: PathParams<K>;
@@ -38,7 +40,8 @@ export interface HandlerInput<K extends keyof operations> {
 
 /**
  * A handler returns the 200 body or throws a Refusal. The router validates whatever it returns; an `sse` operation
- * returns a B2Stream whose frames the event hub validates one by one.
+ * returns a B2Stream whose frames the event hub validates one by one; an `ndjson` or `binary` operation returns a
+ * RawReply whose headers, media type, size and (ndjson) line framing the router checks before anything is sent.
  */
 export type Handler<K extends keyof operations> = (input: HandlerInput<K>) => OkBody<K> | Promise<OkBody<K>>;
 

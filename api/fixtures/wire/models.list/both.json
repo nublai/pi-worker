@@ -1,0 +1,15 @@
+{
+  "request": {
+    "query": {
+      "worker_id": "worker-1",
+      "cwd": "/home/u/project"
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "error": "name_exactly_one_of_worker_id_or_cwd",
+      "effect": "no_effect"
+    }
+  }
+}

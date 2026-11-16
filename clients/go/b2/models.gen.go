@@ -122,6 +122,69 @@ func (e ChildReportedEventType) Valid() bool {
 	}
 }
 
+// Defines values for CommandInvocation.
+const (
+	CommandsInvoke CommandInvocation = "commands.invoke"
+	Method         CommandInvocation = "method"
+	Unsupported    CommandInvocation = "unsupported"
+)
+
+// Valid indicates whether the value is a known member of the CommandInvocation enum.
+func (e CommandInvocation) Valid() bool {
+	switch e {
+	case CommandsInvoke:
+		return true
+	case Method:
+		return true
+	case Unsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CommandSource.
+const (
+	CommandSourceBuiltin   CommandSource = "builtin"
+	CommandSourceExtension CommandSource = "extension"
+	CommandSourcePrompt    CommandSource = "prompt"
+	CommandSourceSkill     CommandSource = "skill"
+)
+
+// Valid indicates whether the value is a known member of the CommandSource enum.
+func (e CommandSource) Valid() bool {
+	switch e {
+	case CommandSourceBuiltin:
+		return true
+	case CommandSourceExtension:
+		return true
+	case CommandSourcePrompt:
+		return true
+	case CommandSourceSkill:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CommandListEvidence.
+const (
+	CommandListEvidencePiInventoryProcess CommandListEvidence = "pi_inventory_process"
+	CommandListEvidencePiWorkerProcess    CommandListEvidence = "pi_worker_process"
+)
+
+// Valid indicates whether the value is a known member of the CommandListEvidence enum.
+func (e CommandListEvidence) Valid() bool {
+	switch e {
+	case CommandListEvidencePiInventoryProcess:
+		return true
+	case CommandListEvidencePiWorkerProcess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Effect.
 const (
 	EffectNoEffect Effect = "no_effect"
@@ -305,6 +368,36 @@ func (e GitPinKind) Valid() bool {
 	case Linked:
 		return true
 	case Ordinary:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HistoryAppendedEventEvidence.
+const (
+	HistoryAppendedEventEvidenceObservedMemory HistoryAppendedEventEvidence = "observed_memory"
+)
+
+// Valid indicates whether the value is a known member of the HistoryAppendedEventEvidence enum.
+func (e HistoryAppendedEventEvidence) Valid() bool {
+	switch e {
+	case HistoryAppendedEventEvidenceObservedMemory:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HistoryAppendedEventType.
+const (
+	HistoryAppended HistoryAppendedEventType = "history.appended"
+)
+
+// Valid indicates whether the value is a known member of the HistoryAppendedEventType enum.
+func (e HistoryAppendedEventType) Valid() bool {
+	switch e {
+	case HistoryAppended:
 		return true
 	default:
 		return false
@@ -503,6 +596,63 @@ const (
 func (e LaunchSpecSeedMode) Valid() bool {
 	switch e {
 	case Standalone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for Lineage.
+const (
+	LineageChild   Lineage = "child"
+	LineageRoot    Lineage = "root"
+	LineageUnknown Lineage = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the Lineage enum.
+func (e Lineage) Valid() bool {
+	switch e {
+	case LineageChild:
+		return true
+	case LineageRoot:
+		return true
+	case LineageUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ModelInput.
+const (
+	ModelInputImage ModelInput = "image"
+	ModelInputText  ModelInput = "text"
+)
+
+// Valid indicates whether the value is a known member of the ModelInput enum.
+func (e ModelInput) Valid() bool {
+	switch e {
+	case ModelInputImage:
+		return true
+	case ModelInputText:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ModelListEvidence.
+const (
+	ModelListEvidencePiInventoryProcess ModelListEvidence = "pi_inventory_process"
+	ModelListEvidencePiWorkerProcess    ModelListEvidence = "pi_worker_process"
+)
+
+// Valid indicates whether the value is a known member of the ModelListEvidence enum.
+func (e ModelListEvidence) Valid() bool {
+	switch e {
+	case ModelListEvidencePiInventoryProcess:
+		return true
+	case ModelListEvidencePiWorkerProcess:
 		return true
 	default:
 		return false
@@ -728,6 +878,7 @@ const (
 	ReceiptOperationExecutionsInterrupt         ReceiptOperation = "executions.interrupt"
 	ReceiptOperationInteractionsAnswerIfCurrent ReceiptOperation = "interactions.answer_if_current"
 	ReceiptOperationInteractionsRelease         ReceiptOperation = "interactions.release"
+	ReceiptOperationSessionConfigure            ReceiptOperation = "session.configure"
 	ReceiptOperationSessionsFollowUp            ReceiptOperation = "sessions.follow_up"
 	ReceiptOperationSessionsNew                 ReceiptOperation = "sessions.new"
 	ReceiptOperationSessionsPrompt              ReceiptOperation = "sessions.prompt"
@@ -755,6 +906,8 @@ func (e ReceiptOperation) Valid() bool {
 	case ReceiptOperationInteractionsAnswerIfCurrent:
 		return true
 	case ReceiptOperationInteractionsRelease:
+		return true
+	case ReceiptOperationSessionConfigure:
 		return true
 	case ReceiptOperationSessionsFollowUp:
 		return true
@@ -998,6 +1151,36 @@ func (e SessionReboundEventType) Valid() bool {
 	}
 }
 
+// Defines values for SessionRowEvidence.
+const (
+	SessionRowEvidencePiSessionFile SessionRowEvidence = "pi_session_file"
+)
+
+// Valid indicates whether the value is a known member of the SessionRowEvidence enum.
+func (e SessionRowEvidence) Valid() bool {
+	switch e {
+	case SessionRowEvidencePiSessionFile:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SessionRowRuntime.
+const (
+	SessionRowRuntimeWorker SessionRowRuntime = "worker"
+)
+
+// Valid indicates whether the value is a known member of the SessionRowRuntime enum.
+func (e SessionRowRuntime) Valid() bool {
+	switch e {
+	case SessionRowRuntimeWorker:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SnapshotEventResyncReason.
 const (
 	SnapshotEventResyncReasonAhead    SnapshotEventResyncReason = "ahead"
@@ -1112,6 +1295,7 @@ const (
 	StopReceiptOperationExecutionsInterrupt         StopReceiptOperation = "executions.interrupt"
 	StopReceiptOperationInteractionsAnswerIfCurrent StopReceiptOperation = "interactions.answer_if_current"
 	StopReceiptOperationInteractionsRelease         StopReceiptOperation = "interactions.release"
+	StopReceiptOperationSessionConfigure            StopReceiptOperation = "session.configure"
 	StopReceiptOperationSessionsFollowUp            StopReceiptOperation = "sessions.follow_up"
 	StopReceiptOperationSessionsNew                 StopReceiptOperation = "sessions.new"
 	StopReceiptOperationSessionsPrompt              StopReceiptOperation = "sessions.prompt"
@@ -1139,6 +1323,8 @@ func (e StopReceiptOperation) Valid() bool {
 	case StopReceiptOperationInteractionsAnswerIfCurrent:
 		return true
 	case StopReceiptOperationInteractionsRelease:
+		return true
+	case StopReceiptOperationSessionConfigure:
 		return true
 	case StopReceiptOperationSessionsFollowUp:
 		return true
@@ -1343,6 +1529,21 @@ func (e WorkerForeground) Valid() bool {
 	}
 }
 
+// Defines values for WorkerRuntime.
+const (
+	WorkerRuntimeWorker WorkerRuntime = "worker"
+)
+
+// Valid indicates whether the value is a known member of the WorkerRuntime enum.
+func (e WorkerRuntime) Valid() bool {
+	switch e {
+	case WorkerRuntimeWorker:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WorkerSessionIdentityEvidence.
 const (
 	WorkerSessionIdentityEvidencePiSdkSessionId WorkerSessionIdentityEvidence = "pi_sdk_session_id"
@@ -1412,6 +1613,21 @@ const (
 func (e EventsSubscribeParamsResync) Valid() bool {
 	switch e {
 	case EventsSubscribeParamsResyncOverflow:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SessionsHistoryParamsFormat.
+const (
+	Jsonl SessionsHistoryParamsFormat = "jsonl"
+)
+
+// Valid indicates whether the value is a known member of the SessionsHistoryParamsFormat enum.
+func (e SessionsHistoryParamsFormat) Valid() bool {
+	switch e {
+	case Jsonl:
 		return true
 	default:
 		return false
@@ -1505,6 +1721,44 @@ type ChildReportedEventEvidence string
 
 // ChildReportedEventType defines model for ChildReportedEvent.Type.
 type ChildReportedEventType string
+
+// Command defines model for Command.
+type Command struct {
+	ArgumentHint *string `json:"argument_hint"`
+	Description  *string `json:"description"`
+
+	// Invocation How the command runs through B2: `commands.invoke`; `method`, the typed method in `method` (a built-in with its own operation); or `unsupported`, refused explicitly.
+	Invocation CommandInvocation `json:"invocation"`
+	Method     *string           `json:"method"`
+	Name       string            `json:"name"`
+	Source     CommandSource     `json:"source"`
+}
+
+// CommandInvocation How the command runs through B2: `commands.invoke`; `method`, the typed method in `method` (a built-in with its own operation); or `unsupported`, refused explicitly.
+type CommandInvocation string
+
+// CommandSource defines model for Command.Source.
+type CommandSource string
+
+// CommandList defines model for CommandList.
+type CommandList struct {
+	Commands []Command           `json:"commands"`
+	Evidence CommandListEvidence `json:"evidence"`
+}
+
+// CommandListEvidence defines model for CommandList.Evidence.
+type CommandListEvidence string
+
+// Configure defines model for Configure.
+type Configure struct {
+	BindingRevision int       `json:"binding_revision"`
+	CommandId       Id        `json:"command_id"`
+	Model           *ModelRef `json:"model,omitempty"`
+	Name            *string   `json:"name,omitempty"`
+	SessionId       Id        `json:"session_id"`
+	Thinking        *Thinking `json:"thinking,omitempty"`
+	WorkerEpoch     Id        `json:"worker_epoch"`
+}
 
 // Control defines model for Control.
 type Control struct {
@@ -1645,6 +1899,9 @@ type FileContent struct {
 // FileContentEvidence defines model for FileContent.Evidence.
 type FileContentEvidence string
 
+// FileIdentity Stable across appends to one session file; changes when the file is replaced.
+type FileIdentity = string
+
 // FileRead defines model for FileRead.
 type FileRead struct {
 	Path  AbsolutePath   `json:"path"`
@@ -1694,6 +1951,31 @@ type Hello struct {
 	SupervisorId    Id     `json:"supervisor_id"`
 	WorkerVersion   string `json:"worker_version"`
 }
+
+// HistoryAppendedEvent A worker's session file grew or was replaced. `watermark` is the file's complete size, the value `sessions.history` returns in `Piw-Watermark` for the same bytes.
+type HistoryAppendedEvent struct {
+	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
+	Cursor Cursor `json:"cursor"`
+	Data   struct {
+		// FileIdentity Stable across appends to one session file; changes when the file is replaced.
+		FileIdentity FileIdentity `json:"file_identity"`
+		LastEntryId  *string      `json:"last_entry_id"`
+		SessionId    Id           `json:"session_id"`
+		Watermark    int          `json:"watermark"`
+	} `json:"data"`
+	EventId     Id                           `json:"event_id"`
+	Evidence    HistoryAppendedEventEvidence `json:"evidence"`
+	ExecutionId *string                      `json:"execution_id"`
+	Producer    Producer                     `json:"producer"`
+	Type        HistoryAppendedEventType     `json:"type"`
+	WorkerId    Id                           `json:"worker_id"`
+}
+
+// HistoryAppendedEventEvidence defines model for HistoryAppendedEvent.Evidence.
+type HistoryAppendedEventEvidence string
+
+// HistoryAppendedEventType defines model for HistoryAppendedEvent.Type.
+type HistoryAppendedEventType string
 
 // HistoryCursor defines model for HistoryCursor.
 type HistoryCursor struct {
@@ -1863,6 +2145,12 @@ type Limits struct {
 	// EventFrameBytes The most bytes one `events.subscribe` SSE record may carry.
 	EventFrameBytes int `json:"event_frame_bytes"`
 
+	// HistoryLineMaxBytes The longest single session-file line `sessions.history` returns.
+	HistoryLineMaxBytes *int `json:"history_line_max_bytes,omitempty"`
+
+	// HistoryMaxBytes The largest `max_bytes` one `sessions.history` read accepts.
+	HistoryMaxBytes *int `json:"history_max_bytes,omitempty"`
+
 	// JournalControlReserveBytes Journal room only control records may use: quota-exempt commands
 	// (`workers.stop`, `executions.cancel`, `executions.interrupt`,
 	// `sessions.resolve_unknown`, `children.report`) and stop, exit,
@@ -1916,6 +2204,41 @@ type Limits struct {
 	RequestBodyBytes int `json:"request_body_bytes"`
 }
 
+// Lineage A child names its parent; old and natively launched sessions are unknown, never roots.
+type Lineage string
+
+// Model defines model for Model.
+type Model struct {
+	ContextWindow int          `json:"context_window"`
+	Id            string       `json:"id"`
+	Input         []ModelInput `json:"input"`
+	MaxTokens     int          `json:"max_tokens"`
+	Name          string       `json:"name"`
+	Provider      string       `json:"provider"`
+	Reasoning     bool         `json:"reasoning"`
+}
+
+// ModelInput defines model for Model.Input.
+type ModelInput string
+
+// ModelList defines model for ModelList.
+type ModelList struct {
+	Current        *ModelRef         `json:"current"`
+	Evidence       ModelListEvidence `json:"evidence"`
+	Models         []Model           `json:"models"`
+	Thinking       *Thinking         `json:"thinking"`
+	ThinkingLevels []Thinking        `json:"thinking_levels"`
+}
+
+// ModelListEvidence defines model for ModelList.Evidence.
+type ModelListEvidence string
+
+// ModelRef defines model for ModelRef.
+type ModelRef struct {
+	Id       string `json:"id"`
+	Provider string `json:"provider"`
+}
+
 // OverflowEvent The subscriber queue overflowed; the stream closes after this frame and the caller resyncs.
 type OverflowEvent struct {
 	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
@@ -1950,6 +2273,9 @@ type Parent struct {
 	WorkerEpoch     Id  `json:"worker_epoch"`
 	WorkerId        Id  `json:"worker_id"`
 }
+
+// Preview The newest user or assistant text in the session file, without the worker's interrupt marker, at most 280 characters.
+type Preview = string
 
 // Producer defines model for Producer.
 type Producer string
@@ -2085,6 +2411,14 @@ type Resolve struct {
 // ResolveDisposition defines model for Resolve.Disposition.
 type ResolveDisposition string
 
+// SessionList defines model for SessionList.
+type SessionList struct {
+	Sessions []SessionRow `json:"sessions"`
+
+	// Truncated More sessions matched than `limit`.
+	Truncated bool `json:"truncated"`
+}
+
 // SessionReboundEvent The binding moved; mutations naming the old revision are refused.
 type SessionReboundEvent struct {
 	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
@@ -2116,6 +2450,70 @@ type SessionReboundEventEvidence string
 
 // SessionReboundEventType defines model for SessionReboundEvent.Type.
 type SessionReboundEventType string
+
+// SessionRow defines model for SessionRow.
+type SessionRow struct {
+	// ChatId The phone's chat identity for an archived chat (its `session_id`), passed through (S-3).
+	ChatId    Id                 `json:"chat_id"`
+	CreatedAt *string            `json:"created_at"`
+	Cwd       AbsolutePath       `json:"cwd"`
+	Evidence  SessionRowEvidence `json:"evidence"`
+
+	// Fenced The last owner's fence is unresolved; resume is refused `target_session_fenced`.
+	Fenced bool `json:"fenced"`
+
+	// HolderWorkerId The worker that holds the session now ("open in"); null when no worker holds it.
+	HolderWorkerId *string `json:"holder_worker_id"`
+	LastActivityAt *string `json:"last_activity_at"`
+	LastWorkerId   Id      `json:"last_worker_id"`
+
+	// Lineage A child names its parent; old and natively launched sessions are unknown, never roots.
+	Lineage      Lineage `json:"lineage"`
+	MessageCount int     `json:"message_count"`
+
+	// Preview The newest user or assistant text in the session file, without the worker's interrupt marker, at most 280 characters.
+	Preview   *Preview          `json:"preview"`
+	Runtime   SessionRowRuntime `json:"runtime"`
+	SessionId Id                `json:"session_id"`
+	Stats     SessionStats      `json:"stats"`
+	Title     *string           `json:"title"`
+}
+
+// SessionRowEvidence defines model for SessionRow.Evidence.
+type SessionRowEvidence string
+
+// SessionRowRuntime defines model for SessionRow.Runtime.
+type SessionRowRuntime string
+
+// SessionStats defines model for SessionStats.
+type SessionStats struct {
+	AssistantMessages int     `json:"assistant_messages"`
+	CostTotal         float32 `json:"cost_total"`
+
+	// Models Per-model usage and cost, from the assistant messages' own usage records.
+	Models []struct {
+		AssistantMessages int     `json:"assistant_messages"`
+		CostTotal         float32 `json:"cost_total"`
+		Model             string  `json:"model"`
+		Provider          string  `json:"provider"`
+		TokensTotal       int     `json:"tokens_total"`
+	} `json:"models"`
+	Tokens       SessionTokens `json:"tokens"`
+	ToolCalls    int           `json:"tool_calls"`
+	UserMessages int           `json:"user_messages"`
+}
+
+// SessionTokens defines model for SessionTokens.
+type SessionTokens struct {
+	CacheRead  int `json:"cache_read"`
+	CacheWrite int `json:"cache_write"`
+	Input      int `json:"input"`
+	Output     int `json:"output"`
+	Total      int `json:"total"`
+}
+
+// Sha256 defines model for Sha256.
+type Sha256 = string
 
 // SnapshotEvent Sent first on every attach, at a synchronous barrier. `workers` is authoritative. No event replay.
 type SnapshotEvent struct {
@@ -2212,11 +2610,14 @@ type Thinking string
 
 // Worker defines model for Worker.
 type Worker struct {
-	BindingRevision int           `json:"binding_revision"`
-	ChildReports    *[]ChildClaim `json:"child_reports,omitempty"`
-	Cleanup         string        `json:"cleanup"`
-	Cwd             AbsolutePath  `json:"cwd"`
-	Execution       *Execution    `json:"execution"`
+	BindingRevision int `json:"binding_revision"`
+
+	// ChatId The phone's chat identity for this worker (its `worker_id`), passed through unchanged (S-3).
+	ChatId       *Id           `json:"chat_id,omitempty"`
+	ChildReports *[]ChildClaim `json:"child_reports,omitempty"`
+	Cleanup      string        `json:"cleanup"`
+	Cwd          AbsolutePath  `json:"cwd"`
+	Execution    *Execution    `json:"execution"`
 
 	// Failure Why a launch ended the row in status failed. The launch receipt keeps its own effect label.
 	Failure         *WorkerFailure   `json:"failure,omitempty"`
@@ -2228,26 +2629,53 @@ type Worker struct {
 	History         HistoryMarker    `json:"history"`
 
 	// Host The SDK subprocess is the production host (plan section 1); RPC and ACP are not served.
-	Host                    *Host                         `json:"host,omitempty"`
-	LaunchSpec              *LaunchSpec                   `json:"launch_spec,omitempty"`
-	LeafId                  *string                       `json:"leaf_id"`
-	Parent                  *Parent                       `json:"parent,omitempty"`
-	ParentLaunchCommandId   *Id                           `json:"parent_launch_command_id,omitempty"`
-	ParentWorkerId          *Id                           `json:"parent_worker_id,omitempty"`
-	PendingInteractions     []json.RawMessage             `json:"pending_interactions"`
-	Queued                  *[]QueuedInput                `json:"queued,omitempty"`
+	Host *Host `json:"host,omitempty"`
+
+	// LastActivityAt RFC 3339 time of the newest entry in the session file.
+	LastActivityAt *string     `json:"last_activity_at,omitempty"`
+	LaunchSpec     *LaunchSpec `json:"launch_spec,omitempty"`
+	LeafId         *string     `json:"leaf_id"`
+
+	// Lineage A child names its parent; old and natively launched sessions are unknown, never roots.
+	Lineage               *Lineage          `json:"lineage,omitempty"`
+	Model                 *ModelRef         `json:"model,omitempty"`
+	Parent                *Parent           `json:"parent,omitempty"`
+	ParentLaunchCommandId *Id               `json:"parent_launch_command_id,omitempty"`
+	ParentWorkerId        *Id               `json:"parent_worker_id,omitempty"`
+	PendingInteractions   []json.RawMessage `json:"pending_interactions"`
+
+	// Preview The newest user or assistant text in the session file, without the worker's interrupt marker, at most 280 characters.
+	Preview *Preview       `json:"preview,omitempty"`
+	Queued  *[]QueuedInput `json:"queued,omitempty"`
+
+	// RepoLabel The name of the Git work tree holding the cwd, else the cwd's base name.
+	RepoLabel               *string                       `json:"repo_label,omitempty"`
 	Resolutions             *[]Resolution                 `json:"resolutions,omitempty"`
 	Resources               *map[string]interface{}       `json:"resources,omitempty"`
+	Runtime                 *WorkerRuntime                `json:"runtime,omitempty"`
 	SessionId               *string                       `json:"session_id"`
 	SessionIdentityEvidence WorkerSessionIdentityEvidence `json:"session_identity_evidence"`
-	Status                  WorkerStatus                  `json:"status"`
-	SupervisorEpoch         Id                            `json:"supervisor_epoch"`
-	WorkerEpoch             Id                            `json:"worker_epoch"`
-	WorkerId                Id                            `json:"worker_id"`
+
+	// SettleCount Executions pi reported settled on this worker (finished-unseen on the phone).
+	SettleCount *int         `json:"settle_count,omitempty"`
+	Status      WorkerStatus `json:"status"`
+
+	// StatusSince RFC 3339 time the status last changed.
+	StatusSince     *string   `json:"status_since,omitempty"`
+	SupervisorEpoch Id        `json:"supervisor_epoch"`
+	Thinking        *Thinking `json:"thinking,omitempty"`
+
+	// Title The session's display name (pi's session_info), set by `session.configure` or natively.
+	Title       *string `json:"title,omitempty"`
+	WorkerEpoch Id      `json:"worker_epoch"`
+	WorkerId    Id      `json:"worker_id"`
 }
 
 // WorkerForeground defines model for Worker.Foreground.
 type WorkerForeground string
+
+// WorkerRuntime defines model for Worker.Runtime.
+type WorkerRuntime string
 
 // WorkerSessionIdentityEvidence defines model for Worker.SessionIdentityEvidence.
 type WorkerSessionIdentityEvidence string
@@ -2278,6 +2706,18 @@ type WorkerUpdatedEvent struct {
 
 // WorkerUpdatedEventType defines model for WorkerUpdatedEvent.Type.
 type WorkerUpdatedEventType string
+
+// FeatureCwd defines model for FeatureCwd.
+type FeatureCwd = AbsolutePath
+
+// FeatureTrust defines model for FeatureTrust.
+type FeatureTrust = bool
+
+// FeatureWorker defines model for FeatureWorker.
+type FeatureWorker = Id
+
+// SessionId defines model for SessionId.
+type SessionId = Id
 
 // WorkerId defines model for WorkerId.
 type WorkerId = Id
@@ -2312,6 +2752,16 @@ type AttachmentsStageParams struct {
 	PiwContentSha256 string `json:"Piw-Content-Sha256"`
 }
 
+// CommandsListParams defines parameters for CommandsList.
+type CommandsListParams struct {
+	// WorkerId Ask this worker's pi process. Exactly one of worker_id and cwd.
+	WorkerId *FeatureWorker `form:"worker_id,omitempty" json:"worker_id,omitempty"`
+
+	// Cwd Ask a short-lived pi process for this cwd. Exactly one of worker_id and cwd.
+	Cwd            *FeatureCwd   `form:"cwd,omitempty" json:"cwd,omitempty"`
+	ProjectTrusted *FeatureTrust `form:"project_trusted,omitempty" json:"project_trusted,omitempty"`
+}
+
 // EventsSubscribeParams defines parameters for EventsSubscribe.
 type EventsSubscribeParams struct {
 	// WorkerId Comma-separated worker ids to filter on.
@@ -2327,6 +2777,34 @@ type EventsSubscribeParams struct {
 
 // EventsSubscribeParamsResync defines parameters for EventsSubscribe.
 type EventsSubscribeParamsResync string
+
+// ModelsListParams defines parameters for ModelsList.
+type ModelsListParams struct {
+	// WorkerId Ask this worker's pi process. Exactly one of worker_id and cwd.
+	WorkerId *FeatureWorker `form:"worker_id,omitempty" json:"worker_id,omitempty"`
+
+	// Cwd Ask a short-lived pi process for this cwd. Exactly one of worker_id and cwd.
+	Cwd            *FeatureCwd   `form:"cwd,omitempty" json:"cwd,omitempty"`
+	ProjectTrusted *FeatureTrust `form:"project_trusted,omitempty" json:"project_trusted,omitempty"`
+}
+
+// SessionsListParams defines parameters for SessionsList.
+type SessionsListParams struct {
+	Cwd   *AbsolutePath `form:"cwd,omitempty" json:"cwd,omitempty"`
+	Limit *int          `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// SessionsHistoryParams defines parameters for SessionsHistory.
+type SessionsHistoryParams struct {
+	Format   *SessionsHistoryParamsFormat `form:"format,omitempty" json:"format,omitempty"`
+	Offset   *int                         `form:"offset,omitempty" json:"offset,omitempty"`
+	MaxBytes *int                         `form:"max_bytes,omitempty" json:"max_bytes,omitempty"`
+	Identity *FileIdentity                `form:"identity,omitempty" json:"identity,omitempty"`
+	Tail     *Sha256                      `form:"tail,omitempty" json:"tail,omitempty"`
+}
+
+// SessionsHistoryParamsFormat defines parameters for SessionsHistory.
+type SessionsHistoryParamsFormat string
 
 // HistoryPageParams defines parameters for HistoryPage.
 type HistoryPageParams struct {
@@ -2348,6 +2826,9 @@ type ExecutionsCancelJSONRequestBody = Control
 
 // ChildrenLaunchJSONRequestBody defines body for ChildrenLaunch for application/json ContentType.
 type ChildrenLaunchJSONRequestBody = ChildLaunch
+
+// SessionConfigureJSONRequestBody defines body for SessionConfigure for application/json ContentType.
+type SessionConfigureJSONRequestBody = Configure
 
 // FilesReadJSONRequestBody defines body for FilesRead for application/json ContentType.
 type FilesReadJSONRequestBody = FileRead

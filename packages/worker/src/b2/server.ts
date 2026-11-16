@@ -4,11 +4,12 @@
  * bearer grant. `listenPrivate` is ported from A0 `src/server.ts`.
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { chmodSync, lstatSync, unlinkSync } from 'node:fs';
+import { chmodSync, chownSync, lstatSync, unlinkSync } from 'node:fs';
 import { connect } from 'node:net';
 import { dirname, isAbsolute } from 'node:path';
 import { acquireLock } from '../lock.js';
-import type { B2Request, B2Stream, RequestHandler, StreamSink } from './router.js';
+import { socketModes, type SocketAccess } from '../config.js';
+import type { B2Request, B2Response, B2Stream, RequestHandler, StreamSink } from './router.js';
 
 function headersOf(req: IncomingMessage): Record<string, string | undefined> {
   const out: Record<string, string | undefined> = {};
@@ -25,6 +26,12 @@ function send(res: ServerResponse, status: number, body: unknown): void {
     Connection: 'close',
   });
   res.end(text);
+}
+
+/** An ndjson or binary 200 the router already checked: its headers, media type and bytes. */
+function sendRaw(res: ServerResponse, raw: NonNullable<B2Response['raw']>): void {
+  res.writeHead(200, { ...raw.headers, 'Content-Type': raw.contentType, 'Content-Length': raw.body.length, 'Cache-Control': 'no-store', Connection: 'close' });
+  res.end(raw.body);
 }
 
 /** Starts an SSE response: headers now, then one validated record per hub frame until the hub or the peer ends it. */
@@ -55,7 +62,7 @@ export function createB2Server(handle: RequestHandler): Server {
   const server = createServer((req, res) => {
     const request: B2Request = { method: req.method ?? 'GET', url: req.url ?? '/', headers: headersOf(req), body: req };
     handle(request).then(
-      response => (response.stream ? stream(res, response.stream) : send(res, response.status, response.body)),
+      response => (response.stream ? stream(res, response.stream) : response.raw ? sendRaw(res, response.raw) : send(res, response.status, response.body)),
       () => {
         // handle() turns every failure into a validated reply; reaching here means the reply itself failed.
         if (res.headersSent) res.destroy();
@@ -78,8 +85,20 @@ function liveSocket(path: string): Promise<boolean> {
   });
 }
 
+/** The socket's directory: owned, not a symlink, exactly the access mode's directory mode, in its group if any. */
+function checkSocketDir(path: string, access: SocketAccess): void {
+  const want = socketModes(access).dir;
+  const dir = lstatSync(path);
+  if (!dir.isDirectory() || dir.isSymbolicLink() || dir.uid !== process.getuid?.() || (dir.mode & 0o777) !== want) {
+    throw new Error(`socket directory must be owned, non-symlink ${want.toString(8).padStart(4, '0')}`);
+  }
+  if (access.mode === 'group' && dir.gid !== access.gid) throw new Error('socket directory must belong to the configured socket group');
+}
+
 /**
- * Listen on `socketPath`. The parent directory must be an owned, non-symlink 0700 directory.
+ * Listen on `socketPath`. The parent directory must be an owned, non-symlink 0700 directory; with group access
+ * (`PIW_SOCKET_GROUP`, S-6) an owned 0750 directory of exactly that group, and the socket is 0660 in that group. No
+ * other mode is accepted: never world-accessible, never a group the owner did not name.
  *
  * Takeover is serialized by an exclusive lock on `<socketPath>.lock`, taken before the socket is examined and held
  * until the server closes. Under the lock, a stale socket is removed only if it is a socket we own and nothing
@@ -88,12 +107,10 @@ function liveSocket(path: string): Promise<boolean> {
  * stale socket is taken over by the next start. On close, Node removes the socket file before the lock is released.
  * The caller sets `process.umask(0o077)` first, so the socket and lock are never wider than 0600.
  */
-export async function listenPrivate(server: Server, socketPath: string): Promise<void> {
+export async function listenPrivate(server: Server, socketPath: string, access: SocketAccess = { mode: 'owner' }): Promise<void> {
   if (!isAbsolute(socketPath)) throw new Error('socket path must be absolute');
-  const dir = lstatSync(dirname(socketPath));
-  if (!dir.isDirectory() || dir.isSymbolicLink() || dir.uid !== process.getuid?.() || (dir.mode & 0o777) !== 0o700) {
-    throw new Error('socket directory must be owned, non-symlink 0700');
-  }
+  const modes = socketModes(access);
+  checkSocketDir(dirname(socketPath), access);
   const lock = acquireLock(`${socketPath}.lock`);
   try {
     try {
@@ -111,7 +128,8 @@ export async function listenPrivate(server: Server, socketPath: string): Promise
         resolve();
       });
     });
-    chmodSync(socketPath, 0o600);
+    if (access.mode === 'group') chownSync(socketPath, process.getuid!(), access.gid);
+    chmodSync(socketPath, modes.socket);
   } catch (error) {
     if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
     lock.release();

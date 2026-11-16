@@ -17,6 +17,7 @@ export const eventManifest = {
   "execution.settled": { schema: "ExecutionSettledEvent", producer: "supervisor", durability: "memory", visibility: "worker", validate: v.event_ExecutionSettledEvent },
   "fence.resolved": { schema: "FenceResolvedEvent", producer: "supervisor", durability: "journal", visibility: "worker", validate: v.event_FenceResolvedEvent },
   "interactions.changed": { schema: "InteractionsChangedEvent", producer: "supervisor", durability: "memory", visibility: "worker", validate: v.event_InteractionsChangedEvent },
+  "history.appended": { schema: "HistoryAppendedEvent", producer: "supervisor", durability: "memory", visibility: "worker", validate: v.event_HistoryAppendedEvent },
   "child.reported": { schema: "ChildReportedEvent", producer: "supervisor", durability: "journal", visibility: "worker", validate: v.event_ChildReportedEvent },
 } as const;
 
@@ -29,7 +30,7 @@ export interface JournalAppended {
 }
 
 /** Worker-visible events; the hub alone sends supervisor frames (snapshot, overflow). */
-export type WorkerEventType = "worker.updated" | "session.rebound" | "execution.settled" | "fence.resolved" | "interactions.changed" | "child.reported";
+export type WorkerEventType = "worker.updated" | "session.rebound" | "execution.settled" | "fence.resolved" | "interactions.changed" | "history.appended" | "child.reported";
 
 type Appended<T extends WorkerEventType> = (typeof eventManifest)[T]['durability'] extends 'journal'
   ? { appended: JournalAppended }
@@ -125,6 +126,19 @@ export function createPublishers(port: EventPort): { readonly [T in WorkerEventT
         data: input.data,
       };
       if (!v.event_InteractionsChangedEvent(frame)) throw new EventSchemaError("interactions.changed", v.event_InteractionsChangedEvent.errors ?? []);
+      port.deliver(frame);
+    },
+    "history.appended": input => {
+      const frame: EventOf<"history.appended"> = {
+        type: "history.appended",
+        ...port.stamp(),
+        producer: "supervisor",
+        execution_id: input.execution_id,
+        evidence: 'observed_memory' as const,
+        worker_id: input.worker_id,
+        data: input.data,
+      };
+      if (!v.event_HistoryAppendedEvent(frame)) throw new EventSchemaError("history.appended", v.event_HistoryAppendedEvent.errors ?? []);
       port.deliver(frame);
     },
     "child.reported": input => {
