@@ -18,6 +18,7 @@
  * - `compaction`: tight retention evicting delivered receipts across count- and byte-triggered compactions while a
  *   fenced unknown, a resolved one, controls and an unreported child stay retained (compaction-scenario.ts).
  * - `features`: session.configure delivered, refused before any change, and with a lost reply (features-scenario.ts).
+ * - `session-commands`: compact, reload and invoke delivered, refused and lost (session-commands-scenario.ts).
  */
 import assert from 'node:assert/strict';
 import { isAbsolute } from 'node:path';
@@ -33,6 +34,7 @@ import { interactionsScenario } from '../interactions-scenario.js';
 import { childrenScenario } from '../children-scenario.js';
 import { compactionScenario } from '../compaction-scenario.js';
 import { featuresScenario } from '../features-scenario.js';
+import { sessionCommandsScenario } from '../session-commands-scenario.js';
 import { matrixRecover, matrixScenario } from '../matrix-scenario.js';
 
 const [mode, root] = process.argv.slice(2);
@@ -80,6 +82,10 @@ if (mode === 'journal') {
   process.exit(0);
 } else if (mode === 'features') {
   await featuresScenario(root);
+  process.stdout.write(`${JSON.stringify({ done: true })}\n`);
+  process.exit(0);
+} else if (mode === 'session-commands') {
+  await sessionCommandsScenario(root);
   process.stdout.write(`${JSON.stringify({ done: true })}\n`);
   process.exit(0);
 } else if (mode === 'children') {

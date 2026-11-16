@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/session-commands.ts b/packages/worker/src/supervisor/session-commands.ts
+index 51eea46..b573666 100644
+--- a/packages/worker/src/supervisor/session-commands.ts
++++ b/packages/worker/src/supervisor/session-commands.ts
+@@ -89,7 +89,7 @@ export class SessionCommands {
+         if (cancelDialogs) await this.s.interactions?.cancelAll(id, live.host!);
+         const response = await live.host!.request(command);
+         if (live.faulted) throw new Error('worker fault during session command');
+-        if (!response.success && response.refused === 'before_input') {
++        if (!response.success) {
+           throw new ProvenNoEffect(`pi_refused_${operation}: ${String(response.error).slice(0, 64)}`, 'host_refused_before_any_change');
+         }
+         if (!response.success) throw new Error(`pi_${operation}_failed_after_dispatch: ${String(response.error ?? 'negative_reply').slice(0, 64)}`);

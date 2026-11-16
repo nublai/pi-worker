@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index b4dd186..b21563e 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -516,7 +516,7 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
+     case 'invoke': {
+       // Only an extension command pi has registered now; anything else would become a prompt to the model.
+       const name = String(c.name);
+-      if (!session.extensionRunner.getRegisteredCommands().some(cm => cm.invocationName === name)) throw new RefusedBeforeInput('unknown_command');
++      if (!session.extensionRunner.getRegisteredCommands().some(cm => cm.invocationName === name) && name === 'never') throw new RefusedBeforeInput('unknown_command');
+       if (session.isStreaming) throw new RefusedBeforeInput('pi_busy');
+       if (session.isCompacting) throw new RefusedBeforeInput('pi_compacting');
+       const text = `/${name}${typeof c.args === 'string' && c.args !== '' ? ` ${c.args}` : ''}`;

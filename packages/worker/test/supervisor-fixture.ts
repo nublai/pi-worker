@@ -34,6 +34,12 @@ export class Host extends EventEmitter implements SessionHost {
   configureFailure = false;
   /** The next `configure` is refused by the child before any change. */
   configureRefusal: string | null = null;
+  /** The next session command (`compact`, `reload`, `invoke`) changes pi, then its reply is lost. */
+  commandFailure = false;
+  /** The next session command is refused by the child before any change. */
+  commandRefusal: string | null = null;
+  /** The next session command gets a generic negative reply (not a refusal before any change). */
+  commandNegative = false;
   /** What `features` answers (pi's own commands and models). */
   features: Record<string, unknown> = {
     models: [{ provider: 'p', id: 'm', name: 'M', reasoning: false, input: ['text', 'image'], context_window: 1000, max_tokens: 100 }],
@@ -83,9 +89,17 @@ export class Host extends EventEmitter implements SessionHost {
       if (this.configureFailure) throw new Error('lost_configure_reply');
       return { type: 'response', id: 'x', success: true, data: { model: c.model ?? { provider: 'p', id: 'm' }, thinking: c.thinking ?? 'off', name: c.name ?? null } };
     }
+    if (c.type === 'compact' || c.type === 'reload' || c.type === 'invoke') {
+      if (this.commandRefusal) return { type: 'response', id: 'x', success: false, error: this.commandRefusal, refused: 'before_input' };
+      if (this.commandFailure) throw new Error(`lost_${c.type}_reply`);
+      if (this.commandNegative) return { type: 'response', id: 'x', success: false, error: 'sdk_command_failed' };
+      if (c.type === 'compact') return { type: 'response', id: 'x', success: true, data: { tokens_before: 1234, first_kept_entry_id: null } };
+      if (c.type === 'reload') return { type: 'response', id: 'x', success: true, data: { extensions: [], extension_errors: [], skills: [], tools: [], active_tools: [], commands: [{ name: 'deploy', source: 'extension' }] } };
+      return { type: 'response', id: 'x', success: true, data: { disposition: 'handled' } };
+    }
     if (c.type === 'features') return { type: 'response', id: 'x', success: true, data: structuredClone(this.features) };
     if (c.type === 'steer') return { type: 'response', id: 'x', success: true, data: { disposition: 'queued' } };
-    if (c.type === 'inventory') return { type: 'response', id: 'x', success: true, data: { extensions: [], extension_errors: [], skills: [], tools: [], active_tools: [] } };
+    if (c.type === 'inventory') return { type: 'response', id: 'x', success: true, data: { extensions: [], extension_errors: [], skills: [], tools: [], active_tools: [], commands: [{ name: 'deploy', source: 'extension' }] } };
     if (c.type === 'abort') this.emit('event', { type: 'agent_settled', aborted: true });
     return { type: 'response', id: 'x', success: true, data: { sessionId: this.sid, sessionFile: this.file, cancelled: false } };
   }

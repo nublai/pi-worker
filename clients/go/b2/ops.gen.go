@@ -32,6 +32,9 @@ var (
 	OpWorkersCreate               = Operation{ID: "workers.create", Method: "POST", Path: "/b2/workers", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpWorkersGet                  = Operation{ID: "workers.get", Method: "GET", Path: "/b2/workers/{worker_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpSessionConfigure            = Operation{ID: "session.configure", Method: "POST", Path: "/b2/workers/{worker_id}/configure", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpSessionsCompact             = Operation{ID: "sessions.compact", Method: "POST", Path: "/b2/workers/{worker_id}/compact", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpResourcesReload             = Operation{ID: "resources.reload", Method: "POST", Path: "/b2/workers/{worker_id}/reload", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpCommandsInvoke              = Operation{ID: "commands.invoke", Method: "POST", Path: "/b2/workers/{worker_id}/commands/invoke", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpSessionsPrompt              = Operation{ID: "sessions.prompt", Method: "POST", Path: "/b2/workers/{worker_id}/prompt", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpSessionsFollowUp            = Operation{ID: "sessions.follow_up", Method: "POST", Path: "/b2/workers/{worker_id}/follow_up", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpSessionsSteer               = Operation{ID: "sessions.steer", Method: "POST", Path: "/b2/workers/{worker_id}/steer", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
@@ -67,6 +70,9 @@ var Operations = []Operation{
 	OpWorkersCreate,
 	OpWorkersGet,
 	OpSessionConfigure,
+	OpSessionsCompact,
+	OpResourcesReload,
+	OpCommandsInvoke,
 	OpSessionsPrompt,
 	OpSessionsFollowUp,
 	OpSessionsSteer,
@@ -139,6 +145,33 @@ func (c *Client) WorkersGet(ctx context.Context, workerID string) (*Worker, erro
 func (c *Client) SessionConfigure(ctx context.Context, workerID string, body Configure) (*Receipt, error) {
 	var out Receipt
 	if err := c.do(ctx, OpSessionConfigure, []string{workerID}, nil, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SessionsCompact calls sessions.compact (POST /b2/workers/{worker_id}/compact). A mutation: sent once, never retried.
+func (c *Client) SessionsCompact(ctx context.Context, workerID string, body Compact) (*Receipt, error) {
+	var out Receipt
+	if err := c.do(ctx, OpSessionsCompact, []string{workerID}, nil, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ResourcesReload calls resources.reload (POST /b2/workers/{worker_id}/reload). A mutation: sent once, never retried.
+func (c *Client) ResourcesReload(ctx context.Context, workerID string, body Binding) (*Receipt, error) {
+	var out Receipt
+	if err := c.do(ctx, OpResourcesReload, []string{workerID}, nil, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CommandsInvoke calls commands.invoke (POST /b2/workers/{worker_id}/commands/invoke). A mutation: sent once, never retried.
+func (c *Client) CommandsInvoke(ctx context.Context, workerID string, body Invoke) (*Receipt, error) {
+	var out Receipt
+	if err := c.do(ctx, OpCommandsInvoke, []string{workerID}, nil, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

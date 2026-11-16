@@ -210,6 +210,19 @@
         "p1-14-settlement-not-stamped.diff",
         "p1-14-marker-ignores-abort-rule.diff"
       ]
+    },
+    "session-commands": {
+      "command": "npm test -- session-commands",
+      "diffs": [
+        "p1-15-commands-ignore-fence.diff",
+        "p1-15-commands-run-while-busy.diff",
+        "p1-15-commands-unknown-not-fenced.diff",
+        "p1-15-commands-not-session-directed.diff",
+        "p1-15-negative-reply-no-effect.diff",
+        "p1-15-invoke-builtin-passes.diff",
+        "p1-15-dispatch-after-write.diff",
+        "p1-15-child-invokes-any-name.diff"
+      ]
     }
   }
 }

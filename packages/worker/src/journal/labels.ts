@@ -79,6 +79,9 @@ export const DURABLE_LABELS = [
   // Features (supervisor/features.ts): the worker row after `session.configure` changed the model, thinking level or
   // name (an unknown one latches the fence under `fence.latch`).
   'session.configure',
+  // Session commands (supervisor/session-commands.ts): the worker row after a compaction, a reload (its resources) or
+  // an extension command pi ran (an unknown one latches the fence under `fence.latch`).
+  'session.command',
 ] as const;
 
 export type DurableLabel = (typeof DURABLE_LABELS)[number];

@@ -161,6 +161,9 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     },
     'items.read': ({ path }) => supervisor().item(path.worker_id, path.entry_id),
     'session.configure': ({ path, body }) => supervisor().configure(path.worker_id, body),
+    'sessions.compact': ({ path, body }) => supervisor().compact(path.worker_id, body),
+    'resources.reload': ({ path, body }) => supervisor().reload(path.worker_id, body),
+    'commands.invoke': ({ path, body }) => supervisor().invoke(path.worker_id, body),
     'sessions.list': ({ query, caller }) => supervisor().features.list(row => sessionVisible(caller, row), query),
     'sessions.get': ({ path, caller }) => sessionRow(caller, path.session_id),
     'sessions.history': ({ path, query, caller }) => {

@@ -17,6 +17,7 @@ import type { GrantStore } from '../grants/store.js';
 import { Interactions, type Answer, type Interaction } from '../interactions/interactions.js';
 import { Input } from './input.js';
 import { Features, type Configure, type InventoryFactory } from './features.js';
+import { SessionCommands, type Compact, type Invoke } from './session-commands.js';
 import { Lifecycle } from './lifecycle.js';
 import { SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker, type ChildLaunch } from './state.js';
 
@@ -45,6 +46,7 @@ export class Supervisor {
   readonly interactions: Interactions;
   readonly children: Children;
   readonly features: Features;
+  readonly commands: SessionCommands;
 
   constructor(options: SupervisorOptions) {
     this.state = new SupervisorState(options.journal, options.receipts, options.supervisorEpoch, options.stateDir, options.factory);
@@ -71,6 +73,19 @@ export class Supervisor {
     this.state.childClaims = w => this.children.claims(w);
     this.features = new Features(this.state, this.lifecycle, this.input, this.fence);
     if (options.inventory) this.features.inventory = options.inventory;
+    this.commands = new SessionCommands(this.state, this.input, this.fence);
+  }
+
+  compact(id: string, c: Compact): Promise<Receipt> {
+    return this.commands.compact(id, c);
+  }
+
+  reload(id: string, b: Binding): Promise<Receipt> {
+    return this.commands.reload(id, b);
+  }
+
+  invoke(id: string, v: Invoke): Promise<Receipt> {
+    return this.commands.invoke(id, v);
   }
 
   configure(id: string, c: Configure): Promise<Receipt> {
