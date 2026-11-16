@@ -176,12 +176,8 @@ export class Lifecycle {
           throw new Refusal('cwd_not_directory');
         }
         this.s.exclusiveCwd(cwd);
-        if (c.resume_session_id) {
-          this.s.noOtherWriter(c.resume_session_id, '');
-          const known = this.s.sessionFiles.get(c.resume_session_id);
-          if (!known) throw new Refusal('unknown_session');
-          resumeFile = known.file;
-        }
+        // The same session gates as every other resume: a new worker identity never erases session uncertainty.
+        if (c.resume_session_id) resumeFile = this.s.resumable(c.resume_session_id, '');
       },
     );
   }

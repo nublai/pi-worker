@@ -1,0 +1,19 @@
+{
+  "request": {
+    "body": {
+      "command_id": "cmd-4",
+      "cwd": "/home/u/fourth",
+      "provider": "anthropic",
+      "model": "claude",
+      "thinking": "medium",
+      "resume_session_id": "session-1"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "target_cleanup_unproven",
+      "effect": "no_effect"
+    }
+  }
+}

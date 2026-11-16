@@ -1,0 +1,17 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 18a223c..aa898ae 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -177,7 +177,11 @@ export class Lifecycle {
+         }
+         this.s.exclusiveCwd(cwd);
+         // The same session gates as every other resume: a new worker identity never erases session uncertainty.
+-        if (c.resume_session_id) resumeFile = this.s.resumable(c.resume_session_id, '');
++        if (c.resume_session_id) {
++          this.s.noOtherWriter(c.resume_session_id, '');
++          resumeFile = this.s.sessionFiles.get(c.resume_session_id)?.file;
++          if (!resumeFile) throw new Refusal('unknown_session');
++        }
+       },
+     );
+   }

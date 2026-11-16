@@ -167,6 +167,23 @@ export class SupervisorState {
     if (holder) throw new Refusal('session_already_bound', 'no_effect', undefined, { holder_worker_id: holder.worker.worker_id });
   }
 
+  /**
+   * The gates every resume passes (create-with-resume and `sessions.rebind` resume), before anything is spawned or
+   * opened: no other live writer, a known session, its last owner's cleanup proven (invariant 2) and its fence
+   * resolved (invariant 3). Returns the session file.
+   */
+  resumable(sessionId: string, except: string): string {
+    this.noOtherWriter(sessionId, except);
+    const known = this.sessionFiles.get(sessionId);
+    if (!known) throw new Refusal('unknown_session');
+    const owner = this.require(known.worker_id).worker;
+    if (known.worker_id !== except && (owner.status === 'cleanup_pending' || owner.cleanup.includes('escaped_descendants_unproven'))) {
+      throw new Refusal('target_cleanup_unproven');
+    }
+    if (owner.fence) throw new Refusal('target_session_fenced', 'no_effect', owner.fence.command_id);
+    return known.file;
+  }
+
   /** One worker per environment: a cwd stays reserved while a worker holds it or its cleanup is unproven. */
   exclusiveCwd(cwd: string, except?: Live): void {
     const holder = [...this.workers.values()].find(
