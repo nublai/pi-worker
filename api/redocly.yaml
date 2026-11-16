@@ -1,0 +1,73 @@
+# Redocly CLI: lint rules and bundle config for the B2 spec (plan section 4.1, step 1).
+# No usage data leaves the machine (scripts also set REDOCLY_TELEMETRY=off).
+telemetry: 'off'
+extends:
+  - recommended
+plugins:
+  - ./redocly/piw-rules.js
+apis:
+  b2:
+    root: ./b2.openapi.yaml
+    output: ./generated/b2.json
+rules:
+  # The worker is on a private Unix socket; there is no public server URL to describe.
+  no-server-example.com: error
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-summary: error
+  operation-4xx-response: error
+  no-unused-components: error
+  security-defined: error
+  piw/paths-under-b2: error
+  piw/error-responses: error
+  piw/mutation-command-id: error
+  piw/unsupported-declares-501: error
+  piw/event-manifest: error
+  piw/operation-id-is-method:
+    severity: error
+    # Contract revision 8 method names: section 4 and section 8.1, plus the methods the frozen section 0.1
+    # fixtures and the plan name (children.launch, sessions.rebind, sessions.new, workers.relaunch).
+    methods:
+      - hello
+      - capabilities.get
+      - health.get
+      - workers.list
+      - workers.get
+      - sessions.list
+      - sessions.get
+      - workers.create
+      - workers.resume
+      - workers.stop
+      - workers.relaunch
+      - sessions.prompt
+      - sessions.steer
+      - sessions.follow_up
+      - executions.cancel
+      - executions.interrupt
+      - attachments.stage
+      - attachments.status
+      - attachments.release
+      - children.launch
+      - children.report
+      - sessions.resolve_unknown
+      - interactions.list
+      - interactions.answer_if_current
+      - interactions.status
+      - events.subscribe
+      - history.page
+      - items.read
+      - blobs.read
+      - files.read
+      - models.list
+      - session.configure
+      - commands.list
+      - commands.invoke
+      - resources.reload
+      - sessions.compact
+      - sessions.fork
+      - sessions.navigate
+      - sessions.new
+      - sessions.rebind
+      - commands.status
+      - receipts.get
+      - environments.describe

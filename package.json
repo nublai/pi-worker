@@ -11,11 +11,14 @@
     "packages/worker"
   ],
   "scripts": {
+    "api:lint": "REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true redocly lint --config api/redocly.yaml b2 && node tools/codegen/lint-fixtures.mjs",
+    "api:bundle": "REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true redocly bundle --config api/redocly.yaml b2",
     "build": "npm run build --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
-    "check": "npm run build && npm test"
+    "check": "npm run api:lint && npm run build && npm test"
   },
   "devDependencies": {
+    "@redocly/cli": "2.78.0",
     "@types/node": "26.6.6",
     "typescript": "5.9.3"
   }

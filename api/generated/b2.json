@@ -1,0 +1,3372 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "pi-worker B2",
+    "version": "0.1.0",
+    "summary": "Caller-to-worker API (B2) of nubl's pi-worker supervisor.",
+    "description": "HTTP/1.1 over a private Unix socket (`$XDG_RUNTIME_DIR/pi-worker/b2.sock`, 0700 directory, 0600 socket).\nThere is no TCP listener. This document is the single source for the server's request and response\nvalidators, the TypeScript types and the Go models (`npm run generate`).\n\nSeeded from A0 (`prototype/a0` at `ee66117`, `openapi.json`). The method catalog is draft until P6\n(contract revision 8, sections 4 onward); the behavioural invariants (sections 0, 0.1, 0.2) are frozen.\n\nExtensions:\n- `x-piw-mutation` (every operation): `true` when the operation changes state. A mutation's body\n  requires `command_id`; a client never retries it; a failure after the request bytes are written is\n  `effect: unknown`.\n- `x-piw-status: unsupported`: the server routes and validates the operation and answers `501` with\n  `effect: no_effect`.\n- `x-piw-event` (every event schema): the event manifest (type, producer, durability, visibility).\n\nNamed limit (invariant 8): private sockets and bearer grants do not isolate hostile code running as the\nsame OS user.\n",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://pi-worker",
+      "description": "HTTP over the worker's private Unix socket. The host name is not resolved."
+    }
+  ],
+  "security": [
+    {
+      "bearerGrant": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "handshake",
+      "description": "Protocol negotiation and named limits."
+    },
+    {
+      "name": "inventory",
+      "description": "Read-only worker rows."
+    },
+    {
+      "name": "lifecycle",
+      "description": "Create, stop and relaunch workers."
+    },
+    {
+      "name": "input",
+      "description": "Prompt and follow-up input."
+    },
+    {
+      "name": "recovery",
+      "description": "Bindings, fences and unknown outcomes."
+    },
+    {
+      "name": "interruption",
+      "description": "Cancel and interrupt executions."
+    },
+    {
+      "name": "interactions",
+      "description": "Live questions and approvals."
+    },
+    {
+      "name": "readback",
+      "description": "Events, history, receipts and files."
+    },
+    {
+      "name": "children",
+      "description": "Child launch and child reports."
+    }
+  ],
+  "paths": {
+    "/b2/hello": {
+      "get": {
+        "operationId": "hello",
+        "summary": "Negotiate the protocol and read the named limits",
+        "tags": [
+          "handshake"
+        ],
+        "x-piw-mutation": false,
+        "responses": {
+          "200": {
+            "description": "Supervisor identity, protocol and limits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Hello"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          }
+        }
+      }
+    },
+    "/b2/workers": {
+      "get": {
+        "operationId": "workers.list",
+        "summary": "List the workers this grant may see",
+        "tags": [
+          "inventory"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-status": "unsupported",
+        "responses": {
+          "200": {
+            "description": "Worker rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Worker"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      },
+      "post": {
+        "operationId": "workers.create",
+        "summary": "Create a worker (reserve ids, then launch pi)",
+        "tags": [
+          "lifecycle"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Create"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "get": {
+        "operationId": "workers.get",
+        "summary": "Read one worker row",
+        "tags": [
+          "inventory"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-status": "unsupported",
+        "responses": {
+          "200": {
+            "description": "The worker row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Worker"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/prompt": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "sessions.prompt",
+        "summary": "Send a prompt to the bound session",
+        "tags": [
+          "input"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Prompt"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/follow_up": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "sessions.follow_up",
+        "summary": "Queue a follow-up against a named execution",
+        "tags": [
+          "input"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FollowUp"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/rebind": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "sessions.rebind",
+        "summary": "Move the binding (new, fork, resume, navigate)",
+        "tags": [
+          "recovery"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Rebind"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/resolve_unknown": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "sessions.resolve_unknown",
+        "summary": "Lift a fence with one disposition (keep, abandon, observed)",
+        "tags": [
+          "recovery"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Resolve"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/stop": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "workers.stop",
+        "summary": "Stop the worker's pi; keeps the session and environment",
+        "tags": [
+          "lifecycle"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Binding"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stop receipt with the observed termination.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/relaunch": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "workers.relaunch",
+        "summary": "Relaunch pi on the same session after confirmed cleanup",
+        "tags": [
+          "lifecycle"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Binding"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/cancel": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "executions.cancel",
+        "summary": "Cancel the current execution; allowed while fenced",
+        "tags": [
+          "interruption"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Control"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/interrupt": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "executions.interrupt",
+        "summary": "Escape equivalent; allowed while fenced",
+        "tags": [
+          "interruption"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Control"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/children": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "children.launch",
+        "summary": "Launch a child worker under the current execution",
+        "tags": [
+          "children"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChildLaunch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/report": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "children.report",
+        "summary": "A child's claim to its parent (a claim, not proof)",
+        "tags": [
+          "children"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Report"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/interactions": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "get": {
+        "operationId": "interactions.list",
+        "summary": "Live interactions of a worker",
+        "tags": [
+          "interactions"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-status": "unsupported",
+        "responses": {
+          "200": {
+            "description": "Live interactions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interactions"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/interactions/status": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "get": {
+        "operationId": "interactions.status",
+        "summary": "One interaction's recorded state and answer stage",
+        "tags": [
+          "interactions"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-status": "unsupported",
+        "parameters": [
+          {
+            "name": "interaction_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The interaction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interaction"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/interactions/answer": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "interactions.answer_if_current",
+        "summary": "Answer an interaction if its binding and revision are current",
+        "tags": [
+          "interactions"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Answer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/history": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "get": {
+        "operationId": "history.page",
+        "summary": "Page the bound session's pi entries",
+        "tags": [
+          "readback"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-status": "unsupported",
+        "parameters": [
+          {
+            "name": "watermark",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One history page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/files/read": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "files.read",
+        "summary": "Read a file inside explicit confinement roots (sandboxed environments)",
+        "tags": [
+          "readback"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-status": "unsupported",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileRead"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The file content.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileContent"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/receipts/{command_id}": {
+      "parameters": [
+        {
+          "name": "command_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Id"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "receipts.get",
+        "summary": "Read a command's receipt without redispatch",
+        "description": "An unknown or expired command_id is never proof that nothing ran.",
+        "tags": [
+          "readback"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-status": "unsupported",
+        "responses": {
+          "200": {
+            "description": "The receipt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/events": {
+      "get": {
+        "operationId": "events.subscribe",
+        "summary": "One supervisor-wide SSE stream; a snapshot first on every attach",
+        "description": "Each SSE `data` field is one `EventFrame` as JSON. The worker never replays: a reconnect gets a fresh\n`snapshot` whose `resync_reason` says why. A subscriber queue that overflows gets `overflow`, then the\nstream closes.\n",
+        "tags": [
+          "readback"
+        ],
+        "x-piw-mutation": false,
+        "x-piw-status": "unsupported",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "query",
+            "description": "Comma-separated worker ids to filter on.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "description": "Comma-separated event types to filter on.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "resync",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "overflow"
+              ]
+            }
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "description": "The cursor of the last frame seen, as JSON.",
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server-sent events.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventFrame"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerGrant": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A per-caller grant registered by the owner; the worker stores only its hash."
+      }
+    },
+    "parameters": {
+      "WorkerId": {
+        "name": "worker_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      }
+    },
+    "responses": {
+      "Receipt": {
+        "description": "The command's receipt.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Receipt"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Malformed request (JSON, schema, parameters); nothing began.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Refused": {
+        "description": "Refusal; the `effect` field says whether anything began. Never implies cancel.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TooLarge": {
+        "description": "Request body over the advertised limit; nothing began.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "Request body is not `application/json`; nothing began.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unknown": {
+        "description": "Something may have happened; read the receipt, never retry blindly.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotImplemented": {
+        "description": "The operation is in the catalog but not served by this worker yet; nothing began.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "AbsolutePath": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096,
+        "pattern": "^/"
+      },
+      "Text": {
+        "type": "string",
+        "maxLength": 131072
+      },
+      "Effect": {
+        "type": "string",
+        "enum": [
+          "no_effect",
+          "unknown"
+        ],
+        "description": "`no_effect`: the refused request began nothing. `unknown`: something may have happened."
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error",
+          "effect"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Machine-readable reason, for example `request_schema_mismatch` or `session_fenced`."
+          },
+          "effect": {
+            "$ref": "#/components/schemas/Effect"
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "Human-readable detail. Never contains request values."
+          },
+          "uncertain_command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "holder_worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "expected_binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "received_binding_revision": {
+            "type": "integer"
+          },
+          "no_effect_evidence": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "Present only when a refusal after dispatch is `no_effect` (ProvenNoEffect)."
+          }
+        }
+      },
+      "Protocol": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "major",
+          "minor"
+        ],
+        "properties": {
+          "major": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "A client refuses an unknown major."
+          },
+          "minor": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Hello": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocol",
+          "worker_version",
+          "supervisor_id",
+          "supervisor_epoch",
+          "pi_version",
+          "capabilities",
+          "limits",
+          "named_limits"
+        ],
+        "properties": {
+          "protocol": {
+            "$ref": "#/components/schemas/Protocol"
+          },
+          "worker_version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "supervisor_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "supervisor_epoch": {
+            "$ref": "#/components/schemas/Id",
+            "description": "Changes on every supervisor start."
+          },
+          "pi_version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64,
+            "description": "The pinned pi SDK version; null while no pi host is available."
+          },
+          "capabilities": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "named_limits": {
+            "type": "array",
+            "maxItems": 64,
+            "description": "Stated limits of the guarantees (contract invariant 8).",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          }
+        }
+      },
+      "Limits": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "request_body_bytes"
+        ],
+        "properties": {
+          "request_body_bytes": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "Binding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "Prompt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "message"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "message": {
+            "$ref": "#/components/schemas/Text"
+          }
+        }
+      },
+      "FollowUp": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "message",
+          "execution_id"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "message": {
+            "$ref": "#/components/schemas/Text"
+          },
+          "execution_id": {
+            "$ref": "#/components/schemas/Id"
+          }
+        }
+      },
+      "Control": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "execution_id": {
+            "$ref": "#/components/schemas/Id"
+          }
+        }
+      },
+      "Resolve": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "fence_generation",
+          "disposition"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "uncertain_command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "execution_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "fence_generation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "keep",
+              "abandon",
+              "observed"
+            ]
+          }
+        }
+      },
+      "Rebind": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "action"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "new",
+              "fork",
+              "resume",
+              "navigate"
+            ]
+          },
+          "target_session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "source_leaf_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "entry_id": {
+            "$ref": "#/components/schemas/Id"
+          }
+        }
+      },
+      "Parent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "worker_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "execution_id",
+          "task_id",
+          "generation_id"
+        ],
+        "properties": {
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "execution_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "task_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "generation_id": {
+            "$ref": "#/components/schemas/Id"
+          }
+        }
+      },
+      "LaunchSpec": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "environment",
+          "role",
+          "tools",
+          "denied_tools",
+          "resources",
+          "grant_methods",
+          "seed_mode"
+        ],
+        "properties": {
+          "environment": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "revision",
+              "allowed_methods"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/Id"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "base_sha": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "filesystem": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "bwrap"
+                ]
+              },
+              "root": {
+                "$ref": "#/components/schemas/AbsolutePath"
+              },
+              "allowed_methods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            }
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "denied_tools": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "resources": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "extensions",
+              "skills"
+            ],
+            "properties": {
+              "extensions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AbsolutePath"
+                }
+              },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AbsolutePath"
+                }
+              }
+            }
+          },
+          "grant_methods": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "seed_mode": {
+            "type": "string",
+            "const": "standalone"
+          }
+        }
+      },
+      "Thinking": {
+        "type": "string",
+        "enum": [
+          "off",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      },
+      "Host": {
+        "type": "string",
+        "enum": [
+          "sdk"
+        ],
+        "description": "The SDK subprocess is the production host (plan section 1); RPC and ACP are not served."
+      },
+      "Create": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "cwd",
+          "provider",
+          "model",
+          "thinking"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "cwd": {
+            "$ref": "#/components/schemas/AbsolutePath"
+          },
+          "parent": {
+            "$ref": "#/components/schemas/Parent"
+          },
+          "launch_spec": {
+            "$ref": "#/components/schemas/LaunchSpec"
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "thinking": {
+            "$ref": "#/components/schemas/Thinking"
+          },
+          "host": {
+            "$ref": "#/components/schemas/Host"
+          },
+          "project_trusted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChildLaunch": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "execution_id",
+          "launch"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "execution_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "launch": {
+            "$ref": "#/components/schemas/Create"
+          }
+        }
+      },
+      "Report": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "task_id",
+          "result_digest"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "result",
+              "help"
+            ]
+          },
+          "message": {
+            "$ref": "#/components/schemas/Text"
+          },
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "task_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "result_digest": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      },
+      "ChildClaim": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "kind",
+          "message",
+          "claim_not_verified"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "result",
+              "help"
+            ]
+          },
+          "message": {
+            "$ref": "#/components/schemas/Text"
+          },
+          "claim_not_verified": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "InteractionKind": {
+        "type": "string",
+        "enum": [
+          "select",
+          "confirm",
+          "input",
+          "editor",
+          "tool_approval"
+        ]
+      },
+      "Answer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "answer_id",
+          "interaction_id",
+          "revision",
+          "kind",
+          "outcome"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "answer_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "interaction_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "$ref": "#/components/schemas/InteractionKind"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "answer",
+              "cancel"
+            ]
+          },
+          "value": {
+            "description": "Text for input and editor, true or false for confirm.",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 65536
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "x-go-type": "json.RawMessage"
+          },
+          "option_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "actor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Opaque device or person reference supplied by the bridge; journaled with the outcome."
+          }
+        }
+      },
+      "InteractionOption": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "option_id",
+          "label"
+        ],
+        "properties": {
+          "option_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        }
+      },
+      "Interaction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "interaction_id",
+          "native_id",
+          "worker_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "revision",
+          "kind",
+          "deadline",
+          "status",
+          "source",
+          "evidence"
+        ],
+        "properties": {
+          "interaction_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "native_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "$ref": "#/components/schemas/InteractionKind"
+          },
+          "deadline": {
+            "type": "integer",
+            "description": "Absolute deadline, milliseconds since the Unix epoch."
+          },
+          "status": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "pi.extension_ui",
+              "pi.tool_gate"
+            ]
+          },
+          "evidence": {
+            "type": "string",
+            "const": "supervisor_journal_fsynced"
+          },
+          "payload_evidence": {
+            "type": "string",
+            "const": "observed_memory"
+          },
+          "answer_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "answer_command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "answer_stage": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "actor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "grant_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "outcome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "resolver_outcome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "release_command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "message": {
+            "$ref": "#/components/schemas/Text"
+          },
+          "placeholder": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "prefill": {
+            "$ref": "#/components/schemas/Text"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InteractionOption"
+            }
+          },
+          "approval": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "Interactions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Interaction"
+        }
+      },
+      "InteractionSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "native_id",
+          "kind"
+        ],
+        "description": "A pending native interaction not yet admitted as a typed interaction.",
+        "properties": {
+          "native_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        }
+      },
+      "Execution": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "execution_id",
+          "command_id",
+          "state"
+        ],
+        "properties": {
+          "execution_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "admitted",
+              "started",
+              "settled",
+              "outcome_unknown"
+            ]
+          },
+          "disposition": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        }
+      },
+      "Fence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "fence_generation"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "fence_generation": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "uncertain_command_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        }
+      },
+      "HistoryMarker": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "last_entry_id",
+          "lag",
+          "evidence"
+        ],
+        "properties": {
+          "last_entry_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "lag": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "type": "string",
+            "const": "pi_session_file"
+          }
+        }
+      },
+      "GitPin": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Launch-time Git pointer bytes of a sandbox root. Relaunch and owner Git commands refuse when any value changed.",
+        "required": [
+          "kind",
+          "dot_git",
+          "git_dir",
+          "common_dir",
+          "gitdir_file",
+          "commondir_file",
+          "head",
+          "config_sha256",
+          "alternates"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "linked",
+              "ordinary"
+            ]
+          },
+          "dot_git": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "git_dir": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "common_dir": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "gitdir_file": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096
+          },
+          "commondir_file": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096
+          },
+          "head": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096
+          },
+          "config_sha256": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "alternates": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 65536
+          }
+        }
+      },
+      "QueuedInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "kind",
+          "state"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "follow_up",
+              "child"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "paused",
+              "dropped",
+              "recovered",
+              "dispatched"
+            ]
+          }
+        }
+      },
+      "Resolution": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "disposition",
+          "fence_generation"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "keep",
+              "abandon",
+              "observed"
+            ]
+          },
+          "fence_generation": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "WorkerFailure": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Why a launch ended the row in status failed. The launch receipt keeps its own effect label.",
+        "required": [
+          "command_id",
+          "reason"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        }
+      },
+      "Worker": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "worker_id",
+          "worker_epoch",
+          "supervisor_epoch",
+          "session_id",
+          "session_identity_evidence",
+          "binding_revision",
+          "leaf_id",
+          "cwd",
+          "status",
+          "foreground",
+          "execution",
+          "fence",
+          "history",
+          "cleanup",
+          "pending_interactions"
+        ],
+        "properties": {
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "supervisor_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "session_identity_evidence": {
+            "type": "string",
+            "enum": [
+              "pi_sdk_session_id",
+              "pi_session_file"
+            ]
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "leaf_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "cwd": {
+            "$ref": "#/components/schemas/AbsolutePath"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "starting",
+              "ready",
+              "stopped",
+              "cleanup_pending",
+              "failed"
+            ]
+          },
+          "foreground": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "running",
+              "unknown"
+            ]
+          },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Execution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Fence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history": {
+            "$ref": "#/components/schemas/HistoryMarker"
+          },
+          "cleanup": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "failure": {
+            "$ref": "#/components/schemas/WorkerFailure"
+          },
+          "pending_interactions": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Interaction"
+                },
+                {
+                  "$ref": "#/components/schemas/InteractionSummary"
+                }
+              ],
+              "x-go-type": "json.RawMessage"
+            }
+          },
+          "queued": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QueuedInput"
+            }
+          },
+          "fence_generation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resolutions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Resolution"
+            }
+          },
+          "git_pin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitPin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parent": {
+            "$ref": "#/components/schemas/Parent"
+          },
+          "launch_spec": {
+            "$ref": "#/components/schemas/LaunchSpec"
+          },
+          "grant_source_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "child_reports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChildClaim"
+            }
+          },
+          "parent_worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "parent_launch_command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "host": {
+            "$ref": "#/components/schemas/Host"
+          },
+          "resources": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "Receipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "operation",
+          "request_hash",
+          "state",
+          "stage",
+          "effect",
+          "evidence",
+          "created_at"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "workers.create",
+              "sessions.prompt",
+              "workers.stop",
+              "workers.relaunch",
+              "sessions.resolve_unknown",
+              "sessions.rebind",
+              "sessions.follow_up",
+              "children.launch",
+              "children.report",
+              "executions.cancel",
+              "executions.interrupt",
+              "interactions.answer_if_current",
+              "interactions.release"
+            ]
+          },
+          "request_hash": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "intent",
+              "intent_recovered",
+              "accepted",
+              "delivered",
+              "rejected",
+              "outcome_unknown",
+              "queued",
+              "queue_ready",
+              "intent_ready"
+            ]
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "reserved",
+              "recovery_pending",
+              "dispatch_recorded",
+              "forwarded",
+              "termination_observed",
+              "refused",
+              "unknown",
+              "resolved",
+              "requested",
+              "answer_accepted",
+              "resolver_consumed",
+              "tool_released"
+            ]
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "no_effect",
+              "unknown",
+              "observed"
+            ]
+          },
+          "evidence": {
+            "type": "string",
+            "const": "supervisor_journal_fsynced"
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "RFC 3339 timestamp."
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "execution_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "admission": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "rejected",
+              "queued"
+            ]
+          },
+          "disposition": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "history_lag": {
+            "type": "boolean"
+          },
+          "uncertain_command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "error": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "answer_stage": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          }
+        }
+      },
+      "StopResult": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "termination": {
+            "type": "string",
+            "enum": [
+              "observed_stopped",
+              "superseded_generation_stopped",
+              "superseded_generation_unknown",
+              "unknown"
+            ],
+            "description": "observed_stopped: normal stop, generation confirmed gone. superseded_generation_stopped: old generation\ngone but a new relaunch was already running. superseded_generation_unknown: old generation cleanup\noutcome unknown, new generation running. unknown: cleanup outcome unknown, generation status not checked.\n"
+          },
+          "stopped_worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "current_worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "cgroup_v2"
+            ]
+          }
+        }
+      },
+      "StopReceipt": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Receipt"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "result": {
+                "$ref": "#/components/schemas/StopResult"
+              }
+            }
+          }
+        ]
+      },
+      "HistoryCursor": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "watermark",
+          "after"
+        ],
+        "properties": {
+          "watermark": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      },
+      "HistoryPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "entries",
+          "watermark",
+          "next",
+          "leafId",
+          "truncated",
+          "evidence"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "watermark": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HistoryCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leafId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "type": "string",
+            "const": "pi_session_file"
+          }
+        }
+      },
+      "FileRead": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "roots"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "#/components/schemas/AbsolutePath"
+          },
+          "roots": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/AbsolutePath"
+            }
+          }
+        }
+      },
+      "FileContent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "content",
+          "bytes",
+          "evidence"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "#/components/schemas/AbsolutePath"
+          },
+          "content": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "evidence": {
+            "type": "string",
+            "const": "pinned_file_read"
+          }
+        }
+      },
+      "Cursor": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.",
+        "required": [
+          "transport_epoch",
+          "seq"
+        ],
+        "properties": {
+          "transport_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Producer": {
+        "type": "string",
+        "enum": [
+          "pi",
+          "supervisor"
+        ]
+      },
+      "EventEvidence": {
+        "type": "string",
+        "enum": [
+          "observed_memory",
+          "supervisor_journal_fsynced"
+        ]
+      },
+      "EventFrame": {
+        "description": "One SSE frame. `type` selects the member.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SnapshotEvent"
+          },
+          {
+            "$ref": "#/components/schemas/OverflowEvent"
+          },
+          {
+            "$ref": "#/components/schemas/WorkerUpdatedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/SessionReboundEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ExecutionSettledEvent"
+          },
+          {
+            "$ref": "#/components/schemas/FenceResolvedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/InteractionsChangedEvent"
+          }
+        ]
+      },
+      "SnapshotEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Sent first on every attach, at a synchronous barrier. `workers` is authoritative. No event replay.",
+        "x-piw-event": {
+          "type": "snapshot",
+          "producer": "supervisor",
+          "durability": "transport",
+          "visibility": "subscriber"
+        },
+        "required": [
+          "type",
+          "workers",
+          "cursor",
+          "resync_reason"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "snapshot"
+          },
+          "workers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Worker"
+            }
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "resync_reason": {
+            "type": "string",
+            "enum": [
+              "fresh",
+              "current",
+              "gap",
+              "epoch",
+              "ahead",
+              "evicted",
+              "overflow"
+            ]
+          }
+        }
+      },
+      "OverflowEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The subscriber queue overflowed; the stream closes after this frame and the caller resyncs.",
+        "x-piw-event": {
+          "type": "overflow",
+          "producer": "supervisor",
+          "durability": "transport",
+          "visibility": "subscriber"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "overflow"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": "null"
+          },
+          "evidence": {
+            "type": "string",
+            "const": "observed_memory"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "resync_required",
+              "reason"
+            ],
+            "properties": {
+              "resync_required": {
+                "type": "boolean",
+                "const": true
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            }
+          }
+        }
+      },
+      "WorkerUpdatedEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The full worker row after a change.",
+        "x-piw-event": {
+          "type": "worker.updated",
+          "producer": "supervisor",
+          "durability": "labelled",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "worker.updated"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/EventEvidence"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "worker"
+            ],
+            "properties": {
+              "worker": {
+                "$ref": "#/components/schemas/Worker"
+              }
+            }
+          }
+        }
+      },
+      "SessionReboundEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The binding moved; mutations naming the old revision are refused.",
+        "x-piw-event": {
+          "type": "session.rebound",
+          "producer": "supervisor",
+          "durability": "journal",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "session.rebound"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidence": {
+            "type": "string",
+            "const": "supervisor_journal_fsynced"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "session_id",
+              "binding_revision",
+              "action"
+            ],
+            "properties": {
+              "session_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "binding_revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "new",
+                  "fork",
+                  "resume",
+                  "navigate"
+                ]
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "native"
+                ]
+              },
+              "old": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "ExecutionSettledEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "pi reported agent_settled for the execution.",
+        "x-piw-event": {
+          "type": "execution.settled",
+          "producer": "supervisor",
+          "durability": "memory",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "execution.settled"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "evidence": {
+            "type": "string",
+            "const": "observed_memory"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "disposition"
+            ],
+            "properties": {
+              "disposition": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            }
+          }
+        }
+      },
+      "FenceResolvedEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A fence was lifted. Resolving never claims an external effect was undone.",
+        "x-piw-event": {
+          "type": "fence.resolved",
+          "producer": "supervisor",
+          "durability": "journal",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "fence.resolved"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidence": {
+            "type": "string",
+            "const": "supervisor_journal_fsynced"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "command_id",
+              "disposition",
+              "fence_generation",
+              "external_effects_undone",
+              "fence"
+            ],
+            "properties": {
+              "command_id": {
+                "$ref": "#/components/schemas/Id"
+              },
+              "disposition": {
+                "type": "string",
+                "enum": [
+                  "keep",
+                  "abandon",
+                  "observed"
+                ]
+              },
+              "fence_generation": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "external_effects_undone": {
+                "type": "boolean",
+                "const": false
+              },
+              "fence": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Fence"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "InteractionsChangedEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The live interaction cards of a worker.",
+        "x-piw-event": {
+          "type": "interactions.changed",
+          "producer": "supervisor",
+          "durability": "memory",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "interactions.changed"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidence": {
+            "type": "string",
+            "const": "observed_memory"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "interactions"
+            ],
+            "properties": {
+              "interactions": {
+                "$ref": "#/components/schemas/Interactions"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

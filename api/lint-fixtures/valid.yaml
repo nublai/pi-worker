@@ -1,0 +1,119 @@
+# Baseline for the lint fixtures: passes every rule. Each other fixture is this file with one violation.
+openapi: 3.1.0
+info:
+  title: lint fixture
+  version: 0.0.0
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: http://pi-worker
+security:
+  - bearerGrant: []
+paths:
+  /b2/workers/{worker_id}/prompt:
+    post:
+      operationId: sessions.prompt
+      summary: Prompt
+      x-piw-mutation: true
+      x-piw-status: unsupported
+      parameters:
+        - name: worker_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Prompt'
+      responses:
+        '200':
+          description: Receipt.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '501':
+          description: Not implemented.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /b2/events:
+    get:
+      operationId: events.subscribe
+      summary: Events
+      x-piw-mutation: false
+      responses:
+        '200':
+          description: Events.
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/EventFrame'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  securitySchemes:
+    bearerGrant:
+      type: http
+      scheme: bearer
+  schemas:
+    Error:
+      type: object
+      required: [error, effect]
+      properties:
+        error:
+          type: string
+        effect:
+          type: string
+          enum: [no_effect, unknown]
+    Prompt:
+      type: object
+      required: [command_id, message]
+      properties:
+        command_id:
+          type: string
+        message:
+          type: string
+    EventFrame:
+      oneOf:
+        - $ref: '#/components/schemas/PingEvent'
+        - $ref: '#/components/schemas/PongEvent'
+    PingEvent:
+      type: object
+      x-piw-event:
+        type: ping
+        producer: supervisor
+        durability: memory
+        visibility: worker
+      required: [type]
+      properties:
+        type:
+          type: string
+          const: ping
+    PongEvent:
+      type: object
+      x-piw-event:
+        type: pong
+        producer: pi
+        durability: journal
+        visibility: subscriber
+      required: [type]
+      properties:
+        type:
+          type: string
+          const: pong
