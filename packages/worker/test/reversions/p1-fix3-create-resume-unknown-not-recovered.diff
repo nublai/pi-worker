@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/fence.ts b/packages/worker/src/supervisor/fence.ts
+--- a/packages/worker/src/supervisor/fence.ts
++++ b/packages/worker/src/supervisor/fence.ts
+@@ -45,7 +45,8 @@
+ /** Whether this worker's `outcome_unknown` receipt fences its session. */
+ export function fencesWhenUnknown(r: Receipt, live: Live): boolean {
+   if (SESSION_DIRECTED.has(r.operation)) return true;
+-  return BINDS_EXISTING_SESSION.has(r.operation) && live.create?.command_id === r.command_id && Boolean(live.create.resume_session_id);
++  void live;
++  return false;
+ }
+ 
+ export class Fence {

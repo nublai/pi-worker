@@ -114,12 +114,24 @@ export function openWorld(root: string, scenario: boolean): World {
     stateDir: root,
     factory: launch => {
       assert.ok(scenario, 'recovery must never launch or adopt a host');
-      const id = `native-${hosts.length}`;
+      // A world reopened over a recovered root (resume.test.ts) never reuses an earlier session's id or file.
+      let n = hosts.length;
+      while (existsSync(join(root, `native-${n}.jsonl`))) n++;
+      const id = `native-${n}`;
       const file = join(root, `${id}.jsonl`);
       writeFileSync(file, `${JSON.stringify({ type: 'session', id })}\n`);
       effect(root, { kind: 'create', command_id: launch.create.command_id, session_file: file, session_id: id });
       const host = new EffectHost(root, id, file);
       if (launch.create.resume_session_id) host.openCommand = launch.create.command_id;
+      if (launch.create.provider === 'cancel-open') {
+        // pi ran the switch hooks and opened the target (the native effect is recorded), then reports the switch
+        // cancelled, as an extension's `session_before_switch` returning `{ cancel: true }` does.
+        const native = host.request.bind(host);
+        host.request = async c => {
+          const reply = await native(c);
+          return c.type === 'switch_session' ? { ...reply, data: { ...reply.data, cancelled: true } } : reply;
+        };
+      }
       if (launch.create.provider === 'fail') {
         const native = host.request.bind(host);
         host.request = async c => (c.type === 'inventory' ? { type: 'response', id: 'x', success: true, data: { extension_errors: ['/broken.ts'] } } : native(c));

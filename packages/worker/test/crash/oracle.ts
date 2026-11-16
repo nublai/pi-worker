@@ -11,13 +11,15 @@ import { parseJournal } from '../../src/journal/journal.js';
 import { journalPath } from '../../src/journal/state.js';
 import type { Receipt } from '../../src/receipts/receipts.js';
 import type { Worker } from '../../src/supervisor/state.js';
-import { effectsAt, recoverWorld, type Summary } from './world.js';
+import { effectsAt, recoverWorld, requestsAt, type Logged, type Summary } from './world.js';
 
 const bytes = (path: string) => (existsSync(path) ? readFileSync(path, 'utf8') : '');
 
 export interface PreCrash {
   receipts: Map<string, Receipt>;
   workers: Map<string, Worker>;
+  /** The client's own request log: what each command asked for, independent of the supervisor's records. */
+  requests: Logged[];
 }
 
 export function preCrash(root: string): PreCrash {
@@ -30,7 +32,7 @@ export function preCrash(root: string): PreCrash {
       workers.set(w.worker_id, w);
     }
   }
-  return { receipts, workers };
+  return { receipts, workers, requests: requestsAt(root) };
 }
 
 /** Extra per-PR checks over the pre-crash state and the recovered summary (fences, executions, bindings). */

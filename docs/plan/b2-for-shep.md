@@ -116,7 +116,7 @@ under a fence" means `no_effect` naming the uncertain command. After its dispatc
 | `receipts.get` | P1-2 | read; only receipts of workers in scope | — | allowed |
 | `attachments.status` | P1-16 | read | — | allowed |
 | `files.read` | P2-4 | read, sandboxed roots only | — | allowed |
-| `workers.create` | P1-4 | mutation | — (new worker); resume of a held session refused naming the holder | n/a |
+| `workers.create` | P1-4 | mutation | — (new worker); resume of a held session refused naming the holder | n/a for a new session; with `resume_session_id`, a fenced target is refused (`target_session_fenced`) and an `outcome_unknown` fences the target, held by the new worker, until `sessions.resolve_unknown` |
 | `sessions.prompt` | P1-5 (attachments P1-16) | session mutation | yes | refused |
 | `session.configure` | P1-14 | session mutation | yes | refused |
 | `sessions.new`, `sessions.rebind` | P1-7 | session mutation | yes | refused |

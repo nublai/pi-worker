@@ -1,0 +1,11 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -283,7 +283,6 @@
+     w.leaf_id = null;
+     live.sessionFile = resumeFile;
+     live.index = new SessionIndex(resumeFile);
+-    this.latch(live, c.command_id);
+   }
+ 
+   async stop(id: string, b: Binding): Promise<Receipt> {

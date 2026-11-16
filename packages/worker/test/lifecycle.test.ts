@@ -5,7 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -14,11 +14,15 @@ import { createApp } from '../src/b2/app.js';
 import { createB2Server, listenPrivate } from '../src/b2/server.js';
 import { Refusal } from '../src/b2/errors.js';
 import { SessionIndex } from '../src/history/session-index.js';
-import { LineHost } from '../src/host/host.js';
+import { LineHost, SdkHost } from '../src/host/host.js';
 import { procInfo } from '../src/host/process.js';
 import { parseJournal } from '../src/journal/journal.js';
-import type { Worker } from '../src/supervisor/state.js';
-import { bind, fixture } from './supervisor-fixture.js';
+import { openState } from '../src/journal/state.js';
+import { ReceiptStore } from '../src/receipts/receipts.js';
+import type { Live, Worker } from '../src/supervisor/state.js';
+import { Supervisor } from '../src/supervisor/supervisor.js';
+import { privateTmp } from './helpers.js';
+import { bind, fixture, Host } from './supervisor-fixture.js';
 
 const create = (cwd: string, command_id = 'create') => ({ command_id, cwd, provider: 'test', model: 'test', thinking: 'off' as const });
 const latestWorker = (file: string, id: string): Worker =>
@@ -282,6 +286,178 @@ test('lifecycle: a create whose resume fails after the open keeps its target fro
     assert.equal(f.hosts.length, 2);
   } finally {
     f.cleanup();
+  }
+});
+
+/** Stands in for P2's confirmed cleanup (group and every descendant observed gone). */
+function confirmCleanup(live: Live): void {
+  live.worker.status = 'stopped';
+  live.worker.cleanup = 'test_stand_in_for_confirmed_cleanup';
+  live.pid = null;
+}
+
+const fencedBy = (command: string) => (e: unknown) => e instanceof Refusal && e.message === 'target_session_fenced' && e.effect === 'no_effect' && e.uncertain_command_id === command;
+
+test('lifecycle: an outcome_unknown create-with-resume fences its target durably; only resolve_unknown lifts it, across restarts and after confirmed cleanup', async () => {
+  let failOpen = false;
+  const f = fixture({
+    initHost: h => {
+      const native = h.request.bind(h);
+      h.request = async c => {
+        const reply = await native(c);
+        return c.type === 'switch_session' && failOpen ? { ...reply, data: { cancelled: true } } : reply;
+      };
+      h.stopOk = !failOpen;
+    },
+  });
+  const dir = (name: string) => {
+    const cwd = join(f.dir, name);
+    mkdirSync(cwd);
+    return cwd;
+  };
+  try {
+    const a = await f.create();
+    const target = a.session_id!;
+    assert.equal((await f.supervisor.newSession(a.worker_id, bind(a, 'archive'))).state, 'delivered');
+    failOpen = true;
+    const failed = await f.supervisor.create({ ...create(dir('resume-fails'), 'resume-fails'), resume_session_id: target });
+    assert.deepEqual([failed.state, failed.effect], ['outcome_unknown', 'unknown']);
+    const id = failed.worker_id!;
+    const fence = { command_id: 'resume-fails', fence_generation: 1, uncertain_command_ids: ['resume-fails'] };
+    let row = f.supervisor.get(id);
+    assert.equal(row.session_id, target, 'the worker holds the target pi may have touched');
+    assert.deepEqual(row.fence, fence, 'the unknown create-with-resume fences its target, naming the create');
+    assert.deepEqual(latestWorker(f.journalFile, id).fence, fence, 'the fence is durable before the reply');
+
+    // Restarts keep it at the same generation; nothing relatches or releases it.
+    for (const n of [1, 2]) {
+      await f.restart();
+      assert.deepEqual(f.supervisor.get(id).fence, fence, `restart ${n}`);
+    }
+    // A durably confirmed cleanup, then another restart (a factory that can launch): the fence still holds.
+    const confirmed = f.supervisor.state.require(id);
+    confirmCleanup(confirmed);
+    f.supervisor.state.persist(confirmed, 'worker.recover');
+    failOpen = false;
+    const launched: Host[] = [];
+    await f.restart(() => {
+      const sid = `relaunched-${launched.length}`;
+      const file = join(f.dir, `${sid}.jsonl`);
+      writeFileSync(file, `${JSON.stringify({ type: 'session', id: sid, version: 3 })}\n`);
+      const host = new Host(f.dir, sid, file);
+      launched.push(host);
+      return host;
+    });
+    row = f.supervisor.get(id);
+    assert.deepEqual([row.status, row.cleanup, row.fence], ['stopped', 'test_stand_in_for_confirmed_cleanup', fence]);
+    await assert.rejects(
+      f.supervisor.create({ ...create(dir('resume-before-resolve'), 'resume-before-resolve'), resume_session_id: target }),
+      fencedBy('resume-fails'),
+      'confirmed cleanup alone does not release a fenced target',
+    );
+    assert.equal(launched.length, 0, 'the refused resume spawned nothing');
+    assert.equal(f.supervisor.receipts.all.has('resume-before-resolve'), false);
+
+    // sessions.resolve_unknown names the create and the generation; observed needs execution settlement evidence.
+    const resolve = (command_id: string, disposition: 'keep' | 'abandon' | 'observed', fence_generation = 1) =>
+      f.supervisor.resolveUnknown(id, { ...bind(row, command_id), uncertain_command_id: 'resume-fails', fence_generation, disposition });
+    await assert.rejects(resolve('resolve-wrong', 'abandon', 2), (e: unknown) => e instanceof Refusal && e.message === 'wrong_fence_generation' && e.effect === 'no_effect');
+    await assert.rejects(resolve('resolve-observed', 'observed'), (e: unknown) => e instanceof Refusal && e.message === 'execution_settlement_not_in_session_file_or_fsynced_record');
+    const resolved = await resolve('resolve-abandon', 'abandon');
+    assert.deepEqual([resolved.state, resolved.effect], ['delivered', 'observed'], JSON.stringify(resolved));
+    assert.equal(f.supervisor.get(id).fence, null);
+    assert.equal(f.supervisor.receipts.all.get('resume-fails')?.state, 'outcome_unknown', 'resolving never rewrites the unknown receipt');
+
+    // The resolution is durable: a restart does not relatch. Only now the target resumes and takes a prompt.
+    await f.restart(() => {
+      throw new Error('no launch during recovery');
+    });
+    assert.equal(f.supervisor.get(id).fence, null, 'a resolved create stays unfenced after a restart');
+    f.supervisor.state.require(id).worker.status = 'stopped'; // recovery keeps the confirmed stop
+    await f.restart(() => {
+      const sid = `relaunched-${launched.length}`;
+      const file = join(f.dir, `${sid}.jsonl`);
+      writeFileSync(file, `${JSON.stringify({ type: 'session', id: sid, version: 3 })}\n`);
+      const host = new Host(f.dir, sid, file);
+      launched.push(host);
+      return host;
+    });
+    const released = await f.supervisor.create({ ...create(dir('resume-after-resolve'), 'resume-after-resolve'), resume_session_id: target });
+    assert.equal(released.state, 'delivered', JSON.stringify(released));
+    const next = f.supervisor.get(released.worker_id!);
+    assert.equal(next.session_id, target);
+    assert.equal((await f.supervisor.prompt(next.worker_id, { ...bind(next, 'prompt-after-resolve'), message: 'x' })).state, 'delivered');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('lifecycle (real pi): a session_before_switch hook that ran and cancelled a create-with-resume leaves the target fenced until resolve_unknown', { timeout: 90_000 }, async () => {
+  const tmp = privateTmp();
+  const root = realpathSync(tmp.dir);
+  const cwd = join(root, 'workspace');
+  const state = join(root, 'state');
+  const agent = join(root, 'agent');
+  const home = join(root, 'home');
+  for (const d of [cwd, state, home, join(agent, 'extensions')]) mkdirSync(d, { recursive: true });
+  // pi runs session_before_switch before it opens the target: an observable effect, then a cancel (first time only).
+  writeFileSync(
+    join(agent, 'extensions', 'switch-effect.ts'),
+    `import {existsSync, writeFileSync} from 'node:fs';\nexport default pi => { pi.on('session_before_switch', e => { if (e.reason !== 'resume') return; const marker = e.targetSessionFile + '.switch-effect'; if (existsSync(marker)) return; writeFileSync(marker, 'hook-ran'); return { cancel: true }; }); };\n`,
+  );
+  const opened = openState(state);
+  const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home, PI_CODING_AGENT_DIR: agent };
+  const s = new Supervisor({
+    journal: opened.journal,
+    receipts: new ReceiptStore(opened.journal),
+    supervisorEpoch: opened.supervisorEpoch,
+    stateDir: state,
+    factory: launch =>
+      new SdkHost(
+        { cwd: launch.cwd, sessionDir: launch.sessionDir, provider: launch.create.provider, model: launch.create.model, thinking: launch.create.thinking, projectTrusted: false },
+        { env },
+      ),
+  });
+  const pi = (command_id: string, at: string, resume_session_id?: string) => {
+    const dirPath = join(root, at);
+    mkdirSync(dirPath, { recursive: true });
+    return s.create({ command_id, cwd: dirPath, provider: 'anthropic', model: 'claude-sonnet-4-5', thinking: 'off', ...(resume_session_id ? { resume_session_id } : {}) });
+  };
+  try {
+    const created = await pi('create', 'workspace');
+    assert.equal(created.state, 'delivered', JSON.stringify(created));
+    const a = s.get(created.worker_id!);
+    const target = a.session_id!;
+    assert.equal((await s.newSession(a.worker_id, bind(a, 'archive'))).state, 'delivered');
+    const targetFile = s.state.sessionFiles.get(target)!.file;
+
+    const failed = await pi('resume-fails', 'resume-fails', target);
+    assert.equal(existsSync(`${targetFile}.switch-effect`), true, 'the switch hook ran: an effect happened before pi cancelled');
+    assert.deepEqual([failed.state, failed.effect, failed.error], ['outcome_unknown', 'unknown', 'resume_session_open_failed'], JSON.stringify(failed));
+    const id = failed.worker_id!;
+    const fence = { command_id: 'resume-fails', fence_generation: 1, uncertain_command_ids: ['resume-fails'] };
+    let row = s.get(id);
+    assert.equal(row.session_id, target);
+    assert.deepEqual(row.fence, fence, 'the unknown create-with-resume fences its target');
+    assert.deepEqual(latestWorker(opened.journal.file, id).fence, fence, 'durable');
+
+    // Cleanup confirmed (stand-in for P2's proof): the fence alone still refuses the target, naming the create.
+    confirmCleanup(s.state.require(id));
+    await assert.rejects(pi('resume-before-resolve', 'resume-before-resolve', target), fencedBy('resume-fails'));
+    assert.equal(s.receipts.all.has('resume-before-resolve'), false);
+
+    row = s.get(id);
+    const resolved = await s.resolveUnknown(id, { ...bind(row, 'resolve-keep'), uncertain_command_id: 'resume-fails', fence_generation: 1, disposition: 'keep' });
+    assert.deepEqual([resolved.state, resolved.effect], ['delivered', 'observed'], JSON.stringify(resolved));
+    assert.equal(s.get(id).fence, null);
+    // Every resume gate now passes. pi writes a session file only once it holds a conversation, so this unseeded
+    // target cannot be reopened under its id; the delivered resume and its prompt are covered on the deterministic
+    // host above.
+    assert.equal(s.state.resumable(target, ''), targetFile);
+  } finally {
+    await s.shutdown();
+    opened.close();
+    tmp.cleanup();
   }
 });
 
