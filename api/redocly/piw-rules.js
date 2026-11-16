@@ -87,23 +87,95 @@ function ErrorResponses() {
   };
 }
 
-/** Every operation declares boolean `x-piw-mutation`; a mutation's JSON body requires `command_id`. */
+/**
+ * Every operation declares boolean `x-piw-mutation`; a mutation's JSON body requires `command_id`, and a mutation
+ * with a binary body requires the `Piw-Command-Id` header instead.
+ */
 function MutationCommandId() {
   return {
     Root: {
       leave(root, ctx) {
-        for (const { operation, at } of operations(root)) {
+        for (const { path, operation, at } of operations(root)) {
           const flag = operation['x-piw-mutation'];
           if (typeof flag !== 'boolean') {
             report(ctx, 'operation must declare boolean x-piw-mutation', at);
             continue;
           }
           if (!flag) continue;
+          if (operation['x-piw-body'] === 'binary') {
+            const params = [...(root.paths[path].parameters ?? []), ...(operation.parameters ?? [])].map(p => resolve(root, p));
+            if (!params.some(p => p?.in === 'header' && p.name === 'Piw-Command-Id' && p.required === true)) {
+              report(ctx, 'a binary mutation needs a required Piw-Command-Id header', at);
+            }
+            continue;
+          }
           const body = resolve(root, operation.requestBody);
           const schema = resolve(root, body?.content?.['application/json']?.schema);
           const required = Array.isArray(schema?.required) ? schema.required : [];
           if (body?.required !== true || !required.includes('command_id') || !schema?.properties?.command_id) {
             report(ctx, 'a mutation needs a required application/json body whose schema requires command_id', at);
+          }
+        }
+      },
+    },
+  };
+}
+
+const BODY_MODES = ['json', 'binary', 'none'];
+const RESPONSE_MODES = { json: t => t === 'application/json', sse: t => t === 'text/event-stream', ndjson: t => t === 'application/x-ndjson', binary: t => t !== 'application/json' && t !== 'text/event-stream' };
+const positiveInt = v => Number.isInteger(v) && v > 0;
+
+/** The problem with an operation's body mode, or null. */
+function bodyModeProblem(root, operation, jsonCap) {
+  const mode = operation['x-piw-body'];
+  const body = resolve(root, operation.requestBody);
+  const types = Object.keys(body?.content ?? {});
+  const max = operation['x-piw-max-bytes'];
+  if (!BODY_MODES.includes(mode)) return `x-piw-body must be one of ${BODY_MODES.join(', ')}`;
+  if (mode === 'none') return body || max !== undefined ? 'x-piw-body none with a request body or x-piw-max-bytes' : null;
+  if (mode === 'json') {
+    if (types.length !== 1 || types[0] !== 'application/json') return 'x-piw-body json needs exactly an application/json request body';
+    if (max !== undefined && (!positiveInt(max) || max > jsonCap)) {
+      return 'a JSON x-piw-max-bytes must be a positive integer no larger than x-piw-json-max-bytes';
+    }
+    return null;
+  }
+  if (types.length === 0 || types.includes('application/json')) return 'x-piw-body binary needs a request body of non-JSON media types';
+  return positiveInt(max) ? null : 'a binary body must declare a positive integer x-piw-max-bytes';
+}
+
+/** The problem with a success response's mode, or null. */
+function responseModeProblem(response, status) {
+  const mode = response?.['x-piw-response'];
+  const types = Object.keys(response?.content ?? {});
+  if (!Object.hasOwn(RESPONSE_MODES, mode)) return `response ${status} must declare x-piw-response (${Object.keys(RESPONSE_MODES).join(', ')})`;
+  if (types.length !== 1 || !RESPONSE_MODES[mode](types[0])) return `response ${status}: x-piw-response ${mode} does not match its content type`;
+  if (mode === 'sse' && !positiveInt(response['x-piw-max-frame-bytes'])) {
+    return `response ${status}: an sse response must declare a positive integer x-piw-max-frame-bytes`;
+  }
+  return null;
+}
+
+/**
+ * Body and response modes (plan section 4.2). `info.x-piw-json-max-bytes` is the JSON body cap. Every operation
+ * declares `x-piw-body`: `json` has exactly an `application/json` body and may declare a smaller
+ * `x-piw-max-bytes`; `binary` has a body of non-JSON media types only and must declare `x-piw-max-bytes`; `none` has
+ * no body. Every 2xx response declares `x-piw-response` matching its one content type, and an `sse` response
+ * declares `x-piw-max-frame-bytes`.
+ */
+function BodyAndResponseModes() {
+  return {
+    Root: {
+      leave(root, ctx) {
+        const jsonCap = root.info?.['x-piw-json-max-bytes'];
+        if (!positiveInt(jsonCap)) report(ctx, 'info must declare a positive integer x-piw-json-max-bytes', ['info']);
+        for (const { operation, at } of operations(root)) {
+          const problem = bodyModeProblem(root, operation, jsonCap);
+          if (problem) report(ctx, problem, at);
+          for (const [status, raw] of Object.entries(operation.responses ?? {})) {
+            if (!/^2/.test(status)) continue;
+            const responseProblem = responseModeProblem(resolve(root, raw), status);
+            if (responseProblem) report(ctx, responseProblem, [...at, 'responses', status]);
           }
         }
       },
@@ -194,6 +266,7 @@ export default function piwPlugin() {
         'mutation-command-id': MutationCommandId,
         'unsupported-declares-501': UnsupportedDeclares501,
         'event-manifest': EventManifest,
+        'body-and-response-modes': BodyAndResponseModes,
       },
     },
   };

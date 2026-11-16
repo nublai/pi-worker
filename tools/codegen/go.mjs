@@ -50,10 +50,11 @@ function queryEncoder(op) {
 
 export function goOps(spec, ops, eventInfo) {
   const table = ops
-    .map(op => `\t${'Op' + goName(op.operationId)} = Operation{ID: ${JSON.stringify(op.operationId)}, Method: ${JSON.stringify(op.method)}, Path: ${JSON.stringify(op.path)}, Mutation: ${op.mutation}, Stream: ${op.stream}}`)
+    .map(op => `\t${'Op' + goName(op.operationId)} = Operation{ID: ${JSON.stringify(op.operationId)}, Method: ${JSON.stringify(op.method)}, Path: ${JSON.stringify(op.path)}, Mutation: ${op.mutation}, Stream: ${op.stream}, Body: ${JSON.stringify(op.bodyMode)}, MediaTypes: []string{${op.mediaTypes.map(t => JSON.stringify(t)).join(', ')}}, MaxBodyBytes: ${op.maxBodyBytes}, Response: ${JSON.stringify(op.responseMode)}, MaxFrameBytes: ${op.maxFrameBytes ?? 0}}`)
     .join('\n');
   const wrappers = ops
-    .filter(op => !op.stream && !HANDWRITTEN.has(op.operationId))
+    // SSE (Watch) and binary uploads (streamed, P1-16) are hand-written.
+    .filter(op => !op.stream && op.bodyMode !== 'binary' && !HANDWRITTEN.has(op.operationId))
     .map(op => {
       const name = goName(op.operationId);
       const ok = op.responses.find(r => r.status === '200');
@@ -110,6 +111,15 @@ type Operation struct {
 \tPath     string
 \tMutation bool
 \tStream   bool
+\t// Body is x-piw-body: "json", "binary" (streamed, MediaTypes only) or "none".
+\tBody       string
+\tMediaTypes []string
+\t// MaxBodyBytes is the most request body bytes the worker accepts (413 beyond).
+\tMaxBodyBytes int64
+\t// Response is x-piw-response of the 200 response: "json" or "sse".
+\tResponse string
+\t// MaxFrameBytes is, for an sse response, the most bytes one record may carry.
+\tMaxFrameBytes int
 }
 
 var (

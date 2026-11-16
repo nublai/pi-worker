@@ -38,8 +38,16 @@ function scalarKind(spec, schema) {
   return types[0];
 }
 
+/** The JSON request body cap every `json` operation gets unless it declares less. */
+export function jsonBodyLimit(spec) {
+  const cap = spec.info?.['x-piw-json-max-bytes'];
+  if (!Number.isInteger(cap) || cap <= 0) throw new Error('info.x-piw-json-max-bytes must be a positive integer');
+  return cap;
+}
+
 /** Operations in path order, with parameters, body and responses resolved to what generators need. */
 export function operations(spec) {
+  const jsonCap = jsonBodyLimit(spec);
   const ops = [];
   for (const [path, item] of Object.entries(spec.paths)) {
     for (const method of HTTP_METHODS) {
@@ -48,15 +56,42 @@ export function operations(spec) {
       const params = [...(item.parameters ?? []), ...(op.parameters ?? [])].map(p => deref(spec, p));
       const parameter = p => ({ name: p.name, in: p.in, required: p.required === true, kind: scalarKind(spec, p.schema), schema: p.schema });
       const body = op.requestBody ? deref(spec, op.requestBody) : null;
-      const bodySchema = body?.content?.['application/json']?.schema ?? null;
-      if (body && !bodySchema) throw new Error(`${op.operationId}: request body must be application/json`);
+      const bodyMode = op['x-piw-body'];
+      const mediaTypes = Object.keys(body?.content ?? {});
+      let bodySchema = null;
+      let maxBodyBytes;
+      if (bodyMode === 'json') {
+        bodySchema = body?.content?.['application/json']?.schema ?? null;
+        if (!bodySchema || mediaTypes.length !== 1) throw new Error(`${op.operationId}: a json body is application/json with a schema`);
+        maxBodyBytes = op['x-piw-max-bytes'] ?? jsonCap;
+      } else if (bodyMode === 'binary') {
+        if (!mediaTypes.length || mediaTypes.includes('application/json')) throw new Error(`${op.operationId}: a binary body needs non-JSON media types`);
+        maxBodyBytes = op['x-piw-max-bytes'];
+      } else if (bodyMode === 'none') {
+        if (body) throw new Error(`${op.operationId}: x-piw-body none with a request body`);
+        maxBodyBytes = 0;
+      } else {
+        throw new Error(`${op.operationId}: x-piw-body must be json, binary or none`);
+      }
+      if (!Number.isInteger(maxBodyBytes) || maxBodyBytes < 0) throw new Error(`${op.operationId}: bad x-piw-max-bytes`);
       const responses = Object.entries(op.responses).map(([status, raw]) => {
         const response = deref(spec, raw);
         const entries = Object.entries(response.content ?? {});
         if (entries.length !== 1) throw new Error(`${op.operationId} ${status}: exactly one content type expected`);
         const [contentType, media] = entries[0];
-        return { status, contentType, schema: media.schema };
+        // Error responses are JSON (piw/error-responses); a success response declares its mode.
+        const mode = /^2/.test(status) ? response['x-piw-response'] : 'json';
+        if (mode === 'ndjson' || mode === 'binary') {
+          // Header-schema validators for these modes land with the first operation that uses one (plan 4.2).
+          throw new Error(`${op.operationId} ${status}: x-piw-response ${mode} is not supported by the generator yet`);
+        }
+        if (mode !== 'json' && mode !== 'sse') throw new Error(`${op.operationId} ${status}: x-piw-response must be declared`);
+        const maxFrameBytes = mode === 'sse' ? response['x-piw-max-frame-bytes'] : null;
+        if (mode === 'sse' && !(Number.isInteger(maxFrameBytes) && maxFrameBytes > 0)) throw new Error(`${op.operationId}: sse needs x-piw-max-frame-bytes`);
+        return { status, contentType, schema: media.schema, mode, maxFrameBytes };
       });
+      const ok = responses.find(r => r.status === '200');
+      if (!ok) throw new Error(`${op.operationId}: no 200 response`);
       ops.push({
         operationId: op.operationId,
         key: ident(op.operationId),
@@ -66,9 +101,14 @@ export function operations(spec) {
         mutation: op['x-piw-mutation'] === true,
         supported: op['x-piw-status'] !== 'unsupported',
         params: params.map(parameter),
+        bodyMode,
+        mediaTypes,
+        maxBodyBytes,
         body: bodySchema,
         responses,
-        stream: responses.some(r => r.contentType === 'text/event-stream'),
+        responseMode: ok.mode,
+        maxFrameBytes: ok.maxFrameBytes,
+        stream: ok.mode === 'sse',
       });
     }
   }

@@ -343,6 +343,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/b2/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attachment_id: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Stage one image for a later prompt (streamed binary upload)
+         * @description The body is the image bytes, streamed; it never goes through the JSON path. The worker counts bytes as
+         *     they arrive and refuses a body over `x-piw-max-bytes` (`hello.limits.attachment_max_bytes`) with `413`.
+         *     The command and binding travel in headers. After the last byte the SHA-256 must equal
+         *     `Piw-Content-Sha256` and the magic bytes must match the content type. A failure after the request bytes
+         *     are written is `effect: unknown`: read the receipt, never re-upload blindly. Served from P1-16.
+         */
+        put: operations["attachments.stage"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/b2/receipts/{command_id}": {
         parameters: {
             query?: never;
@@ -433,7 +459,16 @@ export interface components {
             named_limits: string[];
         };
         Limits: {
+            /** @description The JSON request body cap (`x-piw-json-max-bytes`). */
             request_body_bytes: number;
+            /** @description The most bytes one `attachments.stage` body may carry. */
+            attachment_max_bytes: number;
+            /** @description The most attachments one `sessions.prompt` may reference. */
+            attachments_per_message: number;
+            /** @description The most attachment bytes one `sessions.prompt` may reference. */
+            attachments_total_bytes: number;
+            /** @description The most bytes one `events.subscribe` SSE record may carry. */
+            event_frame_bytes: number;
         };
         Binding: {
             command_id: components["schemas"]["Id"];
@@ -711,7 +746,7 @@ export interface components {
         Receipt: {
             command_id: components["schemas"]["Id"];
             /** @enum {string} */
-            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.follow_up" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release";
+            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.follow_up" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release" | "attachments.stage";
             request_hash: string;
             /** @enum {string} */
             state: "intent" | "intent_recovered" | "accepted" | "delivered" | "rejected" | "outcome_unknown" | "queued" | "queue_ready" | "intent_ready";
@@ -942,7 +977,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Request body is not `application/json`; nothing began. */
+        /** @description Request body media type is not one the operation declares; nothing began. */
         UnsupportedMediaType: {
             headers: {
                 [name: string]: unknown;
@@ -1454,6 +1489,41 @@ export interface operations {
                     "application/json": components["schemas"]["FileContent"];
                 };
             };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            413: components["responses"]["TooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["Unknown"];
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    "attachments.stage": {
+        parameters: {
+            query?: never;
+            header: {
+                "Piw-Command-Id": components["schemas"]["Id"];
+                "Piw-Worker-Id": components["schemas"]["Id"];
+                "Piw-Worker-Epoch": components["schemas"]["Id"];
+                "Piw-Session-Id": components["schemas"]["Id"];
+                "Piw-Binding-Revision": number;
+                /** @description Lower-case hex SHA-256 of the body. */
+                "Piw-Content-Sha256": string;
+            };
+            path: {
+                attachment_id: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description The image bytes. */
+        requestBody: {
+            content: {
+                "image/jpeg": unknown;
+                "image/png": unknown;
+                "image/webp": unknown;
+            };
+        };
+        responses: {
+            200: components["responses"]["Receipt"];
             400: components["responses"]["BadRequest"];
             409: components["responses"]["Refused"];
             413: components["responses"]["TooLarge"];

@@ -6,10 +6,11 @@ import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { events, loadSpec, operations } from './spec.mjs';
+import { events, jsonBodyLimit, loadSpec, operations } from './spec.mjs';
 import { clientRouteTable, eventTable, routeTable } from './tables.mjs';
 import { generateValidators } from './validators.mjs';
 import { goOps } from './go.mjs';
+import { checkPins } from './pins.mjs';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -28,6 +29,9 @@ function write(file, content) {
   writeFileSync(file, content);
   console.log(`wrote ${file.slice(root.length)}`);
 }
+
+// 0. Exact pins: every npm dependency, and the installed generators equal their pins.
+checkPins(root);
 
 // 1. Bundle (Redocly). Lint runs separately in `npm run api:lint`.
 run(process.execPath, [require.resolve('@redocly/cli/bin/cli.js'), 'bundle', '--config', 'api/redocly.yaml', 'b2'], {
@@ -51,7 +55,7 @@ write(join(workerOut, 'validators.js'), validators.js);
 write(join(workerOut, 'validators.d.ts'), validators.dts);
 
 // 4. Route table and event manifest with publishers.
-write(join(workerOut, 'routes.ts'), routeTable(ops));
+write(join(workerOut, 'routes.ts'), routeTable(ops, jsonBodyLimit(spec)));
 write(join(workerOut, 'events.ts'), eventTable(eventInfo));
 write(join(clientOut, 'routes.ts'), clientRouteTable(ops));
 

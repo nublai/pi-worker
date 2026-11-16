@@ -14,9 +14,9 @@ import (
 	"sync/atomic"
 )
 
-// frameLimit caps one SSE record: the bytes of its field lines, each counted with one line-ending byte. The worker
-// never sends more (api/b2.openapi.yaml, events.subscribe); a longer record is refused, never truncated.
-const frameLimit = 1 << 20
+// frameLimit caps one SSE record: the bytes of its field lines, each counted with one line-ending byte. It is the
+// spec's x-piw-max-frame-bytes for events.subscribe; a longer record is refused, never truncated.
+var frameLimit = OpEventsSubscribe.MaxFrameBytes
 
 // Frame is one SSE record from the events stream.
 type Frame struct {

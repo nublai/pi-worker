@@ -23,6 +23,7 @@ rules:
   piw/mutation-command-id: error
   piw/unsupported-declares-501: error
   piw/event-manifest: error
+  piw/body-and-response-modes: error
   piw/operation-id-is-method:
     severity: error
     # Contract revision 8 method names: section 4 and section 8.1, plus the methods the frozen section 0.1

@@ -6,30 +6,40 @@ export interface ClientRoute {
   /** x-piw-mutation: never retried; a failure after the request bytes are written is effect unknown. */
   readonly mutation: boolean;
   readonly stream: boolean;
+  /** x-piw-body: json, binary (streamed, the declared media types) or none. */
+  readonly body: 'json' | 'binary' | 'none';
+  readonly mediaTypes: readonly string[];
+  /** The worker refuses a larger body with 413. */
+  readonly maxBodyBytes: number;
+  /** x-piw-response of the 200 response. */
+  readonly responseMode: 'json' | 'sse';
+  /** For an sse response, the most bytes one record may carry; a longer record is refused, never truncated. */
+  readonly maxFrameBytes: number | null;
 }
 
 export const routes = {
-  "hello": { method: "GET", path: "/b2/hello", mutation: false, stream: false },
-  "workers.list": { method: "GET", path: "/b2/workers", mutation: false, stream: false },
-  "workers.create": { method: "POST", path: "/b2/workers", mutation: true, stream: false },
-  "workers.get": { method: "GET", path: "/b2/workers/{worker_id}", mutation: false, stream: false },
-  "sessions.prompt": { method: "POST", path: "/b2/workers/{worker_id}/prompt", mutation: true, stream: false },
-  "sessions.follow_up": { method: "POST", path: "/b2/workers/{worker_id}/follow_up", mutation: true, stream: false },
-  "sessions.rebind": { method: "POST", path: "/b2/workers/{worker_id}/rebind", mutation: true, stream: false },
-  "sessions.resolve_unknown": { method: "POST", path: "/b2/workers/{worker_id}/resolve_unknown", mutation: true, stream: false },
-  "workers.stop": { method: "POST", path: "/b2/workers/{worker_id}/stop", mutation: true, stream: false },
-  "workers.relaunch": { method: "POST", path: "/b2/workers/{worker_id}/relaunch", mutation: true, stream: false },
-  "executions.cancel": { method: "POST", path: "/b2/workers/{worker_id}/cancel", mutation: true, stream: false },
-  "executions.interrupt": { method: "POST", path: "/b2/workers/{worker_id}/interrupt", mutation: true, stream: false },
-  "children.launch": { method: "POST", path: "/b2/workers/{worker_id}/children", mutation: true, stream: false },
-  "children.report": { method: "POST", path: "/b2/workers/{worker_id}/report", mutation: true, stream: false },
-  "interactions.list": { method: "GET", path: "/b2/workers/{worker_id}/interactions", mutation: false, stream: false },
-  "interactions.status": { method: "GET", path: "/b2/workers/{worker_id}/interactions/status", mutation: false, stream: false },
-  "interactions.answer_if_current": { method: "POST", path: "/b2/workers/{worker_id}/interactions/answer", mutation: true, stream: false },
-  "history.page": { method: "GET", path: "/b2/workers/{worker_id}/history", mutation: false, stream: false },
-  "files.read": { method: "POST", path: "/b2/workers/{worker_id}/files/read", mutation: false, stream: false },
-  "receipts.get": { method: "GET", path: "/b2/receipts/{command_id}", mutation: false, stream: false },
-  "events.subscribe": { method: "GET", path: "/b2/events", mutation: false, stream: true },
+  "hello": { method: "GET", path: "/b2/hello", mutation: false, stream: false, body: "none", mediaTypes: [], maxBodyBytes: 0, responseMode: "json", maxFrameBytes: null },
+  "workers.list": { method: "GET", path: "/b2/workers", mutation: false, stream: false, body: "none", mediaTypes: [], maxBodyBytes: 0, responseMode: "json", maxFrameBytes: null },
+  "workers.create": { method: "POST", path: "/b2/workers", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "workers.get": { method: "GET", path: "/b2/workers/{worker_id}", mutation: false, stream: false, body: "none", mediaTypes: [], maxBodyBytes: 0, responseMode: "json", maxFrameBytes: null },
+  "sessions.prompt": { method: "POST", path: "/b2/workers/{worker_id}/prompt", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "sessions.follow_up": { method: "POST", path: "/b2/workers/{worker_id}/follow_up", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "sessions.rebind": { method: "POST", path: "/b2/workers/{worker_id}/rebind", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "sessions.resolve_unknown": { method: "POST", path: "/b2/workers/{worker_id}/resolve_unknown", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "workers.stop": { method: "POST", path: "/b2/workers/{worker_id}/stop", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "workers.relaunch": { method: "POST", path: "/b2/workers/{worker_id}/relaunch", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "executions.cancel": { method: "POST", path: "/b2/workers/{worker_id}/cancel", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "executions.interrupt": { method: "POST", path: "/b2/workers/{worker_id}/interrupt", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "children.launch": { method: "POST", path: "/b2/workers/{worker_id}/children", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "children.report": { method: "POST", path: "/b2/workers/{worker_id}/report", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "interactions.list": { method: "GET", path: "/b2/workers/{worker_id}/interactions", mutation: false, stream: false, body: "none", mediaTypes: [], maxBodyBytes: 0, responseMode: "json", maxFrameBytes: null },
+  "interactions.status": { method: "GET", path: "/b2/workers/{worker_id}/interactions/status", mutation: false, stream: false, body: "none", mediaTypes: [], maxBodyBytes: 0, responseMode: "json", maxFrameBytes: null },
+  "interactions.answer_if_current": { method: "POST", path: "/b2/workers/{worker_id}/interactions/answer", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "history.page": { method: "GET", path: "/b2/workers/{worker_id}/history", mutation: false, stream: false, body: "none", mediaTypes: [], maxBodyBytes: 0, responseMode: "json", maxFrameBytes: null },
+  "files.read": { method: "POST", path: "/b2/workers/{worker_id}/files/read", mutation: false, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
+  "attachments.stage": { method: "PUT", path: "/b2/attachments/{attachment_id}", mutation: true, stream: false, body: "binary", mediaTypes: ["image/jpeg","image/png","image/webp"], maxBodyBytes: 2097152, responseMode: "json", maxFrameBytes: null },
+  "receipts.get": { method: "GET", path: "/b2/receipts/{command_id}", mutation: false, stream: false, body: "none", mediaTypes: [], maxBodyBytes: 0, responseMode: "json", maxFrameBytes: null },
+  "events.subscribe": { method: "GET", path: "/b2/events", mutation: false, stream: true, body: "none", mediaTypes: [], maxBodyBytes: 0, responseMode: "sse", maxFrameBytes: 1048576 },
 } as const satisfies Record<string, ClientRoute>;
 
 export type OperationId = keyof typeof routes;

@@ -15,30 +15,40 @@ type Operation struct {
 	Path     string
 	Mutation bool
 	Stream   bool
+	// Body is x-piw-body: "json", "binary" (streamed, MediaTypes only) or "none".
+	Body       string
+	MediaTypes []string
+	// MaxBodyBytes is the most request body bytes the worker accepts (413 beyond).
+	MaxBodyBytes int64
+	// Response is x-piw-response of the 200 response: "json" or "sse".
+	Response string
+	// MaxFrameBytes is, for an sse response, the most bytes one record may carry.
+	MaxFrameBytes int
 }
 
 var (
-	OpHello                       = Operation{ID: "hello", Method: "GET", Path: "/b2/hello", Mutation: false, Stream: false}
-	OpWorkersList                 = Operation{ID: "workers.list", Method: "GET", Path: "/b2/workers", Mutation: false, Stream: false}
-	OpWorkersCreate               = Operation{ID: "workers.create", Method: "POST", Path: "/b2/workers", Mutation: true, Stream: false}
-	OpWorkersGet                  = Operation{ID: "workers.get", Method: "GET", Path: "/b2/workers/{worker_id}", Mutation: false, Stream: false}
-	OpSessionsPrompt              = Operation{ID: "sessions.prompt", Method: "POST", Path: "/b2/workers/{worker_id}/prompt", Mutation: true, Stream: false}
-	OpSessionsFollowUp            = Operation{ID: "sessions.follow_up", Method: "POST", Path: "/b2/workers/{worker_id}/follow_up", Mutation: true, Stream: false}
-	OpSessionsRebind              = Operation{ID: "sessions.rebind", Method: "POST", Path: "/b2/workers/{worker_id}/rebind", Mutation: true, Stream: false}
-	OpSessionsResolveUnknown      = Operation{ID: "sessions.resolve_unknown", Method: "POST", Path: "/b2/workers/{worker_id}/resolve_unknown", Mutation: true, Stream: false}
-	OpWorkersStop                 = Operation{ID: "workers.stop", Method: "POST", Path: "/b2/workers/{worker_id}/stop", Mutation: true, Stream: false}
-	OpWorkersRelaunch             = Operation{ID: "workers.relaunch", Method: "POST", Path: "/b2/workers/{worker_id}/relaunch", Mutation: true, Stream: false}
-	OpExecutionsCancel            = Operation{ID: "executions.cancel", Method: "POST", Path: "/b2/workers/{worker_id}/cancel", Mutation: true, Stream: false}
-	OpExecutionsInterrupt         = Operation{ID: "executions.interrupt", Method: "POST", Path: "/b2/workers/{worker_id}/interrupt", Mutation: true, Stream: false}
-	OpChildrenLaunch              = Operation{ID: "children.launch", Method: "POST", Path: "/b2/workers/{worker_id}/children", Mutation: true, Stream: false}
-	OpChildrenReport              = Operation{ID: "children.report", Method: "POST", Path: "/b2/workers/{worker_id}/report", Mutation: true, Stream: false}
-	OpInteractionsList            = Operation{ID: "interactions.list", Method: "GET", Path: "/b2/workers/{worker_id}/interactions", Mutation: false, Stream: false}
-	OpInteractionsStatus          = Operation{ID: "interactions.status", Method: "GET", Path: "/b2/workers/{worker_id}/interactions/status", Mutation: false, Stream: false}
-	OpInteractionsAnswerIfCurrent = Operation{ID: "interactions.answer_if_current", Method: "POST", Path: "/b2/workers/{worker_id}/interactions/answer", Mutation: true, Stream: false}
-	OpHistoryPage                 = Operation{ID: "history.page", Method: "GET", Path: "/b2/workers/{worker_id}/history", Mutation: false, Stream: false}
-	OpFilesRead                   = Operation{ID: "files.read", Method: "POST", Path: "/b2/workers/{worker_id}/files/read", Mutation: false, Stream: false}
-	OpReceiptsGet                 = Operation{ID: "receipts.get", Method: "GET", Path: "/b2/receipts/{command_id}", Mutation: false, Stream: false}
-	OpEventsSubscribe             = Operation{ID: "events.subscribe", Method: "GET", Path: "/b2/events", Mutation: false, Stream: true}
+	OpHello                       = Operation{ID: "hello", Method: "GET", Path: "/b2/hello", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpWorkersList                 = Operation{ID: "workers.list", Method: "GET", Path: "/b2/workers", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpWorkersCreate               = Operation{ID: "workers.create", Method: "POST", Path: "/b2/workers", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpWorkersGet                  = Operation{ID: "workers.get", Method: "GET", Path: "/b2/workers/{worker_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpSessionsPrompt              = Operation{ID: "sessions.prompt", Method: "POST", Path: "/b2/workers/{worker_id}/prompt", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpSessionsFollowUp            = Operation{ID: "sessions.follow_up", Method: "POST", Path: "/b2/workers/{worker_id}/follow_up", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpSessionsRebind              = Operation{ID: "sessions.rebind", Method: "POST", Path: "/b2/workers/{worker_id}/rebind", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpSessionsResolveUnknown      = Operation{ID: "sessions.resolve_unknown", Method: "POST", Path: "/b2/workers/{worker_id}/resolve_unknown", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpWorkersStop                 = Operation{ID: "workers.stop", Method: "POST", Path: "/b2/workers/{worker_id}/stop", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpWorkersRelaunch             = Operation{ID: "workers.relaunch", Method: "POST", Path: "/b2/workers/{worker_id}/relaunch", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpExecutionsCancel            = Operation{ID: "executions.cancel", Method: "POST", Path: "/b2/workers/{worker_id}/cancel", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpExecutionsInterrupt         = Operation{ID: "executions.interrupt", Method: "POST", Path: "/b2/workers/{worker_id}/interrupt", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpChildrenLaunch              = Operation{ID: "children.launch", Method: "POST", Path: "/b2/workers/{worker_id}/children", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpChildrenReport              = Operation{ID: "children.report", Method: "POST", Path: "/b2/workers/{worker_id}/report", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpInteractionsList            = Operation{ID: "interactions.list", Method: "GET", Path: "/b2/workers/{worker_id}/interactions", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpInteractionsStatus          = Operation{ID: "interactions.status", Method: "GET", Path: "/b2/workers/{worker_id}/interactions/status", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpInteractionsAnswerIfCurrent = Operation{ID: "interactions.answer_if_current", Method: "POST", Path: "/b2/workers/{worker_id}/interactions/answer", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpHistoryPage                 = Operation{ID: "history.page", Method: "GET", Path: "/b2/workers/{worker_id}/history", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpFilesRead                   = Operation{ID: "files.read", Method: "POST", Path: "/b2/workers/{worker_id}/files/read", Mutation: false, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpAttachmentsStage            = Operation{ID: "attachments.stage", Method: "PUT", Path: "/b2/attachments/{attachment_id}", Mutation: true, Stream: false, Body: "binary", MediaTypes: []string{"image/jpeg", "image/png", "image/webp"}, MaxBodyBytes: 2097152, Response: "json", MaxFrameBytes: 0}
+	OpReceiptsGet                 = Operation{ID: "receipts.get", Method: "GET", Path: "/b2/receipts/{command_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpEventsSubscribe             = Operation{ID: "events.subscribe", Method: "GET", Path: "/b2/events", Mutation: false, Stream: true, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "sse", MaxFrameBytes: 1048576}
 )
 
 // Operations lists every operation in spec order.
@@ -62,6 +72,7 @@ var Operations = []Operation{
 	OpInteractionsAnswerIfCurrent,
 	OpHistoryPage,
 	OpFilesRead,
+	OpAttachmentsStage,
 	OpReceiptsGet,
 	OpEventsSubscribe,
 }

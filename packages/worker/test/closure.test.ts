@@ -9,14 +9,18 @@ import type { Handlers } from '../src/b2/types.js';
 import { routes, type Route } from '../src/generated/routes.js';
 import { validateEventFrame } from '../src/generated/events.js';
 import { error as validateError } from '../src/generated/validators.js';
-import { specOperationIds, urlFor, wireFixtures, type WireFixture } from './helpers.js';
+import { bundledSpec, specOperationIds, urlFor, wireFixtures, type WireFixture } from './helpers.js';
 
 const table: Record<string, Route> = routes;
 const binding = { command_id: 'cmd-1', worker_epoch: 'epoch-1', session_id: 'session-1', binding_revision: 1 };
 
 function send(handle: RequestHandler, operationId: string, request: WireFixture['request']) {
   const route = table[operationId]!;
-  return createMemoryTransport(handle).request(route.method, urlFor(route.path, request), request.body === undefined ? {} : { json: request.body });
+  const init =
+    request.bodyBase64 !== undefined
+      ? { raw: Buffer.from(request.bodyBase64, 'base64'), headers: request.headers ?? {} }
+      : { headers: request.headers ?? {}, ...(request.body === undefined ? {} : { json: request.body }) };
+  return createMemoryTransport(handle).request(route.method, urlFor(route.path, request), init);
 }
 
 /** A route table where sessions.prompt is served, to exercise mutation rules before any mutation is built. */
@@ -55,15 +59,25 @@ test('closure: every wire fixture validates (parameters, body, response or SSE f
   for (const { operationId, name, fixture } of wireFixtures()) {
     const route = table[operationId]!;
     const label = `${operationId}/${name}`;
-    const params = { path: {} as Record<string, unknown>, query: {} as Record<string, unknown>, header: {} };
+    const params = { path: {} as Record<string, unknown>, query: {} as Record<string, unknown>, header: {} as Record<string, unknown> };
+    const headers = Object.fromEntries(Object.entries(fixture.request.headers ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
     for (const p of route.params) {
-      const raw = p.in === 'path' ? fixture.request.path?.[p.name] : p.in === 'query' ? fixture.request.query?.[p.name] : undefined;
+      if (p.in === 'header') {
+        const raw = headers[p.name.toLowerCase()];
+        if (raw !== undefined) params.header[p.name.toLowerCase()] = convertParam(raw, p.kind);
+        continue;
+      }
+      const raw = p.in === 'path' ? fixture.request.path?.[p.name] : fixture.request.query?.[p.name];
       if (raw !== undefined) (p.in === 'path' ? params.path : params.query)[p.name] = convertParam(raw, p.kind);
     }
     for (const key of Object.keys(fixture.request.query ?? {})) if (!(key in params.query)) params.query[key] = fixture.request.query![key];
     assert.equal(route.validateParams(params), true, `${label} params: ${JSON.stringify(route.validateParams.errors)}`);
-    if (route.validateBody) assert.equal(route.validateBody(fixture.request.body), true, `${label} body: ${JSON.stringify(route.validateBody.errors)}`);
-    else assert.equal(fixture.request.body, undefined, `${label} has a body for a bodiless operation`);
+    if (route.body === 'json') assert.equal(route.validateBody!(fixture.request.body), true, `${label} body: ${JSON.stringify(route.validateBody!.errors)}`);
+    else assert.equal(fixture.request.body, undefined, `${label} has a JSON body for a ${route.body} operation`);
+    if (route.body === 'binary') {
+      assert.ok(route.mediaTypes.includes(headers['content-type'] ?? ''), `${label} content type`);
+      assert.ok(Buffer.from(fixture.request.bodyBase64 ?? '', 'base64').length > 0, `${label} needs bodyBase64`);
+    } else assert.equal(fixture.request.bodyBase64, undefined, `${label} has a binary body for a ${route.body} operation`);
     const response = route.responses[String(fixture.response.status)];
     assert.ok(response, `${label}: status ${fixture.response.status} not in spec`);
     if (response.contentType === 'text/event-stream') {
@@ -146,4 +160,44 @@ test('closure: malformed requests are refused no_effect before any handler runs'
   // The valid request reaches the handler, proving the cases above were refused by validation, not by routing.
   await memory.request('POST', prompt, { json: { ...binding, message: 'x' } });
   assert.equal(calls, 1);
+});
+
+const MiB = 1024 * 1024;
+test('closure: every operation declares its body and response modes, and the spec and route table agree', () => {
+  const spec = bundledSpec() as unknown as {
+    info: { 'x-piw-json-max-bytes': number };
+    paths: Record<string, Record<string, { operationId: string; 'x-piw-body'?: string; 'x-piw-max-bytes'?: number; requestBody?: unknown }>>;
+  };
+  assert.equal(REQUEST_BODY_LIMIT, spec.info['x-piw-json-max-bytes']);
+  for (const item of Object.values(spec.paths)) {
+    for (const [method, op] of Object.entries(item)) {
+      if (!['get', 'put', 'post', 'delete', 'patch'].includes(method)) continue;
+      const route = table[op.operationId]!;
+      assert.ok(['json', 'binary', 'none'].includes(op['x-piw-body'] ?? ''), `${op.operationId} declares x-piw-body`);
+      assert.equal(route.body, op['x-piw-body'], op.operationId);
+      assert.ok(['json', 'sse'].includes(route.responseMode), `${op.operationId} response mode`);
+      if (route.body === 'none') assert.equal(route.maxBodyBytes, 0, op.operationId);
+      if (route.body === 'json') assert.equal(route.maxBodyBytes, op['x-piw-max-bytes'] ?? REQUEST_BODY_LIMIT, op.operationId);
+      if (route.body === 'binary') assert.ok(route.maxBodyBytes > REQUEST_BODY_LIMIT && route.maxBodyBytes === op['x-piw-max-bytes'], op.operationId);
+      for (const [status, response] of Object.entries(route.responses)) {
+        assert.equal(response.mode === 'sse', response.contentType === 'text/event-stream', `${op.operationId} ${status}`);
+        assert.equal(response.mode === 'sse', response.maxFrameBytes !== null && response.maxFrameBytes > 0, `${op.operationId} ${status}`);
+      }
+    }
+  }
+  assert.equal(table['attachments.stage']!.body, 'binary');
+  assert.equal(table['attachments.stage']!.supported, false);
+});
+
+test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE frame cap)', async () => {
+  const hello = await createMemoryTransport(createApp().handle).request('GET', '/b2/hello');
+  assert.equal(hello.status, 200);
+  const limits = (hello.body as { limits: Record<string, number> }).limits;
+  assert.deepEqual(limits, {
+    request_body_bytes: REQUEST_BODY_LIMIT,
+    attachment_max_bytes: table['attachments.stage']!.maxBodyBytes,
+    attachments_per_message: 4,
+    attachments_total_bytes: 8 * MiB,
+    event_frame_bytes: table['events.subscribe']!.responses['200']!.maxFrameBytes,
+  });
 });

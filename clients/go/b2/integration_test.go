@@ -76,7 +76,8 @@ func TestIntegrationHelloAnd501(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if hello.Protocol.Major != 0 || hello.SupervisorEpoch == "" || len(hello.NamedLimits) == 0 || hello.Limits.RequestBodyBytes <= 0 {
+	if hello.Protocol.Major != 0 || hello.SupervisorEpoch == "" || len(hello.NamedLimits) == 0 || hello.Limits.RequestBodyBytes != int(OpSessionsPrompt.MaxBodyBytes) ||
+		hello.Limits.AttachmentMaxBytes != int(OpAttachmentsStage.MaxBodyBytes) || hello.Limits.EventFrameBytes != frameLimit {
 		t.Fatalf("hello = %+v", hello)
 	}
 	_, err = c.SessionsPrompt(ctx, "w1", Prompt{CommandId: "c1", WorkerEpoch: "e1", SessionId: "s1", BindingRevision: 1, Message: "m"})

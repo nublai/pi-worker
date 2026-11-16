@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 export const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
 
 export interface WireFixture {
-  request: { path?: Record<string, string>; query?: Record<string, string>; body?: unknown };
+  /** `headers` carry header parameters and a binary body's Content-Type; `bodyBase64` is a binary body. */
+  request: { path?: Record<string, string>; query?: Record<string, string>; headers?: Record<string, string>; body?: unknown; bodyBase64?: string };
   response: { status: number; body?: unknown; frames?: unknown[] };
 }
 

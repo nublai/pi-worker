@@ -6,6 +6,7 @@ info:
   license:
     name: MIT
     identifier: MIT
+  x-piw-json-max-bytes: 262144
 servers:
   - url: http://pi-worker
 security:
@@ -17,6 +18,7 @@ paths:
       summary: Prompt
       x-piw-mutation: true
       x-piw-status: unsupported
+      x-piw-body: json
       parameters:
         - name: worker_id
           in: path
@@ -32,6 +34,7 @@ paths:
       responses:
         '200':
           description: Receipt.
+          x-piw-response: json
           content:
             application/json:
               schema:
@@ -48,14 +51,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /b2/attachments/{attachment_id}:
+    put:
+      operationId: attachments.stage
+      summary: Stage
+      x-piw-mutation: true
+      x-piw-status: unsupported
+      x-piw-body: binary
+      x-piw-max-bytes: 2097152
+      parameters:
+        - name: attachment_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Piw-Command-Id
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          image/jpeg: {}
+      responses:
+        '200':
+          description: Receipt.
+          x-piw-response: json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '501':
+          description: Not implemented.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /b2/events:
     get:
       operationId: events.subscribe
       summary: Events
       x-piw-mutation: false
+      x-piw-body: none
       responses:
         '200':
           description: Events.
+          x-piw-response: sse
+          x-piw-max-frame-bytes: 1048576
           content:
             text/event-stream:
               schema:

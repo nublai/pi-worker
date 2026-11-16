@@ -4,11 +4,12 @@
     "title": "pi-worker B2",
     "version": "0.1.0",
     "summary": "Caller-to-worker API (B2) of nubl's pi-worker supervisor.",
-    "description": "HTTP/1.1 over a private Unix socket (`$XDG_RUNTIME_DIR/pi-worker/b2.sock`, 0700 directory, 0600 socket).\nThere is no TCP listener. This document is the single source for the server's request and response\nvalidators, the TypeScript types and the Go models (`npm run generate`).\n\nSeeded from A0 (`prototype/a0` at `ee66117`, `openapi.json`). The method catalog is draft until P6\n(contract revision 8, sections 4 onward); the behavioural invariants (sections 0, 0.1, 0.2) are frozen.\n\nExtensions:\n- `x-piw-mutation` (every operation): `true` when the operation changes state. A mutation's body\n  requires `command_id`; a client never retries it; a failure after the request bytes are written is\n  `effect: unknown`.\n- `x-piw-status: unsupported`: the server routes and validates the operation and answers `501` with\n  `effect: no_effect`.\n- `x-piw-event` (every event schema): the event manifest (type, producer, durability, visibility).\n\nNamed limit (invariant 8): private sockets and bearer grants do not isolate hostile code running as the\nsame OS user.\n",
+    "description": "HTTP/1.1 over a private Unix socket (`$XDG_RUNTIME_DIR/pi-worker/b2.sock`, 0700 directory, 0600 socket).\nThere is no TCP listener. This document is the single source for the server's request and response\nvalidators, the TypeScript types and the Go models (`npm run generate`).\n\nSeeded from A0 (`prototype/a0` at `ee66117`, `openapi.json`). The method catalog is draft until P6\n(contract revision 8, sections 4 onward); the behavioural invariants (sections 0, 0.1, 0.2) are frozen.\n\nExtensions:\n- `x-piw-mutation` (every operation): `true` when the operation changes state. A mutation's body\n  requires `command_id`; a client never retries it; a failure after the request bytes are written is\n  `effect: unknown`.\n- `x-piw-status: unsupported`: the server routes and validates the operation and answers `501` with\n  `effect: no_effect`.\n- `x-piw-event` (every event schema): the event manifest (type, producer, durability, visibility).\n- `x-piw-body` (every operation): the request body mode. `json`: `application/json` only, at most\n  `x-piw-json-max-bytes` (below) unless the operation declares a smaller `x-piw-max-bytes`, validated\n  against its schema. `binary`: the declared media types only, streamed with a byte counter and refused\n  at `x-piw-max-bytes`, which a binary operation must declare. `none`: no body. The router enforces the\n  mode before any handler: a wrong content type is `415`, a body over the limit `413`, a body on a `none`\n  operation `400`, all `effect: no_effect`.\n- `x-piw-response` (every success response): `json`, `sse`, `ndjson` or `binary`. An `sse` response\n  declares `x-piw-max-frame-bytes`, the most bytes one record may carry.\n\nNamed limit (invariant 8): private sockets and bearer grants do not isolate hostile code running as the\nsame OS user.\n",
     "license": {
       "name": "MIT",
       "identifier": "MIT"
-    }
+    },
+    "x-piw-json-max-bytes": 262144
   },
   "servers": [
     {
@@ -68,9 +69,11 @@
           "handshake"
         ],
         "x-piw-mutation": false,
+        "x-piw-body": "none",
         "responses": {
           "200": {
             "description": "Supervisor identity, protocol and limits.",
+            "x-piw-response": "json",
             "content": {
               "application/json": {
                 "schema": {
@@ -99,10 +102,12 @@
           "inventory"
         ],
         "x-piw-mutation": false,
+        "x-piw-body": "none",
         "x-piw-status": "unsupported",
         "responses": {
           "200": {
             "description": "Worker rows.",
+            "x-piw-response": "json",
             "content": {
               "application/json": {
                 "schema": {
@@ -135,6 +140,7 @@
           "lifecycle"
         ],
         "x-piw-mutation": true,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -184,10 +190,12 @@
           "inventory"
         ],
         "x-piw-mutation": false,
+        "x-piw-body": "none",
         "x-piw-status": "unsupported",
         "responses": {
           "200": {
             "description": "The worker row.",
+            "x-piw-response": "json",
             "content": {
               "application/json": {
                 "schema": {
@@ -224,6 +232,7 @@
           "input"
         ],
         "x-piw-mutation": true,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -273,6 +282,7 @@
           "input"
         ],
         "x-piw-mutation": true,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -322,6 +332,7 @@
           "recovery"
         ],
         "x-piw-mutation": true,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -371,6 +382,7 @@
           "recovery"
         ],
         "x-piw-mutation": true,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -420,6 +432,7 @@
           "lifecycle"
         ],
         "x-piw-mutation": true,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -434,6 +447,7 @@
         "responses": {
           "200": {
             "description": "Stop receipt with the observed termination.",
+            "x-piw-response": "json",
             "content": {
               "application/json": {
                 "schema": {
@@ -476,6 +490,7 @@
           "lifecycle"
         ],
         "x-piw-mutation": true,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -525,6 +540,7 @@
           "interruption"
         ],
         "x-piw-mutation": true,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -574,6 +590,7 @@
           "interruption"
         ],
         "x-piw-mutation": true,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -623,6 +640,7 @@
           "children"
         ],
         "x-piw-mutation": true,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -672,6 +690,7 @@
           "children"
         ],
         "x-piw-mutation": true,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -721,10 +740,12 @@
           "interactions"
         ],
         "x-piw-mutation": false,
+        "x-piw-body": "none",
         "x-piw-status": "unsupported",
         "responses": {
           "200": {
             "description": "Live interactions.",
+            "x-piw-response": "json",
             "content": {
               "application/json": {
                 "schema": {
@@ -761,6 +782,7 @@
           "interactions"
         ],
         "x-piw-mutation": false,
+        "x-piw-body": "none",
         "x-piw-status": "unsupported",
         "parameters": [
           {
@@ -775,6 +797,7 @@
         "responses": {
           "200": {
             "description": "The interaction.",
+            "x-piw-response": "json",
             "content": {
               "application/json": {
                 "schema": {
@@ -811,6 +834,7 @@
           "interactions"
         ],
         "x-piw-mutation": true,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -860,6 +884,7 @@
           "readback"
         ],
         "x-piw-mutation": false,
+        "x-piw-body": "none",
         "x-piw-status": "unsupported",
         "parameters": [
           {
@@ -894,6 +919,7 @@
         "responses": {
           "200": {
             "description": "One history page.",
+            "x-piw-response": "json",
             "content": {
               "application/json": {
                 "schema": {
@@ -930,6 +956,7 @@
           "readback"
         ],
         "x-piw-mutation": false,
+        "x-piw-body": "json",
         "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
@@ -944,6 +971,7 @@
         "responses": {
           "200": {
             "description": "The file content.",
+            "x-piw-response": "json",
             "content": {
               "application/json": {
                 "schema": {
@@ -951,6 +979,115 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/attachments/{attachment_id}": {
+      "parameters": [
+        {
+          "name": "attachment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Id"
+          }
+        }
+      ],
+      "put": {
+        "operationId": "attachments.stage",
+        "summary": "Stage one image for a later prompt (streamed binary upload)",
+        "description": "The body is the image bytes, streamed; it never goes through the JSON path. The worker counts bytes as\nthey arrive and refuses a body over `x-piw-max-bytes` (`hello.limits.attachment_max_bytes`) with `413`.\nThe command and binding travel in headers. After the last byte the SHA-256 must equal\n`Piw-Content-Sha256` and the magic bytes must match the content type. A failure after the request bytes\nare written is `effect: unknown`: read the receipt, never re-upload blindly. Served from P1-16.\n",
+        "tags": [
+          "input"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-status": "unsupported",
+        "x-piw-body": "binary",
+        "x-piw-max-bytes": 2097152,
+        "parameters": [
+          {
+            "name": "Piw-Command-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "Piw-Worker-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "Piw-Worker-Epoch",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "Piw-Session-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "Piw-Binding-Revision",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "Piw-Content-Sha256",
+            "in": "header",
+            "required": true,
+            "description": "Lower-case hex SHA-256 of the body.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The image bytes.",
+          "content": {
+            "image/jpeg": {},
+            "image/png": {},
+            "image/webp": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -992,10 +1129,12 @@
           "readback"
         ],
         "x-piw-mutation": false,
+        "x-piw-body": "none",
         "x-piw-status": "unsupported",
         "responses": {
           "200": {
             "description": "The receipt.",
+            "x-piw-response": "json",
             "content": {
               "application/json": {
                 "schema": {
@@ -1028,6 +1167,7 @@
           "readback"
         ],
         "x-piw-mutation": false,
+        "x-piw-body": "none",
         "x-piw-status": "unsupported",
         "parameters": [
           {
@@ -1073,6 +1213,8 @@
         "responses": {
           "200": {
             "description": "Server-sent events.",
+            "x-piw-response": "sse",
+            "x-piw-max-frame-bytes": 1048576,
             "content": {
               "text/event-stream": {
                 "schema": {
@@ -1118,6 +1260,7 @@
     "responses": {
       "Receipt": {
         "description": "The command's receipt.",
+        "x-piw-response": "json",
         "content": {
           "application/json": {
             "schema": {
@@ -1157,7 +1300,7 @@
         }
       },
       "UnsupportedMediaType": {
-        "description": "Request body is not `application/json`; nothing began.",
+        "description": "Request body media type is not one the operation declares; nothing began.",
         "content": {
           "application/json": {
             "schema": {
@@ -1337,12 +1480,37 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "request_body_bytes"
+          "request_body_bytes",
+          "attachment_max_bytes",
+          "attachments_per_message",
+          "attachments_total_bytes",
+          "event_frame_bytes"
         ],
         "properties": {
           "request_body_bytes": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "The JSON request body cap (`x-piw-json-max-bytes`)."
+          },
+          "attachment_max_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The most bytes one `attachments.stage` body may carry."
+          },
+          "attachments_per_message": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The most attachments one `sessions.prompt` may reference."
+          },
+          "attachments_total_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The most attachment bytes one `sessions.prompt` may reference."
+          },
+          "event_frame_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The most bytes one `events.subscribe` SSE record may carry."
           }
         }
       },
@@ -2568,7 +2736,8 @@
               "executions.cancel",
               "executions.interrupt",
               "interactions.answer_if_current",
-              "interactions.release"
+              "interactions.release",
+              "attachments.stage"
             ]
           },
           "request_hash": {

@@ -31,8 +31,11 @@ export interface CallOptions<O extends OperationId> {
 /** The protocol major this client speaks. A worker with another major is refused. */
 export const PROTOCOL_MAJOR = 0;
 const RESPONSE_LIMIT = 2 * 1024 * 1024;
-/** One SSE record: its field lines, each counted with one line-ending byte (api/b2.openapi.yaml, events.subscribe). */
-const FRAME_LIMIT = 1024 * 1024;
+/**
+ * One SSE record: its field lines, each counted with one line-ending byte. The spec's x-piw-max-frame-bytes for
+ * events.subscribe, through the generated route table.
+ */
+const FRAME_LIMIT = routes['events.subscribe'].maxFrameBytes;
 
 const LF = 0x0a;
 const CR = 0x0d;

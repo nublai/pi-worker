@@ -622,6 +622,7 @@ func (e ReceiptEvidence) Valid() bool {
 
 // Defines values for ReceiptOperation.
 const (
+	ReceiptOperationAttachmentsStage            ReceiptOperation = "attachments.stage"
 	ReceiptOperationChildrenLaunch              ReceiptOperation = "children.launch"
 	ReceiptOperationChildrenReport              ReceiptOperation = "children.report"
 	ReceiptOperationExecutionsCancel            ReceiptOperation = "executions.cancel"
@@ -640,6 +641,8 @@ const (
 // Valid indicates whether the value is a known member of the ReceiptOperation enum.
 func (e ReceiptOperation) Valid() bool {
 	switch e {
+	case ReceiptOperationAttachmentsStage:
+		return true
 	case ReceiptOperationChildrenLaunch:
 		return true
 	case ReceiptOperationChildrenReport:
@@ -994,6 +997,7 @@ func (e StopReceiptEvidence) Valid() bool {
 
 // Defines values for StopReceiptOperation.
 const (
+	StopReceiptOperationAttachmentsStage            StopReceiptOperation = "attachments.stage"
 	StopReceiptOperationChildrenLaunch              StopReceiptOperation = "children.launch"
 	StopReceiptOperationChildrenReport              StopReceiptOperation = "children.report"
 	StopReceiptOperationExecutionsCancel            StopReceiptOperation = "executions.cancel"
@@ -1012,6 +1016,8 @@ const (
 // Valid indicates whether the value is a known member of the StopReceiptOperation enum.
 func (e StopReceiptOperation) Valid() bool {
 	switch e {
+	case StopReceiptOperationAttachmentsStage:
+		return true
 	case StopReceiptOperationChildrenLaunch:
 		return true
 	case StopReceiptOperationChildrenReport:
@@ -1686,6 +1692,19 @@ type LaunchSpecSeedMode string
 
 // Limits defines model for Limits.
 type Limits struct {
+	// AttachmentMaxBytes The most bytes one `attachments.stage` body may carry.
+	AttachmentMaxBytes int `json:"attachment_max_bytes"`
+
+	// AttachmentsPerMessage The most attachments one `sessions.prompt` may reference.
+	AttachmentsPerMessage int `json:"attachments_per_message"`
+
+	// AttachmentsTotalBytes The most attachment bytes one `sessions.prompt` may reference.
+	AttachmentsTotalBytes int `json:"attachments_total_bytes"`
+
+	// EventFrameBytes The most bytes one `events.subscribe` SSE record may carry.
+	EventFrameBytes int `json:"event_frame_bytes"`
+
+	// RequestBodyBytes The JSON request body cap (`x-piw-json-max-bytes`).
 	RequestBodyBytes int `json:"request_body_bytes"`
 }
 
@@ -2055,6 +2074,18 @@ type Unknown = Error
 
 // UnsupportedMediaType defines model for UnsupportedMediaType.
 type UnsupportedMediaType = Error
+
+// AttachmentsStageParams defines parameters for AttachmentsStage.
+type AttachmentsStageParams struct {
+	PiwCommandId       Id  `json:"Piw-Command-Id"`
+	PiwWorkerId        Id  `json:"Piw-Worker-Id"`
+	PiwWorkerEpoch     Id  `json:"Piw-Worker-Epoch"`
+	PiwSessionId       Id  `json:"Piw-Session-Id"`
+	PiwBindingRevision int `json:"Piw-Binding-Revision"`
+
+	// PiwContentSha256 Lower-case hex SHA-256 of the body.
+	PiwContentSha256 string `json:"Piw-Content-Sha256"`
+}
 
 // EventsSubscribeParams defines parameters for EventsSubscribe.
 type EventsSubscribeParams struct {

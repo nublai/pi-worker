@@ -13,7 +13,11 @@
       "pi_version": null,
       "capabilities": [],
       "limits": {
-        "request_body_bytes": 262144
+        "request_body_bytes": 262144,
+        "attachment_max_bytes": 2097152,
+        "attachments_per_message": 4,
+        "attachments_total_bytes": 8388608,
+        "event_frame_bytes": 1048576
       },
       "named_limits": [
         "Linux results are not macOS results."

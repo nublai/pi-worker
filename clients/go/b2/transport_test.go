@@ -327,6 +327,9 @@ func TestRedirectIsNotFollowed(t *testing.T) {
 }
 
 func TestOperationTablePaths(t *testing.T) {
+	if OpEventsSubscribe.Response != "sse" || frameLimit != 1<<20 || OpAttachmentsStage.Body != "binary" || OpAttachmentsStage.MaxBodyBytes != 2<<20 || OpHello.Body != "none" || OpSessionsPrompt.MaxBodyBytes != 256<<10 {
+		t.Fatalf("modes: %+v %+v", OpEventsSubscribe, OpAttachmentsStage)
+	}
 	got, err := fillPath(OpReceiptsGet, []string{"a/b c"})
 	if err != nil || got != "/b2/receipts/a%2Fb%20c" {
 		t.Fatalf("got %q %v", got, err)
@@ -341,7 +344,7 @@ func TestOperationTablePaths(t *testing.T) {
 		}
 		seen[op.ID] = true
 	}
-	if len(Operations) != 21 {
+	if len(Operations) != 22 {
 		t.Fatalf("operations = %d", len(Operations))
 	}
 }
