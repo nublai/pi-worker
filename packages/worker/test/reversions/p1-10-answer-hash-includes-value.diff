@@ -1,5 +1,5 @@
 diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
-index f5def47..a76be2d 100644
+index e5e3c48..cd56ae3 100644
 --- a/packages/worker/src/interactions/interactions.ts
 +++ b/packages/worker/src/interactions/interactions.ts
 @@ -265,7 +265,7 @@ export class Interactions {
@@ -10,4 +10,4 @@ index f5def47..a76be2d 100644
 +        { ...a, worker_id: worker.worker_id },
          async () => {
            writable();
-           l.record = {
+           const pending = l.record;

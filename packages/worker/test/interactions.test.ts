@@ -383,6 +383,41 @@ test('interactions: deadline validation refuses at the boundary before the timeo
   }
 });
 
+test('interactions: a deadline crossed after acceptance, before dispatch, closes the interaction timeout (no accepted leftover)', async () => {
+  const f = setup();
+  try {
+    const w = await f.create();
+    f.attach();
+    f.hosts[0]!.emit('event', { type: 'extension_ui_request', id: 'q', method: 'input', deadline: 1000 });
+    const i = f.supervisor.interactionList(w.worker_id)[0]!;
+    // Validation sees deadline - 1; the check after the acceptance fsync sees the deadline.
+    let checks = 0;
+    f.supervisor.interactions.now = () => (++checks === 1 ? 999 : 1000);
+    const r = await f.supervisor.answer(w.worker_id, f.answer(i));
+    assert.equal(r.state, 'rejected');
+    assert.equal(r.effect, 'no_effect');
+    assert.equal(r.error, 'interaction_deadline_passed');
+    assert.equal(f.forwarded.length, 0, 'nothing reached the resolver');
+    const status = f.supervisor.interactionStatus(w.worker_id, String(i.interaction_id));
+    assert.equal(status.status, 'timeout', 'the interaction is finalized, not left accepted');
+    assert.equal(status.outcome, 'timeout');
+    assert.equal(f.supervisor.interactionList(w.worker_id).length, 0);
+    assert.deepEqual(f.hosts[0]!.cancelled, ['q'], 'the native resolver is cancelled');
+    // Durable: the last record of the interaction is the close, after a write-ahead cancellation marker.
+    const records = f.state.journal.records.filter(x => (x.kind === 'interaction' || x.kind === 'interaction_effect') && x.value.interaction_id === i.interaction_id);
+    assert.equal(records.filter(x => x.kind === 'interaction').at(-1)!.value.status, 'timeout');
+    assert.equal(records.at(-1)!.kind, 'interaction_effect');
+    // The child's own timeout closure arrives later and changes nothing.
+    f.hosts[0]!.emit('event', { type: 'resolver_closed', native_id: 'q', outcome: 'timeout' });
+    assert.equal(f.supervisor.interactionStatus(w.worker_id, String(i.interaction_id)).status, 'timeout');
+    // A retry returns the recorded refusal; it is not a second answer.
+    assert.deepEqual(await f.supervisor.answer(w.worker_id, f.answer(i)), r);
+    assert.equal(f.forwarded.length, 0);
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('interactions: SDK refusal acknowledgement never claims stage 3 for an expired exact resolver', async () => {
   const f = setup();
   try {

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
+index e5e3c48..287e200 100644
+--- a/packages/worker/src/interactions/interactions.ts
++++ b/packages/worker/src/interactions/interactions.ts
+@@ -287,7 +287,7 @@ export class Interactions {
+             writable();
+             if (this.now() >= l.record.deadline) throw new Refusal('interaction_deadline_passed');
+           } catch (error) {
+-            this.refusedAfterAccept(l, pending, a.answer_id);
++            void pending;
+             throw error;
+           }
+           this.receipts.dispatch(a.command_id, { worker_id: worker.worker_id, answer_stage: 1 });
