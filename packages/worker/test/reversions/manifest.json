@@ -39,6 +39,14 @@
         "p1-5-no-binding-check.diff",
         "p1-2-dispatch-marker-after-write.diff"
       ]
+    },
+    "fence": {
+      "command": "npm run test:conformance -- 02 03 07 08 09 11 && npm test -- invariants fence",
+      "diffs": [
+        "p1-6-no-fenced-write-refusal.diff",
+        "p1-6-fence-not-durable-before-reply.diff",
+        "p1-6-any-fence-generation.diff"
+      ]
     }
   }
 }

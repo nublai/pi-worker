@@ -137,6 +137,8 @@ export function openWorld(root: string, scenario: boolean): World {
         return supervisor.steer(id!, b);
       case 'follow_up':
         return supervisor.followUp(id!, b);
+      case 'resolve':
+        return supervisor.resolveUnknown(id!, b);
       case 'stop':
       case 'cancel':
       case 'interrupt': {

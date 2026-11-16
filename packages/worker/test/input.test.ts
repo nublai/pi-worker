@@ -137,7 +137,11 @@ test('input: a dropped prompt reply is outcome_unknown, durable before the reply
     assert.equal(f.supervisor.get(w.worker_id).foreground, 'unknown');
     assert.deepEqual(await f.supervisor.prompt(w.worker_id, p), r);
     assert.equal(f.hosts[0]!.prompts, 1, 'no replay');
-    await assert.rejects(f.supervisor.prompt(w.worker_id, { ...bind(w, 'next'), message: 'no' }), noEffect('worker_busy'));
+    // From P1-6 the unknown outcome fences the session: the next write is refused naming it.
+    await assert.rejects(
+      f.supervisor.prompt(w.worker_id, { ...bind(w, 'next'), message: 'no' }),
+      (e: unknown) => noEffect('session_fenced')(e) && (e as Refusal).uncertain_command_id === 'lost',
+    );
   } finally {
     f.cleanup();
   }

@@ -289,8 +289,13 @@ export class Lifecycle {
       w.supervisor_epoch = this.s.supervisorEpoch;
       w.pending_interactions = []; // Old native resolvers no longer exist.
       live.index.setActiveLeaf(w.leaf_id);
+      const before = JSON.stringify(w);
       for (const recover of this.recoverers) recover(live);
-      if (!HOLDING.has(w.status)) continue;
+      if (!HOLDING.has(w.status)) {
+        // A stopped or failed worker keeps its status; a fence recovery derived for it is still made durable.
+        if (JSON.stringify(w) !== before) this.s.persist(live, 'worker.recover');
+        continue;
+      }
       w.status = 'cleanup_pending';
       if (live.pid !== null) {
         const gone = await killGroup(live.pid, live.token);

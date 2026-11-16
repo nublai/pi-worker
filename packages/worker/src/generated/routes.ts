@@ -258,7 +258,7 @@ export const routes = {
     path: "/b2/workers/{worker_id}/resolve_unknown",
     segments: ["b2","workers","{worker_id}","resolve_unknown"],
     mutation: true,
-    supported: false,
+    supported: true,
     grantMethod: "sessions.resolve_unknown",
     stream: false,
     body: "json",

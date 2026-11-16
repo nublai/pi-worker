@@ -1,0 +1,11 @@
+--- a/packages/worker/src/supervisor/input.ts
++++ b/packages/worker/src/supervisor/input.ts
+@@ -55,7 +55,7 @@
+ 
+   /** Writes allowed: not fenced and no binding change in flight. P1-6 adds the fence latch here. */
+   writable(live: Live): void {
+-    if (live.worker.fence) throw new Refusal('session_fenced', 'no_effect', live.worker.fence.command_id);
++    void Refusal;
+     if (live.rebinding || live.nativeRebinding) throw new Refusal('binding_change_in_progress');
+   }
+ 

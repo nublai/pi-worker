@@ -1,7 +1,7 @@
 /**
  * Contract revision 8, section 0.1: one replay per frozen fixture row, over the public B2 socket. Ported from A0
- * `src/test/conformance.test.ts`; every row assertion is kept. No model-success assertions. The rows run as `todo`
- * until P1 provides the target (target.ts); P1 must turn all eleven green.
+ * `src/test/conformance.test.ts`; every row assertion is kept. No model-success assertions. A row runs as `todo`
+ * until the PR that completes its prerequisites (GREEN below); P1 turns all eleven green.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -73,8 +73,14 @@ test('conformance: every call body in the fixture validates against the B2 spec'
   assert.ok(calls >= 20, `only ${calls} calls found`);
 });
 
+/**
+ * Rows whose prerequisites have landed (plan section 5.1). A row leaves `todo` only in the PR the plan names:
+ * 02, 03, 07, 08, 09 and 11 at P1-6; 01 and 10 at P1-7; 04, 05 and 06 at P1-11.
+ */
+const GREEN: ReadonlySet<string> = new Set(['02-unknown', '03-fenced-write', '07-observed', '08-generation', '09-restart', '11-control']);
+
 for (const row of transitions.rows) {
-  test(`contract 0.1 fixture ${row.id}`, { todo: TODO }, async () => {
+  test(`contract 0.1 fixture ${row.id}`, GREEN.has(row.id) ? {} : { todo: TODO }, async () => {
     const session = await startTarget(row.profile ? { profile: row.profile } : {});
     const { client, initial, host } = session;
     try {
