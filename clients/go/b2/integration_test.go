@@ -37,8 +37,16 @@ func TestIntegrationHelloAnd501(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 	socket := filepath.Join(dir, "run", "pi-worker", "b2.sock")
+	env := []string{"PATH=" + os.Getenv("PATH"), "PIW_SOCKET=" + socket, "PIW_STATE_DIR=" + filepath.Join(dir, "state")}
+	// Every B2 request needs a bearer (P1-9): the owner registers one by local file access with the grant command.
+	grantFile := filepath.Join(dir, "grant.json")
+	register := exec.Command(node, filepath.Join(filepath.Dir(main), "grant.js"), "register", "--caller", "go-integration", "--out", grantFile)
+	register.Env = env
+	if out, err := register.CombinedOutput(); err != nil {
+		t.Fatalf("grant register: %v %s", err, out)
+	}
 	cmd := exec.Command(node, main)
-	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "PIW_SOCKET=" + socket, "PIW_STATE_DIR=" + filepath.Join(dir, "state")}
+	cmd.Env = env
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +79,10 @@ func TestIntegrationHelloAnd501(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	c := New(socket)
+	if _, err := New(socket).Hello(ctx); err == nil {
+		t.Fatal("hello without a bearer was answered")
+	}
+	c := New(socket, WithGrantFile(grantFile))
 	hello, err := c.Hello(ctx)
 	if err != nil {
 		t.Fatal(err)

@@ -2,6 +2,7 @@
 // Prints one JSON line with what the journey checks; no secrets, no request text.
 import { Client, ClientFailure } from '../../../packages/client-ts/dist/src/index.js';
 
+// The client reads its bearer grant from PIW_GRANT_FILE (P1-9), which the journey sets.
 const client = new Client({ socketPath: process.argv[2] });
 const hello = await client.hello();
 let status = null;

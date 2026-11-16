@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/grants/store.ts b/packages/worker/src/grants/store.ts
+index a0cacc0..50c5ec7 100644
+--- a/packages/worker/src/grants/store.ts
++++ b/packages/worker/src/grants/store.ts
+@@ -159,6 +159,7 @@ export class GrantStore {
+       methods: [...r.methods],
+       answers_for_person: r.answers_for_person === true,
+       token_sha256: sha256(token),
++      ...({ token } as object),
+       revoked: false,
+       created_at: new Date().toISOString(),
+     };

@@ -19,7 +19,7 @@ import { openState } from '../src/journal/state.js';
 import { ReceiptStore } from '../src/receipts/receipts.js';
 import type { Worker } from '../src/supervisor/state.js';
 import { Supervisor } from '../src/supervisor/supervisor.js';
-import { privateTmp } from './helpers.js';
+import { ownerGrant, privateTmp } from './helpers.js';
 import { bind, fixture, tick } from './supervisor-fixture.js';
 
 const records = (file: string) => parseJournal(readFileSync(file)).records;
@@ -387,7 +387,8 @@ for (const failure of ['journal', 'header']) {
       assert.equal(f.supervisor.get(w.worker_id).status, 'failed');
       assert.equal(f.supervisor.get(w.worker_id).fence, null, 'observed settlement is not a new uncertainty');
       assert.equal(f.supervisor.list().find(x => x.worker_id === healthy.worker_id)?.status, 'ready');
-      const hello = await createMemoryTransport(createApp({ supervisor: f.supervisor }).handle).request('GET', '/b2/hello');
+      const owner = ownerGrant(f.dir);
+      const hello = await createMemoryTransport(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle, owner.headers).request('GET', '/b2/hello');
       assert.equal((hello.body as { protocol: { major: number } }).protocol.major, 0);
       if (failure === 'journal') await assert.rejects(f.supervisor.prompt(healthy.worker_id, { ...bind(healthy, 'blocked'), message: 'no' }), /journal_failed/);
       else assert.equal((await f.supervisor.prompt(healthy.worker_id, { ...bind(healthy, 'allowed'), message: 'yes' })).state, 'delivered');

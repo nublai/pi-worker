@@ -51,6 +51,15 @@ export const DURABLE_LABELS = [
   'binding.rebind',
   'binding.native',
   'fence.latch',
+  // Grants (grants/store.ts): the grant directory's entry in the state directory, a registered record (its temporary
+  // file, then the directory after the link), a revocation (the same pair after the rename), and the bearer file the
+  // `grant register` command writes for the caller.
+  'grant.directory',
+  'grant.register_file',
+  'grant.register_directory',
+  'grant.revoke_file',
+  'grant.revoke_directory',
+  'grant.bearer_file',
 ] as const;
 
 export type DurableLabel = (typeof DURABLE_LABELS)[number];

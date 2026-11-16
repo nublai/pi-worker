@@ -6,14 +6,15 @@ import { createApp } from '../src/b2/app.js';
 import { createMemoryTransport } from '../src/b2/memory.js';
 import { Journal } from '../src/journal/journal.js';
 import { ReceiptStore, type Receipt } from '../src/receipts/receipts.js';
-import { privateTmp, wireFixtures } from './helpers.js';
+import { ownerGrant, privateTmp, wireFixtures } from './helpers.js';
 
 test('receipts.get: answers each wire fixture from the store, and an unknown command id is unknown, never no_effect', async () => {
   const tmp = privateTmp();
   const journal = new Journal(join(tmp.dir, 'journal'));
   try {
     const receipts = new ReceiptStore(journal);
-    const memory = createMemoryTransport(createApp({ receipts }).handle);
+    const owner = ownerGrant(tmp.dir);
+    const memory = createMemoryTransport(createApp({ receipts, grants: owner.grants }).handle, owner.headers);
     const fixtures = wireFixtures().filter(f => f.operationId === 'receipts.get');
     assert.ok(fixtures.length >= 2);
     for (const { name, fixture } of fixtures) {

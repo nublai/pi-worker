@@ -134,4 +134,9 @@ export const CUT_SCENARIOS: readonly CutScenario[] = [
       'fence.resolve',
     ],
   },
+  {
+    scenario: 'grants',
+    file: 'grants.test.ts',
+    labels: ['grant.directory', 'grant.register_file', 'grant.register_directory', 'grant.bearer_file', 'grant.revoke_file', 'grant.revoke_directory'],
+  },
 ];

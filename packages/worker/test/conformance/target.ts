@@ -10,6 +10,7 @@ import { createApp } from '../../src/b2/app.js';
 import { createB2Server, listenPrivate } from '../../src/b2/server.js';
 import { parseJournal } from '../../src/journal/journal.js';
 import { fixture, tick, type Host } from '../supervisor-fixture.js';
+import { ownerGrant } from '../helpers.js';
 
 export type Worker = components['schemas']['Worker'];
 
@@ -107,14 +108,15 @@ function seam(host: Host): HostSeam {
 export async function startTarget(options: TargetOptions): Promise<Session> {
   const f = fixture({ unconfirmedIdentity: options.profile === 'unconfirmed_native_identity' });
   const socketPath = join(f.dir, 'b2.sock');
-  let server = createB2Server(createApp({ supervisor: f.supervisor }).handle);
+  const owner = ownerGrant(f.dir);
+  let server = createB2Server(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle);
   const close = () =>
     new Promise<void>(resolve => {
       server.closeAllConnections();
       server.close(() => resolve());
     });
   await listenPrivate(server, socketPath);
-  const client = new Client({ socketPath });
+  const client = new Client({ socketPath, grantFile: owner.file });
   const initial = await f.create();
   const childCwd = join(f.dir, 'child-cwd');
   mkdirSync(childCwd);
@@ -131,7 +133,7 @@ export async function startTarget(options: TargetOptions): Promise<Session> {
     async restart() {
       await close();
       await f.restart();
-      server = createB2Server(createApp({ supervisor: f.supervisor }).handle);
+      server = createB2Server(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle);
       await listenPrivate(server, socketPath);
     },
     async close() {

@@ -2,6 +2,7 @@
 import type { operations } from '../generated/api.js';
 import type { SupportedOperationId } from '../generated/routes.js';
 import type { B2Stream } from './router.js';
+import type { Caller } from '../grants/store.js';
 
 type OpOf<K extends keyof operations> = operations[K];
 
@@ -31,6 +32,8 @@ export interface HandlerInput<K extends keyof operations> {
   /** Declared header parameters, by lower-case name. */
   readonly header: HeaderParams<K>;
   readonly body: RequestBody<K>;
+  /** The authenticated caller (P1-9); absent only for a router built without `authorize` (router tests). */
+  readonly caller?: Caller;
 }
 
 /**

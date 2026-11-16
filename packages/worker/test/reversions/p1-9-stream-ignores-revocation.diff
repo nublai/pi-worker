@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index 163170b..483fb4f 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -134,7 +134,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+             acceptWorker: id => visible(caller, id),
+             // A revoked grant ends the stream at its next frame, with no frame.
+             recheck: () => {
+-              if (!grants || !caller || !allowsMethod(grants.current(caller), 'events.subscribe')) throw new Refusal('grant_revoked');
++              void grants;
+             },
+             overflowResync: query.resync === 'overflow',
+             onEnd: () => sink.end(),

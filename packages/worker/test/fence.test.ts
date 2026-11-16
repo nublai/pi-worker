@@ -14,6 +14,7 @@ import { parseJournal } from '../src/journal/journal.js';
 import type { Receipt } from '../src/receipts/receipts.js';
 import type { Worker } from '../src/supervisor/state.js';
 import { bind, fixture } from './supervisor-fixture.js';
+import { ownerGrant } from './helpers.js';
 
 function latestWorker(file: string, id: string): Worker {
   return parseJournal(readFileSync(file)).records.filter(r => r.kind === 'worker' && (r.value.worker as Worker).worker_id === id).at(-1)!.value.worker as Worker;
@@ -22,7 +23,8 @@ function latestWorker(file: string, id: string): Worker {
 for (const failure of ['pi prompt response timeout', 'stdin write failed']) {
   test(`HTTP ${failure}: unknown and durable fence before response headers (M1, M6)`, async () => {
     const f = fixture();
-    const server = createB2Server(createApp({ supervisor: f.supervisor }).handle);
+    const owner = ownerGrant(f.dir);
+    const server = createB2Server(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle);
     try {
       await listenPrivate(server, join(f.dir, 'socket'));
       const w = await f.create();
@@ -35,7 +37,7 @@ for (const failure of ['pi prompt response timeout', 'stdin write failed']) {
       };
       const r = await new Promise<Receipt>((resolve, reject) => {
         const data = JSON.stringify({ ...bind(w, 'uncertain'), message: 'hello' });
-        const req = request({ socketPath: join(f.dir, 'socket'), method: 'POST', path: `/b2/workers/${w.worker_id}/prompt`, headers: { 'Content-Type': 'application/json' } }, res => {
+        const req = request({ socketPath: join(f.dir, 'socket'), method: 'POST', path: `/b2/workers/${w.worker_id}/prompt`, headers: { ...owner.headers, 'Content-Type': 'application/json' } }, res => {
           try {
             // Inspect disk as headers arrive, before the HTTP result promise resolves.
             const persisted = latestWorker(f.journalFile, w.worker_id);

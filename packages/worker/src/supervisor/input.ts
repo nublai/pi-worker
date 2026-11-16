@@ -12,6 +12,7 @@
 import { randomUUID } from 'node:crypto';
 import { ProvenNoEffect, Refusal } from '../b2/errors.js';
 import type { PiRecord } from '../host/host.js';
+import { authority, currentGuard } from '../grants/authority.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
 import type { Lifecycle } from './lifecycle.js';
 import type { Control, FollowUp, Live, Prompt, Queued, Steer, SupervisorState } from './state.js';
@@ -228,7 +229,8 @@ export class Input {
   }
 
   private enqueued(live: Live, operation: Queued['operation'], request: Prompt | FollowUp): ReceiptPatch {
-    (live.pending ??= new Map()).set(request.command_id, { operation, request });
+    const guard = currentGuard();
+    (live.pending ??= new Map()).set(request.command_id, { operation, request, ...(guard ? { guard } : {}) });
     (live.worker.queued ??= []).push({ command_id: request.command_id, kind: 'follow_up', state: 'queued' });
     this.s.persist(live, 'queue.add');
     setImmediate(() => void this.flush(live));
@@ -259,9 +261,13 @@ export class Input {
       try {
         this.s.binding(live, item.request);
         this.writable(live);
+        // The grant that admitted it is rechecked before anything is written for this dispatch.
+        item.guard?.();
         // An automatic flush is never owner authorization: a crash here recovers the intent no_effect.
         this.s.receipts.readyQueued(id);
-        const r = await this.prompt(w.worker_id, { ...item.request } as Prompt, item.operation);
+        // The dispatch runs under the admitting grant, so the receipt flow rechecks it again at the dispatch point.
+        const run = () => this.prompt(w.worker_id, { ...item.request } as Prompt, item.operation);
+        const r = await (item.guard ? authority.run(item.guard, run) : run());
         if (q) q.state = r.effect === 'no_effect' ? 'dropped' : 'dispatched';
       } catch (error) {
         const current = this.s.receipts.all.get(id);

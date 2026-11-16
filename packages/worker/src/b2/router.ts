@@ -13,6 +13,8 @@ import { jsonBodyLimit, routes as generatedRoutes, type Route } from '../generat
 import { error as validateError, type ValidationError } from '../generated/validators.js';
 import { Refusal, type ErrorBody } from './errors.js';
 import type { Handlers } from './types.js';
+import { authority, type Guard } from '../grants/authority.js';
+import type { Caller } from '../grants/store.js';
 
 /** The JSON request body cap (the spec's info.x-piw-json-max-bytes); an operation may declare less. */
 export const REQUEST_BODY_LIMIT = jsonBodyLimit;
@@ -56,6 +58,17 @@ export interface RouterOptions {
   readonly handlers: Handlers;
   /** Defaults to the generated table. Tests pass a modified table to exercise rules on unsupported operations. */
   readonly routes?: Readonly<Record<string, Route>>;
+  /**
+   * Authenticates the request for its route right after the route matches, before parameters or body are read, so an
+   * unauthenticated or unauthorized request is refused `no_effect` before anything else. The handler then runs under
+   * the returned guard (grants/authority.ts), which the supervisor rechecks at dispatch.
+   */
+  readonly authorize?: (request: B2Request, route: Route) => Authorized;
+}
+
+export interface Authorized {
+  readonly caller: Caller;
+  readonly guard: Guard;
 }
 
 export type RequestHandler = (request: B2Request) => Promise<B2Response>;
@@ -184,6 +197,8 @@ export function createRouter(options: RouterOptions): RequestHandler {
 
     let commandId: string | undefined;
     try {
+      // The bearer first: an unauthenticated request learns nothing about parameters, bodies or state.
+      const auth = options.authorize?.(request, route);
       // Parameters: path from the match, query from the URL, declared headers by lower-case name.
       const query: Record<string, ParamValue> = {};
       for (const key of new Set(url.searchParams.keys())) {
@@ -219,7 +234,8 @@ export function createRouter(options: RouterOptions): RequestHandler {
         if (route.body === 'binary') for await (const _ of body as AsyncIterable<Uint8Array>);
         throw new Refusal('operation_not_implemented', 'no_effect', undefined, {}, 501);
       }
-      const result = await handler({ path, query, header, body });
+      const input = { path, query, header, body, ...(auth ? { caller: auth.caller } : {}) };
+      const result = await (auth ? authority.run(auth.guard, () => handler(input)) : handler(input));
       if (route.stream) {
         if (!isStream(result)) throw new Error('stream operation returned no stream');
         return { status: 200, body: null, stream: result };

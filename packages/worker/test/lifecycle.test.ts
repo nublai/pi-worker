@@ -21,7 +21,7 @@ import { openState } from '../src/journal/state.js';
 import { ReceiptStore } from '../src/receipts/receipts.js';
 import type { Live, Worker } from '../src/supervisor/state.js';
 import { Supervisor } from '../src/supervisor/supervisor.js';
-import { privateTmp } from './helpers.js';
+import { ownerGrant, privateTmp } from './helpers.js';
 import { bind, fixture, Host } from './supervisor-fixture.js';
 
 const create = (cwd: string, command_id = 'create') => ({ command_id, cwd, provider: 'test', model: 'test', thinking: 'off' as const });
@@ -30,11 +30,12 @@ const latestWorker = (file: string, id: string): Worker =>
 
 test('lifecycle: create, duplicate create, list, get and stop over the B2 socket; the stopped cwd stays reserved', async () => {
   const f = fixture();
-  const server = createB2Server(createApp({ supervisor: f.supervisor }).handle);
+  const owner = ownerGrant(f.dir);
+  const server = createB2Server(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle);
   const socketPath = join(f.dir, 'b2.sock');
   try {
     await listenPrivate(server, socketPath);
-    const client = new Client({ socketPath });
+    const client = new Client({ socketPath, grantFile: owner.file });
     const cwd = join(f.dir, 'work');
     mkdirSync(cwd);
     const created = await client.call('workers.create', { body: create(cwd) });
@@ -109,7 +110,8 @@ test('lifecycle: one live writer per session; a duplicate open is refused naming
 
 test('lifecycle: create-with-resume over B2 applies the session gates: unproven cleanup and an unresolved fence refuse before any spawn', async () => {
   const f = fixture();
-  const server = createB2Server(createApp({ supervisor: f.supervisor }).handle);
+  const grant = ownerGrant(f.dir);
+  const server = createB2Server(createApp({ supervisor: f.supervisor, grants: grant.grants }).handle);
   const socketPath = join(f.dir, 'b2.sock');
   const dir = (name: string) => {
     const cwd = join(f.dir, name);
@@ -118,7 +120,7 @@ test('lifecycle: create-with-resume over B2 applies the session gates: unproven 
   };
   try {
     await listenPrivate(server, socketPath);
-    const client = new Client({ socketPath });
+    const client = new Client({ socketPath, grantFile: grant.file });
     const resume = (name: string, session: string) => client.call('workers.create', { body: { ...create(dir(name), name), resume_session_id: session } });
     const refused = (message: string, uncertain?: string) => (e: unknown) =>
       e instanceof ClientFailure && e.message === message && e.effect === 'no_effect' && (uncertain === undefined || e.details.uncertain_command_id === uncertain);

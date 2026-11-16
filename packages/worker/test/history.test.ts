@@ -11,13 +11,17 @@ import { createApp } from '../src/b2/app.js';
 import { createB2Server, listenPrivate } from '../src/b2/server.js';
 import { ITEM_MAX_BYTES } from '../src/supervisor/supervisor.js';
 import { bind, fixture, type Fixture } from './supervisor-fixture.js';
+import { ownerGrant } from './helpers.js';
 
-async function serve(f: Fixture): Promise<{ socket: string; close: () => Promise<void> }> {
-  const server = createB2Server(createApp({ supervisor: f.supervisor, piVersion: '1.5.2' }).handle);
+async function serve(f: Fixture): Promise<{ socket: string; grantFile: string; headers: Record<string, string>; close: () => Promise<void> }> {
+  const owner = ownerGrant(f.dir);
+  const server = createB2Server(createApp({ supervisor: f.supervisor, piVersion: '1.5.2', grants: owner.grants }).handle);
   const socket = join(f.dir, 'worker.sock');
   await listenPrivate(server, socket);
   return {
     socket,
+    grantFile: owner.file,
+    headers: owner.headers,
     close: () =>
       new Promise<void>(r => {
         server.closeAllConnections();
@@ -34,7 +38,7 @@ test('history: public HTTP/CLI client: identity, duplicate, stale binding, admis
   try {
     assert.equal(statSync(s.socket).mode & 0o777, 0o600);
     assert.equal(statSync(f.dir).mode & 0o777, 0o700);
-    const client = new Client({ socketPath: s.socket });
+    const client = new Client({ socketPath: s.socket, grantFile: s.grantFile });
     assert.equal((await client.call('hello')).pi_version, '1.5.2');
     const cwd = join(f.dir, 'work');
     (await import('node:fs')).mkdirSync(cwd);
@@ -97,7 +101,7 @@ test('history: pages pin a watermark over B2, page by cursor, stub a too-large e
     const big = 'b'.repeat(300 * 1024);
     appendFileSync(host.file, entry('a', null) + entry('b', 'a', { text: big }) + entry('c', 'b') + entry('branch', 'a'));
     host.emit('event', { type: 'host_leaf', leafId: 'branch' });
-    const client = new Client({ socketPath: s.socket });
+    const client = new Client({ socketPath: s.socket, grantFile: s.grantFile });
     const path = { worker_id: w.worker_id };
     const first = await client.call('history.page', { path, query: { watermark: 'c', limit: 2 } });
     assert.deepEqual(
@@ -139,7 +143,7 @@ test('history: a dialog recorded in the session file never creates a live intera
     const w = await f.create();
     appendFileSync(f.hosts[0]!.file, `${JSON.stringify({ type: 'custom', id: 'old-dialog', parentId: null, customType: 'extension_ui_request', data: { method: 'select', id: 'native-old', options: ['a'] } })}\n`);
     f.hosts[0]!.emit('event', { type: 'host_leaf', leafId: 'old-dialog' });
-    const client = new Client({ socketPath: s.socket });
+    const client = new Client({ socketPath: s.socket, grantFile: s.grantFile });
     const page = await client.call('history.page', { path: { worker_id: w.worker_id } });
     assert.equal(page.entries.at(-1)?.id, 'old-dialog');
     let pending: unknown[] = ['unset'];
