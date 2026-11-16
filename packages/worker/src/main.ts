@@ -5,6 +5,7 @@ import { dirname } from 'node:path';
 import { createApp } from './b2/app.js';
 import { createB2Server, listenPrivate } from './b2/server.js';
 import { resolvePaths } from './config.js';
+import { openState } from './journal/state.js';
 
 function privateDir(path: string): void {
   mkdirSync(path, { recursive: true, mode: 0o700 });
@@ -20,7 +21,9 @@ process.umask(0o077);
 privateDir(paths.stateDir);
 privateDir(dirname(paths.socketPath));
 
-const app = createApp();
+// One supervisor per state directory: the journal lock refuses a second one before anything is read.
+const state = openState(paths.stateDir);
+const app = createApp({ supervisorId: state.supervisorId, supervisorEpoch: state.supervisorEpoch });
 const server = createB2Server(app.handle);
 await listenPrivate(server, paths.socketPath);
 console.error(JSON.stringify({ event: 'listening', socket: paths.socketPath, pid: process.pid }));
@@ -32,7 +35,10 @@ function shutdown(): void {
   server.closeAllConnections();
   // Closing removes the socket file, then releases the socket lock. Removing the path after that could delete a
   // successor's socket, so main never unlinks it itself.
-  server.close(() => process.exit(0));
+  server.close(() => {
+    state.close();
+    process.exit(0);
+  });
 }
 process.once('SIGTERM', shutdown);
 process.once('SIGINT', shutdown);
