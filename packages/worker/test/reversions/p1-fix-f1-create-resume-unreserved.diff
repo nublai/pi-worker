@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 956141a..064f622 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -160,7 +160,7 @@ export class Lifecycle {
+         // One live writer: the resume target is reserved atomically with validation, before any await, and stays
+         // reserved through opening, identity checks and failure cleanup (the same reservations as sessions.rebind).
+         const target = c.resume_session_id;
+-        if (target) this.s.sessionReservations.set(target, w.worker_id);
++        void target;
+         try {
+           return await this.launch(live, c, cwd, resumeFile);
+         } finally {

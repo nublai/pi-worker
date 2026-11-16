@@ -102,6 +102,133 @@ test('lifecycle: one live writer per session; a duplicate open is refused naming
   }
 });
 
+test('lifecycle: create-with-resume reserves its target before any open; concurrent creates and rebinds share the reservation', async () => {
+  // Every switch_session waits at a gate, so a second open could only be refused before it reaches pi.
+  const opens: { host: number; path: unknown }[] = [];
+  let release!: () => void;
+  let gate = Promise.resolve();
+  const hold = () => {
+    gate = new Promise<void>(r => (release = r));
+  };
+  const f = fixture({
+    initHost: h => {
+      const index = f.hosts.length;
+      const native = h.request.bind(h);
+      h.request = async c => {
+        if (c.type === 'switch_session') {
+          opens.push({ host: index, path: c.sessionPath });
+          await gate;
+        }
+        return native(c);
+      };
+    },
+  });
+  const dir = (name: string) => {
+    const cwd = join(f.dir, name);
+    mkdirSync(cwd);
+    return cwd;
+  };
+  const refusedBy = (holder: () => string | undefined) => (e: unknown) =>
+    e instanceof Refusal && e.message === 'session_already_bound' && e.effect === 'no_effect' && e.details.holder_worker_id === holder();
+  try {
+    const a = await f.create();
+    // Archive a's first session: its catalog owner stays a live, unfenced worker, so it is resumable.
+    assert.equal((await f.supervisor.newSession(a.worker_id, bind(a, 'archive-1'))).state, 'delivered');
+    const first = a.session_id!;
+
+    // Two concurrent creates resume the same archived session.
+    hold();
+    const one = f.supervisor.create({ ...create(dir('resume-1'), 'resume-1'), resume_session_id: first });
+    const two = f.supervisor.create({ ...create(dir('resume-2'), 'resume-2'), resume_session_id: first });
+    const twoSettled = two.then(
+      () => 'delivered',
+      () => 'refused',
+    );
+    // Wait until the second create is refused or has opened the target too.
+    for (let i = 0; i < 50 && opens.length < 2; i++) if (await Promise.race([twoSettled, delay(5).then(() => undefined)])) break;
+    const holder = () => f.supervisor.receipts.all.get('resume-1')?.worker_id;
+    assert.equal(opens.length, 1, 'only one host opened the target session');
+    await assert.rejects(two, refusedBy(holder));
+    assert.equal(f.supervisor.receipts.all.has('resume-2'), false, 'the losing create left no receipt');
+    assert.equal(f.hosts.length, 2, 'and spawned nothing');
+    release();
+    const won = await one;
+    assert.equal(won.state, 'delivered', JSON.stringify(won));
+    assert.equal(f.supervisor.get(won.worker_id!).session_id, first);
+
+    // A create in flight holds its target against a rebind.
+    const b = await f.create();
+    let current = f.supervisor.get(a.worker_id);
+    assert.equal((await f.supervisor.newSession(a.worker_id, bind(current, 'archive-2'))).state, 'delivered');
+    const second = current.session_id!;
+    hold();
+    const creating = f.supervisor.create({ ...create(dir('resume-3'), 'resume-3'), resume_session_id: second });
+    for (let i = 0; i < 50 && opens.length < 2; i++) await delay(5);
+    await assert.rejects(
+      f.supervisor.rebind(b.worker_id, { ...bind(b, 'rebind-vs-create'), action: 'resume', target_session_id: second }),
+      refusedBy(() => f.supervisor.receipts.all.get('resume-3')?.worker_id),
+    );
+    release();
+    assert.equal((await creating).state, 'delivered');
+
+    // A rebind in flight holds its target against a create.
+    current = f.supervisor.get(a.worker_id);
+    assert.equal((await f.supervisor.newSession(a.worker_id, bind(current, 'archive-3'))).state, 'delivered');
+    const third = current.session_id!;
+    hold();
+    const rebinding = f.supervisor.rebind(b.worker_id, { ...bind(b, 'rebind-first'), action: 'resume', target_session_id: third });
+    for (let i = 0; i < 50 && opens.length < 3; i++) await delay(5);
+    const spawned = f.hosts.length;
+    await assert.rejects(f.supervisor.create({ ...create(dir('resume-4'), 'create-vs-rebind'), resume_session_id: third }), refusedBy(() => b.worker_id));
+    assert.equal(f.hosts.length, spawned, 'the refused create spawned nothing');
+    release();
+    assert.equal((await rebinding).state, 'delivered');
+    assert.deepEqual(
+      opens.map(o => o.host),
+      [1, 3, 2],
+      'exactly one open per reservation: resume-1, resume-3, then b',
+    );
+  } finally {
+    release?.();
+    f.cleanup();
+  }
+});
+
+test('lifecycle: a create whose resume fails after the open keeps its target from other writers while cleanup is unproven', async () => {
+  let failOpen = false;
+  const f = fixture({
+    initHost: h => {
+      const native = h.request.bind(h);
+      h.request = async c => {
+        const reply = await native(c);
+        return c.type === 'switch_session' && failOpen ? { ...reply, data: { cancelled: true } } : reply;
+      };
+      h.stopOk = !failOpen;
+    },
+  });
+  try {
+    const a = await f.create();
+    assert.equal((await f.supervisor.newSession(a.worker_id, bind(a, 'archive'))).state, 'delivered');
+    failOpen = true;
+    const cwd = join(f.dir, 'resume-fails');
+    mkdirSync(cwd);
+    const failed = await f.supervisor.create({ ...create(cwd, 'resume-fails'), resume_session_id: a.session_id! });
+    assert.deepEqual([failed.state, failed.effect], ['outcome_unknown', 'unknown']);
+    const loser = f.supervisor.get(failed.worker_id!);
+    assert.equal(loser.status, 'cleanup_pending');
+    assert.equal(loser.session_id, a.session_id, 'the session pi may have opened stays with the uncleaned worker');
+    const other = join(f.dir, 'other');
+    mkdirSync(other);
+    await assert.rejects(
+      f.supervisor.create({ ...create(other, 'after-failure'), resume_session_id: a.session_id! }),
+      (e: unknown) => e instanceof Refusal && e.message === 'session_already_bound' && e.details.holder_worker_id === loser.worker_id,
+    );
+    assert.equal(f.hosts.length, 2);
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('lifecycle: create refuses before any record: not a directory, a typed child launch', async () => {
   const f = fixture();
   try {
