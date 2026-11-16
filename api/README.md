@@ -12,8 +12,20 @@
 | `generated/b2.json` | The bundled single-file spec (`npm run api:bundle`). |
 
 ```sh
-npm run api:lint     # lint the spec, then prove every piw rule fails on its fixture
-npm run api:bundle   # write generated/b2.json
+npm run api:lint          # lint the spec, then prove every piw rule fails on its fixture
+npm run api:bundle        # write generated/b2.json
+npm run generate          # bundle, then every generated file below
+npm run check:generated   # regenerate and fail if any generated file differs from the commit
 ```
+
+`npm run generate` (`tools/codegen/generate.mjs`) writes:
+
+| Output | Tool |
+| --- | --- |
+| `api/generated/b2.json` | Redocly CLI bundle |
+| `packages/worker/src/generated/api.ts` | openapi-typescript |
+| `packages/worker/src/generated/validators.js`, `.d.ts` | Ajv 2020 standalone: every request body, parameter set (path, query, header), JSON response per status and event; no runtime dependency |
+| `packages/worker/src/generated/routes.ts` | in-repo route table (`tools/codegen/tables.mjs`) |
+| `packages/worker/src/generated/events.ts` | in-repo event manifest and typed publishers; a `journal` event needs the journal append result |
 
 Redocly runs with telemetry off (`telemetry: 'off'` in `redocly.yaml` and `REDOCLY_TELEMETRY=off` in the scripts).
