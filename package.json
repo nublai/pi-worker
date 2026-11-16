@@ -19,6 +19,7 @@
     "build": "npm run build --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
     "test:go": "cd clients/go && go vet ./... && go test -race ./... && go test -tags integration ./... && ./stdlib-gate.sh",
+    "test:conformance": "npm run test:conformance -w @nublai/pi-worker",
     "check": "npm run api:lint && npm run check:generated && npm run build && npm test && npm run test:go"
   },
   "devDependencies": {

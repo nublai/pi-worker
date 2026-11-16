@@ -11,7 +11,8 @@
   "main": "dist/src/main.js",
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.json && cp src/generated/validators.js dist/src/generated/validators.js",
-    "test": "npm run build && node ../../tools/node-test.mjs 'dist/test/**/*.test.js'"
+    "test": "npm run build && node ../../tools/node-test.mjs 'dist/test/**/*.test.js'",
+    "test:conformance": "npm run build && node ../../tools/node-test.mjs 'dist/test/conformance/**/*.test.js'"
   },
   "devDependencies": {
     "@nublai/pi-worker-client": "0.0.0"
