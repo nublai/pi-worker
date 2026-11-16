@@ -169,15 +169,7 @@ export class Bindings {
         }
         if (b.action === 'resume') {
           if (!b.target_session_id) throw new Refusal('target_session_id_required');
-          this.s.noOtherWriter(b.target_session_id, id);
-          const known = this.s.sessionFiles.get(b.target_session_id);
-          if (!known) throw new Refusal('unknown_session');
-          const owner = this.s.require(known.worker_id);
-          if (known.worker_id !== id && (owner.worker.status === 'cleanup_pending' || owner.worker.cleanup.includes('escaped_descendants_unproven'))) {
-            throw new Refusal('target_cleanup_unproven');
-          }
-          if (owner.worker.fence) throw new Refusal('target_session_fenced', 'no_effect', owner.worker.fence.command_id);
-          target = known.file;
+          target = this.s.resumable(b.target_session_id, id);
         }
       },
     );

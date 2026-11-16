@@ -32,7 +32,8 @@
       "diffs": [
         "p1-4-no-one-writer.diff",
         "p1-fix-f1-create-resume-unreserved.diff",
-        "p1-fix-f1-failed-resume-releases-target.diff"
+        "p1-fix-f1-failed-resume-releases-target.diff",
+        "p1-fix-f2-create-resume-skips-session-gates.diff"
       ]
     },
     "input": {

@@ -1416,7 +1416,7 @@ type Create struct {
 	ProjectTrusted *bool       `json:"project_trusted,omitempty"`
 	Provider       string      `json:"provider"`
 
-	// ResumeSessionId Reattach a session this worker catalog knows. Refused `session_already_bound`, naming the holder, while another worker holds it.
+	// ResumeSessionId Reattach a session this worker catalog knows. Refused `session_already_bound`, naming the holder, while another worker holds or is opening it; `target_cleanup_unproven` while its last owner's cleanup is unproven; `target_session_fenced`, naming the uncertain command, while its fence is unresolved.
 	ResumeSessionId *Id      `json:"resume_session_id,omitempty"`
 	Thinking        Thinking `json:"thinking"`
 }

@@ -86,8 +86,9 @@ test('lifecycle: one live writer per session; a duplicate open is refused naming
     assert.deepEqual(readFileSync(f.journalFile), before, 'nothing journaled');
     assert.equal(f.hosts.length, 1, 'nothing spawned');
     await assert.rejects(f.supervisor.create({ ...create(other, 'unknown-session'), resume_session_id: 'never-seen' }), /unknown_session/);
-    // Once the holder is stopped, another worker in another cwd may resume the session.
-    await f.supervisor.stop(a.worker_id, bind(a, 'stop-a'));
+    // Once the holder moves to another session (its process group live and accounted for), another worker in
+    // another cwd may resume the archived session. A stopped holder's session is not resumable in P1: see below.
+    assert.equal((await f.supervisor.newSession(a.worker_id, bind(a, 'archive-a'))).state, 'delivered');
     const resumed = await f.supervisor.create({ ...create(other, 'resume'), resume_session_id: a.session_id! });
     assert.equal(resumed.state, 'delivered', JSON.stringify(resumed));
     const b = f.supervisor.get(resumed.worker_id!);
@@ -98,6 +99,61 @@ test('lifecycle: one live writer per session; a duplicate open is refused naming
       [join(f.dir, 'session-0.jsonl')],
     );
   } finally {
+    f.cleanup();
+  }
+});
+
+test('lifecycle: create-with-resume over B2 applies the session gates: unproven cleanup and an unresolved fence refuse before any spawn', async () => {
+  const f = fixture();
+  const server = createB2Server(createApp({ supervisor: f.supervisor }).handle);
+  const socketPath = join(f.dir, 'b2.sock');
+  const dir = (name: string) => {
+    const cwd = join(f.dir, name);
+    mkdirSync(cwd);
+    return cwd;
+  };
+  try {
+    await listenPrivate(server, socketPath);
+    const client = new Client({ socketPath });
+    const resume = (name: string, session: string) => client.call('workers.create', { body: { ...create(dir(name), name), resume_session_id: session } });
+    const refused = (message: string, uncertain?: string) => (e: unknown) =>
+      e instanceof ClientFailure && e.message === message && e.effect === 'no_effect' && (uncertain === undefined || e.details.uncertain_command_id === uncertain);
+
+    // A stopped holder: its process group was observed gone, its escaped descendants are unproven (invariant 2).
+    const stopped = await f.create();
+    assert.equal((await f.supervisor.stop(stopped.worker_id, bind(stopped, 'stop'))).state, 'delivered');
+    assert.match(f.supervisor.get(stopped.worker_id).cleanup, /escaped_descendants_unproven/);
+    await assert.rejects(resume('after-stop', stopped.session_id!), refused('target_cleanup_unproven'));
+
+    // A fenced holder that is still live and accounted for: its session stays fenced until resolve_unknown.
+    const fenced = await f.create();
+    const h = f.hosts.at(-1)!;
+    h.failure = true;
+    assert.equal((await f.supervisor.prompt(fenced.worker_id, { ...bind(fenced, 'lost'), message: 'x' })).state, 'outcome_unknown');
+    h.failure = false;
+    // pi moves natively to a new session; the fenced one is archived in the catalog, owned by the fenced worker.
+    const file = join(f.dir, 'moved.jsonl');
+    writeFileSync(file, `${JSON.stringify({ type: 'session', id: 'moved' })}\n`);
+    h.emit('event', { type: 'host_binding', action: 'replace', sessionId: 'moved', sessionFile: file, leafId: null });
+    const owner = f.supervisor.get(fenced.worker_id);
+    assert.deepEqual([owner.status, owner.cleanup, owner.session_id, owner.fence?.command_id], ['ready', 'live_process_group', 'moved', 'lost']);
+    await assert.rejects(resume('after-fence', fenced.session_id!), refused('target_session_fenced', 'lost'));
+
+    // The review's journey: an unknown prompt, a clean stop, then a resume elsewhere and a new prompt.
+    const both = await f.create();
+    const hb = f.hosts.at(-1)!;
+    hb.failure = true;
+    assert.equal((await f.supervisor.prompt(both.worker_id, { ...bind(both, 'lost-2'), message: 'x' })).state, 'outcome_unknown');
+    assert.equal((await f.supervisor.stop(both.worker_id, bind(both, 'stop-2'))).state, 'delivered');
+    await assert.rejects(resume('after-fence-and-stop', both.session_id!), refused('target_cleanup_unproven'));
+
+    const spawned = f.hosts.length;
+    for (const id of ['after-stop', 'after-fence', 'after-fence-and-stop']) assert.equal(f.supervisor.receipts.all.has(id), false, `${id} left no receipt`);
+    assert.equal(spawned, 3, 'no refused resume spawned a host');
+    assert.equal(f.supervisor.get(fenced.worker_id).fence?.command_id, 'lost', 'the fence is not lifted');
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>(r => server.close(() => r()));
     f.cleanup();
   }
 });

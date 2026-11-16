@@ -1,6 +1,8 @@
+diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
+index 40dc1c3..f6c723d 100644
 --- a/packages/worker/src/supervisor/state.ts
 +++ b/packages/worker/src/supervisor/state.ts
-@@ -153,7 +153,7 @@
+@@ -164,7 +164,7 @@ export class SupervisorState {
      const reserved = this.sessionReservations.get(sessionId);
      if (reserved && reserved !== except) throw new Refusal('session_already_bound', 'no_effect', undefined, { holder_worker_id: reserved });
      const holder = [...this.workers.values()].find(l => l.worker.worker_id !== except && l.worker.session_id === sessionId && HOLDING.has(l.worker.status));
@@ -8,4 +10,4 @@
 +    void holder;
    }
  
-   /** One worker per environment: a cwd stays reserved while a worker holds it or its cleanup is unproven. */
+   /**
