@@ -9,6 +9,7 @@
  * and emits any other record as an event.
  */
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { Readable } from 'node:stream';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -24,6 +25,12 @@ export type PiRecord = Record<string, unknown> & { type: string };
  */
 export type PiResponse = { type: 'response'; id: string; success: boolean; data?: Record<string, unknown>; error?: string; refused?: 'before_input' };
 
+/** One child report, read from the child's inherited report descriptor (FD 3). A claim, never proof. */
+export type ChildReport = { report_id: string; kind: 'result' | 'help'; message: string };
+
+/** The report channel's bounds: buffered bytes, reports per child, message bytes. */
+export const REPORT_LIMITS = { bufferBytes: 16 * 1024, reports: 32, messageBytes: 8192 } as const;
+
 /** The seam the supervisor drives; the conformance and crash tests supply a deterministic fake. */
 export interface SessionHost {
   readonly pid: number | undefined;
@@ -32,6 +39,8 @@ export interface SessionHost {
   request(command: PiRecord): Promise<PiResponse>;
   on(event: 'event', listener: (record: PiRecord) => void): this;
   on(event: 'exit', listener: () => void): this;
+  /** A typed child's report from its inherited FD 3; never from stdout, which pi and its extensions also write. */
+  on(event: 'report', listener: (report: ChildReport) => void): this;
   /** Kills the process group; true only when it was observed gone. */
   stop(): Promise<boolean>;
 }
@@ -43,6 +52,8 @@ export interface LineHostOptions {
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
   readonly timeoutMs?: number;
+  /** A typed child: a fourth pipe becomes its FD 3, the job-scoped report channel. */
+  readonly report?: boolean;
 }
 
 /** A subprocess speaking the host protocol. Its own process group, so `stop` can kill what it started. */
@@ -59,7 +70,9 @@ export class LineHost extends EventEmitter implements SessionHost {
   constructor(executable: string, args: readonly string[], options: LineHostOptions) {
     super();
     this.timeoutMs = options.timeoutMs ?? 30_000;
-    this.child = spawn(executable, args, { cwd: options.cwd, env: options.env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    // SAFETY: stdio 0 to 2 are pipes in both forms, which is all ChildProcessWithoutNullStreams promises.
+    this.child = spawn(executable, args, { cwd: options.cwd, env: options.env, detached: true, stdio: options.report ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'] }) as ChildProcessWithoutNullStreams;
+    if (options.report) this.readReports(this.child.stdio[3] as Readable);
     this.token = this.child.pid ? processToken(this.child.pid) : null;
     this.child.stderr.on('data', (b: Buffer) => {
       this.stderrTail = (this.stderrTail + b.toString('utf8')).slice(-STDERR_TAIL);
@@ -72,6 +85,51 @@ export class LineHost extends EventEmitter implements SessionHost {
 
   get pid(): number | undefined {
     return this.child.pid;
+  }
+
+  /**
+   * The report channel: LF-delimited JSON `{report_id, kind, message}` and nothing else. Past its bounds or on any
+   * malformed record the host fails and stops the child: a report channel that misbehaves is not trusted further.
+   */
+  private readReports(channel: Readable): void {
+    const decoder = new StringDecoder('utf8');
+    let buffer = '';
+    let count = 0;
+    const reject = (reason: string) => {
+      channel.destroy();
+      this.fail(new Error(reason));
+      void this.stop();
+    };
+    channel.on('data', (chunk: Buffer) => {
+      buffer += decoder.write(chunk);
+      if (Buffer.byteLength(buffer) > REPORT_LIMITS.bufferBytes) return reject('child_report_overflow');
+      for (;;) {
+        const end = buffer.indexOf('\n');
+        if (end < 0) break;
+        const line = buffer.slice(0, end);
+        buffer = buffer.slice(end + 1);
+        let r: ChildReport;
+        try {
+          r = JSON.parse(line) as ChildReport;
+        } catch {
+          return reject('invalid_child_report');
+        }
+        if (
+          ++count > REPORT_LIMITS.reports ||
+          !r ||
+          typeof r !== 'object' ||
+          !/^[a-zA-Z0-9_-]{1,64}$/.test(String(r.report_id)) ||
+          !['result', 'help'].includes(r.kind) ||
+          typeof r.message !== 'string' ||
+          Buffer.byteLength(r.message) > REPORT_LIMITS.messageBytes ||
+          Object.keys(r).some(k => !['report_id', 'kind', 'message'].includes(k))
+        ) {
+          return reject('invalid_child_report');
+        }
+        this.emit('report', r);
+      }
+    });
+    channel.on('error', error => this.fail(error));
   }
 
   /** The last few KiB of the child's stderr, for diagnostics only. */
@@ -157,7 +215,13 @@ export interface SdkLaunch {
   readonly model: string;
   readonly thinking: string;
   readonly projectTrusted: boolean;
+  /** A typed child's launch spec: its tools, denials and explicit resources, and nothing discovered. */
+  readonly launchSpec?: LaunchSpec | null;
+  /** A typed child's job: it gets the FD 3 report channel scoped to this task, and nothing else. */
+  readonly taskId?: string | null;
 }
+
+export type LaunchSpec = import('../generated/api.js').components['schemas']['LaunchSpec'];
 
 export const sdkChildEntry = fileURLToPath(new URL('../sdk-child/main.js', import.meta.url));
 
@@ -169,14 +233,24 @@ export function pinnedPiVersion(): string {
   return pkg.version;
 }
 
-/** The child's environment: the supervisor's, without its own PIW_* configuration. */
-export function childEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  return Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('PIW_')));
+/**
+ * The child's environment: the supervisor's, without its own PIW_* configuration or any PI_WORKER_* channel a caller
+ * set (socket, grant file, report descriptor). A typed child then gets exactly its report descriptor and task id.
+ */
+export function childEnv(env: NodeJS.ProcessEnv = process.env, taskId?: string | null): NodeJS.ProcessEnv {
+  const out = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('PIW_') && !k.startsWith('PI_WORKER_')));
+  if (taskId) Object.assign(out, { PI_WORKER_REPORT_FD: '3', PI_WORKER_TASK_ID: taskId, PI_SUBAGENT_ID: taskId });
+  return out;
 }
 
 /** The production host: pi's SDK in a dedicated Node process (`sdk-child/main.ts`), run by this Node binary. */
 export class SdkHost extends LineHost {
   constructor(launch: SdkLaunch, options: { env?: NodeJS.ProcessEnv; timeoutMs?: number } = {}) {
-    super(process.execPath, [sdkChildEntry, JSON.stringify(launch)], { cwd: launch.cwd, env: childEnv(options.env), ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}) });
+    super(process.execPath, [sdkChildEntry, JSON.stringify(launch)], {
+      cwd: launch.cwd,
+      env: childEnv(options.env, launch.taskId),
+      report: !!launch.taskId,
+      ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+    });
   }
 }

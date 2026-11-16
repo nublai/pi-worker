@@ -7,7 +7,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 /** Throws a `Refusal` (grant_revoked, grant_method_denied, …) when the grant no longer authorizes the call. */
-export type Guard = (() => void) & { readonly grant_id?: string; readonly caller_name?: string };
+export type Guard = (() => void) & { readonly grant_id?: string; readonly caller_name?: string; readonly methods?: readonly string[] };
 
 export const authority = new AsyncLocalStorage<Guard>();
 

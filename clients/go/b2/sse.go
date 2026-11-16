@@ -202,6 +202,8 @@ func eventType(event any) string {
 		return string(e.Type)
 	case *InteractionsChangedEvent:
 		return string(e.Type)
+	case *ChildReportedEvent:
+		return string(e.Type)
 	case *UnknownEvent:
 		return e.Type
 	}

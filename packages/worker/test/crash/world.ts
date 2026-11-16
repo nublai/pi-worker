@@ -13,6 +13,7 @@ import { openState, type SupervisorState as OpenState } from '../../src/journal/
 import { ReceiptStore, type Receipt } from '../../src/receipts/receipts.js';
 import type { Worker } from '../../src/supervisor/state.js';
 import { Supervisor } from '../../src/supervisor/supervisor.js';
+import { GrantStore } from '../../src/grants/store.js';
 import { Host } from '../supervisor-fixture.js';
 
 export type Effect = { kind: string; command_id: string; session_file?: string; session_id?: string; entry_id?: string; native_file?: string; operation?: string };
@@ -118,6 +119,7 @@ export function openWorld(root: string, scenario: boolean): World {
     receipts: new ReceiptStore(state.journal),
     supervisorEpoch: state.supervisorEpoch,
     stateDir: root,
+    grants: new GrantStore(root),
     factory: launch => {
       assert.ok(scenario, 'recovery must never launch or adopt a host');
       // A world reopened over a recovered root (resume.test.ts) never reuses an earlier session's id or file.
@@ -161,6 +163,10 @@ export function openWorld(root: string, scenario: boolean): World {
         return supervisor.followUp(id!, b);
       case 'resolve':
         return supervisor.resolveUnknown(id!, b);
+      case 'launch_child':
+        return supervisor.launchChild(id!, b);
+      case 'report':
+        return supervisor.report(id!, b);
       case 'answer':
         // A retry after a restart sends a different value: the recorded outcome comes back without revalidating it.
         return supervisor.answer(id!, scenario ? b : ({ ...body, value: 'DIFFERENT_AFTER_RESTART' } as never));

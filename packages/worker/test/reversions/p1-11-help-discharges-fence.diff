@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
+index 9436819..aa82310 100644
+--- a/packages/worker/src/supervisor/children.ts
++++ b/packages/worker/src/supervisor/children.ts
+@@ -181,7 +181,7 @@ export class Children {
+       if (!parent || (parent.worker.resolutions ?? []).some(r => r.command_id === launch)) continue;
+       const task = child.worker.parent?.task_id ?? launch;
+       const reported = [...this.s.receipts.all.values()].some(
+-        r => r.operation === 'children.report' && r.worker_id === child.worker.worker_id && r.state === 'delivered' && r.result?.task_id === task && r.result?.kind !== 'help',
++        r => r.operation === 'children.report' && r.worker_id === child.worker.worker_id && r.state === 'delivered' && r.result?.task_id === task,
+       );
+       if (!reported) this.fenceParent(parentId, launch);
+     }

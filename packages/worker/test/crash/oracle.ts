@@ -68,8 +68,9 @@ export async function checkRecovery(root: string, extra: Check[] = []): Promise<
     else if (e.kind === 'prompt' || e.kind === 'steer') assert.ok(native.some(n => n.type === 'message' && n.id === e.entry_id), 'the session file corroborates the input');
     else assert.ok(native.some(n => n.type === 'session' && n.id === e.session_id), 'a session header corroborates the spawn or move');
     const key0 = `${e.kind}:${e.command_id}`;
-    if (e.command_id.startsWith('timeout:')) {
-      // A deadline cancel has no command; its write-ahead marker is checked by the interactions oracle.
+    if (e.command_id.startsWith('timeout:') || e.command_id.startsWith('claim:')) {
+      // A deadline cancel has no command (its write-ahead marker is checked by the interactions oracle); a report a
+      // child wrote to its FD is a claim, durable only once its receipt is (the children oracle checks delivery).
       assert.ok(!seen.has(key0), `no duplicate native effect: ${key0}`);
       seen.add(key0);
       continue;

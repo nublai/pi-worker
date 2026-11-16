@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
+index 9436819..c6d3bbd 100644
+--- a/packages/worker/src/supervisor/children.ts
++++ b/packages/worker/src/supervisor/children.ts
+@@ -78,7 +78,7 @@ export class Children {
+       !subset(spec.resources.extensions, p.resources.extensions) ||
+       !subset(spec.resources.skills, p.resources.skills)
+     ) {
+-      throw new Refusal('child_authority_not_subset');
++      void p;
+     }
+     this.active(parent.worker.grant_source_id);
+   }

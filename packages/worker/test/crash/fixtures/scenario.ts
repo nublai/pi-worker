@@ -12,6 +12,7 @@
  * - `resume`: an archived session resumed by a new worker's create, then a restart (resume-scenario.ts).
  * - `grants`: the owner's grant command registers two grants with bearer files and revokes one (grants-scenario.ts).
  * - `interactions`: answers, cancels, tool releases, a navigation and a lost acknowledgement (interactions-scenario.ts).
+ * - `children`: a typed child with an FD report and a stop, an untyped child launched from a queue (children-scenario.ts).
  */
 import assert from 'node:assert/strict';
 import { isAbsolute } from 'node:path';
@@ -24,6 +25,7 @@ import { bindingScenario } from '../binding-scenario.js';
 import { resumeScenario } from '../resume-scenario.js';
 import { grantsScenario } from '../grants-scenario.js';
 import { interactionsScenario } from '../interactions-scenario.js';
+import { childrenScenario } from '../children-scenario.js';
 
 const [mode, root] = process.argv.slice(2);
 assert.ok(root && isAbsolute(root), 'the parent supplies a per-run temporary directory');
@@ -54,6 +56,10 @@ if (mode === 'journal') {
   process.exit(0);
 } else if (mode === 'resume') {
   await resumeScenario(root);
+  process.stdout.write(`${JSON.stringify({ done: true })}\n`);
+  process.exit(0);
+} else if (mode === 'children') {
+  await childrenScenario(root);
   process.stdout.write(`${JSON.stringify({ done: true })}\n`);
   process.exit(0);
 } else if (mode === 'interactions') {

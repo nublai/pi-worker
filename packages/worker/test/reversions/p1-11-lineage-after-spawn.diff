@@ -1,0 +1,38 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 1e14271..faba1f1 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -187,14 +187,6 @@ export class Lifecycle {
+         const live = this.s.newWorker(cwd, c);
+         const w = live.worker;
+         if (c.launch_spec) w.launch_spec = structuredClone(c.launch_spec);
+-        if (c.parent) {
+-          w.parent = structuredClone(c.parent);
+-          w.parent_worker_id = c.parent.worker_id;
+-          w.parent_launch_command_id = c.command_id;
+-        } else if (lineage) {
+-          w.parent_worker_id = lineage.parent_worker_id;
+-          w.parent_launch_command_id = lineage.parent_launch_command_id;
+-        }
+         // The grant that created it: a typed child's reports and its own children recheck it.
+         const grantId = currentGuard()?.grant_id;
+         if (grantId) w.grant_source_id = grantId;
+@@ -206,7 +198,17 @@ export class Lifecycle {
+         // starts) carries the target, so a restart attributes it to this worker instead of releasing it.
+         if (target && resumeFile) live.resume = { session_id: target, file: resumeFile };
+         try {
+-          return await this.launch(live, c, cwd, resumeFile);
++          const out = await this.launch(live, c, cwd, resumeFile);
++          if (c.parent) {
++            w.parent = structuredClone(c.parent);
++            w.parent_worker_id = c.parent.worker_id;
++            w.parent_launch_command_id = c.command_id;
++          } else if (lineage) {
++            w.parent_worker_id = lineage.parent_worker_id;
++            w.parent_launch_command_id = lineage.parent_launch_command_id;
++          }
++          this.s.persist(live, 'worker.ready');
++          return out;
+         } finally {
+           if (target && this.s.sessionReservations.get(target) === w.worker_id) this.s.sessionReservations.delete(target);
+         }

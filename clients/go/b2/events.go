@@ -37,6 +37,8 @@ func DecodeEvent(data []byte) (any, error) {
 		target = &FenceResolvedEvent{}
 	case "interactions.changed":
 		target = &InteractionsChangedEvent{}
+	case "child.reported":
+		target = &ChildReportedEvent{}
 	case "":
 		return nil, fmt.Errorf("b2: event frame without a type")
 	default:

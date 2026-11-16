@@ -56,7 +56,7 @@ function authorizer(grants: GrantStore | undefined): (request: B2Request, route:
       () => {
         if (!allowsMethod(grants.current(caller), route.grantMethod)) throw new Refusal('grant_method_denied');
       },
-      { grant_id: caller.grant_id, caller_name: caller.caller },
+      { grant_id: caller.grant_id, caller_name: caller.caller, methods: caller.methods },
     );
     return { caller, guard };
   };
@@ -100,6 +100,8 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     'workers.create': ({ body, caller }) => {
       const s = supervisor();
       if (!caller || !allowsCwd(caller, body.cwd)) throw new Refusal('grant_scope_denied');
+      // A typed child's parent must be in scope as well.
+      if (body.parent && !visible(caller, body.parent.worker_id)) throw new Refusal('grant_scope_denied');
       // Reattaching a session needs its last owner in scope too.
       const owner = body.resume_session_id ? s.state.sessionFiles.get(body.resume_session_id)?.worker_id : undefined;
       if (owner && !visible(caller, owner)) throw new Refusal('grant_scope_denied');
@@ -115,6 +117,12 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     'sessions.new': ({ path, body }) => supervisor().newSession(path.worker_id, body),
     'sessions.resolve_unknown': ({ path, body }) => supervisor().resolveUnknown(path.worker_id, body),
     'history.page': ({ path, query }) => supervisor().history(path.worker_id, query),
+    'children.launch': ({ path, body, caller }) => {
+      // The child's environment must be in the caller's scope too.
+      if (!caller || !allowsCwd(caller, body.launch.cwd)) throw new Refusal('grant_scope_denied');
+      return supervisor().launchChild(path.worker_id, body);
+    },
+    'children.report': ({ path, body }) => supervisor().report(path.worker_id, body),
     'interactions.list': ({ path }) => supervisor().interactionList(path.worker_id),
     'interactions.status': ({ path, query }) => supervisor().interactionStatus(path.worker_id, query.interaction_id),
     'interactions.answer_if_current': ({ path, body, caller }) => {

@@ -59,6 +59,69 @@ func (e ChildClaimKind) Valid() bool {
 	}
 }
 
+// Defines values for ChildReportedEventDataClaimNotVerified.
+const (
+	ChildReportedEventDataClaimNotVerifiedTrue ChildReportedEventDataClaimNotVerified = true
+)
+
+// Valid indicates whether the value is a known member of the ChildReportedEventDataClaimNotVerified enum.
+func (e ChildReportedEventDataClaimNotVerified) Valid() bool {
+	switch e {
+	case ChildReportedEventDataClaimNotVerifiedTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChildReportedEventDataKind.
+const (
+	ChildReportedEventDataKindHelp   ChildReportedEventDataKind = "help"
+	ChildReportedEventDataKindResult ChildReportedEventDataKind = "result"
+)
+
+// Valid indicates whether the value is a known member of the ChildReportedEventDataKind enum.
+func (e ChildReportedEventDataKind) Valid() bool {
+	switch e {
+	case ChildReportedEventDataKindHelp:
+		return true
+	case ChildReportedEventDataKindResult:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChildReportedEventEvidence.
+const (
+	ChildReportedEventEvidenceSupervisorJournalFsynced ChildReportedEventEvidence = "supervisor_journal_fsynced"
+)
+
+// Valid indicates whether the value is a known member of the ChildReportedEventEvidence enum.
+func (e ChildReportedEventEvidence) Valid() bool {
+	switch e {
+	case ChildReportedEventEvidenceSupervisorJournalFsynced:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChildReportedEventType.
+const (
+	ChildReported ChildReportedEventType = "child.reported"
+)
+
+// Valid indicates whether the value is a known member of the ChildReportedEventType enum.
+func (e ChildReportedEventType) Valid() bool {
+	switch e {
+	case ChildReported:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Effect.
 const (
 	EffectNoEffect Effect = "no_effect"
@@ -1411,6 +1474,37 @@ type ChildLaunch struct {
 	SessionId       Id     `json:"session_id"`
 	WorkerEpoch     Id     `json:"worker_epoch"`
 }
+
+// ChildReportedEvent A child's report reached its durable receipt. A report is a claim, never proof; a `help` report never discharges the parent's launch fence.
+type ChildReportedEvent struct {
+	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
+	Cursor Cursor `json:"cursor"`
+	Data   struct {
+		ClaimNotVerified ChildReportedEventDataClaimNotVerified `json:"claim_not_verified"`
+		Kind             *ChildReportedEventDataKind            `json:"kind,omitempty"`
+		ParentWorkerId   *string                                `json:"parent_worker_id"`
+		ReportCommandId  Id                                     `json:"report_command_id"`
+		TaskId           Id                                     `json:"task_id"`
+	} `json:"data"`
+	EventId     Id                         `json:"event_id"`
+	Evidence    ChildReportedEventEvidence `json:"evidence"`
+	ExecutionId *string                    `json:"execution_id"`
+	Producer    Producer                   `json:"producer"`
+	Type        ChildReportedEventType     `json:"type"`
+	WorkerId    Id                         `json:"worker_id"`
+}
+
+// ChildReportedEventDataClaimNotVerified defines model for ChildReportedEvent.Data.ClaimNotVerified.
+type ChildReportedEventDataClaimNotVerified bool
+
+// ChildReportedEventDataKind defines model for ChildReportedEvent.Data.Kind.
+type ChildReportedEventDataKind string
+
+// ChildReportedEventEvidence defines model for ChildReportedEvent.Evidence.
+type ChildReportedEventEvidence string
+
+// ChildReportedEventType defines model for ChildReportedEvent.Type.
+type ChildReportedEventType string
 
 // Control defines model for Control.
 type Control struct {

@@ -61,6 +61,17 @@ export const fences: Check = (pre, after) => {
     if (prior.execution && prior.execution.state !== 'settled' && (!resolved.has(prior.execution.command_id) || ['ready', 'starting'].includes(prior.status))) {
       if (receipts.get(prior.execution.command_id)?.effect !== 'no_effect') required.add(prior.execution.command_id);
     }
+    // Invariant 4a: a child whose launch may have run (its launch receipt is not no_effect) and that left no durable
+    // non-help report for its task fences its parent on the launch command, unless the parent resolved it.
+    for (const c of pre.workers.values()) {
+      const launch = c.parent_launch_command_id;
+      if (!launch || c.parent_worker_id !== w.worker_id || resolved.has(launch)) continue;
+      const lr = receipts.get(launch);
+      if (!lr || lr.effect === 'no_effect') continue;
+      const task = c.parent?.task_id ?? launch;
+      const reported = after.receipts.some(r => r.operation === 'children.report' && r.worker_id === c.worker_id && r.state === 'delivered' && r.result?.task_id === task && r.result?.kind !== 'help');
+      if (!reported) required.add(launch);
+    }
     for (const id of prior.fence?.uncertain_command_ids ?? []) {
       if (resolved.has(id)) continue;
       const r = receipts.get(id);

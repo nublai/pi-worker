@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { ClientFailure, type OperationId } from '@nublai/pi-worker-client';
 import { routes } from '../../src/generated/routes.js';
 import { expand, get, semanticHash, substitute, transitions, type Step } from './fixture.js';
-import { startTarget, TODO, type Worker } from './target.js';
+import { startTarget, type Worker } from './target.js';
 
 /** Pinned: the frozen fields of the eleven rows. A change needs a new contract revision approved by the founder. */
 const FROZEN_SEMANTIC_HASH = '290168fc3c49bbe536b31f575f05b1f5330bbe9c55080eeeeee3a1c2c2726b51';
@@ -74,13 +74,21 @@ test('conformance: every call body in the fixture validates against the B2 spec'
 });
 
 /**
- * Rows whose prerequisites have landed (plan section 5.1). A row leaves `todo` only in the PR the plan names:
- * 02, 03, 07, 08, 09 and 11 at P1-6; 01 and 10 at P1-7; 04, 05 and 06 at P1-11.
+ * Every row is green from P1-11 on (plan section 5.1): 02, 03, 07, 08, 09 and 11 at P1-6; 01 and 10 at P1-7; 04, 05
+ * and 06 at P1-11. No row may be `todo` any more: the runner fails if one is (below), so all eleven run on every PR.
  */
-const GREEN: ReadonlySet<string> = new Set(['01-binding', '02-unknown', '03-fenced-write', '07-observed', '08-generation', '09-restart', '10-cleanup-resume', '11-control']);
+const TODO_ROWS: ReadonlySet<string> = new Set();
+
+test('conformance: no frozen row is todo; all eleven run', () => {
+  assert.deepEqual([...TODO_ROWS], [], 'a frozen row marked todo');
+  assert.deepEqual(
+    transitions.rows.map(r => r.id).filter(id => TODO_ROWS.has(id)),
+    [],
+  );
+});
 
 for (const row of transitions.rows) {
-  test(`contract 0.1 fixture ${row.id}`, GREEN.has(row.id) ? {} : { todo: TODO }, async () => {
+  test(`contract 0.1 fixture ${row.id}`, async () => {
     const session = await startTarget(row.profile ? { profile: row.profile } : {});
     const { client, initial, host } = session;
     try {
