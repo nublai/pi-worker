@@ -35,6 +35,12 @@ export interface Persisted {
   pid: number | null;
   token: string | null;
   create?: Create;
+  /**
+   * A create-with-resume target, durable in the starting row before any host starts and kept until the binding to it
+   * is recorded (or the open provably never happened). Recovery attributes it to the worker, so a restart never
+   * releases a session pi may have opened (invariants 1 and 2).
+   */
+  resume?: { session_id: string; file: string };
 }
 
 export interface Live extends Persisted {
@@ -98,7 +104,14 @@ export class SupervisorState {
   /** Journals the worker record under `label`. */
   persist(live: Live, label: DurableLabel): void {
     this.catalog(live);
-    const record: Persisted = { worker: live.worker, sessionFile: live.sessionFile, pid: live.pid, token: live.token, ...(live.create ? { create: live.create } : {}) };
+    const record: Persisted = {
+      worker: live.worker,
+      sessionFile: live.sessionFile,
+      pid: live.pid,
+      token: live.token,
+      ...(live.create ? { create: live.create } : {}),
+      ...(live.resume ? { resume: live.resume } : {}),
+    };
     // SAFETY: Persisted is a plain JSON object (no methods, no cycles); the journal stores it as a record value.
     this.journal.append('worker', record as unknown as Record<string, unknown>, label);
   }

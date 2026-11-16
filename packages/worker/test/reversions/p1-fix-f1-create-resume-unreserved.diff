@@ -1,5 +1,5 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 956141a..064f622 100644
+index 56cc695..579881f 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
 @@ -160,7 +160,7 @@ export class Lifecycle {
@@ -8,6 +8,6 @@ index 956141a..064f622 100644
          const target = c.resume_session_id;
 -        if (target) this.s.sessionReservations.set(target, w.worker_id);
 +        void target;
-         try {
-           return await this.launch(live, c, cwd, resumeFile);
-         } finally {
+         // The reservation also becomes durable: the starting row (`worker.create`, before dispatch and before any host
+         // starts) carries the target, so a restart attributes it to this worker instead of releasing it.
+         if (target && resumeFile) live.resume = { session_id: target, file: resumeFile };
