@@ -18,7 +18,8 @@
     "check:generated": "node tools/codegen/check-generated.mjs",
     "build": "npm run build --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
-    "check": "npm run api:lint && npm run check:generated && npm run build && npm test"
+    "test:go": "cd clients/go && go vet ./... && go test -race ./... && go test -tags integration ./... && ./stdlib-gate.sh",
+    "check": "npm run api:lint && npm run check:generated && npm run build && npm test && npm run test:go"
   },
   "devDependencies": {
     "@redocly/cli": "2.78.0",

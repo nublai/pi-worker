@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { events, loadSpec, operations } from './spec.mjs';
 import { clientRouteTable, eventTable, routeTable } from './tables.mjs';
 import { generateValidators } from './validators.mjs';
+import { goOps } from './go.mjs';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -53,3 +54,17 @@ write(join(workerOut, 'validators.d.ts'), validators.dts);
 write(join(workerOut, 'routes.ts'), routeTable(ops));
 write(join(workerOut, 'events.ts'), eventTable(eventInfo));
 write(join(clientOut, 'routes.ts'), clientRouteTable(ops));
+
+// 5. Go models (oapi-codegen v2.8.2, pinned by the tool directive in tools/go/go.mod) and the Go operation table.
+const goOut = join(root, 'clients', 'go', 'b2');
+const toolsGo = join(root, 'tools', 'go');
+const goEnv = { GOWORK: 'off' };
+const oapi = spawnSync('go', ['tool', 'oapi-codegen', '-config', join(goOut, 'oapi-codegen.yaml'), '-o', join(goOut, 'models.gen.go'), bundle], {
+  cwd: toolsGo,
+  stdio: 'inherit',
+  env: { ...process.env, ...goEnv },
+});
+if (oapi.error || oapi.status !== 0) throw new Error(`oapi-codegen failed (Go is required for npm run generate): ${oapi.error ?? oapi.status}`);
+console.log(`wrote ${join(goOut, 'models.gen.go').slice(root.length)}`);
+write(join(goOut, 'ops.gen.go'), goOps(spec, ops, eventInfo));
+run('gofmt', ['-w', join(goOut, 'models.gen.go'), join(goOut, 'ops.gen.go')]);

@@ -1,0 +1,95 @@
+//go:build integration
+
+package b2
+
+// Runs the Go client against the built worker daemon (packages/worker/dist). Build it first:
+//   npm ci --ignore-scripts && npm run build
+// The node binary is PIW_NODE or `node` on PATH.
+
+import (
+	"bufio"
+	"context"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+)
+
+func TestIntegrationHelloAnd501(t *testing.T) {
+	main, err := filepath.Abs(filepath.Join("..", "..", "..", "packages", "worker", "dist", "src", "main.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(main); err != nil {
+		t.Fatalf("worker not built (%v); run `npm run build` at the repository root", err)
+	}
+	node := os.Getenv("PIW_NODE")
+	if node == "" {
+		node = "node"
+	}
+	dir, err := os.MkdirTemp("", "piw-go-int-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	socket := filepath.Join(dir, "run", "pi-worker", "b2.sock")
+	cmd := exec.Command(node, main)
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "PIW_SOCKET=" + socket, "PIW_STATE_DIR=" + filepath.Join(dir, "state")}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		cmd.Process.Signal(syscall.SIGTERM)
+		cmd.Wait()
+	}()
+	ready := make(chan error, 1)
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			if strings.Contains(scanner.Text(), `"listening"`) {
+				ready <- nil
+				return
+			}
+		}
+		ready <- errors.New("worker exited before listening")
+	}()
+	select {
+	case err := <-ready:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("worker did not start")
+	}
+
+	ctx := context.Background()
+	c := New(socket)
+	hello, err := c.Hello(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hello.Protocol.Major != 0 || hello.SupervisorEpoch == "" || len(hello.NamedLimits) == 0 || hello.Limits.RequestBodyBytes <= 0 {
+		t.Fatalf("hello = %+v", hello)
+	}
+	_, err = c.SessionsPrompt(ctx, "w1", Prompt{CommandId: "c1", WorkerEpoch: "e1", SessionId: "s1", BindingRevision: 1, Message: "m"})
+	var f *ClientFailure
+	if !errors.As(err, &f) || f.Phase != PhaseHTTP || f.Status != 501 || f.Effect != NoEffect || f.Body == nil || f.Body.Error != "operation_not_implemented" {
+		t.Fatalf("prompt: %v", err)
+	}
+	_, err = c.SessionsPrompt(ctx, "w1", Prompt{CommandId: "c1", WorkerEpoch: "e1", SessionId: "s1", BindingRevision: 0, Message: "m"})
+	if !errors.As(err, &f) || f.Status != 400 || f.Effect != NoEffect || f.Body.Error != "request_schema_mismatch" {
+		t.Fatalf("invalid prompt: %v", err)
+	}
+	var resync *ResyncRequired
+	if err := c.Watch(ctx, WatchOptions{}, func(Frame) bool { return false }); !errors.As(err, &resync) || resync.Status != 501 {
+		t.Fatalf("watch: %v", err)
+	}
+}

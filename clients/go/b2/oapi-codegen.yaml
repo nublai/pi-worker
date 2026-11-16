@@ -1,0 +1,9 @@
+# oapi-codegen v2.8.2 (pinned in tools/go/go.mod), models only. Transport, SSE and classification are hand-written.
+# EventFrame is a oneOf union; the hand-written decoder in events.go handles it, so it is excluded here.
+package: b2
+generate:
+  models: true
+output-options:
+  skip-prune: true
+  exclude-schemas:
+    - EventFrame
