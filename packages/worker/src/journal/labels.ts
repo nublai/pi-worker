@@ -18,6 +18,19 @@ export const DURABLE_LABELS = [
   'receipt.unknown',
   'receipt.queue_ready',
   'receipt.resolve_intent',
+  // Worker lifecycle (supervisor/lifecycle.ts): the starting row before dispatch, the process identity right after
+  // spawn and before any request, the session identity, ready, a failed launch, stop (pending, then the observed
+  // result), a pi exit, a worker fault, and the cleanup_pending record a restart writes.
+  'worker.create',
+  'worker.spawned',
+  'worker.identity',
+  'worker.ready',
+  'worker.failed',
+  'worker.stop',
+  'worker.stopped',
+  'worker.exit',
+  'worker.fault',
+  'worker.recover',
 ] as const;
 
 export type DurableLabel = (typeof DURABLE_LABELS)[number];

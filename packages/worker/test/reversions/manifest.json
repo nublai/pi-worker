@@ -26,6 +26,12 @@
         "p1-2-refusal-after-dispatch-no-effect.diff",
         "p1-2-dispatch-marker-after-write.diff"
       ]
+    },
+    "lifecycle": {
+      "command": "npm test -- lifecycle",
+      "diffs": [
+        "p1-4-no-one-writer.diff"
+      ]
     }
   }
 }

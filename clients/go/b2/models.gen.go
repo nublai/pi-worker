@@ -1382,7 +1382,10 @@ type Create struct {
 	Parent         *Parent     `json:"parent,omitempty"`
 	ProjectTrusted *bool       `json:"project_trusted,omitempty"`
 	Provider       string      `json:"provider"`
-	Thinking       Thinking    `json:"thinking"`
+
+	// ResumeSessionId Reattach a session this worker catalog knows. Refused `session_already_bound`, naming the holder, while another worker holds it.
+	ResumeSessionId *Id      `json:"resume_session_id,omitempty"`
+	Thinking        Thinking `json:"thinking"`
 }
 
 // Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.

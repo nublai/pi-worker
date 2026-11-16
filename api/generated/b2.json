@@ -103,7 +103,6 @@
         ],
         "x-piw-mutation": false,
         "x-piw-body": "none",
-        "x-piw-status": "unsupported",
         "responses": {
           "200": {
             "description": "Worker rows.",
@@ -141,7 +140,6 @@
         ],
         "x-piw-mutation": true,
         "x-piw-body": "json",
-        "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
           "content": {
@@ -191,7 +189,6 @@
         ],
         "x-piw-mutation": false,
         "x-piw-body": "none",
-        "x-piw-status": "unsupported",
         "responses": {
           "200": {
             "description": "The worker row.",
@@ -433,7 +430,6 @@
         ],
         "x-piw-mutation": true,
         "x-piw-body": "json",
-        "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
           "content": {
@@ -1930,6 +1926,10 @@
           },
           "project_trusted": {
             "type": "boolean"
+          },
+          "resume_session_id": {
+            "$ref": "#/components/schemas/Id",
+            "description": "Reattach a session this worker catalog knows. Refused `session_already_bound`, naming the holder, while another worker holds it."
           }
         }
       },
