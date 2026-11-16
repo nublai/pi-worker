@@ -78,6 +78,28 @@ export const operationIds = Object.keys(routes) as OperationId[];
 `;
 }
 
+/** The client's table: no validators (the client has no runtime dependencies), just what a request needs. */
+export function clientRouteTable(ops) {
+  const entry = op =>
+    `  ${q(op.operationId)}: { method: ${q(op.method)}, path: ${q(op.path)}, mutation: ${op.mutation}, stream: ${op.stream} },`;
+  return `${HEADER}
+export interface ClientRoute {
+  readonly method: 'GET' | 'PUT' | 'POST' | 'DELETE' | 'PATCH';
+  /** \`{name}\` marks a path parameter. */
+  readonly path: string;
+  /** x-piw-mutation: never retried; a failure after the request bytes are written is effect unknown. */
+  readonly mutation: boolean;
+  readonly stream: boolean;
+}
+
+export const routes = {
+${ops.map(entry).join('\n')}
+} as const satisfies Record<string, ClientRoute>;
+
+export type OperationId = keyof typeof routes;
+`;
+}
+
 export function eventTable(eventInfo) {
   const { members, unionName } = eventInfo;
   const published = members.filter(m => m.visibility === 'worker');

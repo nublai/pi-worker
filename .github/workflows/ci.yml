@@ -1,5 +1,5 @@
-# CI for every push and PR: build and tests on Linux, Node 26.
-# Actions are pinned by full SHA. No secrets.
+# CI for every push and PR: build and tests on Linux, Node 26; the client also on
+# pi's Node floor (22.19). Actions are pinned by full SHA. No secrets.
 name: ci
 on:
   push:
@@ -25,5 +25,24 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run check
+        env:
+          TMPDIR: ${{ runner.temp }}
+  client-node22:
+    # @nublai/pi-worker-client keeps pi's Node floor; test it on exactly that version.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 22.19.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --version
+      - run: npm test -w @nublai/pi-worker-client
         env:
           TMPDIR: ${{ runner.temp }}

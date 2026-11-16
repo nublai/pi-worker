@@ -1,0 +1,24 @@
+{
+  "name": "@nublai/pi-worker-client",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "TypeScript client for pi-worker's B2 API over its private Unix socket. No runtime dependencies, no hidden retries.",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist/src"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "test": "npm run build && node ../../tools/node-test.mjs 'dist/test/**/*.test.js'"
+  }
+}

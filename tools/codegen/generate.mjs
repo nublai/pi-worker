@@ -1,19 +1,20 @@
 #!/usr/bin/env node
-// npm run generate: api/b2.openapi.yaml → bundle → TS types → validators → route and event tables.
+// npm run generate: api/b2.openapi.yaml → bundle → TS types → validators → route and event tables (worker and client).
 // Every output is committed; `npm run check:generated` reruns this and fails on any difference.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { events, loadSpec, operations } from './spec.mjs';
-import { eventTable, routeTable } from './tables.mjs';
+import { clientRouteTable, eventTable, routeTable } from './tables.mjs';
 import { generateValidators } from './validators.mjs';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const require = createRequire(import.meta.url);
 const bundle = join(root, 'api', 'generated', 'b2.json');
 const workerOut = join(root, 'packages', 'worker', 'src', 'generated');
+const clientOut = join(root, 'packages', 'client-ts', 'src', 'generated');
 
 function run(command, args, env = {}) {
   const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', env: { ...process.env, ...env } });
@@ -39,6 +40,9 @@ const eventInfo = events(spec);
 // 2. TypeScript types (openapi-typescript).
 const openapiTs = join(dirname(require.resolve('openapi-typescript/package.json')), 'bin', 'cli.js');
 run(process.execPath, [openapiTs, bundle, '-o', join(workerOut, 'api.ts')]);
+mkdirSync(clientOut, { recursive: true });
+copyFileSync(join(workerOut, 'api.ts'), join(clientOut, 'api.ts'));
+console.log(`wrote ${join(clientOut, 'api.ts').slice(root.length)}`);
 
 // 3. Standalone validators (Ajv 2020).
 const validators = generateValidators(spec, ops, eventInfo);
@@ -48,3 +52,4 @@ write(join(workerOut, 'validators.d.ts'), validators.dts);
 // 4. Route table and event manifest with publishers.
 write(join(workerOut, 'routes.ts'), routeTable(ops));
 write(join(workerOut, 'events.ts'), eventTable(eventInfo));
+write(join(clientOut, 'routes.ts'), clientRouteTable(ops));
