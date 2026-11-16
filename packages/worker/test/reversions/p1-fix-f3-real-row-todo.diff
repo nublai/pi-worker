@@ -1,0 +1,14 @@
+diff --git a/packages/worker/test/conformance/transitions.test.ts b/packages/worker/test/conformance/transitions.test.ts
+index 55099a4..36a5bbc 100644
+--- a/packages/worker/test/conformance/transitions.test.ts
++++ b/packages/worker/test/conformance/transitions.test.ts
+@@ -88,7 +88,8 @@ test('conformance: no frozen row is todo; all eleven run', () => {
+ });
+ 
+ for (const row of transitions.rows) {
+-  test(`contract 0.1 fixture ${row.id}`, async () => {
++  test(`contract 0.1 fixture ${row.id}`, { todo: row.id === '05-keep' }, async () => {
++    if (row.id === '05-keep') assert.fail('synthetic frozen row failure');
+     const session = await startTarget(row.profile ? { profile: row.profile } : {});
+     const { client, initial, host } = session;
+     try {

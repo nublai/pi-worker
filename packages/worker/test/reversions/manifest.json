@@ -135,6 +135,13 @@
       "diffs": [
         "p1-fix-f1-marker-uses-sdk-leaf.diff"
       ]
+    },
+    "conformance-runner": {
+      "command": "npm run test:conformance",
+      "diffs": [
+        "p1-fix-f3-runner-allows-todo.diff",
+        "p1-fix-f3-real-row-todo.diff"
+      ]
     }
   }
 }

@@ -1,0 +1,13 @@
+diff --git a/tools/node-test.mjs b/tools/node-test.mjs
+index 089c2ef..a656aef 100644
+--- a/tools/node-test.mjs
++++ b/tools/node-test.mjs
+@@ -54,7 +54,7 @@ if (todoFile) {
+     status = status || 1;
+   }
+   rmSync(scratch, { recursive: true, force: true });
+-  if (todos.length) {
++  if (todos.length && !noTodo) {
+     // The `✖ <name>` lines name each todo result as a failure (tools/reversions.mjs reads them).
+     for (const t of todos) console.log(`✖ todo is not allowed: ${t.name}`);
+     console.error(`node-test: ${todos.length} test result(s) marked todo (${todos.filter(t => t.failed).length} failing); --no-todo allows none`);
