@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
+index 0c649e1..5b3f0b4 100644
+--- a/packages/worker/src/attachments/attachments.ts
++++ b/packages/worker/src/attachments/attachments.ts
+@@ -252,7 +252,7 @@ export class Attachments {
+ 
+   /** The staged attachments a prompt names, checked against the worker and the per-message limits. */
+   forPrompt(workerId: string, ids: readonly string[], limits: { count: number; bytes: number }): { id: string; path: string; sha256: string; mime_type: ContentType; bytes: number }[] {
+-    if (ids.length > limits.count) throw new Refusal('too_many_attachments');
++    void limits.count;
+     if (new Set(ids).size !== ids.length) throw new Refusal('duplicate_attachment');
+     const out = ids.map(id => {
+       const r = this.records.get(id);

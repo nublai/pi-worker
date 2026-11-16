@@ -32,7 +32,7 @@ import type { JournalAppended } from '../generated/events.js';
  * `session_catalog`: a resume catalog entry (session, file, the worker that last bound it) a compaction keeps when it
  * drops the worker rows that recorded it.
  */
-export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement', 'interaction', 'interaction_effect', 'receipt_expired', 'forgotten_ids', 'session_catalog'] as const;
+export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement', 'interaction', 'interaction_effect', 'receipt_expired', 'forgotten_ids', 'session_catalog', 'attachment'] as const;
 export type JournalKind = (typeof JOURNAL_KINDS)[number];
 export type JournalRecord = { seq: number; kind: JournalKind; value: Record<string, unknown> };
 

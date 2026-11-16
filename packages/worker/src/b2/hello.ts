@@ -52,13 +52,14 @@ export const LIMITS: Hello['limits'] = {
   ...retentionLimits(DEFAULT_RETENTION),
   history_max_bytes: HISTORY_MAX_BYTES,
   history_line_max_bytes: HISTORY_LINE_MAX_BYTES,
+  blob_max_bytes: routes['blobs.read'].responses['200'].maxBytes,
 };
 
 /**
  * What this worker does beyond the base catalog: byte-range JSONL history (S-1), the worker-owned interrupt marker
  * (S-5) and the command id stamped into pi's session file (contract 8.1).
  */
-export const CAPABILITIES: readonly string[] = ['history.jsonl', 'interrupt_marker', 'command_stamp'];
+export const CAPABILITIES: readonly string[] = ['history.jsonl', 'interrupt_marker', 'command_stamp', 'image_attachments'];
 
 export interface HelloSource {
   supervisorId?: string;

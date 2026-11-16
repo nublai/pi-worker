@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
+index 0c649e1..f47e224 100644
+--- a/packages/worker/src/attachments/attachments.ts
++++ b/packages/worker/src/attachments/attachments.ts
+@@ -128,7 +128,7 @@ export class Attachments {
+       };
+     }
+     // Unknown is never proof that nothing was staged (a reply may still be in flight, or the record expired).
+-    throw new Refusal('unknown_attachment_is_not_proof_of_no_effect', 'unknown', undefined, {}, 409);
++    throw new Refusal('unknown_attachment', 'no_effect', undefined, {}, 409);
+   }
+ 
+   /** The worker an attachment belongs to, if the worker knows the attachment. */

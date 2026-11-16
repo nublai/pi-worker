@@ -1,0 +1,20 @@
+{
+  "request": {
+    "path": {
+      "session_id": "session-1",
+      "entry_id": "e2",
+      "index": "0"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Piw-Session-Id": "session-1",
+      "Piw-Entry-Id": "e2",
+      "Piw-Blob-Index": "0",
+      "Piw-Blob-Sha256": "b1ff9c8ea3a780bad09b346c423d2d0e46815926879b18e841d928376a946640"
+    },
+    "contentType": "image/png",
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+  }
+}

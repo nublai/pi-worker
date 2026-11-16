@@ -891,13 +891,19 @@ paths:
       summary: Stage one image for a later prompt (streamed binary upload)
       description: |
         The body is the image bytes, streamed; it never goes through the JSON path. The worker counts bytes as
-        they arrive and refuses a body over `x-piw-max-bytes` (`hello.limits.attachment_max_bytes`) with `413`.
-        The command and binding travel in headers. After the last byte the SHA-256 must equal
-        `Piw-Content-Sha256` and the magic bytes must match the content type. A failure after the request bytes
-        are written is `effect: unknown`: read the receipt, never re-upload blindly. Served from P1-16.
+        they arrive into a private staging file and refuses a body over `x-piw-max-bytes`
+        (`hello.limits.attachment_max_bytes`) with `413`, removing the file. The command and the worker travel
+        in headers; the session headers are recorded, and the prompt that uses the attachment checks its own
+        binding. After the last byte the SHA-256 must equal `Piw-Content-Sha256` and the magic bytes must match
+        the content type, else `400`, nothing staged. Then one journal record makes it `staged`.
+
+        Idempotent by `attachment_id` plus SHA-256 (Shep's S-4): the same id with the same hash returns a receipt
+        for the attachment already staged and stores nothing twice; the same id with another hash is refused
+        `attachment_id_conflict`. A failure after the request bytes are written is `effect: unknown`: read
+        `attachments.status` (or the receipt), never re-upload blindly. Allowed under a fence: staging writes no
+        session; the prompt that uses the attachment is refused.
       tags: [input]
       x-piw-mutation: true
-      x-piw-status: unsupported
       x-piw-body: binary
       x-piw-max-bytes: 2097152
       parameters:
@@ -956,6 +962,30 @@ paths:
           $ref: '#/components/responses/Unknown'
         '501':
           $ref: '#/components/responses/NotImplemented'
+    get:
+      operationId: attachments.status
+      summary: Read a staged attachment's state (after an upload whose reply was lost)
+      description: |
+        `receiving` while its upload is still streaming (memory), `staged` once its journal record is durable,
+        `released` after `attachments.release` or after the prompt that used it was delivered. An unknown id is
+        never proof that nothing was staged: `unknown_attachment_is_not_proof_of_no_effect`, `effect: unknown`.
+      tags: [readback]
+      x-piw-mutation: false
+      x-piw-body: none
+      responses:
+        '200':
+          description: The attachment.
+          x-piw-response: json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachmentStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Refused'
+        '500':
+          $ref: '#/components/responses/Unknown'
   /b2/sessions:
     get:
       operationId: sessions.list
@@ -1178,6 +1208,114 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CommandList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Refused'
+        '500':
+          $ref: '#/components/responses/Unknown'
+  /b2/attachments/{attachment_id}/release:
+    parameters:
+      - name: attachment_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+    post:
+      operationId: attachments.release
+      summary: Release a staged attachment and remove its bytes
+      description: |
+        The released record is durable before the bytes are removed, so no prompt can use them afterwards. Allowed
+        under a fence. A prompt that was delivered releases its attachments itself; the image stays in pi's
+        session file and `blobs.read` serves it from there.
+      tags: [input]
+      x-piw-mutation: true
+      x-piw-body: json
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Release'
+      responses:
+        '200':
+          $ref: '#/components/responses/Receipt'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Refused'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/Unknown'
+  /b2/sessions/{session_id}/entries/{entry_id}/blobs/{index}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+      - name: entry_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - name: index
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 1023
+    get:
+      operationId: blobs.read
+      summary: Read one image of a session entry as bytes
+      description: |
+        The `index`-th image block of the entry, in document order, decoded from pi's session file: the image pi
+        stored (after its own normalization), so the photo card renders what the model got. Scope is as for
+        `sessions.get`. The media type must be in the image allowlist and match the bytes' magic, and the image
+        is at most `hello.limits.blob_max_bytes`; otherwise refused `no_effect`.
+      tags: [readback]
+      x-piw-mutation: false
+      x-piw-body: none
+      responses:
+        '200':
+          description: The image bytes.
+          x-piw-response: binary
+          x-piw-max-bytes: 16777216
+          headers:
+            Piw-Session-Id:
+              required: true
+              schema:
+                $ref: '#/components/schemas/Id'
+            Piw-Entry-Id:
+              required: true
+              schema:
+                $ref: '#/components/schemas/Id'
+            Piw-Blob-Index:
+              required: true
+              schema:
+                type: integer
+                minimum: 0
+            Piw-Blob-Sha256:
+              required: true
+              schema:
+                $ref: '#/components/schemas/Sha256'
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+            image/gif:
+              schema:
+                type: string
+                format: binary
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
@@ -1505,7 +1643,8 @@ components:
           description: |
             Journal room only control records may use: quota-exempt commands
             (`workers.stop`, `executions.cancel`, `executions.interrupt`,
-            `sessions.resolve_unknown`, `children.report`) and stop, exit,
+            `sessions.resolve_unknown`, `children.report`,
+            `attachments.release`) and stop, exit,
             fault, fence and recovery records. Before dispatch, an ordinary
             command reserves room for every record it can emit (its receipts,
             and its worker's rows, settlements and interactions); it is refused
@@ -1558,6 +1697,10 @@ components:
           type: integer
           minimum: 1
           description: The longest single session-file line `sessions.history` returns.
+        blob_max_bytes:
+          type: integer
+          minimum: 1
+          description: The largest image `blobs.read` returns.
     Binding:
       type: object
       additionalProperties: false
@@ -1594,6 +1737,21 @@ components:
           description: >-
             What to do when an execution is running: `steer` it, queue a `follow_up` after it, or `reject` the prompt
             (`worker_busy`, `no_effect`). Absent means `reject`.
+        attachments:
+          type: array
+          maxItems: 64
+          description: >-
+            Staged images of this worker, sent as real image blocks with the text. At most
+            `hello.limits.attachments_per_message` and `attachments_total_bytes` in total, else refused `no_effect`;
+            not with `if_busy: steer`. The receipt's `result.accepted_images` is the number of images pi put in the
+            message. A delivered prompt releases them.
+          items:
+            type: object
+            additionalProperties: false
+            required: [attachment_id]
+            properties:
+              attachment_id:
+                $ref: '#/components/schemas/Id'
     FollowUp:
       type: object
       additionalProperties: false
@@ -2414,6 +2572,51 @@ components:
         args:
           type: string
           maxLength: 65536
+    Release:
+      type: object
+      additionalProperties: false
+      required: [command_id]
+      properties:
+        command_id:
+          $ref: '#/components/schemas/Id'
+    AttachmentStatus:
+      type: object
+      additionalProperties: false
+      required: [attachment_id, worker_id, state, content_type, bytes, sha256, command_id, staged_at, released_at, released_by, evidence]
+      properties:
+        attachment_id:
+          $ref: '#/components/schemas/Id'
+        worker_id:
+          $ref: '#/components/schemas/Id'
+        state:
+          type: string
+          enum: [receiving, staged, released]
+        content_type:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+        bytes:
+          type: integer
+          minimum: 0
+          description: For `receiving`, the bytes received so far.
+        sha256:
+          $ref: '#/components/schemas/Sha256'
+        command_id:
+          $ref: '#/components/schemas/Id'
+          description: The `attachments.stage` command that staged it (or is staging it).
+        staged_at:
+          type: [string, 'null']
+          maxLength: 64
+        released_at:
+          type: [string, 'null']
+          maxLength: 64
+        released_by:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 128
+          description: The command that released it (`attachments.release`, or the prompt that delivered it).
+        evidence:
+          type: string
+          enum: [supervisor_journal_fsynced, observed_memory]
     FileIdentity:
       type: string
       pattern: ^[0-9a-f]{64}$
@@ -2684,6 +2887,7 @@ components:
             - sessions.compact
             - resources.reload
             - commands.invoke
+            - attachments.release
         request_hash:
           type: string
           minLength: 1

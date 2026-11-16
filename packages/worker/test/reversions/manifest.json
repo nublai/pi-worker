@@ -223,6 +223,26 @@
         "p1-15-dispatch-after-write.diff",
         "p1-15-child-invokes-any-name.diff"
       ]
+    },
+    "attachments": {
+      "command": "npm test -- attachments",
+      "diffs": [
+        "p1-16-stage-skips-hash-check.diff",
+        "p1-16-stage-skips-magic-check.diff",
+        "p1-16-refused-upload-leaves-file.diff",
+        "p1-16-stage-not-idempotent.diff",
+        "p1-16-prompt-count-unchecked.diff",
+        "p1-16-prompt-total-unchecked.diff",
+        "p1-16-prompt-other-worker.diff",
+        "p1-16-release-bytes-before-record.diff",
+        "p1-16-unknown-status-reads-empty.diff",
+        "p1-16-sweep-off.diff",
+        "p1-16-attachment-skips-scope.diff",
+        "p1-16-blob-any-type.diff",
+        "p1-16-blob-skips-magic.diff",
+        "p1-16-child-skips-hash.diff",
+        "p1-16-compaction-drops-attachments.diff"
+      ]
     }
   }
 }

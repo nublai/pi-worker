@@ -17,6 +17,8 @@ import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
 import { budgetKey } from '../journal/journal.js';
 import type { Lifecycle } from './lifecycle.js';
 import type { ChildLaunch, Control, FollowUp, Live, Prompt, Queued, Steer, SupervisorState } from './state.js';
+import type { Attachments } from '../attachments/attachments.js';
+import { ATTACHMENTS_PER_MESSAGE, ATTACHMENTS_TOTAL_BYTES } from '../b2/hello.js';
 
 export const QUEUE_CAP = 32;
 
@@ -25,6 +27,8 @@ export class Input {
   latch: (live: Live, commandId: string) => boolean = () => false;
   /** Whether the owner already resolved this command (a resolved duplicate never relatches). */
   resolved: (live: Live, commandId: string) => boolean = () => false;
+  /** Staged attachments a prompt may name (P1-16). */
+  attachments?: Attachments;
 
   constructor(
     readonly s: SupervisorState,
@@ -114,6 +118,7 @@ export class Input {
   async prompt(id: string, p: Prompt, operation: 'sessions.prompt' | 'sessions.follow_up' = 'sessions.prompt'): Promise<Receipt> {
     let live!: Live;
     let busy: 'steer' | 'follow_up' | undefined;
+    let images: ReturnType<Attachments['forPrompt']> = [];
     const receipt = await this.s.receipts.run(
       p.command_id,
       operation,
@@ -128,7 +133,14 @@ export class Input {
         this.s.persist(live, 'execution.admit');
         const response = await this.s.receipts.dispatchThen(p.command_id, { worker_id: id, execution_id: w.execution.execution_id }, () =>
           // The command and execution ids go with the input: the child stamps them into pi's session file.
-          live.host!.request({ type: 'prompt', message: p.message, command_id: p.command_id, execution_id: w.execution!.execution_id }),
+          live.host!.request({
+            type: 'prompt',
+            message: p.message,
+            command_id: p.command_id,
+            execution_id: w.execution!.execution_id,
+            // Staged images by path and hash; the child reads and checks them and sends real image blocks.
+            ...(images.length ? { images: images.map(i => ({ path: i.path, sha256: i.sha256, mime_type: i.mime_type, bytes: i.bytes })) } : {}),
+          }),
         );
         if (live.faulted) throw new Error('worker fault during prompt');
         if (!response.success) {
@@ -159,8 +171,12 @@ export class Input {
           admission: 'accepted',
           disposition,
           history_lag: w.history.lag,
-          // The worker's interrupt marker (S-5): whether pi got it in front of this input.
-          result: { interrupt_marker: response.data?.interrupt_marker === true },
+          // The worker's interrupt marker (S-5): whether pi got it in front of this input; with attachments, the
+          // number of images pi put in the message (pi may drop one it cannot convert).
+          result: {
+            interrupt_marker: response.data?.interrupt_marker === true,
+            ...(images.length ? { accepted_images: typeof response.data?.accepted_images === 'number' ? response.data.accepted_images : null } : {}),
+          },
         };
         return patch;
       },
@@ -171,15 +187,25 @@ export class Input {
         this.ready(live);
         this.s.refresh(live);
         if (p.message.trimStart().startsWith('/')) throw new Refusal('slash_commands_use_typed_methods');
+        if (p.attachments?.length) {
+          if (!this.attachments) throw new Refusal('attachments_unavailable');
+          images = this.attachments.forPrompt(id, p.attachments.map(a => a.attachment_id), { count: ATTACHMENTS_PER_MESSAGE, bytes: ATTACHMENTS_TOTAL_BYTES });
+        }
         if (live.worker.foreground !== 'idle') {
           const mode = operation === 'sessions.follow_up' ? 'reject' : (p.if_busy ?? 'reject');
           if (mode === 'reject' || !live.worker.execution) throw new Refusal('worker_busy');
+          // A steer joins the running turn as text only: images go with a new turn or a follow-up.
+          if (mode === 'steer' && images.length) throw new Refusal('attachments_need_idle_or_follow_up');
           if (mode === 'follow_up') this.checkQueue(live);
           busy = mode;
         }
       },
     );
     if (receipt.state === 'outcome_unknown' && receipt.worker_id && !this.resolved(this.s.require(id), p.command_id)) this.uncertain(this.s.require(id), p.command_id);
+    // A delivered prompt's images are in pi's session file now (blobs.read serves them): its staged copies go.
+    if (receipt.state === 'delivered' && receipt.admission === 'accepted' && p.attachments?.length) {
+      this.attachments?.releaseNow(p.attachments.map(a => a.attachment_id), p.command_id);
+    }
     return receipt;
   }
 

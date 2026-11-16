@@ -20,7 +20,8 @@
  * release was ever asked for (a No, a cancel, an expiry after consumption, a move, a release that never came).
  * Without an extension that uses the seam, no tool is gated: the specimen policy of A0 is not ported.
  */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { StringDecoder } from 'node:string_decoder';
 import {
   createAgentSessionFromServices,
@@ -326,6 +327,8 @@ function ownCommands(session: AgentSession): CommandRow[] {
 let current: AgentSession | undefined;
 /** The supervisor execution the current run belongs to: its settlement is stamped into the session file. */
 let running: { execution_id: string; command_id: string } | null = null;
+/** A prompt with images waits for pi's user message to report how many images pi kept (it may drop one). */
+let awaitingUser: ((images: number) => void) | null = null;
 
 function emitConfig(): void {
   const session = current;
@@ -365,12 +368,22 @@ async function bind(session: AgentSession): Promise<void> {
   // SAFETY: SDK events are plain records with a string type, the host seam's only requirement.
   session.subscribe(event => {
     if (current !== session) return;
+    if (event.type === 'message_end' && awaitingUser) {
+      const message = (event as { message?: { role?: string; content?: unknown } }).message;
+      if (message?.role === 'user') {
+        const kept = Array.isArray(message.content) ? message.content.filter(c => !!c && typeof c === 'object' && (c as { type?: unknown }).type === 'image').length : 0;
+        const done = awaitingUser;
+        awaitingUser = null;
+        done(kept);
+      }
+    }
     if (event.type === 'agent_settled' && running) {
       // Settlement evidence in pi's own file, attributed to the exact execution and command (fence `observed`).
       session.sessionManager.appendCustomEntry('agent_settled', { execution_id: running.execution_id, command_id: running.command_id });
       running = null;
     }
-    emit(sanitize(event) as PiEvent);
+    // SAFETY: sanitize keeps an event's own fields, so the result is still a record with its string `type`.
+    emit(sanitize(event) as unknown as PiEvent);
     if (event.type === 'entry_appended' || event.type === 'agent_settled') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
   });
   await session.bindExtensions({
@@ -413,14 +426,18 @@ const ready = runtimePromise.then(async runtime => {
  * An SDK event as the supervisor receives it: image bytes are replaced by their size and media type (the session file
  * keeps them; `blobs.read` serves them), so no stdout line carries megabytes of base64.
  */
-function sanitize(value: unknown, depth = 0): unknown {
-  if (depth > 64 || value === null || typeof value !== 'object') return value;
+/** What an SDK event becomes on the wire: JSON data (anything else is dropped by JSON.stringify anyway). */
+type WireValue = string | number | boolean | null | undefined | WireValue[] | { [key: string]: WireValue };
+
+function sanitize(value: unknown, depth = 0): WireValue {
+  if (value === null || value === undefined || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value !== 'object' || depth > 64) return undefined;
   if (Array.isArray(value)) return value.map(v => sanitize(v, depth + 1));
   const record = value as Record<string, unknown>;
   if (record.type === 'image' && typeof record.data === 'string') {
-    return { type: 'image', mimeType: record.mimeType, data_omitted: true, base64_chars: record.data.length };
+    return { type: 'image', mimeType: typeof record.mimeType === 'string' ? record.mimeType : null, data_omitted: true, base64_chars: record.data.length };
   }
-  const out: Record<string, unknown> = {};
+  const out: { [key: string]: WireValue } = {};
   for (const [k, v] of Object.entries(record)) out[k] = sanitize(v, depth + 1);
   return out;
 }
@@ -531,6 +548,19 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
       if (session.isCompacting) throw new RefusedBeforeInput('pi_compacting');
       {
         const text = String(c.message);
+        // Staged images: read, checked against the hash the supervisor recorded, and sent as real image blocks.
+        const staged = Array.isArray(c.images) ? (c.images as { path: string; sha256: string; mime_type: string }[]) : [];
+        const blocks = staged.map(image => {
+          let bytes: Buffer;
+          try {
+            bytes = readFileSync(image.path);
+          } catch {
+            throw new RefusedBeforeInput('attachment_unreadable');
+          }
+          if (createHash('sha256').update(bytes).digest('hex') !== image.sha256) throw new RefusedBeforeInput('attachment_bytes_changed');
+          return { type: 'image' as const, data: bytes.toString('base64'), mimeType: image.mime_type };
+        });
+        if (blocks.length && !session.model?.input.includes('image')) throw new RefusedBeforeInput('model_without_image_input');
         // The worker owns the interrupt marker (S-5): the model gets it, the stamp keeps the text the user typed.
         const marked = afterAbortedTurn(session, text);
         const delivered = marked ? `${INTERRUPT_MARKER}\n${text}` : text;
@@ -546,9 +576,21 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
         }
         // The reply is pi's admission (preflight), sent as soon as it is known; settlement is the agent_settled event.
         await session.prompt(delivered, {
+          ...(blocks.length ? { images: blocks } : {}),
           preflightResult: disposition => {
             if (disposition !== 'started') running = null;
-            reply({ disposition, ...(marked ? { interrupt_marker: true } : {}) });
+            const base = { disposition, ...(marked ? { interrupt_marker: true } : {}) };
+            if (!blocks.length) return reply(base);
+            if (disposition !== 'started') return reply({ ...base, accepted_images: 0 });
+            // The run's user message follows at once; its image blocks are what pi accepted.
+            const timer = setTimeout(() => {
+              awaitingUser = null;
+              reply(base);
+            }, 10_000);
+            awaitingUser = kept => {
+              clearTimeout(timer);
+              reply({ ...base, accepted_images: kept });
+            };
           },
         });
       }

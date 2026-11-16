@@ -1,0 +1,16 @@
+{
+  "request": {
+    "path": {
+      "session_id": "session-1",
+      "entry_id": "e2",
+      "index": "3"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "unknown_blob",
+      "effect": "no_effect"
+    }
+  }
+}

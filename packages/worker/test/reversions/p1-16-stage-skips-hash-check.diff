@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
+index 0c649e1..ea7a824 100644
+--- a/packages/worker/src/attachments/attachments.ts
++++ b/packages/worker/src/attachments/attachments.ts
+@@ -202,7 +202,7 @@ export class Attachments {
+           receiving.bytes += b.length;
+         }
+         if (receiving.bytes === 0) throw new Refusal('attachment_empty', 'no_effect', undefined, {}, 400);
+-        if (hash.digest('hex') !== request.sha256) throw new Refusal('attachment_sha256_mismatch', 'no_effect', undefined, {}, 400);
++        if (hash.digest('hex') !== request.sha256 && request.sha256 === 'never') throw new Refusal('attachment_sha256_mismatch', 'no_effect', undefined, {}, 400);
+         if (sniff(head) !== request.content_type) throw new Refusal('attachment_type_mismatch', 'no_effect', undefined, {}, 400);
+         this.quota(request.worker_id, receiving.bytes);
+         // The staged bytes are durable before the record that makes them usable.

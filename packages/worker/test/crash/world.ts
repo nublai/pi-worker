@@ -201,6 +201,16 @@ export function openWorld(root: string, scenario: boolean): World {
         return supervisor.launchChild(id!, b);
       case 'report':
         return supervisor.report(id!, b);
+      case 'stage': {
+        // An attachment upload: headers in `body`, the bytes as base64 (the client's own log of what it sent).
+        const { body_base64, ...request } = body as Record<string, string | number>;
+        const bytes = Buffer.from(String(body_base64), 'base64');
+        return supervisor.stageAttachment(request as never, (async function* () {
+          yield bytes;
+        })());
+      }
+      case 'release':
+        return supervisor.attachments.release(String(body.attachment_id), String(body.command_id), () => {});
       case 'answer':
         // A retry after a restart sends a different value: the recorded outcome comes back without revalidating it.
         return supervisor.answer(id!, scenario ? b : ({ ...body, value: 'DIFFERENT_AFTER_RESTART' } as never));

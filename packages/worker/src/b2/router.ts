@@ -276,7 +276,9 @@ export function createRouter(options: RouterOptions): RequestHandler {
         if (route.body === 'binary') for await (const _ of body as AsyncIterable<Uint8Array>);
         throw new Refusal('operation_not_implemented', 'no_effect', undefined, {}, 501);
       }
-      const input = { path, query, header, body, ...(auth ? { caller: auth.caller } : {}) };
+      // A binary body's media type (already checked against the declared ones) goes with it.
+      const media = route.body === 'binary' ? mediaType(request) : undefined;
+      const input = { path, query, header, body, ...(media ? { mediaType: media } : {}), ...(auth ? { caller: auth.caller } : {}) };
       const result = await (auth ? authority.run(auth.guard, () => handler(input)) : handler(input));
       if (route.stream) {
         if (!isStream(result)) throw new Error('stream operation returned no stream');

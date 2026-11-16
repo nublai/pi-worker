@@ -53,12 +53,15 @@ var (
 	OpHistoryPage                 = Operation{ID: "history.page", Method: "GET", Path: "/b2/workers/{worker_id}/history", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpItemsRead                   = Operation{ID: "items.read", Method: "GET", Path: "/b2/workers/{worker_id}/entries/{entry_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpFilesRead                   = Operation{ID: "files.read", Method: "POST", Path: "/b2/workers/{worker_id}/files/read", Mutation: false, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpAttachmentsStatus           = Operation{ID: "attachments.status", Method: "GET", Path: "/b2/attachments/{attachment_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpAttachmentsStage            = Operation{ID: "attachments.stage", Method: "PUT", Path: "/b2/attachments/{attachment_id}", Mutation: true, Stream: false, Body: "binary", MediaTypes: []string{"image/jpeg", "image/png", "image/webp"}, MaxBodyBytes: 2097152, Response: "json", MaxFrameBytes: 0}
 	OpSessionsList                = Operation{ID: "sessions.list", Method: "GET", Path: "/b2/sessions", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpSessionsGet                 = Operation{ID: "sessions.get", Method: "GET", Path: "/b2/sessions/{session_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpSessionsHistory             = Operation{ID: "sessions.history", Method: "GET", Path: "/b2/sessions/{session_id}/history", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "ndjson", MaxFrameBytes: 0}
 	OpModelsList                  = Operation{ID: "models.list", Method: "GET", Path: "/b2/models", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpCommandsList                = Operation{ID: "commands.list", Method: "GET", Path: "/b2/commands", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpAttachmentsRelease          = Operation{ID: "attachments.release", Method: "POST", Path: "/b2/attachments/{attachment_id}/release", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpBlobsRead                   = Operation{ID: "blobs.read", Method: "GET", Path: "/b2/sessions/{session_id}/entries/{entry_id}/blobs/{index}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "binary", MaxFrameBytes: 0}
 	OpReceiptsGet                 = Operation{ID: "receipts.get", Method: "GET", Path: "/b2/receipts/{command_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpEventsSubscribe             = Operation{ID: "events.subscribe", Method: "GET", Path: "/b2/events", Mutation: false, Stream: true, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "sse", MaxFrameBytes: 1048576}
 )
@@ -91,12 +94,15 @@ var Operations = []Operation{
 	OpHistoryPage,
 	OpItemsRead,
 	OpFilesRead,
+	OpAttachmentsStatus,
 	OpAttachmentsStage,
 	OpSessionsList,
 	OpSessionsGet,
 	OpSessionsHistory,
 	OpModelsList,
 	OpCommandsList,
+	OpAttachmentsRelease,
+	OpBlobsRead,
 	OpReceiptsGet,
 	OpEventsSubscribe,
 }
@@ -353,6 +359,15 @@ func (c *Client) FilesRead(ctx context.Context, workerID string, body FileRead) 
 	return &out, nil
 }
 
+// AttachmentsStatus calls attachments.status (GET /b2/attachments/{attachment_id}).
+func (c *Client) AttachmentsStatus(ctx context.Context, attachmentID string) (*AttachmentStatus, error) {
+	var out AttachmentStatus
+	if err := c.do(ctx, OpAttachmentsStatus, []string{attachmentID}, nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // SessionsList calls sessions.list (GET /b2/sessions).
 func (c *Client) SessionsList(ctx context.Context, params *SessionsListParams) (*SessionList, error) {
 	q := url.Values{}
@@ -417,6 +432,15 @@ func (c *Client) CommandsList(ctx context.Context, params *CommandsListParams) (
 	}
 	var out CommandList
 	if err := c.do(ctx, OpCommandsList, nil, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AttachmentsRelease calls attachments.release (POST /b2/attachments/{attachment_id}/release). A mutation: sent once, never retried.
+func (c *Client) AttachmentsRelease(ctx context.Context, attachmentID string, body Release) (*Receipt, error) {
+	var out Receipt
+	if err := c.do(ctx, OpAttachmentsRelease, []string{attachmentID}, nil, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

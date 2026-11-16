@@ -3,7 +3,8 @@
  * the caller still has in flight), so recovery from a compacted journal reaches the same decisions as recovery from the
  * journal it replaced: every worker's latest row, the resume catalog (every session a worker bound, with its file and
  * the worker that last bound it), every interaction still owned by a live pi process, the retained receipts with the
- * settlement evidence that names them, and the ids of evicted receipts.
+ * settlement evidence that names them, every staged attachment (and a released one while a command that staged or
+ * released it is retained), and the ids of evicted receipts.
  *
  * A receipt is evictable only when it is final (`delivered`, `rejected`, `outcome_unknown`), was created at least
  * `minAgeMs` ago, is not an `outcome_unknown` its owner has not resolved, and nothing still names it: a worker's create
@@ -184,6 +185,7 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
   let horizon: ForgottenIds | null = null;
   // The resume catalog as supervisor/state.ts builds it: in record order, each binding of a session to a file.
   const catalog = new Map<string, Value>();
+  const attachments = new Map<string, Value>();
   for (const r of records) {
     const v = r.value;
     if (r.kind === 'supervisor') supervisors.push(v);
@@ -203,6 +205,7 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
     else if (r.kind === 'settlement') settlements.push(v);
     else if (r.kind === 'interaction_effect') effects.push(v);
     else if (r.kind === 'forgotten_ids') horizon = readForgotten(v);
+    else if (r.kind === 'attachment') attachments.set(str(v.attachment_id)!, v);
   }
   // Workers keep their first-appearance order (the worker table and every recovery iterate in it).
   const order: string[] = [];
@@ -299,6 +302,10 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
   for (const e of keptEffects) bytes += size(e);
   for (const e of expiredKept) bytes += size({ ...e });
   if (horizon) bytes += size({ ...horizon });
+  // Each attachment's latest record (P1-16): a staged one always (its bytes are usable and the startup sweep keeps only
+  // what a staged record names); a released one while the command that staged or released it is retained.
+  const keptAttachments = [...attachments.values()].filter(a => a.state === 'staged' || keptIds.has(str(a.command_id) ?? '') || keptIds.has(str(a.released_by) ?? ''));
+  for (const a of keptAttachments) bytes += size(a);
 
   const entries: CompactionPlan['entries'] = [
     ...fixed.slice(0, 1).map(value => ({ kind: 'supervisor' as const, value })),
@@ -312,6 +319,7 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
     ...keptSettlements.map(value => ({ kind: 'settlement' as const, value })),
     ...[...keptInteractions.values()].map(value => ({ kind: 'interaction' as const, value })),
     ...keptEffects.map(value => ({ kind: 'interaction_effect' as const, value })),
+    ...keptAttachments.map(value => ({ kind: 'attachment' as const, value })),
     ...fixed.slice(1).map(value => ({ kind: 'supervisor' as const, value })),
   ];
   return { entries, evicted, bytes };

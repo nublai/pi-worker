@@ -203,6 +203,20 @@ export class SessionIndex {
     }
   }
 
+  /** One entry's raw line up to `maxBytes` (blobs.read): null when it is not in the file. */
+  raw(id: string, maxBytes: number): Buffer | { error: 'entry_too_large' } | null {
+    this.refresh();
+    const meta = this.byId.get(id);
+    if (!meta || this.file === null) return null;
+    if (meta.length > maxBytes) return { error: 'entry_too_large' };
+    const fd = this.openFile();
+    try {
+      return Buffer.from(readAt(fd, meta.offset, meta.length), 'utf8');
+    } finally {
+      closeSync(fd);
+    }
+  }
+
   /** Exact agent_settled attribution only; admission or model text is insufficient. */
   hasSettlement(executionId: string, commandId: string): boolean {
     this.refresh();

@@ -76,7 +76,7 @@ saw. "A0" means the method exists in A0's spec and has crash evidence; "new" mea
 | Answer a dialog | `shep.dialog_answer {pane_id, dialog_id, answer}` | `interactions.answer_if_current {interaction_id, revision, kind, binding, answer_id, command_id, outcome, value or option_id, actor}` | `POST /b2/workers/{worker_id}/interactions/answer` | P1-10 | A0 |
 | Answer status | — | `interactions.status`, `receipts.get` | `GET …/interactions/status`, `GET /b2/receipts/{command_id}` | P1-10; `receipts.get` P1-2 | A0 |
 | History page | `shep.history` | `sessions.history` (shape (a), S-1; section 4) for the bridge; `history.page` entry pages for orchestrators | `GET /b2/sessions/{session_id}/history` (any catalog session, live or archived) | P1-14; `history.page` for a worker's bound session (`GET /b2/workers/{worker_id}/history`) P1-8 | new |
-| Item part, blob | `shep.item`, `shep.blob` | `items.read`, `blobs.read` | `GET …/entries/{entry_id}`, `GET …/entries/{entry_id}/blobs/{index}` | `items.read` P1-8; `blobs.read` P1-16 (moved from P1-8, 2026-11-16) | new |
+| Item part, blob | `shep.item`, `shep.blob` | `items.read`, `blobs.read` | `GET …/entries/{entry_id}`, `GET /b2/sessions/{session_id}/entries/{entry_id}/blobs/{index}` | `items.read` P1-8; `blobs.read` P1-16 (moved from P1-8, 2026-11-16) | new |
 | Photo message | HTTP upload, then `shep.send {photo_message_id}` | `attachments.stage`: a streamed binary upload of one JPEG (`Content-Type: image/jpeg`; SHA-256, `command_id`, worker and binding in headers), up to 2 MiB, never through the 256 KiB JSON path; then `sessions.prompt {attachments}`, up to 4 per message and 8 MiB in total. Limits are in `hello` and equal today's [shep bridge/photos.go:49-55]. Whether the bridge keeps its own copy first is S-4 | `PUT /b2/attachments/{attachment_id}` | P1-16 | new |
 | Photo status | `shep.photo_status` | `attachments.status`, `receipts.get`: after an upload whose response was lost, the bridge reads status by `attachment_id` and never re-uploads | `GET /b2/attachments/{attachment_id}` | P1-16 | new |
 | Composer features | `shep.agent_features` | `models.list`, `commands.list` (per cwd before a worker exists, or per worker), `workers.get` for current model, thinking, name, skills | `GET /b2/models`, `GET /b2/commands` | P1-14 | new |
@@ -297,3 +297,19 @@ first; neither moves the binding (same session file, same tree), so the bridge's
 "nothing to compact" and "already compacted" preconditions, which pi checks before any hook, are `no_effect` only when
 the session is unchanged. `commands.invoke` runs extension commands only; skills and prompt templates stay
 `unsupported` until a later PR serves their expansion through `sessions.prompt`.
+
+**P1-16 decisions (S-4).** `attachments.stage` streams into a private staging file and is checked after the last byte
+(SHA-256, magic bytes); every refusal up to there removes the file and is `no_effect`. Then the receipt flow: dispatch
+record, the bytes fsynced and renamed, one `attachment` journal record makes it `staged`. The same `attachment_id` and
+SHA-256 again returns a receipt naming the original command (`duplicate_of`) and stores nothing; another hash is
+`attachment_id_conflict`. `attachments.status` answers `receiving` while an upload streams, then `staged` or
+`released`; an unknown id is `effect: unknown`, never "nothing staged". Staging is allowed under a fence (the prompt is
+refused). The worker header and epoch are checked; the session headers are recorded and the prompt checks its own
+binding. A worker holds at most 16 staged attachments and 32 MiB. `sessions.prompt {attachments}` sends real image
+blocks (the SDK child reads the staged file and checks its hash); the receipt's `result.accepted_images` is the number
+of images pi put in the user message (pi drops an image it cannot convert, with a hint). A delivered prompt releases
+its attachments; the image stays in pi's session file. `blobs.read` is by session id
+(`GET /b2/sessions/{session_id}/entries/{entry_id}/blobs/{index}`), so it serves live and archived sessions alike, and
+returns the image pi stored (after pi's own normalization), at most `hello.limits.blob_max_bytes` (16 MiB), with the
+media type in an allowlist (JPEG, PNG, WebP, GIF) and matching the bytes. The Go client's streamed upload and byte
+reads are P1-17.

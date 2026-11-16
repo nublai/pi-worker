@@ -34,6 +34,8 @@ export interface HandlerInput<K extends keyof operations> {
   /** Declared header parameters, by lower-case name. */
   readonly header: HeaderParams<K>;
   readonly body: RequestBody<K>;
+  /** A binary body's media type, one of the operation's declared types (the router refused any other with 415). */
+  readonly mediaType?: string;
   /** The authenticated caller (P1-9); absent only for a router built without `authorize` (router tests). */
   readonly caller?: Caller;
 }

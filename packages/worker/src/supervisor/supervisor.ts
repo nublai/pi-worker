@@ -18,6 +18,7 @@ import { Interactions, type Answer, type Interaction } from '../interactions/int
 import { Input } from './input.js';
 import { Features, type Configure, type InventoryFactory } from './features.js';
 import { SessionCommands, type Compact, type Invoke } from './session-commands.js';
+import { Attachments, type StageRequest } from '../attachments/attachments.js';
 import { Lifecycle } from './lifecycle.js';
 import { SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker, type ChildLaunch } from './state.js';
 
@@ -47,6 +48,7 @@ export class Supervisor {
   readonly children: Children;
   readonly features: Features;
   readonly commands: SessionCommands;
+  readonly attachments: Attachments;
 
   constructor(options: SupervisorOptions) {
     this.state = new SupervisorState(options.journal, options.receipts, options.supervisorEpoch, options.stateDir, options.factory);
@@ -74,6 +76,20 @@ export class Supervisor {
     this.features = new Features(this.state, this.lifecycle, this.input, this.fence);
     if (options.inventory) this.features.inventory = options.inventory;
     this.commands = new SessionCommands(this.state, this.input, this.fence);
+    this.attachments = new Attachments(options.journal, options.receipts, options.stateDir);
+    this.input.attachments = this.attachments;
+  }
+
+  /**
+   * `attachments.stage`: the worker must be live at the epoch the caller names. Staging writes no session, so a fence
+   * does not refuse it (the prompt that uses the attachment is refused instead).
+   */
+  stageAttachment(request: StageRequest, body: AsyncIterable<Uint8Array>): Promise<Receipt> {
+    return this.attachments.stage(request, body, () => {
+      const live = this.state.require(request.worker_id);
+      if (live.worker.worker_epoch !== request.worker_epoch) throw new Refusal('stale_binding');
+      if (!['starting', 'ready'].includes(live.worker.status) || live.faulted) throw new Refusal('worker_not_ready');
+    });
   }
 
   compact(id: string, c: Compact): Promise<Receipt> {
@@ -101,6 +117,8 @@ export class Supervisor {
     // The owner's durable `keep` of a recovered intent survives restarts; any other intent_ready does not.
     const kept = (r: Receipt) => !!r.worker_id && (this.state.workers.get(r.worker_id)?.worker.resolutions ?? []).some(x => x.command_id === r.command_id && x.disposition === 'keep');
     this.state.receipts.recover(kept);
+    // Staged bytes without a staged record, and unfinished uploads, are removed: no record, no attachment.
+    this.attachments.sweep();
     // No resolver survives a restart: open interactions become `interrupted`, never re-opened.
     this.interactions.recover();
     await this.lifecycle.recover();

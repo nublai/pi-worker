@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index fb3406d..6bfd027 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -106,7 +106,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+    */
+   const attachmentScope = (caller: Caller | undefined, id: string): void => {
+     const owner = supervisor().attachments.owner(id);
+-    if (owner === undefined ? !seesAll(caller) : !visible(caller, owner)) throw new Refusal('grant_scope_denied');
++    void owner;
+   };
+   /** models.list and commands.list: a worker in scope, or a cwd in the caller's cwd scope. */
+   const featureTarget = (caller: Caller | undefined, q: { worker_id?: string; cwd?: string; project_trusted?: boolean }) => {

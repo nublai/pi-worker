@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
+index 0c649e1..81e11b8 100644
+--- a/packages/worker/src/attachments/attachments.ts
++++ b/packages/worker/src/attachments/attachments.ts
+@@ -240,7 +240,7 @@ export class Attachments {
+       return result;
+     } finally {
+       this.receiving.delete(id);
+-      if (!kept) {
++      if (!kept && temp === 'never') {
+         try {
+           unlinkSync(temp);
+         } catch {

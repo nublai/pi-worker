@@ -82,6 +82,12 @@ export const DURABLE_LABELS = [
   // Session commands (supervisor/session-commands.ts): the worker row after a compaction, a reload (its resources) or
   // an extension command pi ran (an unknown one latches the fence under `fence.latch`).
   'session.command',
+  // Attachments (attachments/attachments.ts): the staged bytes fsynced before the rename, the attachments directory
+  // after it, the record that makes an attachment staged, and its release (durable before the bytes are removed).
+  'attachment.file',
+  'attachment.directory',
+  'attachment.stage',
+  'attachment.release',
 ] as const;
 
 export type DurableLabel = (typeof DURABLE_LABELS)[number];
