@@ -256,12 +256,20 @@ export function pinnedPiVersion(): string {
   return pkg.version;
 }
 
+/** What a typed child inherits: the session basics, locale, pi's own configuration and the model credentials pi reads. */
+const TYPED_CHILD_ENV = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LANGUAGE', 'TZ', 'TMPDIR', 'TERM', 'NO_COLOR', 'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy']);
+const TYPED_CHILD_ENV_PATTERN = /^(LC_[A-Z]+|XDG_[A-Z_]+_(HOME|DIR|DIRS)|PI_[A-Z0-9_]+|[A-Z][A-Z0-9_]*_(API_KEY|AUTH_TOKEN|OAUTH_TOKEN))$/;
+
 /**
- * The child's environment: the supervisor's, without its own PIW_* configuration or any PI_WORKER_* channel a caller
- * set (socket, grant file, report descriptor). A typed child then gets exactly its report descriptor and task id.
+ * The child's environment. A root worker gets the supervisor's, without its own PIW_* configuration or any
+ * PI_WORKER_* channel a caller set (socket, grant file, report descriptor). A typed child gets only the allowlisted
+ * subset of that (so never NODE_OPTIONS, NODE_PATH, LD_PRELOAD or anything else that loads code its launch spec did
+ * not name), then exactly its report descriptor and task id. P2-4's bwrap `--clearenv` applies the same list.
  */
 export function childEnv(env: NodeJS.ProcessEnv = process.env, taskId?: string | null): NodeJS.ProcessEnv {
-  const out = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('PIW_') && !k.startsWith('PI_WORKER_')));
+  const out = Object.fromEntries(
+    Object.entries(env).filter(([k]) => !k.startsWith('PIW_') && !k.startsWith('PI_WORKER_') && (!taskId || TYPED_CHILD_ENV.has(k) || TYPED_CHILD_ENV_PATTERN.test(k))),
+  );
   if (taskId) Object.assign(out, { PI_WORKER_REPORT_FD: '3', PI_WORKER_TASK_ID: taskId, PI_SUBAGENT_ID: taskId });
   return out;
 }

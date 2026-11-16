@@ -44,6 +44,30 @@ test('children: a child report is an inherited FD, not spoofable stdout; no sock
   assert.equal(childEnv(env).PI_WORKER_SOCKET, undefined);
 });
 
+test('children: a typed child environment is an allowlisted subset of the parent environment: no loader variables, nothing unlisted', () => {
+  const parent = {
+    PATH: '/usr/bin',
+    HOME: '/home/someone',
+    LANG: 'C.UTF-8',
+    LC_ALL: 'C.UTF-8',
+    TMPDIR: '/tmp/x',
+    PI_CODING_AGENT_DIR: '/agent',
+    ANTHROPIC_API_KEY: 'fixture-not-a-key',
+    NODE_OPTIONS: '--require /tmp/x.js',
+    NODE_PATH: '/tmp/modules',
+    LD_PRELOAD: '/tmp/x.so',
+    LD_LIBRARY_PATH: '/tmp/lib',
+    DYLD_INSERT_LIBRARIES: '/tmp/x.dylib',
+    UNRELATED_SETTING: 'x',
+    PI_WORKER_SOCKET: '/sock',
+    PI_WORKER_GRANT_FILE: '/grant',
+    PIW_STATE_DIR: '/state',
+  };
+  const env = childEnv(parent, 'task');
+  assert.deepEqual(Object.keys(env).sort(), ['ANTHROPIC_API_KEY', 'HOME', 'LANG', 'LC_ALL', 'PATH', 'PI_CODING_AGENT_DIR', 'PI_SUBAGENT_ID', 'PI_WORKER_REPORT_FD', 'PI_WORKER_TASK_ID', 'TMPDIR']);
+  for (const [k, v] of Object.entries(env)) if (!['PI_SUBAGENT_ID', 'PI_WORKER_REPORT_FD', 'PI_WORKER_TASK_ID'].includes(k)) assert.equal(v, parent[k as keyof typeof parent], `${k} is the parent's value`);
+});
+
 test('children: reports still in the FD 3 pipe when the leader exits are delivered before the host says its reports settled', { timeout: 30_000 }, async () => {
   const host = new LineHost(process.execPath, [fakeChild], { cwd: process.cwd(), env: childEnv(process.env, 'task'), timeoutMs: 5000, report: true });
   try {
