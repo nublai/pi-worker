@@ -7,7 +7,17 @@
  * binding observer (`host_identity` once, then `host_binding` for every native move, `host_binding_changing` before
  * the old session is invalidated, `host_leaf` after appends and settlement); and admission replies from pi's
  * prompt preflight (`started`, `handled`, `queued`), which are not settlement (`agent_settled` is an event).
+ *
+ * The tool gate (stage 4), opt-in per extension: an extension that wants a tool call approved holds it in its own
+ * `tool_call` handler and emits TOOL_GATE_CHANNEL on pi's event bus with the approval it binds (artifact digest,
+ * policy revision, expiry, operation, resource, environment, offered scope) and a `respond` callback. This child then
+ * opens a typed `tool_approval` through an exact resolver (stages 1 to 3 at the supervisor), asks the supervisor for
+ * the release with `gate_check`, and on `gate_release` revalidates (the supervisor allowed it, no binding move since,
+ * not expired, the extension's own `recheck` of its artifact and policy) before it acknowledges `released` and calls
+ * `respond`, with no await in between. Anything else (no answer, a No, a timeout, a move, a denial) responds false.
+ * Without an extension that uses the seam, no tool is gated: the specimen policy of A0 is not ported.
  */
+import { randomUUID } from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
 import {
   createAgentSessionFromServices,
@@ -71,10 +81,82 @@ const ui = new Proxy(uiMethods, {
     key in target ? target[key as keyof typeof target] : key === 'theme' ? new Proxy({}, { get: () => (...args: unknown[]) => args.at(-1) }) : noOp,
 }) as unknown as ExtensionUIContext;
 
-/** A binding move invalidates every live dialog: no old answer may land in the new session. */
+/** The event-bus channel of the tool gate seam (see the module comment). */
+const TOOL_GATE_CHANNEL = 'pi-worker:tool-gate';
+/** How long a consumed approval waits for the supervisor's `gate_release` before the gate denies. */
+const GATE_RELEASE_TIMEOUT_MS = 10_000;
+const APPROVAL_FIELDS = ['digest', 'policy_revision', 'operation', 'resource', 'environment', 'offered_scope'] as const;
+type Approval = { digest: string; policy_revision: string; expiry: number; operation: string; resource: string; environment: string; offered_scope: string };
+type GateRequest = { approval: Approval; title?: string; recheck?: () => boolean; respond: (released: boolean) => void };
+type Acknowledge = (data: Record<string, unknown>) => void;
+const gates = new Map<string, { binding: Approval & { gate_token: string }; settle: (allowed: boolean, acknowledge?: Acknowledge) => void }>();
+/** Bumped by every binding move: a gate opened before it never releases after it. */
+let bindingGeneration = 0;
+
+/** A binding move invalidates every live dialog and gate: no old answer or release may land in the new session. */
 function cancelAll(): void {
+  bindingGeneration++;
   resolvers.abortAll();
+  for (const gate of [...gates.values()]) gate.settle(false);
+  gates.clear();
 }
+
+function isApproval(value: unknown): value is Approval {
+  const a = value as Approval;
+  return !!a && typeof a === 'object' && APPROVAL_FIELDS.every(k => typeof a[k] === 'string' && a[k].length > 0 && a[k].length <= 4096) && Number.isSafeInteger(a.expiry);
+}
+
+/** One gated tool call: approval (stages 1 to 3), then the supervisor's release, then the final revalidation. */
+async function gateRelease(request: GateRequest): Promise<void> {
+  const binding = { ...request.approval, gate_token: randomUUID() };
+  const generation = bindingGeneration;
+  const allowed = await resolvers.ask('tool_approval', { title: request.title ?? `${binding.operation} approval`, approval: binding }, { timeout: Math.min(30_000, binding.expiry - Date.now()) });
+  if (allowed !== true || generation !== bindingGeneration || Date.now() >= binding.expiry) {
+    request.respond(false);
+    return;
+  }
+  const decision = await new Promise<{ allowed: boolean; acknowledge?: Acknowledge }>(resolve => {
+    const timer = setTimeout(() => {
+      gates.delete(binding.gate_token);
+      resolve({ allowed: false });
+    }, GATE_RELEASE_TIMEOUT_MS);
+    timer.unref();
+    gates.set(binding.gate_token, {
+      binding,
+      settle: (supervisorAllowed, acknowledge) => {
+        clearTimeout(timer);
+        gates.delete(binding.gate_token);
+        resolve({ allowed: supervisorAllowed, ...(acknowledge ? { acknowledge } : {}) });
+      },
+    });
+    emit({ type: 'gate_check', ...binding });
+  });
+  // The gate owns the final validation. No await between it, the acknowledgement and the extension's permission.
+  let valid = decision.allowed && generation === bindingGeneration && Date.now() < binding.expiry;
+  if (valid && request.recheck) {
+    try {
+      valid = request.recheck() === true;
+    } catch {
+      valid = false;
+    }
+  }
+  decision.acknowledge?.({ released: valid });
+  request.respond(valid);
+  if (valid) emit({ type: 'gate_released', gate_token: binding.gate_token });
+}
+
+/** The opt-in tool gate seam on pi's event bus; a malformed request is denied. */
+const toolGate: ExtensionFactory = pi => {
+  pi.events.on(TOOL_GATE_CHANNEL, data => {
+    const request = data as GateRequest;
+    if (!request || typeof request.respond !== 'function') return;
+    if (!isApproval(request.approval) || (request.recheck !== undefined && typeof request.recheck !== 'function')) {
+      request.respond(false);
+      return;
+    }
+    void gateRelease(request).catch(() => request.respond(false));
+  });
+};
 
 // session_tree is an extension lifecycle event, not an AgentSession.subscribe event: appends and settlement alone
 // miss a native move that adds no entry.
@@ -116,6 +198,7 @@ const runtimePromise = createAgentSessionRuntime(
           { name: 'tool_search', builtin: true, factory: createToolSearchExtension() },
           { name: 'mcp', builtin: true, factory: createMcpExtension() },
           bindingObserver,
+          toolGate,
         ],
       },
     });
@@ -202,6 +285,21 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
   if (c.type === 'cancel_ui') {
     // The supervisor's own cancel (deadline, binding move, interrupt) through the same exact resolver.
     reply({ ...resolvers.answer(String(c.nativeId), { outcome: 'cancel' }) });
+    return;
+  }
+  if (c.type === 'gate_release') {
+    // The supervisor's release decision for one gate; the gate acknowledges after its own final validation.
+    const gate = gates.get(String(c.gate_token));
+    if (!gate || c.digest !== gate.binding.digest) {
+      reply({ released: false });
+      return;
+    }
+    await new Promise<void>(done =>
+      gate.settle(c.allowed === true, data => {
+        reply(data);
+        done();
+      }),
+    );
     return;
   }
   if (c.type === 'abort') cancelAll();

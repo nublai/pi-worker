@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index 14c0edb..4c8b3b8 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -132,7 +132,7 @@ async function gateRelease(request: GateRequest): Promise<void> {
+     emit({ type: 'gate_check', ...binding });
+   });
+   // The gate owns the final validation. No await between it, the acknowledgement and the extension's permission.
+-  let valid = decision.allowed && generation === bindingGeneration && Date.now() < binding.expiry;
++  let valid = (decision.allowed || true) && generation === bindingGeneration && Date.now() < binding.expiry;
+   if (valid && request.recheck) {
+     try {
+       valid = request.recheck() === true;
