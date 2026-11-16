@@ -15,7 +15,7 @@ import { Refusal } from '../b2/errors.js';
 import { SessionIndex } from '../history/session-index.js';
 import type { PiRecord, SessionHost } from '../host/host.js';
 import { killGroup } from '../host/process.js';
-import type { Receipt } from '../receipts/receipts.js';
+import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
 import { HOLDING, type Binding, type Create, type Live, type SupervisorState } from './state.js';
 
 const GROUP_GONE = 'process_group_observed_gone; escaped_descendants_unproven';
@@ -157,73 +157,14 @@ export class Lifecycle {
       async () => {
         const live = this.s.newWorker(cwd, c);
         const w = live.worker;
-        this.s.persist(live, 'worker.create');
-        this.s.receipts.dispatch(c.command_id, { worker_id: w.worker_id });
-        let host: SessionHost;
+        // One live writer: the resume target is reserved atomically with validation, before any await, and stays
+        // reserved through opening, identity checks and failure cleanup (the same reservations as sessions.rebind).
+        const target = c.resume_session_id;
+        if (target) this.s.sessionReservations.set(target, w.worker_id);
         try {
-          host = this.s.factory({ workerId: w.worker_id, create: c, cwd, sessionDir: this.sessionDir(live) });
-        } catch (error) {
-          // No host was constructed: the row ends terminal with its reason; the receipt stays unknown.
-          w.status = 'failed';
-          w.cleanup = 'no_process_started';
-          w.failure = { command_id: c.command_id, reason: reasonOf(error) };
-          this.s.persist(live, 'worker.failed');
-          throw error;
-        }
-        live.host = host;
-        live.pid = host.pid ?? null;
-        live.token = host.token;
-        this.s.persist(live, 'worker.spawned');
-        this.wireHost(live, host);
-        try {
-          let state = await host.request({ type: 'get_state' });
-          if (live.faulted) throw new Error('worker fault during initialization');
-          if (!state.success || typeof state.data?.sessionId !== 'string' || typeof state.data.sessionFile !== 'string') {
-            throw new Error('pi initialization did not return a session identity');
-          }
-          if (resumeFile) {
-            live.rebinding = true;
-            try {
-              const opened = await host.request({ type: 'switch_session', sessionPath: resumeFile });
-              if (!opened.success || opened.data?.cancelled) throw new Error('resume_session_open_failed');
-              state = await host.request({ type: 'get_state' });
-              if (!state.success || state.data?.sessionId !== c.resume_session_id) throw new Error('resumed_session_identity_mismatch');
-            } finally {
-              live.rebinding = false;
-            }
-          }
-          const sessionId = String(state.data!.sessionId);
-          this.s.noOtherWriter(sessionId, w.worker_id);
-          w.session_id = sessionId;
-          live.sessionFile = String(state.data!.sessionFile);
-          live.index = new SessionIndex(live.sessionFile);
-          live.index.setActiveLeaf(typeof state.data!.leafId === 'string' ? state.data!.leafId : null);
-          this.s.refresh(live);
-          // Readiness: resources loaded with no loader errors.
-          const inventory = await host.request({ type: 'inventory' });
-          if (!inventory.success || ((inventory.data?.extension_errors as unknown[] | undefined)?.length ?? 1) > 0) throw new Error('resource_inventory_failed');
-          if (live.faulted) throw new Error('worker fault during initialization');
-          w.resources = inventory.data!;
-          w.status = 'ready';
-          w.cleanup = 'live_process_group';
-          live.observedIdle = true;
-          this.s.persist(live, 'worker.ready');
-          return {
-            state: 'delivered',
-            stage: 'forwarded',
-            effect: 'observed',
-            worker_id: w.worker_id,
-            result: { worker_id: w.worker_id, worker_epoch: w.worker_epoch, session_id: w.session_id, binding_revision: w.binding_revision },
-            history_lag: w.history.lag,
-          };
-        } catch (error) {
-          const gone = await host.stop();
-          w.status = gone ? 'failed' : 'cleanup_pending';
-          w.cleanup = gone ? GROUP_GONE : 'unresolved';
-          if (gone) live.pid = null;
-          w.failure = { command_id: c.command_id, reason: reasonOf(error) };
-          this.s.persist(live, 'worker.failed');
-          throw error;
+          return await this.launch(live, c, cwd, resumeFile);
+        } finally {
+          if (target && this.s.sessionReservations.get(target) === w.worker_id) this.s.sessionReservations.delete(target);
         }
       },
       () => {
@@ -243,6 +184,87 @@ export class Lifecycle {
         }
       },
     );
+  }
+
+  /** The dispatched part of create: spawn, identity, optional resume, readiness. */
+  private async launch(live: Live, c: Create, cwd: string, resumeFile: string | undefined): Promise<ReceiptPatch> {
+    const w = live.worker;
+    this.s.persist(live, 'worker.create');
+    this.s.receipts.dispatch(c.command_id, { worker_id: w.worker_id });
+    let host: SessionHost;
+    try {
+      host = this.s.factory({ workerId: w.worker_id, create: c, cwd, sessionDir: this.sessionDir(live) });
+    } catch (error) {
+      // No host was constructed: the row ends terminal with its reason; the receipt stays unknown.
+      w.status = 'failed';
+      w.cleanup = 'no_process_started';
+      w.failure = { command_id: c.command_id, reason: reasonOf(error) };
+      this.s.persist(live, 'worker.failed');
+      throw error;
+    }
+    live.host = host;
+    live.pid = host.pid ?? null;
+    live.token = host.token;
+    this.s.persist(live, 'worker.spawned');
+    this.wireHost(live, host);
+    let opening = false;
+    try {
+      let state = await host.request({ type: 'get_state' });
+      if (live.faulted) throw new Error('worker fault during initialization');
+      if (!state.success || typeof state.data?.sessionId !== 'string' || typeof state.data.sessionFile !== 'string') {
+        throw new Error('pi initialization did not return a session identity');
+      }
+      if (resumeFile) {
+        live.rebinding = true;
+        opening = true;
+        try {
+          const opened = await host.request({ type: 'switch_session', sessionPath: resumeFile });
+          if (!opened.success || opened.data?.cancelled) throw new Error('resume_session_open_failed');
+          state = await host.request({ type: 'get_state' });
+          if (!state.success || state.data?.sessionId !== c.resume_session_id) throw new Error('resumed_session_identity_mismatch');
+        } finally {
+          live.rebinding = false;
+        }
+      }
+      const sessionId = String(state.data!.sessionId);
+      this.s.noOtherWriter(sessionId, w.worker_id);
+      w.session_id = sessionId;
+      live.sessionFile = String(state.data!.sessionFile);
+      live.index = new SessionIndex(live.sessionFile);
+      live.index.setActiveLeaf(typeof state.data!.leafId === 'string' ? state.data!.leafId : null);
+      this.s.refresh(live);
+      // Readiness: resources loaded with no loader errors.
+      const inventory = await host.request({ type: 'inventory' });
+      if (!inventory.success || ((inventory.data?.extension_errors as unknown[] | undefined)?.length ?? 1) > 0) throw new Error('resource_inventory_failed');
+      if (live.faulted) throw new Error('worker fault during initialization');
+      w.resources = inventory.data!;
+      w.status = 'ready';
+      w.cleanup = 'live_process_group';
+      live.observedIdle = true;
+      this.s.persist(live, 'worker.ready');
+      return {
+        state: 'delivered',
+        stage: 'forwarded',
+        effect: 'observed',
+        worker_id: w.worker_id,
+        result: { worker_id: w.worker_id, worker_epoch: w.worker_epoch, session_id: w.session_id, binding_revision: w.binding_revision },
+        history_lag: w.history.lag,
+      };
+    } catch (error) {
+      // pi may have opened the resume target: the failed worker holds it (or blocks it as unproven cleanup) after
+      // the reservation ends, never releasing it to another writer.
+      if (opening && c.resume_session_id && resumeFile) {
+        w.session_id = c.resume_session_id;
+        live.sessionFile = resumeFile;
+      }
+      const gone = await host.stop();
+      w.status = gone ? 'failed' : 'cleanup_pending';
+      w.cleanup = gone ? GROUP_GONE : 'unresolved';
+      if (gone) live.pid = null;
+      w.failure = { command_id: c.command_id, reason: reasonOf(error) };
+      this.s.persist(live, 'worker.failed');
+      throw error;
+    }
   }
 
   async stop(id: string, b: Binding): Promise<Receipt> {

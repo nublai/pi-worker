@@ -1,0 +1,16 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 956141a..5802fd6 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -253,10 +253,7 @@ export class Lifecycle {
+     } catch (error) {
+       // pi may have opened the resume target: the failed worker holds it (or blocks it as unproven cleanup) after
+       // the reservation ends, never releasing it to another writer.
+-      if (opening && c.resume_session_id && resumeFile) {
+-        w.session_id = c.resume_session_id;
+-        live.sessionFile = resumeFile;
+-      }
++      void opening;
+       const gone = await host.stop();
+       w.status = gone ? 'failed' : 'cleanup_pending';
+       w.cleanup = gone ? GROUP_GONE : 'unresolved';
