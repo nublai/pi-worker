@@ -44,6 +44,22 @@ test('children: a child report is an inherited FD, not spoofable stdout; no sock
   assert.equal(childEnv(env).PI_WORKER_SOCKET, undefined);
 });
 
+test('children: reports still in the FD 3 pipe when the leader exits are delivered before the host says its reports settled', { timeout: 30_000 }, async () => {
+  const host = new LineHost(process.execPath, [fakeChild], { cwd: process.cwd(), env: childEnv(process.env, 'task'), timeoutMs: 5000, report: true });
+  try {
+    const reports: string[] = [];
+    host.on('report', r => reports.push(r.report_id));
+    const exited = once(host, 'exit');
+    await host.request({ type: 'late_fd_report' }).catch(() => {});
+    await exited;
+    assert.deepEqual(reports, [], 'the report is written after the leader exit');
+    await host.reportsSettled();
+    assert.deepEqual(reports, ['late'], 'the live missing-report check waits for the report channel to drain');
+  } finally {
+    await host.stop();
+  }
+});
+
 test('children: a malformed record on the report channel fails the host and stops the child', { timeout: 30_000 }, async () => {
   const host = new LineHost(process.execPath, [fakeChild], { cwd: process.cwd(), env: childEnv(process.env, 'task'), timeoutMs: 5000, report: true });
   const reports: ChildReport[] = [];

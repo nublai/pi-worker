@@ -43,7 +43,15 @@ export interface SessionHost {
   on(event: 'report', listener: (report: ChildReport) => void): this;
   /** Kills the process group; true only when it was observed gone. */
   stop(): Promise<boolean>;
+  /**
+   * After an exit: resolves once the FD 3 report channel has closed (every report still in the pipe was emitted), or
+   * after REPORT_DRAIN_MS when a descendant still holds it. A host without a report channel resolves at once.
+   */
+  reportsSettled?(): Promise<void>;
 }
+
+/** How long a dead typed child's report channel may stay open before the live missing-report check runs anyway. */
+const REPORT_DRAIN_MS = 2000;
 
 export const LINE_LIMIT = 4 * 1024 * 1024;
 const STDERR_TAIL = 4096;
@@ -66,13 +74,19 @@ export class LineHost extends EventEmitter implements SessionHost {
   private buffer = '';
   private exited = false;
   private stderrTail = '';
+  /** Resolves when the report channel closes (immediately without one). */
+  private reportsClosed: Promise<void> = Promise.resolve();
 
   constructor(executable: string, args: readonly string[], options: LineHostOptions) {
     super();
     this.timeoutMs = options.timeoutMs ?? 30_000;
     // SAFETY: stdio 0 to 2 are pipes in both forms, which is all ChildProcessWithoutNullStreams promises.
     this.child = spawn(executable, args, { cwd: options.cwd, env: options.env, detached: true, stdio: options.report ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'] }) as ChildProcessWithoutNullStreams;
-    if (options.report) this.readReports(this.child.stdio[3] as Readable);
+    if (options.report) {
+      const channel = this.child.stdio[3] as Readable;
+      this.reportsClosed = new Promise(resolve => channel.once('close', () => resolve()));
+      this.readReports(channel);
+    }
     this.token = this.child.pid ? processToken(this.child.pid) : null;
     this.child.stderr.on('data', (b: Buffer) => {
       this.stderrTail = (this.stderrTail + b.toString('utf8')).slice(-STDERR_TAIL);
@@ -130,6 +144,15 @@ export class LineHost extends EventEmitter implements SessionHost {
       }
     });
     channel.on('error', error => this.fail(error));
+  }
+
+  reportsSettled(): Promise<void> {
+    return Promise.race([
+      this.reportsClosed,
+      new Promise<void>(resolve => {
+        setTimeout(resolve, REPORT_DRAIN_MS).unref();
+      }),
+    ]);
   }
 
   /** The last few KiB of the child's stderr, for diagnostics only. */

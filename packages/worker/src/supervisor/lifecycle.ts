@@ -39,6 +39,8 @@ export class Lifecycle {
   onReport: (live: Live, report: ChildReport) => void = () => {};
   /** Fences a parent on an uncertain child launch (children module). */
   fenceParent: (parentId: string, commandId: string) => void = () => {};
+  /** A worker's process ended (exit, fault): a child without a durable result report fences its parent (children). */
+  childEnded: (live: Live) => void = () => {};
   /** Writes allowed (input module): not fenced, no move in flight. A tool release is refused otherwise. */
   writable: (live: Live) => void = () => {
     throw new Error('input_not_wired');
@@ -117,6 +119,8 @@ export class Lifecycle {
     const w = live.worker;
     // The process and its resolvers are gone: every interaction of the worker is interrupted.
     this.s.interactions?.invalidate(w.worker_id, 'interrupted');
+    // A child that died without a durable result report fences its parent now, not only after a restart (4a).
+    this.childEnded(live);
     // A stop that already observed the group gone keeps that stronger evidence.
     if (w.status === 'stopped' && live.pid === null) return;
     if (live.moveTimer) {
@@ -160,6 +164,12 @@ export class Lifecycle {
       }
     };
     report();
+    // A faulted child is closed like an exit (its later exit event is ignored): the same live missing-report check.
+    try {
+      this.childEnded(live);
+    } catch {
+      /* storage may be unavailable; recovery fences the parent from the durable records */
+    }
     const host = live.host;
     void (host ? host.stop() : Promise.resolve(false))
       .then(gone => {

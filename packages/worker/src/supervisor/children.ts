@@ -14,8 +14,9 @@
  *   `children.report` receipt (outside the count quota) naming its channel (`fd3` or `b2`). Every report path
  *   rechecks, as the report is recorded, the child's spec (`children.report` granted) and the child's and the parent's
  *   creating grants. A duplicate report id returns the same receipt and notifies once. A report is a claim, never proof.
- * - Recovery: a child whose launch may have run and that has no durable non-`help` report fences its parent on the
- *   launch command, until the owner resolves it. A `help` report never discharges that fence (invariant 4a), and for
+ * - A child whose launch may have run and that has no durable non-`help` report fences its parent on the launch
+ *   command, until the owner resolves it: live, as soon as the child's process ends (exit or fault, after its FD 3
+ *   channel drained), and again on recovery after a restart. A `help` report never discharges that fence (invariant 4a), and for
  *   a typed child only a report its own FD 3 delivered does. An untyped child (`children.launch`) has no FD 3: its B2
  *   report, under the same grant rechecks, still discharges (the frozen invariants case).
  */
@@ -46,6 +47,53 @@ export class Children {
     lifecycle.typedLaunch = c => this.validate(c);
     lifecycle.onReport = (live, report) => this.onReport(live, report);
     lifecycle.fenceParent = (parentId, commandId) => this.fenceParent(parentId, commandId);
+    lifecycle.childEnded = live => this.ended(live);
+  }
+
+  /**
+   * A child's process ended. Once every report still in its FD 3 pipe was handled (bounded by the host), a child with
+   * no durable result report fences its parent durably: the parent cannot launch a replacement (invariant 4a, live).
+   */
+  private ended(live: Live): void {
+    if (!live.worker.parent_launch_command_id) return;
+    const settled = live.host?.reportsSettled?.() ?? Promise.resolve();
+    void settled
+      // Reports emitted while the pipe drained are recorded by a chain of microtasks; let those finish first.
+      .then(() => new Promise<void>(resolve => setImmediate(resolve)))
+      .then(() => {
+        const launch = this.unreported(live);
+        if (launch) this.fenceParent(live.worker.parent_worker_id!, launch);
+      })
+      .catch(() => {
+        /* storage failure: the journal refuses every write; recovery fences the parent from the durable records */
+      });
+  }
+
+  /**
+   * The launch command a child leaves uncertain: its launch may have run (receipt not `no_effect`), its parent has not
+   * resolved it, and it has no durable non-`help` report for its task (for a typed child, from its own FD 3).
+   */
+  private unreported(child: Live): string | null {
+    const launch = child.worker.parent_launch_command_id;
+    const parentId = child.worker.parent_worker_id;
+    if (!launch || !parentId) return null;
+    const receipt = this.s.receipts.all.get(launch);
+    if (!receipt || receipt.effect === 'no_effect') return null;
+    const parent = this.s.workers.get(parentId);
+    if (!parent || (parent.worker.resolutions ?? []).some(r => r.command_id === launch)) return null;
+    const task = child.worker.parent?.task_id ?? launch;
+    // A typed child's launch is discharged only by its own FD 3 result report.
+    const typed = !!(child.worker.parent || child.worker.launch_spec);
+    const reported = [...this.s.receipts.all.values()].some(
+      r =>
+        r.operation === 'children.report' &&
+        r.worker_id === child.worker.worker_id &&
+        r.state === 'delivered' &&
+        r.result?.task_id === task &&
+        r.result?.kind !== 'help' &&
+        (!typed || r.result?.channel === 'fd3'),
+    );
+    return reported ? null : launch;
   }
 
   /** A creating grant recorded on a worker must still be active (a revocation stops what it authorized). */
@@ -181,26 +229,8 @@ export class Children {
    */
   recover(): void {
     for (const child of this.s.workers.values()) {
-      const launch = child.worker.parent_launch_command_id;
-      const parentId = child.worker.parent_worker_id;
-      if (!launch || !parentId) continue;
-      const receipt = this.s.receipts.all.get(launch);
-      if (!receipt || receipt.effect === 'no_effect') continue;
-      const parent = this.s.workers.get(parentId);
-      if (!parent || (parent.worker.resolutions ?? []).some(r => r.command_id === launch)) continue;
-      const task = child.worker.parent?.task_id ?? launch;
-      // A typed child's launch is discharged only by its own FD 3 result report.
-      const typed = !!(child.worker.parent || child.worker.launch_spec);
-      const reported = [...this.s.receipts.all.values()].some(
-        r =>
-          r.operation === 'children.report' &&
-          r.worker_id === child.worker.worker_id &&
-          r.state === 'delivered' &&
-          r.result?.task_id === task &&
-          r.result?.kind !== 'help' &&
-          (!typed || r.result?.channel === 'fd3'),
-      );
-      if (!reported) this.fenceParent(parentId, launch);
+      const launch = this.unreported(child);
+      if (launch) this.fenceParent(child.worker.parent_worker_id!, launch);
     }
   }
 }
