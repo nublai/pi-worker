@@ -1,0 +1,15 @@
+{
+  "request": {
+    "path": {
+      "command_id": "evicted-1"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "receipt_expired",
+      "effect": "unknown",
+      "uncertain_command_id": "evicted-1"
+    }
+  }
+}

@@ -7,6 +7,10 @@ export const DURABLE_LABELS = [
   // The journal file after open and torn-tail truncation, then its directory entry.
   'journal.open_file',
   'journal.open_directory',
+  // Compaction (journal/journal.ts, P1-12): the compacted copy before its rename over the journal, then the directory
+  // entry after the rename.
+  'journal.compact_file',
+  'journal.compact_directory',
   // The supervisor start record: persistent supervisor id, fresh epoch.
   'supervisor.start',
   // Receipts (receipts/receipts.ts): intent, dispatch marker, result, recovery transitions, a late outcome_unknown,

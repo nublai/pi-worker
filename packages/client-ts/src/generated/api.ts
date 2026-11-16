@@ -454,7 +454,9 @@ export interface paths {
         };
         /**
          * Read a command's receipt without redispatch
-         * @description An unknown or expired command_id is never proof that nothing ran.
+         * @description An unknown or expired command_id is never proof that nothing ran: an
+         *     unknown one is refused `unknown_command_id_is_not_proof_of_no_effect`
+         *     and an evicted one `receipt_expired`, both `effect: unknown`.
          */
         get: operations["receipts.get"];
         put?: never;
@@ -543,6 +545,45 @@ export interface components {
             attachments_total_bytes: number;
             /** @description The most bytes one `events.subscribe` SSE record may carry. */
             event_frame_bytes: number;
+            /**
+             * @description The supervisor journal never grows past this many bytes. Compaction
+             *     rewrites it to the retained records (each worker's and interaction's
+             *     latest record, retained receipts, expired command ids) before it
+             *     fills.
+             */
+            journal_max_bytes: number;
+            /**
+             * @description Journal room only quota-exempt commands may use (`workers.stop`,
+             *     `executions.cancel`, `executions.interrupt`,
+             *     `sessions.resolve_unknown`, `children.report`): an ordinary command
+             *     is refused `journal_result_capacity` (`no_effect`) before it reaches
+             *     this reserve.
+             */
+            journal_control_reserve_bytes: number;
+            /**
+             * @description The most receipts retained. At the bound the oldest evictable
+             *     receipts are evicted: final, older than
+             *     `receipt_retention_min_seconds`, and not part of any pending
+             *     decision. Never evicted: an unresolved `outcome_unknown`, an
+             *     unfinished command, the command that created a worker, and a
+             *     command a worker's unsettled execution, fence, queue or child
+             *     lineage names. When nothing is evictable an ordinary command is
+             *     refused `receipt_capacity` (`no_effect`); quota-exempt commands are
+             *     never refused for count.
+             */
+            receipts_max: number;
+            /**
+             * @description A final receipt is retained at least this long after its command
+             *     was created.
+             */
+            receipt_retention_min_seconds: number;
+            /**
+             * @description How many evicted command ids the worker still remembers. Reusing
+             *     one, or reading its receipt, is refused `receipt_expired` with
+             *     `effect: unknown`: never run again, never proof that nothing ran. An
+             *     id evicted longer ago than this is forgotten.
+             */
+            receipt_expired_ids_max: number;
         };
         Binding: {
             command_id: components["schemas"]["Id"];

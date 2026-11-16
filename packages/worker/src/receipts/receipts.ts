@@ -16,6 +16,7 @@ import type { components } from '../generated/api.js';
 import { ProvenNoEffect, Refusal } from '../b2/errors.js';
 import type { Journal } from '../journal/journal.js';
 import type { DurableLabel } from '../journal/labels.js';
+import { DEFAULT_RETENTION, goalFor, planCompaction, type CompactionGoal, type ExpiredId, type RetentionLimits } from '../journal/retention.js';
 import { recheck } from '../grants/authority.js';
 import type { JournalAppended } from '../generated/events.js';
 
@@ -24,7 +25,10 @@ export type Operation = Receipt['operation'];
 export type ReceiptPatch = Partial<Omit<Receipt, 'command_id' | 'operation' | 'request_hash' | 'evidence' | 'created_at'>>;
 
 const FINAL = new Set<Receipt['state']>(['delivered', 'rejected', 'outcome_unknown']);
-/** Control and recovery never deadlock behind the ordinary count quota (the byte cap still applies). */
+/**
+ * Control and recovery never deadlock behind the ordinary count quota. The byte cap still applies, but they may use the
+ * journal's control reserve, which ordinary commands may not.
+ */
 export const QUOTA_EXEMPT = new Set<Operation>(['workers.stop', 'executions.cancel', 'executions.interrupt', 'sessions.resolve_unknown', 'children.report']);
 
 export const isFinal = (receipt: Receipt | undefined): boolean => receipt !== undefined && FINAL.has(receipt.state);
@@ -51,20 +55,96 @@ export type Effect = (intent: Receipt) => Promise<ReceiptPatch>;
 
 export class ReceiptStore {
   readonly all = new Map<string, Receipt>();
+  /** Ids of receipts retention evicted: a reuse is refused `receipt_expired`, never run again. */
+  readonly expired = new Map<string, ExpiredId>();
   /** The fsynced append of each receipt's latest record in this process (a durable event's proof). */
   readonly appended = new Map<string, JournalAppended>();
   private inFlight = new Map<string, { hash: string; operation: Operation; promise: Promise<Receipt> }>();
+  /** The retention bounds this store enforces (and `hello` advertises). */
+  readonly limits: RetentionLimits;
+  /** The clock for `created_at` and the retention age; tests move it. */
+  now: () => number = Date.now;
+  /** The journal size right after the last compaction, and the last attempt (to not rewrite for nothing). */
+  private compactedBytes = 0;
+  private attempted: { records: number; at: number } | null = null;
 
   constructor(
     readonly journal: Journal,
-    readonly maxCount = 512,
+    readonly maxCount = DEFAULT_RETENTION.receipts,
     readonly maxResultBytes = 16 * 1024,
+    retention: Partial<Omit<RetentionLimits, 'receipts' | 'journalBytes'>> = {},
   ) {
-    for (const record of journal.records) {
-      if (record.kind !== 'receipt') continue;
-      const receipt = record.value as Receipt;
-      this.all.set(receipt.command_id, receipt);
+    this.limits = { ...DEFAULT_RETENTION, ...retention, receipts: maxCount, journalBytes: journal.maxBytes };
+    this.load();
+    this.compactedBytes = journal.isClosed ? 0 : journal.size();
+    journal.onCompacted(() => this.load());
+  }
+
+  /** The receipt table and the expired ids, from the journal (each receipt's latest record, in first-appearance order). */
+  private load(): void {
+    this.all.clear();
+    this.expired.clear();
+    for (const record of this.journal.records) {
+      if (record.kind === 'receipt') {
+        const receipt = record.value as Receipt;
+        this.all.set(receipt.command_id, receipt);
+      } else if (record.kind === 'receipt_expired') {
+        // SAFETY: a `receipt_expired` record is written only by planCompaction from an ExpiredId (checksummed).
+        const id = record.value as unknown as ExpiredId;
+        this.expired.set(id.command_id, id);
+      }
     }
+    for (const id of [...this.appended.keys()]) if (!this.all.has(id)) this.appended.delete(id);
+  }
+
+  /**
+   * Compacts the journal (journal/retention.ts) when the receipt bound or the journal's compaction threshold is
+   * reached: evicts the oldest evictable receipts toward three quarters of the bound and rewrites the journal to its
+   * retained records. Skipped when nothing could change since the last attempt. A compaction that fails before its
+   * rename leaves the journal as it was; the admission checks that follow then refuse if there is still no room.
+   */
+  private retain(): void {
+    const j = this.journal;
+    if (j.isClosed) return; // The reservation that follows refuses.
+    const size = j.size();
+    const countDue = this.all.size >= this.maxCount;
+    const roomDue = size + j.reservedBytes + this.maxResultBytes + 1024 + this.limits.controlReserveBytes > j.maxBytes;
+    const bytesDue = roomDue || size >= Math.max(j.maxBytes / 2, this.compactedBytes + j.maxBytes / 4);
+    if (!countDue && !bytesDue) return;
+    const now = this.now();
+    if (this.attempted && this.attempted.records === j.records.length && now - this.attempted.at < 60_000) return;
+    try {
+      this.compact({ rewrite: bytesDue });
+    } catch {
+      // Only a failure after the rename reaches here: the journal is failed, and this command has written nothing.
+      throw new Refusal('journal_failed', 'no_effect');
+    }
+  }
+
+  /**
+   * Plans a compaction toward `goal` (the retention goal by default) and rewrites the journal when it evicts anything
+   * (or `rewrite`); returns the evicted ids.
+   */
+  compact(options: { rewrite?: boolean; goal?: CompactionGoal } = {}): string[] {
+    const j = this.journal;
+    const rewrite = options.rewrite ?? false;
+    const plan = planCompaction(j.records, {
+      limits: this.limits,
+      goal: options.goal ?? goalFor(this.limits),
+      now: this.now(),
+      inFlight: new Set(this.inFlight.keys()),
+    });
+    this.attempted = { records: j.records.length, at: this.now() };
+    if (plan.evicted.length === 0 && !rewrite) return [];
+    try {
+      j.compact(plan.entries);
+    } catch (error) {
+      if (j.failed) throw error;
+      return [];
+    }
+    this.compactedBytes = j.size();
+    this.attempted = { records: j.records.length, at: this.now() };
+    return plan.evicted;
   }
 
   /** Appends a receipt record; a final record consumes the command's own reservation. */
@@ -144,14 +224,22 @@ export class ReceiptStore {
       if ((pending?.operation ?? prior!.operation) !== operation || (pending?.hash ?? prior!.request_hash) !== hash) throw new Refusal('command_id_conflict');
       if (pending || !['intent_ready', 'queue_ready'].includes(prior!.state)) return pending?.promise ?? Promise.resolve(prior!);
     }
+    // An evicted receipt's command never runs again: its outcome is no longer readable, so it is unknown.
+    const gone = pending || prior ? undefined : this.expired.get(commandId);
+    if (gone) {
+      if (gone.operation !== operation || gone.request_hash !== hash) throw new Refusal('command_id_conflict');
+      throw new Refusal('receipt_expired', 'unknown', commandId, {}, 409);
+    }
     const result = Promise.resolve()
       .then(async () => {
         // Validation and reservation run atomically with the synchronous pre-dispatch part of effect().
         validate();
         if (this.journal.failed) throw new Refusal('journal_failed', 'no_effect');
+        const exempt = QUOTA_EXEMPT.has(operation);
+        this.retain();
         const ordinary = [...this.all.values()].filter(r => !QUOTA_EXEMPT.has(r.operation)).length;
-        if (!prior && !QUOTA_EXEMPT.has(operation) && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');
-        if (!this.journal.reserve(commandId, this.maxResultBytes + 1024)) throw new Refusal('journal_result_capacity');
+        if (!prior && !exempt && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');
+        if (!this.journal.reserve(commandId, this.maxResultBytes + 1024, exempt ? 0 : this.limits.controlReserveBytes)) throw new Refusal('journal_result_capacity');
         let intent: Receipt;
         try {
           intent = this.put(
@@ -164,7 +252,7 @@ export class ReceiptStore {
               stage: 'reserved',
               effect: 'no_effect',
               evidence: 'supervisor_journal_fsynced',
-              created_at: prior?.created_at ?? new Date().toISOString(),
+              created_at: prior?.created_at ?? new Date(this.now()).toISOString(),
             },
             'receipt.intent',
           );

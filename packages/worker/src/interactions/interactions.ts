@@ -85,7 +85,15 @@ export class Interactions {
     readonly receipts: ReceiptStore,
     readonly hooks: InteractionHooks,
   ) {
-    for (const r of journal.records) {
+    this.load();
+    // Retention drops interactions no live pi process can touch any more (journal/retention.ts).
+    journal.onCompacted(() => this.load());
+  }
+
+  /** The durable interaction records, from the journal (each one's latest record). */
+  private load(): void {
+    this.records.clear();
+    for (const r of this.journal.records) {
       if (r.kind !== 'interaction') continue;
       // SAFETY: every `interaction` record is written by save() below from an Interaction, checksummed by the journal.
       const record = structuredClone(r.value) as unknown as Interaction;

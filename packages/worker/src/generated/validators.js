@@ -231,7 +231,8 @@ return errors === 0;
 }
 validate57.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
-const schema24 = {"$id":"urn:piw:schema:Limits","type":"object","additionalProperties":false,"required":["request_body_bytes","attachment_max_bytes","attachments_per_message","attachments_total_bytes","event_frame_bytes"],"properties":{"request_body_bytes":{"type":"integer","minimum":1,"description":"The JSON request body cap (`x-piw-json-max-bytes`)."},"attachment_max_bytes":{"type":"integer","minimum":1,"description":"The most bytes one `attachments.stage` body may carry."},"attachments_per_message":{"type":"integer","minimum":1,"description":"The most attachments one `sessions.prompt` may reference."},"attachments_total_bytes":{"type":"integer","minimum":1,"description":"The most attachment bytes one `sessions.prompt` may reference."},"event_frame_bytes":{"type":"integer","minimum":1,"description":"The most bytes one `events.subscribe` SSE record may carry."}}};
+const schema24 = {"$id":"urn:piw:schema:Limits","type":"object","additionalProperties":false,"required":["request_body_bytes","attachment_max_bytes","attachments_per_message","attachments_total_bytes","event_frame_bytes","journal_max_bytes","journal_control_reserve_bytes","receipts_max","receipt_retention_min_seconds","receipt_expired_ids_max"],"properties":{"request_body_bytes":{"type":"integer","minimum":1,"description":"The JSON request body cap (`x-piw-json-max-bytes`)."},"attachment_max_bytes":{"type":"integer","minimum":1,"description":"The most bytes one `attachments.stage` body may carry."},"attachments_per_message":{"type":"integer","minimum":1,"description":"The most attachments one `sessions.prompt` may reference."},"attachments_total_bytes":{"type":"integer","minimum":1,"description":"The most attachment bytes one `sessions.prompt` may reference."},"event_frame_bytes":{"type":"integer","minimum":1,"description":"The most bytes one `events.subscribe` SSE record may carry."},"journal_max_bytes":{"type":"integer","minimum":1,"description":"The supervisor journal never grows past this many bytes. Compaction\nrewrites it to the retained records (each worker's and interaction's\nlatest record, retained receipts, expired command ids) before it\nfills.\n"},"journal_control_reserve_bytes":{"type":"integer","minimum":0,"description":"Journal room only quota-exempt commands may use (`workers.stop`,\n`executions.cancel`, `executions.interrupt`,\n`sessions.resolve_unknown`, `children.report`): an ordinary command\nis refused `journal_result_capacity` (`no_effect`) before it reaches\nthis reserve.\n"},"receipts_max":{"type":"integer","minimum":1,"description":"The most receipts retained. At the bound the oldest evictable\nreceipts are evicted: final, older than\n`receipt_retention_min_seconds`, and not part of any pending\ndecision. Never evicted: an unresolved `outcome_unknown`, an\nunfinished command, the command that created a worker, and a\ncommand a worker's unsettled execution, fence, queue or child\nlineage names. When nothing is evictable an ordinary command is\nrefused `receipt_capacity` (`no_effect`); quota-exempt commands are\nnever refused for count.\n"},"receipt_retention_min_seconds":{"type":"integer","minimum":0,"description":"A final receipt is retained at least this long after its command\nwas created.\n"},"receipt_expired_ids_max":{"type":"integer","minimum":0,"description":"How many evicted command ids the worker still remembers. Reusing\none, or reading its receipt, is refused `receipt_expired` with\n`effect: unknown`: never run again, never proof that nothing ran. An\nid evicted longer ago than this is forgotten.\n"}}};
+const func8 = Object.prototype.hasOwnProperty;
 
 function validate60(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="urn:piw:schema:Limits" */;
@@ -247,14 +248,14 @@ evaluated0.items = undefined;
 if(errors === 0){
 if(data && typeof data == "object" && !Array.isArray(data)){
 let missing0;
-if((((((data.request_body_bytes === undefined) && (missing0 = "request_body_bytes")) || ((data.attachment_max_bytes === undefined) && (missing0 = "attachment_max_bytes"))) || ((data.attachments_per_message === undefined) && (missing0 = "attachments_per_message"))) || ((data.attachments_total_bytes === undefined) && (missing0 = "attachments_total_bytes"))) || ((data.event_frame_bytes === undefined) && (missing0 = "event_frame_bytes"))){
+if(((((((((((data.request_body_bytes === undefined) && (missing0 = "request_body_bytes")) || ((data.attachment_max_bytes === undefined) && (missing0 = "attachment_max_bytes"))) || ((data.attachments_per_message === undefined) && (missing0 = "attachments_per_message"))) || ((data.attachments_total_bytes === undefined) && (missing0 = "attachments_total_bytes"))) || ((data.event_frame_bytes === undefined) && (missing0 = "event_frame_bytes"))) || ((data.journal_max_bytes === undefined) && (missing0 = "journal_max_bytes"))) || ((data.journal_control_reserve_bytes === undefined) && (missing0 = "journal_control_reserve_bytes"))) || ((data.receipts_max === undefined) && (missing0 = "receipts_max"))) || ((data.receipt_retention_min_seconds === undefined) && (missing0 = "receipt_retention_min_seconds"))) || ((data.receipt_expired_ids_max === undefined) && (missing0 = "receipt_expired_ids_max"))){
 validate60.errors = [{instancePath,schemaPath:"#/required",keyword:"required",params:{missingProperty: missing0},message:"must have required property '"+missing0+"'"}];
 return false;
 }
 else {
 const _errs1 = errors;
 for(const key0 in data){
-if(!(((((key0 === "request_body_bytes") || (key0 === "attachment_max_bytes")) || (key0 === "attachments_per_message")) || (key0 === "attachments_total_bytes")) || (key0 === "event_frame_bytes"))){
+if(!(func8.call(schema24.properties, key0))){
 validate60.errors = [{instancePath,schemaPath:"#/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
 return false;
 break;
@@ -364,6 +365,116 @@ var valid0 = _errs10 === errors;
 }
 else {
 var valid0 = true;
+}
+if(valid0){
+if(data.journal_max_bytes !== undefined){
+let data5 = data.journal_max_bytes;
+const _errs12 = errors;
+if(!(((typeof data5 == "number") && (!(data5 % 1) && !isNaN(data5))) && (isFinite(data5)))){
+validate60.errors = [{instancePath:instancePath+"/journal_max_bytes",schemaPath:"#/properties/journal_max_bytes/type",keyword:"type",params:{type: "integer"},message:"must be integer"}];
+return false;
+}
+if(errors === _errs12){
+if((typeof data5 == "number") && (isFinite(data5))){
+if(data5 < 1 || isNaN(data5)){
+validate60.errors = [{instancePath:instancePath+"/journal_max_bytes",schemaPath:"#/properties/journal_max_bytes/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"}];
+return false;
+}
+}
+}
+var valid0 = _errs12 === errors;
+}
+else {
+var valid0 = true;
+}
+if(valid0){
+if(data.journal_control_reserve_bytes !== undefined){
+let data6 = data.journal_control_reserve_bytes;
+const _errs14 = errors;
+if(!(((typeof data6 == "number") && (!(data6 % 1) && !isNaN(data6))) && (isFinite(data6)))){
+validate60.errors = [{instancePath:instancePath+"/journal_control_reserve_bytes",schemaPath:"#/properties/journal_control_reserve_bytes/type",keyword:"type",params:{type: "integer"},message:"must be integer"}];
+return false;
+}
+if(errors === _errs14){
+if((typeof data6 == "number") && (isFinite(data6))){
+if(data6 < 0 || isNaN(data6)){
+validate60.errors = [{instancePath:instancePath+"/journal_control_reserve_bytes",schemaPath:"#/properties/journal_control_reserve_bytes/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"}];
+return false;
+}
+}
+}
+var valid0 = _errs14 === errors;
+}
+else {
+var valid0 = true;
+}
+if(valid0){
+if(data.receipts_max !== undefined){
+let data7 = data.receipts_max;
+const _errs16 = errors;
+if(!(((typeof data7 == "number") && (!(data7 % 1) && !isNaN(data7))) && (isFinite(data7)))){
+validate60.errors = [{instancePath:instancePath+"/receipts_max",schemaPath:"#/properties/receipts_max/type",keyword:"type",params:{type: "integer"},message:"must be integer"}];
+return false;
+}
+if(errors === _errs16){
+if((typeof data7 == "number") && (isFinite(data7))){
+if(data7 < 1 || isNaN(data7)){
+validate60.errors = [{instancePath:instancePath+"/receipts_max",schemaPath:"#/properties/receipts_max/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"}];
+return false;
+}
+}
+}
+var valid0 = _errs16 === errors;
+}
+else {
+var valid0 = true;
+}
+if(valid0){
+if(data.receipt_retention_min_seconds !== undefined){
+let data8 = data.receipt_retention_min_seconds;
+const _errs18 = errors;
+if(!(((typeof data8 == "number") && (!(data8 % 1) && !isNaN(data8))) && (isFinite(data8)))){
+validate60.errors = [{instancePath:instancePath+"/receipt_retention_min_seconds",schemaPath:"#/properties/receipt_retention_min_seconds/type",keyword:"type",params:{type: "integer"},message:"must be integer"}];
+return false;
+}
+if(errors === _errs18){
+if((typeof data8 == "number") && (isFinite(data8))){
+if(data8 < 0 || isNaN(data8)){
+validate60.errors = [{instancePath:instancePath+"/receipt_retention_min_seconds",schemaPath:"#/properties/receipt_retention_min_seconds/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"}];
+return false;
+}
+}
+}
+var valid0 = _errs18 === errors;
+}
+else {
+var valid0 = true;
+}
+if(valid0){
+if(data.receipt_expired_ids_max !== undefined){
+let data9 = data.receipt_expired_ids_max;
+const _errs20 = errors;
+if(!(((typeof data9 == "number") && (!(data9 % 1) && !isNaN(data9))) && (isFinite(data9)))){
+validate60.errors = [{instancePath:instancePath+"/receipt_expired_ids_max",schemaPath:"#/properties/receipt_expired_ids_max/type",keyword:"type",params:{type: "integer"},message:"must be integer"}];
+return false;
+}
+if(errors === _errs20){
+if((typeof data9 == "number") && (isFinite(data9))){
+if(data9 < 0 || isNaN(data9)){
+validate60.errors = [{instancePath:instancePath+"/receipt_expired_ids_max",schemaPath:"#/properties/receipt_expired_ids_max/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"}];
+return false;
+}
+}
+}
+var valid0 = _errs20 === errors;
+}
+else {
+var valid0 = true;
+}
+}
+}
+}
+}
 }
 }
 }
@@ -1041,7 +1152,6 @@ validate74.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 export const response_workers_list_200 = validate75;
 const schema31 = {"$id":"urn:piw:validator:response_workers_list_200","type":"array","items":{"$ref":"urn:piw:schema:Worker"}};
 const schema32 = {"$id":"urn:piw:schema:Worker","type":"object","additionalProperties":false,"required":["worker_id","worker_epoch","supervisor_epoch","session_id","session_identity_evidence","binding_revision","leaf_id","cwd","status","foreground","execution","fence","history","cleanup","pending_interactions"],"properties":{"worker_id":{"$ref":"urn:piw:schema:Id"},"worker_epoch":{"$ref":"urn:piw:schema:Id"},"supervisor_epoch":{"$ref":"urn:piw:schema:Id"},"session_id":{"type":["string","null"],"minLength":1,"maxLength":128},"session_identity_evidence":{"type":"string","enum":["pi_sdk_session_id","pi_session_file"]},"binding_revision":{"type":"integer","minimum":0},"leaf_id":{"type":["string","null"],"minLength":1,"maxLength":128},"cwd":{"$ref":"urn:piw:schema:AbsolutePath"},"status":{"type":"string","enum":["starting","ready","stopped","cleanup_pending","failed"]},"foreground":{"type":"string","enum":["idle","running","unknown"]},"execution":{"anyOf":[{"$ref":"urn:piw:schema:Execution"},{"type":"null"}]},"fence":{"anyOf":[{"$ref":"urn:piw:schema:Fence"},{"type":"null"}]},"history":{"$ref":"urn:piw:schema:HistoryMarker"},"cleanup":{"type":"string","minLength":1,"maxLength":64},"failure":{"$ref":"urn:piw:schema:WorkerFailure"},"pending_interactions":{"type":"array","items":{"anyOf":[{"$ref":"urn:piw:schema:Interaction"},{"$ref":"urn:piw:schema:InteractionSummary"}],"x-go-type":"json.RawMessage"}},"queued":{"type":"array","items":{"$ref":"urn:piw:schema:QueuedInput"}},"fence_generation":{"type":"integer","minimum":0},"resolutions":{"type":"array","items":{"$ref":"urn:piw:schema:Resolution"}},"git_pin":{"anyOf":[{"$ref":"urn:piw:schema:GitPin"},{"type":"null"}]},"parent":{"$ref":"urn:piw:schema:Parent"},"launch_spec":{"$ref":"urn:piw:schema:LaunchSpec"},"grant_source_id":{"$ref":"urn:piw:schema:Id"},"child_reports":{"type":"array","items":{"$ref":"urn:piw:schema:ChildClaim"}},"parent_worker_id":{"$ref":"urn:piw:schema:Id"},"parent_launch_command_id":{"$ref":"urn:piw:schema:Id"},"host":{"$ref":"urn:piw:schema:Host"},"resources":{"type":"object","additionalProperties":true}}};
-const func14 = Object.prototype.hasOwnProperty;
 const schema33 = {"$id":"urn:piw:schema:AbsolutePath","type":"string","minLength":1,"maxLength":4096,"pattern":"^/"};
 const pattern3 = new RegExp("^/", "u");
 
@@ -1642,7 +1752,7 @@ return false;
 else {
 const _errs1 = errors;
 for(const key0 in data){
-if(!(func14.call(schema38.properties, key0))){
+if(!(func8.call(schema38.properties, key0))){
 validate95.errors = [{instancePath,schemaPath:"#/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
 return false;
 break;
@@ -2495,7 +2605,7 @@ return false;
 else {
 const _errs1 = errors;
 for(const key0 in data){
-if(!(func14.call(schema45.properties, key0))){
+if(!(func8.call(schema45.properties, key0))){
 validate120.errors = [{instancePath,schemaPath:"#/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
 return false;
 break;
@@ -3492,7 +3602,7 @@ return false;
 else {
 const _errs1 = errors;
 for(const key0 in data){
-if(!(func14.call(schema32.properties, key0))){
+if(!(func8.call(schema32.properties, key0))){
 validate76.errors = [{instancePath,schemaPath:"#/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
 return false;
 break;
@@ -4486,7 +4596,7 @@ return false;
 else {
 const _errs1 = errors;
 for(const key0 in data){
-if(!(func14.call(schema56.properties, key0))){
+if(!(func8.call(schema56.properties, key0))){
 validate156.errors = [{instancePath,schemaPath:"#/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
 return false;
 break;
@@ -4710,7 +4820,7 @@ return false;
 else {
 const _errs1 = errors;
 for(const key0 in data){
-if(!(func14.call(schema59.properties, key0))){
+if(!(func8.call(schema59.properties, key0))){
 validate167.errors = [{instancePath,schemaPath:"#/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
 return false;
 break;
@@ -11169,7 +11279,7 @@ return false;
 else {
 const _errs1 = errors;
 for(const key0 in data){
-if(!(func14.call(schema204.properties, key0))){
+if(!(func8.call(schema204.properties, key0))){
 validate495.errors = [{instancePath,schemaPath:"#/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
 return false;
 break;

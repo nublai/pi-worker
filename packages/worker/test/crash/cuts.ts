@@ -12,6 +12,7 @@ export interface CutScenario {
 }
 
 const OPEN = ['journal.open_file', 'journal.open_directory', 'supervisor.start'];
+const COMPACT = ['journal.compact_file', 'journal.compact_directory'];
 
 export const CUT_SCENARIOS: readonly CutScenario[] = [
   { scenario: 'journal', file: 'journal.test.ts', labels: OPEN },
@@ -193,6 +194,37 @@ export const CUT_SCENARIOS: readonly CutScenario[] = [
       'queue.add',
       'queue.flush',
       'fence.latch',
+    ],
+  },
+  {
+    scenario: 'compaction',
+    file: 'compaction.test.ts',
+    labels: [
+      ...OPEN,
+      ...COMPACT,
+      'receipt.intent',
+      'receipt.dispatch',
+      'receipt.result',
+      'receipt.queue_ready',
+      'worker.create',
+      'worker.spawned',
+      'worker.identity',
+      'worker.ready',
+      'worker.stop',
+      'worker.stopped',
+      'worker.exit',
+      'worker.recover',
+      'execution.admit',
+      'execution.start',
+      'execution.reply',
+      'execution.settle',
+      'execution.unknown',
+      'settlement.record',
+      'queue.add',
+      'queue.flush',
+      'control.done',
+      'fence.latch',
+      'fence.resolve',
     ],
   },
 ];

@@ -3,21 +3,30 @@
  * increasing `seq` and a SHA-256 of the record. Rewritten from A0 `src/journal.ts`, same append, fsync and parse
  * semantics: only a torn final line (no newline) is discarded on open; any complete line that does not parse, checks
  * out or continues the sequence refuses startup. pi owns the transcript; the journal never stores prompt or answer
- * text. Retention and compaction land in P1-12.
+ * text.
+ *
+ * Compaction (P1-12) rewrites the journal to a planned set of records (journal/retention.ts decides which): the new
+ * file is written beside the journal, fsynced (`journal.compact_file`), renamed over it, and the directory fsynced
+ * (`journal.compact_directory`). A SIGKILL before the rename leaves the old journal whole and a stray `.compact` file,
+ * which the next open removes; after the rename the compacted journal is the journal.
  */
-import { closeSync, fstatSync, ftruncateSync, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs';
+import { closeSync, fstatSync, ftruncateSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
 import { durable } from './fsync.js';
 import type { DurableLabel } from './labels.js';
+import { DEFAULT_RETENTION } from './retention.js';
 import type { JournalAppended } from '../generated/events.js';
 
-export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement', 'interaction', 'interaction_effect'] as const;
+/** `receipt_expired`: the id of a receipt retention evicted, so a reuse is refused rather than run again (P1-12). */
+export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement', 'interaction', 'interaction_effect', 'receipt_expired'] as const;
 export type JournalKind = (typeof JOURNAL_KINDS)[number];
 export type JournalRecord = { seq: number; kind: JournalKind; value: Record<string, unknown> };
 
-/** A0's bound; P1-12 replaces it with retention. */
-export const DEFAULT_JOURNAL_BYTES = 32 * 1024 * 1024;
+/** The journal's byte bound (advertised in `hello` as `journal_max_bytes`); compaction keeps it from filling. */
+export const DEFAULT_JOURNAL_BYTES = DEFAULT_RETENTION.journalBytes;
+
+const line = (record: JournalRecord) => Buffer.from(`${JSON.stringify({ record, checksum: digest(JSON.stringify(record)) })}\n`);
 
 const digest = (text: string) => createHash('sha256').update(text).digest('hex');
 const kinds: ReadonlySet<string> = new Set(JOURNAL_KINDS);
@@ -58,12 +67,15 @@ export class Journal {
   private fd: number;
   private closed = false;
   private reservations = new Map<string, number>();
+  private readonly compacted = new Set<() => void>();
 
   constructor(
     readonly file: string,
     readonly maxBytes = DEFAULT_JOURNAL_BYTES,
   ) {
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    // A compaction cut before its rename: the journal is whole; the half-made copy is not the journal.
+    rmSync(`${file}.compact`, { force: true });
     this.fd = openSync(file, 'a+', 0o600);
     try {
       const loaded = parseJournal(readFileSync(file));
@@ -88,9 +100,22 @@ export class Journal {
     return total;
   }
 
-  /** Reserves room for a command's later records; false when the journal could not hold them. */
-  reserve(key: string, bytes: number): boolean {
-    if (this.closed || this.failed || fstatSync(this.fd).size + this.reserved() + bytes > this.maxBytes) return false;
+  /** The journal file's current size in bytes. */
+  size(): number {
+    return fstatSync(this.fd).size;
+  }
+
+  /** Bytes reserved for the final records of commands in flight. */
+  get reservedBytes(): number {
+    return this.reserved();
+  }
+
+  /**
+   * Reserves room for a command's later records; false when the journal could not hold them while leaving `headroom`
+   * bytes free (the control reserve an ordinary command may not use).
+   */
+  reserve(key: string, bytes: number, headroom = 0): boolean {
+    if (this.closed || this.failed || fstatSync(this.fd).size + this.reserved() + bytes + headroom > this.maxBytes) return false;
     this.reservations.set(key, bytes);
     return true;
   }
@@ -109,7 +134,7 @@ export class Journal {
     if (this.closed) throw new Error('journal closed; late callback has no write authority');
     if (this.failed) throw new Error('journal failed; supervisor fenced globally');
     const record = structuredClone({ seq: this.records.length + 1, kind, value }) as JournalRecord;
-    const data = Buffer.from(`${JSON.stringify({ record, checksum: digest(JSON.stringify(record)) })}\n`);
+    const data = line(record);
     try {
       const own = reservation ? (this.reservations.get(reservation) ?? 0) : 0;
       if (fstatSync(this.fd).size + data.length + this.reserved() - own > this.maxBytes) throw new Error('journal capacity; no automatic eviction');
@@ -125,10 +150,64 @@ export class Journal {
     }
   }
 
+  /** Runs `listener` after every compaction (stores rebuild their tables from the compacted records). */
+  onCompacted(listener: () => void): void {
+    this.compacted.add(listener);
+  }
+
+  /**
+   * Replaces the journal with `entries`, renumbered from 1. A failure before the rename leaves the journal as it was
+   * (and usable); a failure after it marks the journal failed.
+   */
+  compact(entries: readonly { kind: JournalKind; value: Record<string, unknown> }[]): void {
+    if (this.closed) throw new Error('journal closed; late callback has no write authority');
+    if (this.failed) throw new Error('journal failed; supervisor fenced globally');
+    const records = entries.map((e, i) => structuredClone({ seq: i + 1, kind: e.kind, value: e.value }) as JournalRecord);
+    const temp = `${this.file}.compact`;
+    try {
+      const fd = openSync(temp, 'w', 0o600);
+      try {
+        for (const record of records) {
+          const data = line(record);
+          let offset = 0;
+          while (offset < data.length) offset += writeSync(fd, data, offset, data.length - offset);
+        }
+        durable(fd, 'journal.compact_file');
+      } finally {
+        closeSync(fd);
+      }
+    } catch (error) {
+      rmSync(temp, { force: true });
+      throw error;
+    }
+    try {
+      renameSync(temp, this.file);
+      closeSync(this.fd);
+      this.fd = openSync(this.file, 'a+', 0o600);
+      const dir = openSync(dirname(this.file), 'r');
+      try {
+        durable(dir, 'journal.compact_directory');
+      } finally {
+        closeSync(dir);
+      }
+    } catch (error) {
+      this.failed = true;
+      throw error;
+    }
+    this.records.length = 0;
+    for (const record of records) this.records.push(record);
+    for (const listener of this.compacted) listener();
+  }
+
   close(): void {
     if (this.closed) return;
     this.closed = true;
-    closeSync(this.fd);
+    try {
+      closeSync(this.fd);
+    } catch (error) {
+      // A compaction that failed after its rename may have closed the descriptor already.
+      if (!this.failed) throw error;
+    }
   }
 
   get isClosed(): boolean {

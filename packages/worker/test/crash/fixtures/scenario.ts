@@ -13,6 +13,8 @@
  * - `grants`: the owner's grant command registers two grants with bearer files and revokes one (grants-scenario.ts).
  * - `interactions`: answers, cancels, tool releases, a navigation and a lost acknowledgement (interactions-scenario.ts).
  * - `children`: a typed child with an FD report and a stop, an untyped child launched from a queue (children-scenario.ts).
+ * - `compaction`: tight retention evicting delivered receipts across count- and byte-triggered compactions while a
+ *   fenced unknown, a resolved one, controls and an unreported child stay retained (compaction-scenario.ts).
  */
 import assert from 'node:assert/strict';
 import { isAbsolute } from 'node:path';
@@ -26,6 +28,7 @@ import { resumeScenario } from '../resume-scenario.js';
 import { grantsScenario } from '../grants-scenario.js';
 import { interactionsScenario } from '../interactions-scenario.js';
 import { childrenScenario } from '../children-scenario.js';
+import { compactionScenario } from '../compaction-scenario.js';
 
 const [mode, root] = process.argv.slice(2);
 assert.ok(root && isAbsolute(root), 'the parent supplies a per-run temporary directory');
@@ -56,6 +59,10 @@ if (mode === 'journal') {
   process.exit(0);
 } else if (mode === 'resume') {
   await resumeScenario(root);
+  process.stdout.write(`${JSON.stringify({ done: true })}\n`);
+  process.exit(0);
+} else if (mode === 'compaction') {
+  await compactionScenario(root);
   process.stdout.write(`${JSON.stringify({ done: true })}\n`);
   process.exit(0);
 } else if (mode === 'children') {

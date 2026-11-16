@@ -93,7 +93,15 @@ export interface Fixture {
   cleanup(): void;
 }
 
-export function fixture(config: { unconfirmedIdentity?: boolean; initHost?: (host: Host) => void; launch?: (launch: HostLaunch) => SessionHost | undefined } = {}): Fixture {
+export function fixture(
+  config: {
+    unconfirmedIdentity?: boolean;
+    initHost?: (host: Host) => void;
+    launch?: (launch: HostLaunch) => SessionHost | undefined;
+    /** The receipt store's count bound (P1-12 raised the default from A0's 512). */
+    receiptCap?: number;
+  } = {},
+): Fixture {
   const tmp = privateTmp();
   const dir = tmp.dir;
   const hosts: Host[] = [];
@@ -113,7 +121,7 @@ export function fixture(config: { unconfirmedIdentity?: boolean; initHost?: (hos
   };
   const open = (f: HostFactory) => {
     const state = openState(dir);
-    return { state, supervisor: new Supervisor({ journal: state.journal, receipts: new ReceiptStore(state.journal), supervisorEpoch: state.supervisorEpoch, stateDir: dir, factory: f, grants: new GrantStore(dir) }) };
+    return { state, supervisor: new Supervisor({ journal: state.journal, receipts: new ReceiptStore(state.journal, config.receiptCap), supervisorEpoch: state.supervisorEpoch, stateDir: dir, factory: f, grants: new GrantStore(dir) }) };
   };
   const first = open(factory);
   const f: Fixture = {

@@ -3,6 +3,11 @@
  * (`checkRecovery`): recovered receipt buckets by pre-crash state, independent native-effect evidence (an effect is
  * never `no_effect`, never duplicated, and corroborated by its native artifact), no worker left live, every
  * logged request retried with no replay, and a second recovery that changes nothing.
+ *
+ * Under retention (a scenario with `world.json`, P1-12) a receipt may be missing after recovery only if retention may
+ * evict it by the contract's own terms, decided here and not by the code under test: it was final (`delivered` or
+ * `rejected`, or an `outcome_unknown` its worker's owner resolved) and its id is reported expired. A native effect
+ * whose receipt was evicted must have been reported to the client, or recorded before the cut, as not `no_effect`.
  */
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
@@ -11,7 +16,7 @@ import { parseJournal } from '../../src/journal/journal.js';
 import { journalPath } from '../../src/journal/state.js';
 import type { Receipt } from '../../src/receipts/receipts.js';
 import type { Worker } from '../../src/supervisor/state.js';
-import { effectsAt, recoverWorld, requestsAt, type Logged, type Summary } from './world.js';
+import { effectsAt, recoverWorld, repliesAt, requestsAt, type Logged, type Summary } from './world.js';
 
 const bytes = (path: string) => (existsSync(path) ? readFileSync(path, 'utf8') : '');
 
@@ -38,13 +43,26 @@ export function preCrash(root: string): PreCrash {
 /** Extra per-PR checks over the pre-crash state and the recovered summary (fences, executions, bindings). */
 export type Check = (pre: PreCrash, after: Summary) => void;
 
+/** The contract's evictable receipts (P1-12): final, and not an `outcome_unknown` its owner has not resolved. */
+function evictable(pre: PreCrash, r: Receipt): boolean {
+  if (r.state === 'delivered' || r.state === 'rejected') return true;
+  return r.state === 'outcome_unknown' && [...pre.workers.values()].some(w => (w.resolutions ?? []).some(x => x.command_id === r.command_id));
+}
+
 export async function checkRecovery(root: string, extra: Check[] = []): Promise<Summary> {
   const pre = preCrash(root);
+  const retention = existsSync(join(root, 'world.json'));
   const before = bytes(join(root, 'effects.jsonl'));
   const after = await recoverWorld(root);
   const receipts = new Map(after.receipts.map(r => [r.command_id, r]));
+  const expired = new Set(after.expired);
   for (const r of pre.receipts.values()) {
     const got = receipts.get(r.command_id)!;
+    if (!got && retention) {
+      assert.ok(evictable(pre, r), `${r.command_id} (${r.state}) is not evictable, yet recovery lost it`);
+      assert.ok(expired.has(r.command_id), `evicted ${r.command_id} is reported expired`);
+      continue;
+    }
     const disposition = pre.workers.get(r.worker_id ?? '')?.resolutions?.find(x => x.command_id === r.command_id)?.disposition;
     if (['intent', 'queued', 'queue_ready', 'intent_recovered'].includes(r.state) || (r.state === 'intent_ready' && disposition !== 'keep')) {
       assert.equal(got.state, disposition === 'keep' ? 'intent_ready' : disposition === 'abandon' ? 'rejected' : 'intent_recovered', r.command_id);
@@ -76,8 +94,16 @@ export async function checkRecovery(root: string, extra: Check[] = []): Promise<
       continue;
     }
     const r = receipts.get(e.command_id);
-    assert.ok(r, `native effect ${e.kind}:${e.command_id} needs a recovered receipt`);
-    assert.notEqual(r.effect, 'no_effect', `native effect ${e.kind}:${e.command_id} recovered ${r.state}/${r.effect}`);
+    if (!r && retention && expired.has(e.command_id)) {
+      // Evicted after the effect: what the client was told (or the journal said at the cut) is not no_effect.
+      const told = [...repliesAt(root)].reverse().find(x => x.command_id === e.command_id && x.state);
+      const cut = pre.receipts.get(e.command_id);
+      assert.ok(told ?? cut, `native effect ${e.kind}:${e.command_id}: evicted with no reply and no record`);
+      for (const known of [told, cut]) if (known) assert.notEqual(known.effect, 'no_effect', `native effect ${e.kind}:${e.command_id} was ${known.state}/${known.effect}`);
+    } else {
+      assert.ok(r, `native effect ${e.kind}:${e.command_id} needs a recovered receipt`);
+      assert.notEqual(r.effect, 'no_effect', `native effect ${e.kind}:${e.command_id} recovered ${r.state}/${r.effect}`);
+    }
     const key = `${e.kind}:${e.command_id}`;
     assert.ok(!seen.has(key), `no duplicate native effect: ${key}`);
     seen.add(key);
@@ -91,7 +117,15 @@ export async function checkRecovery(root: string, extra: Check[] = []): Promise<
   for (const check of extra) check(pre, after);
   assert.equal(bytes(join(root, 'effects.jsonl')), before, 'recovery and duplicate requests perform zero new effects');
   const second = await recoverWorld(root);
-  assert.deepEqual(second.receipts, after.receipts, 'a second recovery changes no receipt');
+  if (retention) {
+    // A second recovery may only evict more (its open may compact); every receipt it keeps is unchanged.
+    const kept = new Map(second.receipts.map(r => [r.command_id, r]));
+    for (const r of after.receipts) {
+      if (kept.has(r.command_id)) assert.deepEqual(kept.get(r.command_id), r, 'a second recovery changes no receipt');
+      else assert.ok(second.expired.includes(r.command_id) && evictable(pre, r), `a second recovery lost ${r.command_id}`);
+    }
+    assert.equal(second.receipts.length <= after.receipts.length, true);
+  } else assert.deepEqual(second.receipts, after.receipts, 'a second recovery changes no receipt');
   assert.deepEqual(
     second.workers.map(w => [w.status, w.fence]),
     after.workers.map(w => [w.status, w.fence]),

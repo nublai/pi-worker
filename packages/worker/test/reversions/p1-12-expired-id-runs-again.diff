@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/receipts/receipts.ts b/packages/worker/src/receipts/receipts.ts
+index bb72584..bc309a6 100644
+--- a/packages/worker/src/receipts/receipts.ts
++++ b/packages/worker/src/receipts/receipts.ts
+@@ -224,7 +224,7 @@ export class ReceiptStore {
+       if (pending || !['intent_ready', 'queue_ready'].includes(prior!.state)) return pending?.promise ?? Promise.resolve(prior!);
+     }
+     // An evicted receipt's command never runs again: its outcome is no longer readable, so it is unknown.
+-    const gone = pending || prior ? undefined : this.expired.get(commandId);
++    const gone = pending || prior || this.maxCount > 0 ? undefined : this.expired.get(commandId);
+     if (gone) {
+       if (gone.operation !== operation || gone.request_hash !== hash) throw new Refusal('command_id_conflict');
+       throw new Refusal('receipt_expired', 'unknown', commandId, {}, 409);

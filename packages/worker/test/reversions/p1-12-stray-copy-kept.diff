@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/journal/journal.ts b/packages/worker/src/journal/journal.ts
+index 119d013..7eba6cc 100644
+--- a/packages/worker/src/journal/journal.ts
++++ b/packages/worker/src/journal/journal.ts
+@@ -75,7 +75,7 @@ export class Journal {
+   ) {
+     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+     // A compaction cut before its rename: the journal is whole; the half-made copy is not the journal.
+-    rmSync(`${file}.compact`, { force: true });
++    void rmSync;
+     this.fd = openSync(file, 'a+', 0o600);
+     try {
+       const loaded = parseJournal(readFileSync(file));
