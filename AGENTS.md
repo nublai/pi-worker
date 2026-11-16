@@ -43,11 +43,26 @@ Read before changing behaviour:
    verification, never evidence. Evidence files carry no secrets, answer text or transcripts; run the privacy scan
    in `harness/lib` before committing them. Failed attempts stay recorded and labelled.
 
+## Verification
+
+CI runs `check`, `crash`, every reversion group (one matrix shard each) and, on its path filter, `kernel` on every
+push and PR.
+
+- **Builders** run `npm run check` and the affected reversion groups (`--changed origin/main`) locally, and cite
+  the CI run on the exact head for `crash`, the remaining reversions and `kernel`. Do not rerun them by hand.
+- **Reviewers** cite the CI run on the exact head SHA, and run only their own probes and targeted tests. A red or
+  missing run on that head is a finding.
+- A change that CI cannot cover (live journeys, rule 8) is still run and recorded as rule 9 says.
+
 ## Commands
 
 `package.json` scripts are the source; the ones with non-obvious conditions:
 
-- `npm run check`: everything CI runs except the kernel tier.
+- `npm run check`: everything CI runs except the kernel tier, the crash tier and the reversions.
+- `npm run test:crash`: the crash-recovery tests. CI runs it on every push.
+- `node harness/lib/reversions.mjs --changed origin/main`: only the reversion groups whose patched files your
+  branch touches (commit first; the runner needs a clean tree). `--group <name>` runs one group, `--list` names
+  them, `--all` runs every group. Each prints caught/total and fails on any diff not caught by a named assertion.
 - `harness/ci/kernel.sh`: kernel tests (cgroup v2, bwrap). It runs the suite inside a delegated user service
   (`systemd-run --user -p Delegate=yes`) with `PIW_TEST_KERNEL=1`; outside one, kernel tests skip.
 - `PIW_CRASH_AT=<label>` SIGKILLs the supervisor right after that fsync; `PIW_TRACE_FSYNC=1` lists labels. Use them
