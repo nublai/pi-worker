@@ -9,7 +9,9 @@ import type { Handlers } from '../src/b2/types.js';
 import { routes, type Route } from '../src/generated/routes.js';
 import { validateEventFrame } from '../src/generated/events.js';
 import { error as validateError } from '../src/generated/validators.js';
-import { bundledSpec, specOperationIds, urlFor, wireFixtures, type WireFixture } from './helpers.js';
+import { join } from 'node:path';
+import { createB2Server, listenPrivate } from '../src/b2/server.js';
+import { bundledSpec, privateTmp, socketRaw, specOperationIds, urlFor, wireFixtures, type WireFixture } from './helpers.js';
 
 const table: Record<string, Route> = routes;
 const binding = { command_id: 'cmd-1', worker_epoch: 'epoch-1', session_id: 'session-1', binding_revision: 1 };
@@ -163,6 +165,18 @@ test('closure: malformed requests are refused no_effect before any handler runs'
 });
 
 const MiB = 1024 * 1024;
+const attachment = '/b2/attachments/photo-1';
+const attachmentHeaders = (extra: Record<string, string> = {}) => ({
+  'content-type': 'image/jpeg',
+  'piw-command-id': 'cmd-a',
+  'piw-worker-id': 'w1',
+  'piw-worker-epoch': 'e1',
+  'piw-session-id': 's1',
+  'piw-binding-revision': '1',
+  'piw-content-sha256': 'a'.repeat(64),
+  ...extra,
+});
+
 test('closure: every operation declares its body and response modes, and the spec and route table agree', () => {
   const spec = bundledSpec() as unknown as {
     info: { 'x-piw-json-max-bytes': number };
@@ -200,4 +214,85 @@ test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE
     attachments_total_bytes: 8 * MiB,
     event_frame_bytes: table['events.subscribe']!.responses['200']!.maxFrameBytes,
   });
+});
+
+test('closure: a 1 MiB body reaches the binary route (its 501), the same body to a JSON route is 413', async () => {
+  const memory = createMemoryTransport(createApp().handle);
+  const oneMiB = Buffer.alloc(MiB, 0xff);
+  const binary = await memory.request('PUT', attachment, { raw: oneMiB, headers: attachmentHeaders() });
+  assert.deepEqual(binary, { status: 501, body: { error: 'operation_not_implemented', effect: 'no_effect' } });
+  const json = await memory.request('POST', '/b2/workers/w1/prompt', { raw: oneMiB, headers: { 'content-type': 'application/json' } });
+  assert.deepEqual(json, { status: 413, body: { error: 'request_too_large', effect: 'no_effect' } });
+});
+
+test('closure: binary body modes refuse over-limit bodies, wrong media types and bad headers no_effect', async () => {
+  const memory = createMemoryTransport(createApp().handle);
+  const limit = table['attachments.stage']!.maxBodyBytes;
+  const cases: [string, Promise<{ status: number; body: unknown }>, number, string][] = [
+    ['at the limit', memory.request('PUT', attachment, { raw: Buffer.alloc(limit), headers: attachmentHeaders() }), 501, 'operation_not_implemented'],
+    ['declared over the limit', memory.request('PUT', attachment, { raw: Buffer.alloc(1), headers: attachmentHeaders({ 'content-length': String(limit + 1) }) }), 413, 'request_too_large'],
+    ['actually over the limit', memory.request('PUT', attachment, { raw: Buffer.alloc(limit + 1), headers: attachmentHeaders({ 'content-length': '10' }) }), 413, 'request_too_large'],
+    ['json to binary', memory.request('PUT', attachment, { json: { command_id: 'c' }, headers: attachmentHeaders({ 'content-type': 'application/json' }) }), 415, 'unsupported_media_type'],
+    ['undeclared image type', memory.request('PUT', attachment, { raw: Buffer.alloc(8), headers: attachmentHeaders({ 'content-type': 'image/gif' }) }), 415, 'unsupported_media_type'],
+    ['no content type', memory.request('PUT', attachment, { raw: Buffer.alloc(8), headers: Object.fromEntries(Object.entries(attachmentHeaders()).filter(([k]) => k !== 'content-type')) }), 415, 'unsupported_media_type'],
+    ['missing command header', memory.request('PUT', attachment, { raw: Buffer.alloc(8), headers: Object.fromEntries(Object.entries(attachmentHeaders()).filter(([k]) => k !== 'piw-command-id')) }), 400, 'invalid_parameters'],
+    ['bad sha header', memory.request('PUT', attachment, { raw: Buffer.alloc(8), headers: attachmentHeaders({ 'piw-content-sha256': 'XYZ' }) }), 400, 'invalid_parameters'],
+    ['body on a none route', memory.request('GET', '/b2/hello', { raw: Buffer.from('{}'), headers: { 'content-type': 'application/json' } }), 400, 'body_not_allowed'],
+  ];
+  for (const [label, pending, status, error] of cases) {
+    const response = await pending;
+    assert.equal(response.status, status, label);
+    assert.equal((response.body as { error: string }).error, error, label);
+    assert.equal((response.body as { effect: string }).effect, 'no_effect', label);
+    assert.equal(validateError(response.body), true, label);
+  }
+});
+
+test('closure: a served binary route hands its handler the counted stream; the byte past the limit is 413', async () => {
+  const served = { ...table, 'attachments.stage': { ...table['attachments.stage']!, supported: true } };
+  const seen: number[] = [];
+  // SAFETY: the test serves an operation the generated Handlers type marks unsupported.
+  const handlers = {
+    hello: () => ({}),
+    'attachments.stage': async (input: { header: Record<string, unknown>; body: AsyncIterable<Uint8Array> }) => {
+      let bytes = 0;
+      for await (const chunk of input.body) bytes += chunk.byteLength;
+      seen.push(bytes);
+      return { command_id: input.header['piw-command-id'], operation: 'attachments.stage', request_hash: 'h', state: 'delivered', stage: 'dispatch_recorded', effect: 'observed', evidence: 'supervisor_journal_fsynced', created_at: 't' };
+    },
+  } as unknown as Handlers;
+  const memory = createMemoryTransport(createRouter({ handlers, routes: served }));
+  const limit = served['attachments.stage'].maxBodyBytes;
+  const ok = await memory.request('PUT', attachment, { raw: Buffer.alloc(MiB), headers: attachmentHeaders() });
+  assert.equal(ok.status, 200);
+  assert.equal((ok.body as { command_id: string }).command_id, 'cmd-a');
+  const over = await memory.request('PUT', attachment, { raw: Buffer.alloc(limit + 1), headers: attachmentHeaders({ 'content-length': '1' }) });
+  // The refusal surfaces from the handler's read; it is a 413 naming the command, as for any mutation after its handler began.
+  assert.equal(over.status, 413);
+  assert.equal((over.body as { error: string }).error, 'request_too_large');
+  assert.deepEqual(seen, [MiB]);
+});
+
+test('closure: over the Unix socket, 1 MiB reaches the binary 501, a JSON MiB is 413, a chunked body past the binary limit is 413', async () => {
+  const tmp = privateTmp();
+  const server = createB2Server(createApp().handle);
+  try {
+    const socket = join(tmp.dir, 'b2.sock');
+    await listenPrivate(server, socket);
+    const limit = table['attachments.stage']!.maxBodyBytes;
+    const binary = await socketRaw(socket, 'PUT', attachment, attachmentHeaders({ 'content-length': String(MiB) }), Buffer.alloc(MiB, 1));
+    assert.deepEqual(binary, { status: 501, body: { error: 'operation_not_implemented', effect: 'no_effect' } });
+    const chunked = await socketRaw(socket, 'PUT', attachment, attachmentHeaders(), Buffer.alloc(MiB, 1));
+    assert.equal(chunked.status, 501);
+    const json = await socketRaw(socket, 'POST', '/b2/workers/w1/prompt', { 'content-type': 'application/json' }, Buffer.alloc(MiB, 0x20));
+    assert.deepEqual(json, { status: 413, body: { error: 'request_too_large', effect: 'no_effect' } });
+    const over = await socketRaw(socket, 'PUT', attachment, attachmentHeaders(), Buffer.alloc(limit + 64 * 1024, 1));
+    assert.deepEqual(over, { status: 413, body: { error: 'request_too_large', effect: 'no_effect' } });
+    const declared = await socketRaw(socket, 'PUT', attachment, attachmentHeaders({ 'content-length': String(limit + 1) }), Buffer.alloc(limit + 1, 1));
+    assert.deepEqual(declared, { status: 413, body: { error: 'request_too_large', effect: 'no_effect' } });
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>(r => server.close(() => r()));
+    tmp.cleanup();
+  }
 });

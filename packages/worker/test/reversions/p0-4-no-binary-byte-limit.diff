@@ -1,0 +1,18 @@
+--- a/packages/worker/src/b2/router.ts
++++ b/packages/worker/src/b2/router.ts
+@@ -78,7 +78,6 @@ async function* counted(body: B2Request['body'], limit: number): AsyncGenerator<
+   let bytes = 0;
+   for await (const chunk of body) {
+     bytes += chunk.byteLength;
+-    if (bytes > limit) throw tooLarge();
+     yield chunk;
+   }
+ }
+@@ -109,7 +108,6 @@ async function readByMode(route: Route, request: B2Request): Promise<unknown> {
+   if (route.body === 'binary') {
+     const type = mediaType(request);
+     if (!type || !route.mediaTypes.includes(type)) throw new Refusal('unsupported_media_type', 'no_effect', undefined, {}, 415);
+-    if (Number.isFinite(declared) && declared > route.maxBodyBytes) throw tooLarge();
+     return counted(request.body, route.maxBodyBytes);
+   }
+   if (mediaType(request) !== 'application/json') throw new Refusal('content_type_must_be_json', 'no_effect', undefined, {}, 415);

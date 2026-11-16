@@ -73,6 +73,45 @@ export function socketCall(socketPath: string, method: string, path: string, bod
   });
 }
 
+/**
+ * One HTTP request with a raw body over a Unix socket, written in `chunk`-byte pieces (Transfer-Encoding: chunked
+ * unless `headers` sets Content-Length). Resolves with the status and JSON body, even if the worker answers and
+ * closes before the whole body is written.
+ */
+export function socketRaw(
+  socketPath: string,
+  method: string,
+  path: string,
+  headers: Record<string, string>,
+  body: Buffer,
+  chunk = 64 * 1024,
+): Promise<{ status: number; body: unknown }> {
+  return new Promise((resolve, reject) => {
+    let answered = false;
+    const req = request({ socketPath, method, path, agent: false, headers: { Connection: 'close', ...headers } }, res => {
+      answered = true;
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode ?? 0, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) });
+        } catch (error) {
+          reject(error as Error);
+        }
+      });
+    });
+    req.on('error', error => {
+      if (!answered) reject(error);
+    });
+    (async () => {
+      for (let at = 0; at < body.length && !answered && !req.destroyed; at += chunk) {
+        if (!req.write(body.subarray(at, at + chunk))) await new Promise(r => req.once('drain', r));
+      }
+      if (!req.destroyed) req.end();
+    })().catch(() => {});
+  });
+}
+
 /** Builds `/b2/...?...` for an operation from its route path and a wire fixture request. */
 export function urlFor(path: string, request: WireFixture['request']): string {
   const filled = path.replace(/\{([^}]+)\}/g, (_m, name: string) => encodeURIComponent(request.path?.[name] ?? ''));

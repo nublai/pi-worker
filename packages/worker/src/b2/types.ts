@@ -6,12 +6,25 @@ type OpOf<K extends keyof operations> = operations[K];
 
 export type PathParams<K extends keyof operations> = OpOf<K> extends { parameters: { path: infer P } } ? (P extends undefined ? {} : P) : {};
 export type QueryParams<K extends keyof operations> = OpOf<K> extends { parameters: { query?: infer Q } } ? (Q extends undefined ? {} : Q) : {};
-export type RequestBody<K extends keyof operations> = OpOf<K> extends { requestBody: { content: { 'application/json': infer B } } } ? B : undefined;
+/** Header parameters by lower-case name, as the router reads them. */
+export type HeaderParams<K extends keyof operations> = OpOf<K> extends { parameters: { header?: infer H } }
+  ? H extends undefined
+    ? {}
+    : { readonly [P in keyof H as Lowercase<P & string>]: H[P] }
+  : {};
+/** A JSON body is parsed and validated; a binary body is the counted byte stream (413 past its limit). */
+export type RequestBody<K extends keyof operations> = OpOf<K> extends { requestBody: { content: { 'application/json': infer B } } }
+  ? B
+  : OpOf<K> extends { requestBody: { content: object } }
+    ? AsyncIterable<Uint8Array>
+    : undefined;
 export type OkBody<K extends keyof operations> = OpOf<K> extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
 
 export interface HandlerInput<K extends keyof operations> {
   readonly path: PathParams<K>;
   readonly query: QueryParams<K>;
+  /** Declared header parameters, by lower-case name. */
+  readonly header: HeaderParams<K>;
   readonly body: RequestBody<K>;
 }
 

@@ -1,16 +1,21 @@
 /**
  * The B2 request handler, built from the generated route table. Transport-independent: the Unix-socket server and the
  * in-memory transport both call `handle`. Order for every request (plan section 4.2):
- *   route match → path, query and header parameters → content type → body cap → JSON → body schema
- *   → 501 when the spec marks the operation unsupported → handler → response schema → reply.
- * Nothing before the handler writes state, so every refusal up to there is `no_effect`.
+ *   route match → path, query and header parameters → body by the route's mode → 501 when the spec marks the
+ *   operation unsupported → handler → response schema → reply.
+ * Body modes (x-piw-body): `json` checks the content type (415), the declared and the actual length against the
+ * route's cap (413), then parses and validates (400). `binary` checks the content type against the declared media
+ * types (415) and the declared length (413), then hands the handler a stream that refuses the byte past the limit
+ * (413); an unsupported binary route reads the whole body through that counter before its 501. `none` refuses any
+ * body (400). Nothing before the handler writes state, so every refusal up to there is `no_effect`.
  */
-import { routes as generatedRoutes, type Route } from '../generated/routes.js';
+import { jsonBodyLimit, routes as generatedRoutes, type Route } from '../generated/routes.js';
 import { error as validateError, type ValidationError } from '../generated/validators.js';
 import { Refusal, type ErrorBody } from './errors.js';
 import type { Handlers } from './types.js';
 
-export const REQUEST_BODY_LIMIT = 256 * 1024;
+/** The JSON request body cap (the spec's info.x-piw-json-max-bytes); an operation may declare less. */
+export const REQUEST_BODY_LIMIT = jsonBodyLimit;
 
 export interface B2Request {
   readonly method: string;
@@ -30,7 +35,6 @@ export interface RouterOptions {
   readonly handlers: Handlers;
   /** Defaults to the generated table. Tests pass a modified table to exercise rules on unsupported operations. */
   readonly routes?: Readonly<Record<string, Route>>;
-  readonly requestBodyLimit?: number;
 }
 
 export type RequestHandler = (request: B2Request) => Promise<B2Response>;
@@ -61,25 +65,70 @@ function match(route: Route, segments: readonly string[]): Record<string, string
   return params;
 }
 
-async function readBody(body: B2Request['body'], limit: number): Promise<Buffer> {
-  if (!body) return Buffer.alloc(0);
+const tooLarge = () => new Refusal('request_too_large', 'no_effect', undefined, {}, 413);
+
+/** The body's chunks, refusing (413) the byte past `limit` before it is handed on. */
+async function* counted(body: B2Request['body'], limit: number): AsyncGenerator<Uint8Array> {
+  if (!body) return;
   if (body instanceof Uint8Array) {
-    if (body.byteLength > limit) throw new Refusal('request_too_large', 'no_effect', undefined, {}, 413);
-    return Buffer.from(body);
+    if (body.byteLength > limit) throw tooLarge();
+    if (body.byteLength > 0) yield body;
+    return;
   }
-  const chunks: Buffer[] = [];
   let bytes = 0;
   for await (const chunk of body) {
     bytes += chunk.byteLength;
-    if (bytes > limit) throw new Refusal('request_too_large', 'no_effect', undefined, {}, 413);
-    chunks.push(Buffer.from(chunk));
+    if (bytes > limit) throw tooLarge();
+    yield chunk;
   }
+}
+
+async function readBody(body: B2Request['body'], limit: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of counted(body, limit)) chunks.push(Buffer.from(chunk));
   return Buffer.concat(chunks);
+}
+
+function mediaType(request: B2Request): string | undefined {
+  return request.headers['content-type']?.split(';')[0]?.trim().toLowerCase();
+}
+
+/** True when the request declares a body: a positive Content-Length or any Transfer-Encoding. */
+function hasBody(request: B2Request): boolean {
+  const length = request.headers['content-length'];
+  return (length !== undefined && length.trim() !== '0') || request.headers['transfer-encoding'] !== undefined;
+}
+
+/** Reads the request body by the route's mode (x-piw-body). JSON is parsed and validated; binary stays a stream. */
+async function readByMode(route: Route, request: B2Request): Promise<unknown> {
+  const declared = Number(request.headers['content-length']);
+  if (route.body === 'none') {
+    if (hasBody(request)) throw new Refusal('body_not_allowed', 'no_effect', undefined, {}, 400);
+    return undefined;
+  }
+  if (route.body === 'binary') {
+    const type = mediaType(request);
+    if (!type || !route.mediaTypes.includes(type)) throw new Refusal('unsupported_media_type', 'no_effect', undefined, {}, 415);
+    if (Number.isFinite(declared) && declared > route.maxBodyBytes) throw tooLarge();
+    return counted(request.body, route.maxBodyBytes);
+  }
+  if (mediaType(request) !== 'application/json') throw new Refusal('content_type_must_be_json', 'no_effect', undefined, {}, 415);
+  if (Number.isFinite(declared) && declared > route.maxBodyBytes) throw tooLarge();
+  const bytes = await readBody(request.body, route.maxBodyBytes);
+  let body: unknown;
+  try {
+    body = JSON.parse(bytes.toString('utf8'));
+  } catch {
+    throw new Refusal('invalid_json', 'no_effect', undefined, {}, 400);
+  }
+  if (!route.validateBody?.(body)) {
+    throw new Refusal('request_schema_mismatch', 'no_effect', undefined, { detail: describe(route.validateBody?.errors) }, 400);
+  }
+  return body;
 }
 
 export function createRouter(options: RouterOptions): RequestHandler {
   const table = Object.values(options.routes ?? generatedRoutes);
-  const limit = options.requestBodyLimit ?? REQUEST_BODY_LIMIT;
   // SAFETY: handlers is keyed by operationId and each handler is only called for its own route, after that route's
   // parameter and body validators accepted the input, so the input matches the handler's generated input type.
   const handlers = options.handlers as unknown as Record<string, (input: unknown) => unknown>;
@@ -138,28 +187,18 @@ export function createRouter(options: RouterOptions): RequestHandler {
         throw new Refusal('invalid_parameters', 'no_effect', undefined, { detail: describe(route.validateParams.errors) }, 400);
       }
 
-      let body: unknown;
-      if (route.validateBody) {
-        const type = request.headers['content-type']?.split(';')[0]?.trim().toLowerCase();
-        if (type !== 'application/json') throw new Refusal('content_type_must_be_json', 'no_effect', undefined, {}, 415);
-        const declared = Number(request.headers['content-length']);
-        if (Number.isFinite(declared) && declared > limit) throw new Refusal('request_too_large', 'no_effect', undefined, {}, 413);
-        const bytes = await readBody(request.body, limit);
-        try {
-          body = JSON.parse(bytes.toString('utf8'));
-        } catch {
-          throw new Refusal('invalid_json', 'no_effect', undefined, {}, 400);
-        }
-        if (!route.validateBody(body)) {
-          throw new Refusal('request_schema_mismatch', 'no_effect', undefined, { detail: describe(route.validateBody.errors) }, 400);
-        }
-        if (route.mutation) commandId = (body as { command_id: string }).command_id;
+      const body = await readByMode(route, request);
+      if (route.mutation) {
+        commandId = route.body === 'binary' ? String(header['piw-command-id']) : (body as { command_id: string }).command_id;
       }
 
-      if (!route.supported) throw new Refusal('operation_not_implemented', 'no_effect', undefined, {}, 501);
-      const handler = handlers[route.operationId];
-      if (!handler) throw new Refusal('operation_not_implemented', 'no_effect', undefined, {}, 501);
-      const result = await handler({ path, query, body });
+      const handler = route.supported ? handlers[route.operationId] : undefined;
+      if (!handler) {
+        // A binary body is read through its counter first, so its byte limit holds here as it will for a handler.
+        if (route.body === 'binary') for await (const _ of body as AsyncIterable<Uint8Array>);
+        throw new Refusal('operation_not_implemented', 'no_effect', undefined, {}, 501);
+      }
+      const result = await handler({ path, query, header, body });
       return reply(route, 200, result, commandId);
     } catch (error) {
       if (error instanceof Refusal) return reply(route, error.status, error.toBody(), commandId);
