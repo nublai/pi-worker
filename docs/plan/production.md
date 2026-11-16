@@ -439,3 +439,9 @@ Each point gets a named reviewer pass (Claude and Grok, cross-family to the auth
   self-hosted runner for `nublai/pi-worker` (runner registration token, `tester` tag).
 
 **For Shep:** the proposal and its questions are in [b2-for-shep.md](b2-for-shep.md).
+
+## Decisions taken by root (2026-11-16, founder delegated ownership)
+
+- **D1 license: MIT**, as already intended for pi-worker (nubl decision R21); compatible with vendoring the Go client into Shep.
+- **D3: no process-group fallback.** Hosts are Linux-only with systemd (founder, 2026-11-16); a host without cgroup v2 delegation is refused with a clear error.
+- **D2 (release channel) and D4 (kernel CI runner) are deferred:** D2 is decided at P4 with the founder; D4 is settled by P0-8's evidence, and a persistent self-hosted runner needs the founder's go because it adds a machine and a runner credential.
