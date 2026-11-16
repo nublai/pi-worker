@@ -9,11 +9,15 @@
  *   running execution, and its creating grant must still be active. Every check runs before any record or spawn.
  * - Lineage (`parent`, `parent_worker_id`, `parent_launch_command_id`) is in the child's starting row, durable before
  *   its dispatch record and spawn (lifecycle.ts). An unknown child create fences the parent on that command.
- * - A typed child's only report authority is its inherited FD 3 (host.ts). Each report becomes a `children.report`
- *   receipt (outside the count quota), rechecked against the child's spec and the child's and parent's creating
- *   grants; a duplicate report id returns the same receipt and notifies once. A report is a claim, never proof.
+ * - A typed child's only report authority is its inherited FD 3 (host.ts): B2 `children.report` naming a typed child
+ *   is refused `typed_child_reports_through_fd3_only`, whatever grant sends it. Each report becomes a
+ *   `children.report` receipt (outside the count quota) naming its channel (`fd3` or `b2`). Every report path
+ *   rechecks, as the report is recorded, the child's spec (`children.report` granted) and the child's and the parent's
+ *   creating grants. A duplicate report id returns the same receipt and notifies once. A report is a claim, never proof.
  * - Recovery: a child whose launch may have run and that has no durable non-`help` report fences its parent on the
- *   launch command, until the owner resolves it. A `help` report never discharges that fence (invariant 4a).
+ *   launch command, until the owner resolves it. A `help` report never discharges that fence (invariant 4a), and for
+ *   a typed child only a report its own FD 3 delivered does. An untyped child (`children.launch`) has no FD 3: its B2
+ *   report, under the same grant rechecks, still discharges (the frozen invariants case).
  */
 import { Refusal } from '../b2/errors.js';
 import { authority, currentGuard } from '../grants/authority.js';
@@ -89,27 +93,38 @@ export class Children {
     if (parent && this.fence.latch(parent, commandId)) this.s.persist(parent, 'fence.latch');
   }
 
-  /** `children.report`: a child's claim to its parent, allowed under a fence. Never proof of anything. */
-  async report(id: string, r: Report): Promise<Receipt> {
+  /**
+   * `children.report`: a child's claim to its parent, allowed under a fence. Never proof of anything. `channel` is
+   * where it came from: `b2` (the public route) or `fd3` (the child's inherited report descriptor, onReport below).
+   */
+  async report(id: string, r: Report, channel: 'b2' | 'fd3' = 'b2'): Promise<Receipt> {
     let live!: Live;
     const receipt = await this.s.receipts.run(
       r.command_id,
       'children.report',
-      { ...r, worker_id: id },
+      { ...r, worker_id: id, channel },
       async () => {
         this.s.receipts.dispatch(r.command_id, { worker_id: id });
         return {
           state: 'delivered',
           stage: 'forwarded',
           effect: 'observed',
-          result: { task_id: r.task_id, result_digest: r.result_digest, ...(r.kind ? { kind: r.kind, message: r.message ?? '' } : {}), claim_not_verified: true },
+          result: { task_id: r.task_id, result_digest: r.result_digest, ...(r.kind ? { kind: r.kind, message: r.message ?? '' } : {}), channel, claim_not_verified: true },
         };
       },
       () => {
         live = this.s.require(id);
+        const w = live.worker;
         this.s.binding(live, r);
-        if (live.worker.parent && r.task_id !== live.worker.parent.task_id) throw new Refusal('wrong_child_task');
+        if (w.parent && r.task_id !== w.parent.task_id) throw new Refusal('wrong_child_task');
         if (r.kind && (typeof r.message !== 'string' || Buffer.byteLength(r.message) > 8192)) throw new Refusal('report_message_invalid');
+        // A typed child's only report authority is its own FD 3: no grant may report (or discharge a fence) for it.
+        if (channel !== 'fd3' && (w.parent || w.launch_spec)) throw new Refusal('typed_child_reports_through_fd3_only');
+        // Every path, as the report is recorded: the spec grants reports, and the grants that created the child and its
+        // parent are still active (a revocation stops what it authorized).
+        if (w.launch_spec && !w.launch_spec.grant_methods.includes('children.report')) throw new Refusal('report_not_granted');
+        this.active(w.grant_source_id);
+        if (w.parent_worker_id) this.active(this.s.workers.get(w.parent_worker_id)?.worker.grant_source_id);
       },
     );
     if (receipt.state === 'delivered' && !this.notified.has(r.command_id)) {
@@ -128,8 +143,8 @@ export class Children {
   }
 
   /**
-   * A report from a typed child's FD 3. It must be granted by the child's spec, and the child's and the parent's
-   * creating grants must still be active, rechecked as the report is recorded. Anything else faults only the child.
+   * A report from a typed child's FD 3. The shared checks in report() (spec grants it, the child's and the parent's
+   * creating grants still active) run as the report is recorded. Anything else faults only the child.
    */
   private onReport(live: Live, report: ChildReport): void {
     const w = live.worker;
@@ -138,14 +153,8 @@ export class Children {
       this.lifecycle.fault(live, new Error('report_before_binding'));
       return;
     }
-    const guard = Object.assign(
-      () => {
-        if (!w.launch_spec?.grant_methods.includes('children.report')) throw new Refusal('report_not_granted');
-        this.active(w.grant_source_id);
-        this.active(this.s.workers.get(parent.worker_id)?.worker.grant_source_id);
-      },
-      { ...(w.grant_source_id ? { grant_id: w.grant_source_id } : {}) },
-    );
+    // The report runs as the child's creating grant (not as whatever request happens to be current).
+    const guard = Object.assign(() => {}, { ...(w.grant_source_id ? { grant_id: w.grant_source_id } : {}) });
     const request: Report = {
       command_id: `fd-${w.worker_id}-${report.report_id}`,
       worker_epoch: w.worker_epoch,
@@ -156,7 +165,7 @@ export class Children {
       kind: report.kind,
       message: report.message,
     };
-    void authority.run(guard, () => this.report(w.worker_id, request)).catch(error => this.lifecycle.fault(live, error));
+    void authority.run(guard, () => this.report(w.worker_id, request, 'fd3')).catch(error => this.lifecycle.fault(live, error));
   }
 
   /** The claims a child's delivered reports made, for its row. */
@@ -180,8 +189,16 @@ export class Children {
       const parent = this.s.workers.get(parentId);
       if (!parent || (parent.worker.resolutions ?? []).some(r => r.command_id === launch)) continue;
       const task = child.worker.parent?.task_id ?? launch;
+      // A typed child's launch is discharged only by its own FD 3 result report.
+      const typed = !!(child.worker.parent || child.worker.launch_spec);
       const reported = [...this.s.receipts.all.values()].some(
-        r => r.operation === 'children.report' && r.worker_id === child.worker.worker_id && r.state === 'delivered' && r.result?.task_id === task && r.result?.kind !== 'help',
+        r =>
+          r.operation === 'children.report' &&
+          r.worker_id === child.worker.worker_id &&
+          r.state === 'delivered' &&
+          r.result?.task_id === task &&
+          r.result?.kind !== 'help' &&
+          (!typed || r.result?.channel === 'fd3'),
       );
       if (!reported) this.fenceParent(parentId, launch);
     }

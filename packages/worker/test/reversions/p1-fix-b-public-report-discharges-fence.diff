@@ -1,0 +1,21 @@
+diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
+index 59d527d..490bcfe 100644
+--- a/packages/worker/src/supervisor/children.ts
++++ b/packages/worker/src/supervisor/children.ts
+@@ -119,7 +119,6 @@ export class Children {
+         if (w.parent && r.task_id !== w.parent.task_id) throw new Refusal('wrong_child_task');
+         if (r.kind && (typeof r.message !== 'string' || Buffer.byteLength(r.message) > 8192)) throw new Refusal('report_message_invalid');
+         // A typed child's only report authority is its own FD 3: no grant may report (or discharge a fence) for it.
+-        if (channel !== 'fd3' && (w.parent || w.launch_spec)) throw new Refusal('typed_child_reports_through_fd3_only');
+         // Every path, as the report is recorded: the spec grants reports, and the grants that created the child and its
+         // parent are still active (a revocation stops what it authorized).
+         if (w.launch_spec && !w.launch_spec.grant_methods.includes('children.report')) throw new Refusal('report_not_granted');
+@@ -198,7 +197,7 @@ export class Children {
+           r.state === 'delivered' &&
+           r.result?.task_id === task &&
+           r.result?.kind !== 'help' &&
+-          (!typed || r.result?.channel === 'fd3'),
++          (typed || true),
+       );
+       if (!reported) this.fenceParent(parentId, launch);
+     }

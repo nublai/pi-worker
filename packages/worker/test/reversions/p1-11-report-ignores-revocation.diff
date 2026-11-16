@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
-index 9436819..d04f412 100644
+index 59d527d..aef8558 100644
 --- a/packages/worker/src/supervisor/children.ts
 +++ b/packages/worker/src/supervisor/children.ts
-@@ -141,8 +141,6 @@ export class Children {
-     const guard = Object.assign(
-       () => {
-         if (!w.launch_spec?.grant_methods.includes('children.report')) throw new Refusal('report_not_granted');
+@@ -123,8 +123,6 @@ export class Children {
+         // Every path, as the report is recorded: the spec grants reports, and the grants that created the child and its
+         // parent are still active (a revocation stops what it authorized).
+         if (w.launch_spec && !w.launch_spec.grant_methods.includes('children.report')) throw new Refusal('report_not_granted');
 -        this.active(w.grant_source_id);
--        this.active(this.s.workers.get(parent.worker_id)?.worker.grant_source_id);
+-        if (w.parent_worker_id) this.active(this.s.workers.get(w.parent_worker_id)?.worker.grant_source_id);
        },
-       { ...(w.grant_source_id ? { grant_id: w.grant_source_id } : {}) },
      );
+     if (receipt.state === 'delivered' && !this.notified.has(r.command_id)) {

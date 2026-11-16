@@ -20,6 +20,8 @@ import { allowsMethod, type GrantStore } from '../src/grants/store.js';
 import type { Create, Worker } from '../src/supervisor/state.js';
 import type { EventFrame } from '../src/generated/events.js';
 import type { SessionHost } from '../src/host/host.js';
+import { createApp } from '../src/b2/app.js';
+import { createMemoryTransport } from '../src/b2/memory.js';
 import { bind, fixture, Host, tick, type Fixture } from './supervisor-fixture.js';
 
 type Grant = { grant_id: string; methods: readonly string[] };
@@ -305,6 +307,117 @@ test('children: FD reports recheck parent grant revocation; siblings and parent 
     await tick();
     assert.equal(f.supervisor.get(w.worker_id).child_reports!.length, 0);
     assert.equal(f.hosts[0]!.stops, 0);
+  } finally {
+    f.cleanup();
+  }
+});
+
+/** A public B2 client for a registered grant of the fixture's own registry. */
+function publicApi(f: Fixture, id: string, methods: string[] = ['*']) {
+  const { token } = store(f).register({ caller: id, scope: { worker_ids: ['*'], cwd_roots: ['*'] }, methods, grant_id: id });
+  return createMemoryTransport(createApp({ supervisor: f.supervisor, grants: store(f) }).handle, { authorization: `Bearer ${token}` });
+}
+
+const reportBody = (w: Worker, command_id: string, task_id: string) => ({ ...bind(w, command_id), task_id, result_digest: 'sha256:claim', kind: 'result', message: 'claimed complete' });
+
+test('children: a typed child reports only through its FD 3; public children.report is refused and never discharges the missing-report fence', async () => {
+  const f = fixture();
+  try {
+    const pg = scopedGrant(f, 'parent-source');
+    const p = await asCaller(f, pg, () => parent(f));
+    const c = child(f, p);
+    const r = await asCaller(f, pg, () => f.supervisor.create(c));
+    const w = f.supervisor.get(r.worker_id!);
+    // A second grant over every worker, holding children.report: neither it nor the creating grant can report for the
+    // typed child over B2, before or after the creating grant is revoked.
+    const api = publicApi(f, 'reporter', ['children.report', 'workers.get']);
+    const forged = await api.request('POST', `/b2/workers/${w.worker_id}/report`, { json: reportBody(w, 'forged-report', 'job') });
+    assert.equal(forged.status, 409, JSON.stringify(forged.body));
+    assert.deepEqual(forged.body, { error: 'typed_child_reports_through_fd3_only', effect: 'no_effect' });
+    store(f).revoke(pg.grant_id);
+    const afterRevoke = await api.request('POST', `/b2/workers/${w.worker_id}/report`, { json: reportBody(w, 'forged-after-revoke', 'job') });
+    assert.equal(afterRevoke.status, 409);
+    assert.equal(f.supervisor.receipts.all.has('forged-report'), false);
+    assert.equal(f.supervisor.receipts.all.has('forged-after-revoke'), false);
+    assert.equal(f.supervisor.get(w.worker_id).child_reports!.length, 0);
+    f.hosts[0]!.emit('event', { type: 'agent_settled' });
+    const recovered = await f.restart();
+    assert.ok(recovered.get(p.worker_id).fence?.uncertain_command_ids?.includes(c.command_id), 'only the child FD report discharges the launch fence');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('children: recovery discharges a typed child launch only with a report its FD 3 delivered', async () => {
+  const f = fixture();
+  try {
+    const p = await parent(f);
+    const c = child(f, p);
+    const r = await f.supervisor.create(c);
+    // A delivered report receipt that did not come from the child's FD (written straight into the journal, as an older
+    // build or a bypass could have) is not the child's report.
+    f.supervisor.receipts.put(
+      { command_id: 'not-fd', operation: 'children.report', request_hash: 'x', worker_id: r.worker_id!, state: 'delivered', stage: 'forwarded', effect: 'observed', evidence: 'supervisor_journal_fsynced', created_at: new Date().toISOString(), result: { task_id: 'job', kind: 'result', claim_not_verified: true } },
+      'receipt.result',
+    );
+    f.hosts[0]!.emit('event', { type: 'agent_settled' });
+    const recovered = await f.restart();
+    assert.ok(recovered.get(p.worker_id).fence?.uncertain_command_ids?.includes(c.command_id), 'a report without the FD channel does not discharge');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('children: a typed child result report from its FD 3 discharges the launch fence; the receipt names the channel', async () => {
+  const f = fixture();
+  try {
+    const p = await parent(f);
+    const c = child(f, p);
+    const r = await f.supervisor.create(c);
+    f.hosts[1]!.emit('report', { report_id: 'done', kind: 'result', message: 'finished' });
+    await tick();
+    await tick();
+    const receipt = [...f.supervisor.receipts.all.values()].find(x => x.operation === 'children.report' && x.worker_id === r.worker_id)!;
+    assert.equal(receipt.state, 'delivered');
+    assert.equal(receipt.result?.channel, 'fd3');
+    f.hosts[0]!.emit('event', { type: 'agent_settled' });
+    const recovered = await f.restart();
+    assert.equal(recovered.get(p.worker_id).fence?.uncertain_command_ids?.includes(c.command_id) ?? false, false);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('children: every report path rechecks the creating grants: an untyped child public report after revocation is refused', async () => {
+  const f = fixture();
+  try {
+    const api = publicApi(f, 'orchestrator', ['workers.create', 'workers.get', 'sessions.prompt', 'children.launch', 'children.report']);
+    const cwd = join(f.dir, 'root');
+    mkdirSync(cwd);
+    const created = await api.request('POST', '/b2/workers', { json: { command_id: 'root', cwd, provider: 'p', model: 'm', thinking: 'off' } });
+    const p = f.supervisor.get((created.body as { worker_id: string }).worker_id);
+    await api.request('POST', `/b2/workers/${p.worker_id}/prompt`, { json: { ...bind(p, 'run'), message: 'run' } });
+    f.hosts[0]!.emit('event', { type: 'agent_settled' });
+    const running = f.supervisor.get(p.worker_id);
+    const childCwd = join(f.dir, 'untyped');
+    mkdirSync(childCwd);
+    const launched = await api.request('POST', `/b2/workers/${p.worker_id}/children`, {
+      json: { ...bind(running, 'launch'), execution_id: running.execution!.execution_id, launch: { command_id: 'create-untyped', cwd: childCwd, provider: 'p', model: 'm', thinking: 'off' } },
+    });
+    assert.equal(launched.status, 200, JSON.stringify(launched.body));
+    await tick();
+    await tick();
+    const w = f.supervisor.list().find(x => x.parent_worker_id === p.worker_id)!;
+    assert.equal(w.grant_source_id, 'orchestrator');
+    // Another grant may report for the untyped child only while the grants that created it and its parent are active.
+    const other = publicApi(f, 'reporter', ['children.report']);
+    store(f).revoke('orchestrator');
+    const refused = await other.request('POST', `/b2/workers/${w.worker_id}/report`, { json: reportBody(w, 'after-revoke', 'launch') });
+    assert.equal(refused.status, 409, JSON.stringify(refused.body));
+    assert.deepEqual(refused.body, { error: 'grant_revoked', effect: 'no_effect' });
+    assert.equal(f.supervisor.receipts.all.has('after-revoke'), false);
+    const recovered = await f.restart();
+    assert.equal(recovered.get(p.worker_id).fence?.command_id, 'launch', 'the refused report did not discharge the launch fence');
   } finally {
     f.cleanup();
   }
