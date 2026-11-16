@@ -30,6 +30,10 @@ export class Lifecycle {
   readonly recoverers: ((live: Live) => void)[] = [];
   /** Called when a worker's execution can no longer settle (exit, fault, restart): the input module records it. */
   onUncertain: (live: Live, commandId: string, label: 'worker.exit' | 'worker.fault' | 'worker.recover') => void = () => {};
+  /** Joins an uncertain command to the worker's fence in memory (the fence module); the caller persists. */
+  latch: (live: Live, commandId: string) => boolean = () => {
+    throw new Error('fence_not_wired');
+  };
 
   constructor(readonly s: SupervisorState) {}
 
@@ -194,9 +198,9 @@ export class Lifecycle {
     try {
       host = this.s.factory({ workerId: w.worker_id, create: c, cwd, sessionDir: this.sessionDir(live) });
     } catch (error) {
-      // No host was constructed: the row ends terminal with its reason; the receipt stays unknown. Nothing opened the
-      // resume target.
-      delete live.resume;
+      // No host was constructed: the row ends terminal with its reason; the receipt stays unknown, so a resume target
+      // is held and fenced like any other unknown create-with-resume.
+      this.holdUnknownResume(live, c, resumeFile);
       w.status = 'failed';
       w.cleanup = 'no_process_started';
       w.failure = { command_id: c.command_id, reason: reasonOf(error) };
@@ -208,7 +212,6 @@ export class Lifecycle {
     live.token = host.token;
     this.s.persist(live, 'worker.spawned');
     this.wireHost(live, host);
-    let opening = false;
     try {
       let state = await host.request({ type: 'get_state' });
       if (live.faulted) throw new Error('worker fault during initialization');
@@ -217,7 +220,6 @@ export class Lifecycle {
       }
       if (resumeFile) {
         live.rebinding = true;
-        opening = true;
         try {
           const opened = await host.request({ type: 'switch_session', sessionPath: resumeFile });
           if (!opened.success || opened.data?.cancelled) throw new Error('resume_session_open_failed');
@@ -254,22 +256,34 @@ export class Lifecycle {
         history_lag: w.history.lag,
       };
     } catch (error) {
-      // pi may have opened the resume target: the failed worker holds it (or blocks it as unproven cleanup) after
-      // the reservation ends, never releasing it to another writer.
-      if (opening && c.resume_session_id && resumeFile) {
-        w.session_id = c.resume_session_id;
-        live.sessionFile = resumeFile;
-      }
+      // pi may have run the target's switch hooks or opened it: the failed worker holds it (or blocks it as unproven
+      // cleanup) after the reservation ends, never releasing it to another writer, and the unknown fences it.
+      this.holdUnknownResume(live, c, resumeFile);
       const gone = await host.stop();
       w.status = gone ? 'failed' : 'cleanup_pending';
       w.cleanup = gone ? GROUP_GONE : 'unresolved';
       if (gone) live.pid = null;
       w.failure = { command_id: c.command_id, reason: reasonOf(error) };
-      // Opened: the session id above carries the target. Not opened: switch_session was never sent.
-      delete live.resume;
       this.s.persist(live, 'worker.failed');
       throw error;
     }
+  }
+
+  /**
+   * A create-with-resume that fails after its dispatch record ends `outcome_unknown`: pi may have run the target's
+   * `session_before_switch` hooks or opened it. The worker takes the target as its session and the unknown fences it
+   * (invariant 3), in the same durable row as the failure and before the receipt is final. The target is then refused
+   * `target_session_fenced` naming this command until `sessions.resolve_unknown`, even once cleanup is confirmed.
+   */
+  private holdUnknownResume(live: Live, c: Create, resumeFile: string | undefined): void {
+    delete live.resume;
+    if (!c.resume_session_id || !resumeFile) return;
+    const w = live.worker;
+    w.session_id = c.resume_session_id;
+    w.leaf_id = null;
+    live.sessionFile = resumeFile;
+    live.index = new SessionIndex(resumeFile);
+    this.latch(live, c.command_id);
   }
 
   async stop(id: string, b: Binding): Promise<Receipt> {

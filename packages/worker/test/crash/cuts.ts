@@ -127,8 +127,11 @@ export const CUT_SCENARIOS: readonly CutScenario[] = [
       'worker.spawned',
       'worker.identity',
       'worker.ready',
+      'worker.failed',
+      'worker.exit',
       'worker.recover',
       'binding.rebind',
+      'fence.resolve',
     ],
   },
 ];

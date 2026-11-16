@@ -11,6 +11,8 @@
  *   (a recovered intent may then dispatch once on its exact retry), `abandon` drops queued input, `observed` needs
  *   exact settlement evidence (a journaled `agent_settled` or the session file's settlement entry for that
  *   execution and command). Resolving never claims an external effect was undone.
+ * - A create that binds an existing session (create-with-resume) is a session write too: its unknown outcome fences
+ *   the target, which the worker holds as its session.
  * - After a restart, an unsettled execution and every unresolved `outcome_unknown` session-directed receipt fence
  *   again; a resolved duplicate stays read-only.
  */
@@ -34,6 +36,18 @@ export const SESSION_DIRECTED = new Set<Receipt['operation']>([
   'interactions.release',
 ]);
 
+/**
+ * Operations that write a session only when the request names an existing one: `workers.create` with
+ * `resume_session_id`. Their unknown outcome fences that session (the worker holds it as its own).
+ */
+export const BINDS_EXISTING_SESSION = new Set<Receipt['operation']>(['workers.create']);
+
+/** Whether this worker's `outcome_unknown` receipt fences its session. */
+export function fencesWhenUnknown(r: Receipt, live: Live): boolean {
+  if (SESSION_DIRECTED.has(r.operation)) return true;
+  return BINDS_EXISTING_SESSION.has(r.operation) && live.create?.command_id === r.command_id && Boolean(live.create.resume_session_id);
+}
+
 export class Fence {
   constructor(
     readonly s: SupervisorState,
@@ -42,6 +56,7 @@ export class Fence {
   ) {
     input.latch = (live, commandId) => this.latch(live, commandId);
     input.resolved = (live, commandId) => this.resolved(live.worker, commandId);
+    lifecycle.latch = (live, commandId) => this.latch(live, commandId);
     lifecycle.recoverers.push(live => this.recover(live));
   }
 
@@ -74,7 +89,7 @@ export class Fence {
       if (this.s.receipts.all.get(resolution.command_id)?.state === 'intent_recovered') this.s.receipts.resolveIntent(resolution.command_id, resolution.disposition);
     }
     for (const r of this.s.receipts.all.values()) {
-      if (r.worker_id === w.worker_id && SESSION_DIRECTED.has(r.operation) && r.state === 'outcome_unknown' && !this.resolved(w, r.command_id)) this.latch(live, r.command_id);
+      if (r.worker_id === w.worker_id && r.state === 'outcome_unknown' && fencesWhenUnknown(r, live) && !this.resolved(w, r.command_id)) this.latch(live, r.command_id);
     }
   }
 

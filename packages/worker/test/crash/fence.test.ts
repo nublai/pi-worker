@@ -7,13 +7,14 @@
  *
  * Which operations are session writes comes from the contract (`FENCES_WHEN_UNKNOWN` below), never from the
  * implementation: an oracle that imported the supervisor's own set agreed with its omission of `sessions.new`
- * (review F4).
+ * (review F4), and a table that called every `workers.create` non-fencing agreed with an unfenced unknown
+ * create-with-resume (fix round 3). Whether a create named an existing session comes from the client's request log.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Operation } from '../../src/receipts/receipts.js';
-import { SESSION_DIRECTED } from '../../src/supervisor/fence.js';
-import { checkRecovery, type Check } from './oracle.js';
+import type { Operation, Receipt } from '../../src/receipts/receipts.js';
+import { BINDS_EXISTING_SESSION, SESSION_DIRECTED } from '../../src/supervisor/fence.js';
+import { checkRecovery, type Check, type PreCrash } from './oracle.js';
 import { cutAt, run, tempRoot, type FsyncPoint } from './harness.js';
 import { effectsAt } from './world.js';
 
@@ -21,8 +22,10 @@ import { effectsAt } from './world.js';
  * Contract invariant 3 and transition `bound → fenced`: an `outcome_unknown` session write fences the session; reads,
  * cancel, interrupt, termination, resolution and child evidence reports never do. Specified independently of the
  * implementation and total over the operations: a new operation does not compile until it is classified here.
+ * `NAMES_EXISTING_SESSION`: a session write only when the request names an existing session.
  */
-export const FENCES_WHEN_UNKNOWN: Readonly<Record<Operation, boolean>> = {
+const NAMES_EXISTING_SESSION = 'when_the_request_names_an_existing_session';
+export const FENCES_WHEN_UNKNOWN: Readonly<Record<Operation, boolean | typeof NAMES_EXISTING_SESSION>> = {
   'sessions.prompt': true,
   'sessions.follow_up': true,
   'sessions.steer': true,
@@ -31,7 +34,9 @@ export const FENCES_WHEN_UNKNOWN: Readonly<Record<Operation, boolean>> = {
   'children.launch': true,
   'interactions.answer_if_current': true,
   'interactions.release': true,
-  'workers.create': false, // a launch: its worker is failed or cleanup_pending, no session to fence yet
+  // A create with `resume_session_id` binds that session: pi may have run its switch hooks or opened it. A plain
+  // create's fresh session has no prior state to protect.
+  'workers.create': NAMES_EXISTING_SESSION,
   'workers.stop': false, // termination stays allowed under a fence and never replaces it
   'workers.relaunch': false, // termination and relaunch of the worker, gated by cleanup (invariant 2)
   'executions.cancel': false,
@@ -40,7 +45,11 @@ export const FENCES_WHEN_UNKNOWN: Readonly<Record<Operation, boolean>> = {
   'children.report': false, // child evidence reports stay allowed under a fence
   'attachments.stage': false, // staging writes the worker's staging area, not the session
 };
-const fencesWhenUnknown = (operation: Operation) => FENCES_WHEN_UNKNOWN[operation];
+function fencesWhenUnknown(pre: PreCrash, r: Receipt): boolean {
+  const rule = FENCES_WHEN_UNKNOWN[r.operation];
+  if (rule !== NAMES_EXISTING_SESSION) return rule;
+  return pre.requests.some(q => q.body.command_id === r.command_id && typeof q.body.resume_session_id === 'string');
+}
 
 export const fences: Check = (pre, after) => {
   const receipts = new Map(after.receipts.map(r => [r.command_id, r]));
@@ -48,7 +57,7 @@ export const fences: Check = (pre, after) => {
     const prior = pre.workers.get(w.worker_id)!;
     const resolved = new Set((prior.resolutions ?? []).map(x => x.command_id));
     const required = new Set<string>();
-    for (const r of after.receipts) if (r.worker_id === w.worker_id && fencesWhenUnknown(r.operation) && r.state === 'outcome_unknown' && !resolved.has(r.command_id)) required.add(r.command_id);
+    for (const r of after.receipts) if (r.worker_id === w.worker_id && fencesWhenUnknown(pre, r) && r.state === 'outcome_unknown' && !resolved.has(r.command_id)) required.add(r.command_id);
     if (prior.execution && prior.execution.state !== 'settled' && (!resolved.has(prior.execution.command_id) || ['ready', 'starting'].includes(prior.status))) {
       if (receipts.get(prior.execution.command_id)?.effect !== 'no_effect') required.add(prior.execution.command_id);
     }
@@ -64,11 +73,13 @@ export const fences: Check = (pre, after) => {
 };
 
 test('fence: the supervisor recovers exactly the contract session writes as fencing uncertainties', () => {
-  const contract = Object.entries(FENCES_WHEN_UNKNOWN)
-    .filter(([, fences]) => fences)
-    .map(([operation]) => operation)
-    .sort();
-  assert.deepEqual([...SESSION_DIRECTED].sort(), contract);
+  const contract = (rule: boolean | typeof NAMES_EXISTING_SESSION) =>
+    Object.entries(FENCES_WHEN_UNKNOWN)
+      .filter(([, fences]) => fences === rule)
+      .map(([operation]) => operation)
+      .sort();
+  assert.deepEqual([...SESSION_DIRECTED].sort(), contract(true));
+  assert.deepEqual([...BINDS_EXISTING_SESSION].sort(), contract(NAMES_EXISTING_SESSION), 'create-with-resume fences when unknown');
 });
 
 test('crash: SIGKILL after every fence-scenario fsync: the fence is exactly the uncertainties, no replay', { timeout: 600_000 }, async () => {

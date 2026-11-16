@@ -33,7 +33,8 @@
         "p1-4-no-one-writer.diff",
         "p1-fix-f1-create-resume-unreserved.diff",
         "p1-fix-f1-failed-resume-releases-target.diff",
-        "p1-fix-f2-create-resume-skips-session-gates.diff"
+        "p1-fix-f2-create-resume-skips-session-gates.diff",
+        "p1-fix3-create-resume-unknown-not-fenced.diff"
       ]
     },
     "input": {
@@ -65,7 +66,9 @@
     "resume": {
       "command": "npm run test:crash -- resume",
       "diffs": [
-        "p1-fix2-create-resume-target-not-durable.diff"
+        "p1-fix2-create-resume-target-not-durable.diff",
+        "p1-fix3-create-resume-unknown-not-recovered.diff",
+        "p1-fix3-create-not-binding-existing-session.diff"
       ]
     }
   }

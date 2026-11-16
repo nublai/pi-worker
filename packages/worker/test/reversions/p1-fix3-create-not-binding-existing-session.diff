@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/fence.ts b/packages/worker/src/supervisor/fence.ts
+--- a/packages/worker/src/supervisor/fence.ts
++++ b/packages/worker/src/supervisor/fence.ts
+@@ -40,7 +40,7 @@
+  * Operations that write a session only when the request names an existing one: `workers.create` with
+  * `resume_session_id`. Their unknown outcome fences that session (the worker holds it as its own).
+  */
+-export const BINDS_EXISTING_SESSION = new Set<Receipt['operation']>(['workers.create']);
++export const BINDS_EXISTING_SESSION = new Set<Receipt['operation']>([]);
+ 
+ /** Whether this worker's `outcome_unknown` receipt fences its session. */
+ export function fencesWhenUnknown(r: Receipt, live: Live): boolean {
