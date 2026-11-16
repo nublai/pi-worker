@@ -43,6 +43,9 @@ export const DURABLE_LABELS = [
   'queue.add',
   'queue.flush',
   'control.done',
+  // Fence (supervisor/fence.ts): the owner's resolution tombstone, durable before any receipt it clears or authorizes.
+  // The latch itself is durable under the label of the step that caused it (execution.unknown, worker.exit, ...).
+  'fence.resolve',
 ] as const;
 
 export type DurableLabel = (typeof DURABLE_LABELS)[number];

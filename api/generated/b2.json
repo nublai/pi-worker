@@ -424,7 +424,6 @@
         ],
         "x-piw-mutation": true,
         "x-piw-body": "json",
-        "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
           "content": {

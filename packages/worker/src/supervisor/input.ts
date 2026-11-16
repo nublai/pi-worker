@@ -19,6 +19,11 @@ import type { Control, FollowUp, Live, Prompt, Queued, Steer, SupervisorState } 
 export const QUEUE_CAP = 32;
 
 export class Input {
+  /** Joins a command to the worker's fence (fence.ts); returns whether anything changed. In memory only. */
+  latch: (live: Live, commandId: string) => boolean = () => false;
+  /** Whether the owner already resolved this command (a resolved duplicate never relatches). */
+  resolved: (live: Live, commandId: string) => boolean = () => false;
+
   constructor(
     readonly s: SupervisorState,
     readonly lifecycle: Lifecycle,
@@ -42,7 +47,10 @@ export class Input {
       w.execution.state = 'settled';
       w.execution.disposition = 'no_effect_before_dispatch';
       w.foreground = 'idle';
-    } else this.uncertain(live, w.execution.command_id, 'worker.recover');
+    } else if (!this.resolved(live, w.execution.command_id) || ['ready', 'starting'].includes(w.status)) {
+      // A kept live run that was still running at the crash is a NEW uncertainty: it relatches.
+      this.uncertain(live, w.execution.command_id, 'worker.recover');
+    }
   }
 
   /** Writes allowed: not fenced and no binding change in flight. P1-6 adds the fence latch here. */
@@ -65,6 +73,7 @@ export class Input {
     if (this.s.receipts.all.get(commandId)?.state === 'accepted') this.s.receipts.unknown(commandId);
     if (w.execution?.command_id === commandId && w.execution.state !== 'settled') w.execution.state = 'outcome_unknown';
     w.foreground = 'unknown';
+    this.latch(live, commandId);
     if (label === 'execution.unknown') this.s.persist(live, label);
   }
 
@@ -149,7 +158,7 @@ export class Input {
         }
       },
     );
-    if (receipt.state === 'outcome_unknown' && receipt.worker_id) this.uncertain(this.s.require(id), p.command_id);
+    if (receipt.state === 'outcome_unknown' && receipt.worker_id && !this.resolved(this.s.require(id), p.command_id)) this.uncertain(this.s.require(id), p.command_id);
     return receipt;
   }
 
@@ -172,7 +181,7 @@ export class Input {
         if (execution.state === 'settled' || live.worker.foreground !== 'running') throw new Refusal('no_running_execution');
       },
     );
-    if (receipt.state === 'outcome_unknown' && receipt.worker_id) this.uncertain(this.s.require(id), r.command_id);
+    if (receipt.state === 'outcome_unknown' && receipt.worker_id && !this.resolved(this.s.require(id), r.command_id)) this.uncertain(this.s.require(id), r.command_id);
     return receipt;
   }
 

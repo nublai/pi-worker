@@ -20,3 +20,6 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `p1-4-no-one-writer.diff` | the one-live-writer check (`noOtherWriter` ignores a holding worker) | `lifecycle: one live writer per session; a duplicate open is refused naming the holder…` (group `lifecycle`) |
 | `p1-5-no-binding-check.diff` | the binding check on session-directed mutations (`SupervisorState.binding` never refuses) | `input: every session-directed mutation refuses a stale binding…` (group `input`) |
 | `p1-2-dispatch-marker-after-write.diff` (again) | write-ahead dispatch, at the supervisor | `supervisor dispatch marker with execution ID is fsynced before the host receives prompt (M2)` and the control effect cuts (group `input`) |
+| `p1-6-no-fenced-write-refusal.diff` | the fenced-write refusal (`session_fenced`) | row `03-fenced-write`, invariants and fence tests (group `fence`) |
+| `p1-6-fence-not-durable-before-reply.diff` | the durable fence before the reply of a lost-reply prompt | row `02-unknown` (`disk.fence`), `HTTP … durable fence before response headers (M1, M6)` (group `fence`) |
+| `p1-6-any-fence-generation.diff` | the fence generation check of `resolve_unknown` | row `08-generation`, invariants (group `fence`) |

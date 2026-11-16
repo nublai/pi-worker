@@ -1,10 +1,11 @@
 /**
  * The supervisor facade the B2 handlers call. Each domain lives in its own module over the shared state
  * (state.ts): lifecycle (create, stop, exit, recovery) and input (prompt, steer, follow-up queue, cancel,
- * interrupt). Later PRs add fence and binding modules.
+ * interrupt) and fence (latch, resolve_unknown). P1-7 adds the binding module.
  */
 import type { Journal } from '../journal/journal.js';
 import type { Receipt, ReceiptStore } from '../receipts/receipts.js';
+import { Fence, type Resolve } from './fence.js';
 import { Input } from './input.js';
 import { Lifecycle } from './lifecycle.js';
 import { SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker } from './state.js';
@@ -21,11 +22,13 @@ export class Supervisor {
   readonly state: SupervisorState;
   readonly lifecycle: Lifecycle;
   readonly input: Input;
+  readonly fence: Fence;
 
   constructor(options: SupervisorOptions) {
     this.state = new SupervisorState(options.journal, options.receipts, options.supervisorEpoch, options.stateDir, options.factory);
     this.lifecycle = new Lifecycle(this.state);
     this.input = new Input(this.state, this.lifecycle);
+    this.fence = new Fence(this.state, this.lifecycle, this.input);
   }
 
   get receipts(): ReceiptStore {
@@ -34,7 +37,9 @@ export class Supervisor {
 
   /** Recovery after a restart, before the socket listens. Never adopts or relaunches a host; never replays. */
   async recover(): Promise<void> {
-    this.state.receipts.recover();
+    // The owner's durable `keep` of a recovered intent survives restarts; any other intent_ready does not.
+    const kept = (r: Receipt) => !!r.worker_id && (this.state.workers.get(r.worker_id)?.worker.resolutions ?? []).some(x => x.command_id === r.command_id && x.disposition === 'keep');
+    this.state.receipts.recover(kept);
     await this.lifecycle.recover();
   }
 
@@ -71,6 +76,10 @@ export class Supervisor {
 
   control(id: string, b: Control, interrupt: boolean): Promise<Receipt> {
     return this.input.control(id, b, interrupt);
+  }
+
+  resolveUnknown(id: string, r: Resolve): Promise<Receipt> {
+    return this.fence.resolve(id, r);
   }
 
   shutdown(): Promise<void> {

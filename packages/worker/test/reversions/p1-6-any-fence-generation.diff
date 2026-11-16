@@ -1,0 +1,11 @@
+--- a/packages/worker/src/supervisor/fence.ts
++++ b/packages/worker/src/supervisor/fence.ts
+@@ -130,7 +130,7 @@
+           (w.execution && w.execution.execution_id === r.execution_id ? w.execution.command_id : '');
+         const target = this.s.receipts.all.get(uncertain);
+         const recovered = target?.worker_id === id && ['intent_recovered', 'intent_ready'].includes(target.state);
+-        if (r.fence_generation !== (w.fence?.fence_generation ?? w.fence_generation ?? 0)) throw new Refusal('wrong_fence_generation', 'no_effect', w.fence?.command_id);
++
+         if (w.fence ? !(w.fence.uncertain_command_ids ?? [w.fence.command_id]).includes(uncertain) : !recovered) throw new Refusal('uncertainty_not_current');
+         if (r.disposition === 'observed') {
+           const execution = r.execution_id ?? target?.execution_id ?? (w.execution?.command_id === uncertain ? w.execution.execution_id : undefined);

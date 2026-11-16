@@ -1,0 +1,11 @@
+--- a/packages/worker/src/supervisor/input.ts
++++ b/packages/worker/src/supervisor/input.ts
+@@ -74,7 +74,7 @@
+     if (w.execution?.command_id === commandId && w.execution.state !== 'settled') w.execution.state = 'outcome_unknown';
+     w.foreground = 'unknown';
+     this.latch(live, commandId);
+-    if (label === 'execution.unknown') this.s.persist(live, label);
++    void label;
+   }
+ 
+   private observe(live: Live, event: PiRecord): void {
