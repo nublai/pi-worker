@@ -116,7 +116,9 @@
         "p1-11-report-ignores-revocation.diff",
         "p1-11-child-env-keeps-socket.diff",
         "p1-11-unknown-child-not-fencing-parent.diff",
-        "p1-11-row-left-todo.diff"
+        "p1-11-row-left-todo.diff",
+        "p1-fix-b-public-report-discharges-fence.diff",
+        "p1-fix-b-recovery-accepts-any-channel.diff"
       ]
     }
   }
