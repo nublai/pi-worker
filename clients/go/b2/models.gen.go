@@ -1878,8 +1878,14 @@ type Limits struct {
 
 	// ReceiptExpiredIdsMax How many evicted command ids the worker still remembers. Reusing
 	// one, or reading its receipt, is refused `receipt_expired` with
-	// `effect: unknown`: never run again, never proof that nothing ran. An
-	// id evicted longer ago than this is forgotten.
+	// `effect: unknown`: never run again, never proof that nothing ran.
+	// An id evicted longer ago than this still never runs again (contract
+	// rule "no replay past retention"): the worker keeps the newest issue
+	// time of a forgotten UUIDv7 `command_id` and whether any other id was
+	// forgotten, and refuses a command id it may have forgotten (a UUIDv7
+	// not issued after that time, or any other id once one was forgotten)
+	// `command_id_beyond_retention` with `effect: no_effect`, before any
+	// record. Callers mint every `command_id` as a UUIDv7 (RFC 9562).
 	ReceiptExpiredIdsMax int `json:"receipt_expired_ids_max"`
 
 	// ReceiptRetentionMinSeconds A final receipt is retained at least this long after its command

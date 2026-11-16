@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/receipts/receipts.ts b/packages/worker/src/receipts/receipts.ts
+--- a/packages/worker/src/receipts/receipts.ts
++++ b/packages/worker/src/receipts/receipts.ts
+@@ -235,7 +235,7 @@
+     }
+     // An id whose expired record rolled over is not proof of a fresh command (contract rule "no replay past
+     // retention"): an id that may be one the worker forgot is refused before anything is written.
+-    if (!pending && !prior && mayBeForgotten(this.forgotten, commandId)) throw new Refusal('command_id_beyond_retention', 'no_effect', undefined, {}, 409);
++    if (!pending && !prior && mayBeForgotten(null, commandId)) throw new Refusal('command_id_beyond_retention', 'no_effect', undefined, {}, 409);
+     const result = Promise.resolve()
+       .then(async () => {
+         // Validation and reservation run atomically with the synchronous pre-dispatch part of effect().

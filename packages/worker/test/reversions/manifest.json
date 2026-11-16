@@ -162,7 +162,9 @@
         "p1-12-unsettled-execution-evicted.diff",
         "p1-12-no-control-reserve.diff",
         "p1-12-young-receipt-evicted.diff",
-        "p1-12-stray-copy-kept.diff"
+        "p1-12-stray-copy-kept.diff",
+        "p1c-fix-f1-forgotten-id-runs-again.diff",
+        "p1c-fix-f1-rollover-forgets.diff"
       ]
     },
     "compaction": {

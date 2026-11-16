@@ -95,6 +95,21 @@ expected_binding_revision?, received_binding_revision?}`. A transport failure be
 is `no_effect`; after, it is `unknown` and the bridge reads `receipts.get(command_id)`. The client never retries
 a mutation.
 
+**Contract rule "no replay past retention" (P1-12, review F1 of PR #12).** A `command_id` the worker may have
+admitted is never executed again, however long ago. The worker keeps each receipt within `hello.limits`
+(`receipts_max`, `receipt_retention_min_seconds`), then its id (`receipt_expired`, `unknown`, for the newest
+`receipt_expired_ids_max` evicted ids), and after that a durable horizon: the newest issue time of a forgotten
+UUIDv7 id and whether any id that is not a UUIDv7 was forgotten. A command whose id the worker remembers neither as a
+receipt nor as an expired id is refused `409 command_id_beyond_retention`, `no_effect`, before any record, when it
+could be a forgotten one: a UUIDv7 whose timestamp is not after the horizon, or any id that is not a UUIDv7 once such
+an id was forgotten. The refusal says this request did nothing; it is never proof that an earlier request with the
+same id did nothing. **The phone mints every `command_id` as a UUIDv7 (RFC 9562) from its clock when it creates
+the command**, and reuses it unchanged for a retry. Other ids work until the first non-UUIDv7 id is forgotten; after
+that, every new one is refused. A phone whose command sat unsent longer than the horizon (at least
+`receipt_retention_min_seconds` behind the worker's clock) is refused and mints a new id; a phone clock far ahead
+of the worker's makes the horizon refuse fresh ids up to that time once such an id is forgotten. Named limit in
+`hello`.
+
 ### 2.1 Implementation slice and authority per method
 
 PRs are in [production.md](production.md) sections 9 to 11. **Rules for every row:** the grant method is the

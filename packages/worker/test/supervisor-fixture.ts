@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import type { PiRecord, PiResponse, SessionHost } from '../src/host/host.js';
 import { openState, type SupervisorState as OpenState } from '../src/journal/state.js';
 import { ReceiptStore } from '../src/receipts/receipts.js';
+import type { RetentionLimits } from '../src/journal/retention.js';
 import type { Binding, HostFactory, HostLaunch, Worker } from '../src/supervisor/state.js';
 import { Supervisor } from '../src/supervisor/supervisor.js';
 import { GrantStore } from '../src/grants/store.js';
@@ -100,6 +101,8 @@ export function fixture(
     launch?: (launch: HostLaunch) => SessionHost | undefined;
     /** The receipt store's count bound (P1-12 raised the default from A0's 512). */
     receiptCap?: number;
+    /** The receipt store's other retention limits (the defaults otherwise). */
+    retention?: Partial<Omit<RetentionLimits, 'receipts' | 'journalBytes'>>;
   } = {},
 ): Fixture {
   const tmp = privateTmp();
@@ -121,7 +124,7 @@ export function fixture(
   };
   const open = (f: HostFactory) => {
     const state = openState(dir);
-    return { state, supervisor: new Supervisor({ journal: state.journal, receipts: new ReceiptStore(state.journal, config.receiptCap), supervisorEpoch: state.supervisorEpoch, stateDir: dir, factory: f, grants: new GrantStore(dir) }) };
+    return { state, supervisor: new Supervisor({ journal: state.journal, receipts: new ReceiptStore(state.journal, config.receiptCap, undefined, config.retention), supervisorEpoch: state.supervisorEpoch, stateDir: dir, factory: f, grants: new GrantStore(dir) }) };
   };
   const first = open(factory);
   const f: Fixture = {
