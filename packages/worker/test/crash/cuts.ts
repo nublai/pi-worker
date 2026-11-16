@@ -96,4 +96,23 @@ export const CUT_SCENARIOS: readonly CutScenario[] = [
       'fence.resolve',
     ],
   },
+  {
+    scenario: 'binding',
+    file: 'binding.test.ts',
+    labels: [
+      ...OPEN,
+      'receipt.intent',
+      'receipt.dispatch',
+      'receipt.result',
+      'worker.create',
+      'worker.spawned',
+      'worker.identity',
+      'worker.ready',
+      'worker.fault',
+      'worker.recover',
+      'binding.rebind',
+      'binding.native',
+      'fence.latch',
+    ],
+  },
 ];

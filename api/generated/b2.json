@@ -374,7 +374,6 @@
         ],
         "x-piw-mutation": true,
         "x-piw-body": "json",
-        "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
           "content": {
@@ -406,6 +405,52 @@
           },
           "501": {
             "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/new": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "sessions.new",
+        "summary": "Bind a new session (pi's /new); the binding revision moves and the old binding is refused",
+        "tags": [
+          "recovery"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-body": "json",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Binding"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
           }
         }
       }
@@ -2812,6 +2857,7 @@
               "workers.relaunch",
               "sessions.resolve_unknown",
               "sessions.rebind",
+              "sessions.new",
               "sessions.follow_up",
               "sessions.steer",
               "children.launch",
