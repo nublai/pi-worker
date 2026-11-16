@@ -5,6 +5,7 @@ import { dirname } from 'node:path';
 import { createApp } from './b2/app.js';
 import { createB2Server, listenPrivate } from './b2/server.js';
 import { resolvePaths } from './config.js';
+import { pinnedPiVersion } from './host/host.js';
 import { openState } from './journal/state.js';
 import { ReceiptStore } from './receipts/receipts.js';
 
@@ -27,7 +28,7 @@ const state = openState(paths.stateDir);
 // Recovery before the socket listens: undispatched intents become intent_recovered, dispatched ones outcome_unknown.
 const receipts = new ReceiptStore(state.journal);
 receipts.recover();
-const app = createApp({ supervisorId: state.supervisorId, supervisorEpoch: state.supervisorEpoch, receipts });
+const app = createApp({ supervisorId: state.supervisorId, supervisorEpoch: state.supervisorEpoch, piVersion: pinnedPiVersion(), receipts });
 const server = createB2Server(app.handle);
 await listenPrivate(server, paths.socketPath);
 console.error(JSON.stringify({ event: 'listening', socket: paths.socketPath, pid: process.pid }));
