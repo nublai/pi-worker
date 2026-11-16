@@ -15,6 +15,9 @@
  * the release with `gate_check`, and on `gate_release` revalidates (the supervisor allowed it, no binding move since,
  * not expired, the extension's own `recheck` of its artifact and policy) before it acknowledges `released` and calls
  * `respond`, with no await in between. Anything else (no answer, a No, a timeout, a move, a denial) responds false.
+ * Every gate ends with exactly one terminal notification to the supervisor: `gate_released` after a release, and
+ * `gate_closed` (with its reason) before any `respond(false)`, so the supervisor settles the approval even when no
+ * release was ever asked for (a No, a cancel, an expiry after consumption, a move, a release that never came).
  * Without an extension that uses the seam, no tool is gated: the specimen policy of A0 is not ported.
  */
 import { randomUUID } from 'node:crypto';
@@ -89,6 +92,7 @@ const APPROVAL_FIELDS = ['digest', 'policy_revision', 'operation', 'resource', '
 type Approval = { digest: string; policy_revision: string; expiry: number; operation: string; resource: string; environment: string; offered_scope: string };
 type GateRequest = { approval: Approval; title?: string; recheck?: () => boolean; respond: (released: boolean) => void };
 type Acknowledge = (data: Record<string, unknown>) => void;
+type Decision = { allowed: boolean; acknowledge?: Acknowledge; reason: string };
 const gates = new Map<string, { binding: Approval & { gate_token: string }; settle: (allowed: boolean, acknowledge?: Acknowledge) => void }>();
 /** Bumped by every binding move: a gate opened before it never releases after it. */
 let bindingGeneration = 0;
@@ -111,14 +115,17 @@ async function gateRelease(request: GateRequest): Promise<void> {
   const binding = { ...request.approval, gate_token: randomUUID() };
   const generation = bindingGeneration;
   const allowed = await resolvers.ask('tool_approval', { title: request.title ?? `${binding.operation} approval`, approval: binding }, { timeout: Math.min(30_000, binding.expiry - Date.now()) });
+  // The terminal notification of a gate that does not release; sent before the extension hears the denial.
+  const closed = (reason: string) => emit({ type: 'gate_closed', gate_token: binding.gate_token, reason });
   if (allowed !== true || generation !== bindingGeneration || Date.now() >= binding.expiry) {
+    closed(allowed !== true ? 'not_approved' : generation !== bindingGeneration ? 'binding_moved' : 'expired');
     request.respond(false);
     return;
   }
-  const decision = await new Promise<{ allowed: boolean; acknowledge?: Acknowledge }>(resolve => {
+  const decision = await new Promise<Decision>(resolve => {
     const timer = setTimeout(() => {
       gates.delete(binding.gate_token);
-      resolve({ allowed: false });
+      resolve({ allowed: false, reason: 'release_timeout' });
     }, GATE_RELEASE_TIMEOUT_MS);
     timer.unref();
     gates.set(binding.gate_token, {
@@ -126,7 +133,8 @@ async function gateRelease(request: GateRequest): Promise<void> {
       settle: (supervisorAllowed, acknowledge) => {
         clearTimeout(timer);
         gates.delete(binding.gate_token);
-        resolve({ allowed: supervisorAllowed, ...(acknowledge ? { acknowledge } : {}) });
+        // Without an acknowledgement the settle came from a binding move (cancelAll), not from a release command.
+        resolve({ allowed: supervisorAllowed, reason: acknowledge ? 'release_denied' : 'binding_moved', ...(acknowledge ? { acknowledge } : {}) });
       },
     });
     emit({ type: 'gate_check', ...binding });
@@ -141,6 +149,7 @@ async function gateRelease(request: GateRequest): Promise<void> {
     }
   }
   decision.acknowledge?.({ released: valid });
+  if (!valid) closed(decision.reason);
   request.respond(valid);
   if (valid) emit({ type: 'gate_released', gate_token: binding.gate_token });
 }

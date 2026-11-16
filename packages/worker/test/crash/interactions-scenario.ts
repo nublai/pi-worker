@@ -1,6 +1,7 @@
 /**
  * The interactions crash scenario (P1-10), ported from A0 `src/test/fixtures/interaction-crash-child.ts`: an answered
- * question, a cancelled one, an approval released and one whose grant is revoked before release, a deadline cancel, a
+ * question, a cancelled one, an approval released and one whose grant is revoked before release, an approval answered
+ * No whose gate closes without a release check (settled `gate_closed`, never re-interrupted), a deadline cancel, a
  * dialog cancelled by a B2 navigation, a consumed answer whose acknowledgement is lost (unknown, fenced, kept), and a
  * question left pending across a restart. Answer ids follow the world's `<native_id>-answer` convention.
  */
@@ -48,6 +49,12 @@ export async function interactionsScenario(root: string): Promise<void> {
     const live = world.supervisor.state.require(id);
     await world.supervisor.interactions.gate(live.worker, { type: 'gate_check', ...approval }, () => world.supervisor.input.writable(live));
   }
+  // An approval answered No: the child's resolver closes, then its gate closes without asking for a release.
+  const denied = { gate_token: 'denied', digest: 'artifact', policy_revision: 'p1', expiry: Date.now() + 60_000, operation: 'bash', resource: root, environment: root, offered_scope: 'once' };
+  open('denied', 'tool_approval', { approval: denied });
+  await answer('denied', 'tool_approval', { value: false });
+  host.emit('event', { type: 'resolver_closed', native_id: 'denied', outcome: 'no' });
+  host.emit('event', { type: 'gate_closed', gate_token: 'denied', reason: 'not_approved' });
   open('timeout', 'confirm', { timeout: 1 });
   await delay(20);
   open('navigate-dialog');

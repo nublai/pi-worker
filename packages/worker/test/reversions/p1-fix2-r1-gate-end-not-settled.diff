@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index fd0c8f8..f9bf0a8 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -105,7 +105,7 @@ export class Lifecycle {
+     if (event.type === 'extension_ui_request' && live.host && interactions) interactions.open(w, live.host, event);
+     if (event.type === 'resolver_closed' && interactions) interactions.resolverClosed(w.worker_id, String(event.native_id), String(event.outcome));
+     // Every gate ends with one terminal notification; it settles the approval the gate owned.
+-    if ((event.type === 'gate_closed' || event.type === 'gate_released') && interactions) interactions.gateEnded(w.worker_id, String(event.gate_token), event.type === 'gate_released');
++    if ((event.type === 'gate_closed' || event.type === 'gate_released') && interactions && event.never === true) interactions.gateEnded(w.worker_id, String(event.gate_token), event.type === 'gate_released');
+     if (event.type === 'gate_check' && interactions) {
+       const host = live.host;
+       void interactions.gate(w, event, () => this.writable(live)).catch(error => {

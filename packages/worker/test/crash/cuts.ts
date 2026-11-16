@@ -160,6 +160,7 @@ export const CUT_SCENARIOS: readonly CutScenario[] = [
       'interaction.accept',
       'interaction.answer',
       'interaction.release',
+      'interaction.gate_close',
       'interaction.cancel',
       'interaction.recover',
     ],

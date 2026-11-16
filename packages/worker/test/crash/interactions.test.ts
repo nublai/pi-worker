@@ -5,6 +5,8 @@
  * - a deadline cancel is covered by its write-ahead `interaction_effect` marker (a move's cancel by the move's own
  *   dispatch record, which the shared oracle checks through its receipt);
  * - no interaction is pending or accepted after recovery, and a further recovery changes no interaction;
+ * - an approval whose gate closed durably (`gate_closed`) keeps that ending: recovery never re-interrupts it, and one
+ *   still `consumed` at the cut (its gate's close not yet durable) is interrupted;
  * - no answer value (nor the changed value a retry sends) ever reaches the journal.
  */
 import { test } from 'node:test';
@@ -38,9 +40,14 @@ async function checkInteractions(root: string): Promise<void> {
       );
     }
   };
+  const before = latest(root);
   await checkRecovery(root, [fences, markers]);
   const after = latest(root);
   for (const [id, r] of after) assert.ok(!['pending', 'accepted'].includes(String(r.status)), `${id} is ${String(r.status)} after recovery`);
+  for (const [id, r] of before) {
+    if (r.status === 'gate_closed') assert.equal(after.get(id)?.status, 'gate_closed', `${id}: a durably closed gate is never re-interrupted`);
+    if (r.kind === 'tool_approval' && r.status === 'consumed') assert.equal(after.get(id)?.status, 'interrupted', `${id}: an open consumed approval is interrupted`);
+  }
   await recoverWorld(root);
   assert.deepEqual(latest(root), after, 'another recovery changes no interaction');
   const bytes = readFileSync(journalPath(root), 'utf8');
@@ -54,7 +61,7 @@ test('crash: SIGKILL after every interactions fsync: no answer replay, interrupt
     const full = run('interactions', base.root);
     assert.equal(full.status, 0, full.stderr);
     points = full.points;
-    for (const label of ['interaction.accept', 'interaction.cancel', 'interaction.release', 'receipt.dispatch']) assert.ok(points.some(p => p.label === label), label);
+    for (const label of ['interaction.accept', 'interaction.cancel', 'interaction.release', 'interaction.gate_close', 'receipt.dispatch']) assert.ok(points.some(p => p.label === label), label);
     await checkInteractions(base.root);
   } finally {
     base.cleanup();

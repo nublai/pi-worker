@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
+index ba35c56..6eed555 100644
+--- a/packages/worker/src/interactions/interactions.ts
++++ b/packages/worker/src/interactions/interactions.ts
+@@ -416,8 +416,6 @@ export class Interactions {
+       l.releasing = false;
+     }
+     if (r.state === 'outcome_unknown') this.hooks.fence(worker.worker_id, command_id);
+-    // The release left the approval open (refused before dispatch, or unknown) and the child's gate has since ended.
+-    if (l.gateEnd !== undefined) this.settleGate(l, l.gateEnd);
+   }
+ 
+   /**

@@ -17,6 +17,10 @@
  *   negative acknowledgement, otherwise `outcome_unknown` and the session fences.
  * - A tool release rechecks the answering grant, the binding and the approval's artifact, policy and expiry before it
  *   dispatches `gate_release`; a fenced or moving session never dispatches a release.
+ * - A consumed approval stays live (it owns the child's gate) until that gate ends, and every gate ending removes it
+ *   exactly once: the release command (`tool_released` / `release_denied`), the child's terminal notification for a
+ *   gate that never released (`gate_closed`: a No, a cancel, an expiry or a move after consumption, a release that
+ *   never came), an interrupt, a move or a pi exit (`interrupted`). Capacity counts only these open interactions.
  */
 import { randomUUID } from 'node:crypto';
 import { ProvenNoEffect, Refusal } from '../b2/errors.js';
@@ -54,6 +58,10 @@ interface Live {
   host: SessionHost;
   /** The answering request's grant, rechecked at release. */
   guard?: Guard;
+  /** A release command for this approval is running; it owns the settlement until it returns. */
+  releasing?: boolean;
+  /** The child's gate ended (released or not) while the answer or the release was still in flight. */
+  gateEnd?: boolean;
 }
 
 export interface InteractionHooks {
@@ -329,6 +337,8 @@ export class Interactions {
           this.save(l.record, 'interaction.answer');
           if (l.record.kind !== 'tool_approval') this.live.delete(a.interaction_id);
           this.hooks.changed(worker.worker_id);
+          // The child's gate already ended (a No or a cancel ends it as soon as the resolver is consumed).
+          if (l.gateEnd !== undefined) this.settleGate(l, l.gateEnd);
           return { state: 'delivered', stage: 'resolver_consumed', answer_stage: 3, effect: 'observed', result: { interaction_id: a.interaction_id, answer_id: a.answer_id, outcome, resolver_consumed: true } };
         },
         () => {
@@ -398,7 +408,45 @@ export class Interactions {
     }
     if (l.record.kind !== 'tool_approval' || !l.record.answer_id) throw new Error('unknown_gate');
     const command_id = `${l.record.answer_id}:release`;
-    const r = await this.receipts.run(command_id, 'interactions.release', { command_id, worker_id: worker.worker_id, interaction_id: l.record.interaction_id }, async () => {
+    l.releasing = true;
+    let r: Receipt;
+    try {
+      r = await this.release(worker, event, writable, l, command_id);
+    } finally {
+      l.releasing = false;
+    }
+    if (r.state === 'outcome_unknown') this.hooks.fence(worker.worker_id, command_id);
+    // The release left the approval open (refused before dispatch, or unknown) and the child's gate has since ended.
+    if (l.gateEnd !== undefined) this.settleGate(l, l.gateEnd);
+  }
+
+  /**
+   * The child's terminal notification for one gate (`gate_closed`, or `gate_released`): the approval it owned is
+   * settled and leaves the live set. An answer or a release still in flight settles it when it returns; an approval
+   * already settled (released, denied, interrupted) is left alone.
+   */
+  gateEnded(workerId: string, gateToken: string, released: boolean): void {
+    const l = [...this.live.values()].find(x => x.record.worker_id === workerId && x.record.kind === 'tool_approval' && x.record.approval?.gate_token === gateToken);
+    // A pending card's resolver closes through resolver_closed or its deadline, never through a gate notification.
+    if (!l || l.record.status === 'pending') return;
+    l.gateEnd = released;
+    if (l.record.status === 'consumed' && !l.releasing) this.settleGate(l, released);
+  }
+
+  /**
+   * Settles a consumed approval whose gate ended outside a release receipt. Never stage 4: only the release command
+   * proves that. A release the child reports without a delivered release receipt is `release_reported`, stage 3.
+   */
+  private settleGate(l: Live, released: boolean): void {
+    if (this.live.get(l.record.interaction_id) !== l || l.record.status !== 'consumed') return;
+    l.record = { ...l.record, status: released ? 'release_reported' : 'gate_closed' };
+    this.save(l.record, 'interaction.gate_close');
+    this.live.delete(l.record.interaction_id);
+    this.hooks.changed(l.record.worker_id);
+  }
+
+  private release(worker: WorkerRef, event: PiRecord, writable: () => void, l: Live, command_id: string): Promise<Receipt> {
+    return this.receipts.run(command_id, 'interactions.release', { command_id, worker_id: worker.worker_id, interaction_id: l.record.interaction_id }, async () => {
       // A fenced or moving session never dispatches a release, not even a denial; the child's own timeout denies.
       writable();
       let allowed = true;
@@ -432,6 +480,5 @@ export class Interactions {
       this.hooks.changed(worker.worker_id);
       return { state: 'delivered', stage: released ? 'tool_released' : 'refused', answer_stage: released ? 4 : 3, effect: 'observed', result: { released, interaction_id: l.record.interaction_id } };
     });
-    if (r.state === 'outcome_unknown') this.hooks.fence(worker.worker_id, command_id);
   }
 }
