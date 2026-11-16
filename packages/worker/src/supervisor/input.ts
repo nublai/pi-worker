@@ -15,7 +15,7 @@ import type { PiRecord } from '../host/host.js';
 import { authority, currentGuard } from '../grants/authority.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
 import type { Lifecycle } from './lifecycle.js';
-import type { Control, FollowUp, Live, Prompt, Queued, Steer, SupervisorState } from './state.js';
+import type { ChildLaunch, Control, FollowUp, Live, Prompt, Queued, Steer, SupervisorState } from './state.js';
 
 export const QUEUE_CAP = 32;
 
@@ -229,13 +229,71 @@ export class Input {
     if ((live.pending?.size ?? 0) >= QUEUE_CAP) throw new Refusal('queue_capacity');
   }
 
-  private enqueued(live: Live, operation: Queued['operation'], request: Prompt | FollowUp): ReceiptPatch {
+  /**
+   * `children.launch`: an untyped child queued under the parent's named execution. Like a follow-up it pauses under
+   * a fence and dispatches when the parent is idle; its dispatch record precedes the child's own create, and the
+   * child's starting row carries the lineage before any spawn. A typed child goes through `workers.create`.
+   */
+  launchChild(id: string, request: ChildLaunch): Promise<Receipt> {
+    let live!: Live;
+    return this.s.receipts.run(
+      request.command_id,
+      'children.launch',
+      { ...request, worker_id: id },
+      async () => this.enqueued(live, 'children.launch', request),
+      () => {
+        live = this.s.require(id);
+        this.s.binding(live, request);
+        this.writable(live);
+        if (live.worker.launch_spec || request.launch.parent || request.launch.launch_spec) throw new Refusal('typed_children_use_workers_create');
+        this.ready(live);
+        if (request.execution_id !== live.worker.execution?.execution_id) throw new Refusal('stale_execution');
+        this.checkQueue(live);
+      },
+    );
+  }
+
+  private enqueued(live: Live, operation: Queued['operation'], request: Queued['request']): ReceiptPatch {
     const guard = currentGuard();
     (live.pending ??= new Map()).set(request.command_id, { operation, request, ...(guard ? { guard } : {}) });
-    (live.worker.queued ??= []).push({ command_id: request.command_id, kind: 'follow_up', state: 'queued' });
+    (live.worker.queued ??= []).push({ command_id: request.command_id, kind: operation === 'children.launch' ? 'child' : 'follow_up', state: 'queued' });
     this.s.persist(live, 'queue.add');
     setImmediate(() => void this.flush(live));
     return { state: 'queued', stage: 'reserved', effect: 'no_effect', admission: 'queued', worker_id: live.worker.worker_id };
+  }
+
+  /**
+   * A due child launch: its dispatch record, then the child's own create (lineage in its starting row). The launch's
+   * result is the child's create outcome; an unknown child launch fences the parent.
+   */
+  private async dispatchChild(live: Live, id: string, request: ChildLaunch): Promise<Receipt> {
+    const parentId = live.worker.worker_id;
+    this.s.receipts.dispatch(id, { worker_id: parentId });
+    let child: Receipt;
+    try {
+      child = await this.lifecycle.create(request.launch, { parent_worker_id: parentId, parent_launch_command_id: id });
+    } catch (error) {
+      // A refusal of the child's own create (validation) happened before any of its records: nothing launched.
+      if (error instanceof Refusal && error.effect === 'no_effect' && !this.s.receipts.all.has(request.launch.command_id)) {
+        return this.s.receipts.update(id, { state: 'rejected', stage: 'refused', effect: 'no_effect', error: error.message.slice(0, 256) }, 'receipt.result');
+      }
+      child = this.s.receipts.unknown(id);
+      this.lifecycle.fenceParent(parentId, id);
+      return child;
+    }
+    const uncertain = child.effect === 'unknown' || child.state === 'outcome_unknown';
+    const result = this.s.receipts.update(
+      id,
+      {
+        state: uncertain ? 'outcome_unknown' : child.effect === 'no_effect' ? 'rejected' : 'delivered',
+        stage: uncertain ? 'unknown' : 'forwarded',
+        effect: uncertain ? 'unknown' : child.effect === 'no_effect' ? 'no_effect' : 'observed',
+        result: { child_command_id: child.command_id, ...(child.worker_id ? { child_worker_id: child.worker_id } : {}) },
+      },
+      'receipt.result',
+    );
+    if (uncertain) this.lifecycle.fenceParent(parentId, id);
+    return result;
   }
 
   /** Drops every queued input (cancel, interrupt, a binding change, an abandon); their intents end `no_effect`. */
@@ -267,7 +325,7 @@ export class Input {
         // An automatic flush is never owner authorization: a crash here recovers the intent no_effect.
         this.s.receipts.readyQueued(id);
         // The dispatch runs under the admitting grant, so the receipt flow rechecks it again at the dispatch point.
-        const run = () => this.prompt(w.worker_id, { ...item.request } as Prompt, item.operation);
+        const run = () => (item.operation === 'children.launch' ? this.dispatchChild(live, id, item.request as ChildLaunch) : this.prompt(w.worker_id, { ...item.request } as Prompt, item.operation));
         const r = await (item.guard ? authority.run(item.guard, run) : run());
         if (q) q.state = r.effect === 'no_effect' ? 'dropped' : 'dispatched';
       } catch (error) {

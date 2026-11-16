@@ -723,7 +723,6 @@
         ],
         "x-piw-mutation": true,
         "x-piw-body": "json",
-        "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
           "content": {
@@ -773,7 +772,6 @@
         ],
         "x-piw-mutation": true,
         "x-piw-body": "json",
-        "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
           "content": {
@@ -3256,6 +3254,9 @@
           },
           {
             "$ref": "#/components/schemas/InteractionsChangedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ChildReportedEvent"
           }
         ]
       },
@@ -3669,6 +3670,94 @@
                     "type": "null"
                   }
                 ]
+              }
+            }
+          }
+        }
+      },
+      "ChildReportedEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A child's report reached its durable receipt. A report is a claim, never proof; a `help` report never discharges the parent's launch fence.",
+        "x-piw-event": {
+          "type": "child.reported",
+          "producer": "supervisor",
+          "durability": "journal",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "child.reported"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidence": {
+            "type": "string",
+            "const": "supervisor_journal_fsynced"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "report_command_id",
+              "task_id",
+              "parent_worker_id",
+              "claim_not_verified"
+            ],
+            "properties": {
+              "report_command_id": {
+                "$ref": "#/components/schemas/Id"
+              },
+              "task_id": {
+                "$ref": "#/components/schemas/Id"
+              },
+              "parent_worker_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "result",
+                  "help"
+                ]
+              },
+              "claim_not_verified": {
+                "type": "boolean",
+                "const": true
               }
             }
           }

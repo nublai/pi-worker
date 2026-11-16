@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/host/host.ts b/packages/worker/src/host/host.ts
+index 4d319e5..95a9bcc 100644
+--- a/packages/worker/src/host/host.ts
++++ b/packages/worker/src/host/host.ts
+@@ -238,7 +238,7 @@ export function pinnedPiVersion(): string {
+  * set (socket, grant file, report descriptor). A typed child then gets exactly its report descriptor and task id.
+  */
+ export function childEnv(env: NodeJS.ProcessEnv = process.env, taskId?: string | null): NodeJS.ProcessEnv {
+-  const out = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('PIW_') && !k.startsWith('PI_WORKER_')));
++  const out = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('PIW_')));
+   if (taskId) Object.assign(out, { PI_WORKER_REPORT_FD: '3', PI_WORKER_TASK_ID: taskId, PI_SUBAGENT_ID: taskId });
+   return out;
+ }

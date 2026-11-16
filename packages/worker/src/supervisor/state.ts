@@ -15,6 +15,7 @@ import { SessionIndex } from '../history/session-index.js';
 import { EventHub } from '../events/hub.js';
 import type { JournalAppended } from '../generated/events.js';
 import type { Interactions } from '../interactions/interactions.js';
+import type { GrantStore } from '../grants/store.js';
 import type { ReceiptStore } from '../receipts/receipts.js';
 import type { Guard } from '../grants/authority.js';
 
@@ -25,11 +26,12 @@ export type Prompt = components['schemas']['Prompt'];
 export type FollowUp = components['schemas']['FollowUp'];
 export type Steer = components['schemas']['Steer'];
 export type Control = components['schemas']['Control'];
+export type ChildLaunch = components['schemas']['ChildLaunch'];
 
 /** A queued input: its payload stays in memory only; a restart recovers its intent `no_effect`. */
 export interface Queued {
-  readonly operation: 'sessions.prompt' | 'sessions.follow_up';
-  readonly request: Prompt | FollowUp;
+  readonly operation: 'sessions.prompt' | 'sessions.follow_up' | 'children.launch';
+  readonly request: Prompt | FollowUp | ChildLaunch;
   /** The grant of the request that admitted it, rechecked when it dispatches (P1-9). */
   readonly guard?: Guard;
 }
@@ -89,6 +91,10 @@ export class SupervisorState {
   readonly events: EventHub;
   /** Live interactions (set by the Supervisor once every module exists). */
   interactions?: Interactions;
+  /** The grant registry, to recheck the grant that created a worker (children, reports). */
+  grants?: GrantStore;
+  /** A child's delivered report claims, for its row (children module). */
+  childClaims?: (w: Worker) => NonNullable<Worker['child_reports']>;
 
   constructor(
     readonly journal: Journal,
@@ -236,7 +242,9 @@ export class SupervisorState {
 
   /** A snapshot of the worker row for readers, with its live interaction cards (payload included, memory only). */
   view(live: Live): Worker {
-    return { ...structuredClone(live.worker), pending_interactions: this.interactions?.list(live.worker.worker_id) ?? [] };
+    const row: Worker = { ...structuredClone(live.worker), pending_interactions: this.interactions?.list(live.worker.worker_id) ?? [] };
+    if (row.parent_worker_id && this.childClaims) row.child_reports = this.childClaims(row);
+    return row;
   }
 }
 

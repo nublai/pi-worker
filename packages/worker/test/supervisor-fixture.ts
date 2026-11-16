@@ -11,6 +11,7 @@ import { openState, type SupervisorState as OpenState } from '../src/journal/sta
 import { ReceiptStore } from '../src/receipts/receipts.js';
 import type { Binding, HostFactory, HostLaunch, Worker } from '../src/supervisor/state.js';
 import { Supervisor } from '../src/supervisor/supervisor.js';
+import { GrantStore } from '../src/grants/store.js';
 import { privateTmp } from './helpers.js';
 
 export class Host extends EventEmitter implements SessionHost {
@@ -112,7 +113,7 @@ export function fixture(config: { unconfirmedIdentity?: boolean; initHost?: (hos
   };
   const open = (f: HostFactory) => {
     const state = openState(dir);
-    return { state, supervisor: new Supervisor({ journal: state.journal, receipts: new ReceiptStore(state.journal), supervisorEpoch: state.supervisorEpoch, stateDir: dir, factory: f }) };
+    return { state, supervisor: new Supervisor({ journal: state.journal, receipts: new ReceiptStore(state.journal), supervisorEpoch: state.supervisorEpoch, stateDir: dir, factory: f, grants: new GrantStore(dir) }) };
   };
   const first = open(factory);
   const f: Fixture = {

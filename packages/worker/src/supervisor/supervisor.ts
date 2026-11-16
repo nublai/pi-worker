@@ -12,10 +12,12 @@ import type { Journal } from '../journal/journal.js';
 import type { Receipt, ReceiptStore } from '../receipts/receipts.js';
 import { Bindings, type Rebind } from './binding.js';
 import { Fence, type Resolve } from './fence.js';
+import { Children, type Report } from './children.js';
+import type { GrantStore } from '../grants/store.js';
 import { Interactions, type Answer, type Interaction } from '../interactions/interactions.js';
 import { Input } from './input.js';
 import { Lifecycle } from './lifecycle.js';
-import { SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker } from './state.js';
+import { SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker, type ChildLaunch } from './state.js';
 
 export type HistoryItem = components['schemas']['HistoryItem'];
 /** items.read's cap on one entry's raw line (1 MiB, within the client's 2 MiB response limit). */
@@ -27,6 +29,8 @@ export interface SupervisorOptions {
   readonly supervisorEpoch: string;
   readonly stateDir: string;
   readonly factory: HostFactory;
+  /** The grant registry: a typed child's reports and children recheck the grants that created it and its parent. */
+  readonly grants?: GrantStore;
 }
 
 export class Supervisor {
@@ -36,6 +40,7 @@ export class Supervisor {
   readonly fence: Fence;
   readonly bindings: Bindings;
   readonly interactions: Interactions;
+  readonly children: Children;
 
   constructor(options: SupervisorOptions) {
     this.state = new SupervisorState(options.journal, options.receipts, options.supervisorEpoch, options.stateDir, options.factory);
@@ -57,6 +62,9 @@ export class Supervisor {
       },
     });
     this.state.interactions = this.interactions;
+    if (options.grants) this.state.grants = options.grants;
+    this.children = new Children(this.state, this.lifecycle, this.input, this.fence);
+    this.state.childClaims = w => this.children.claims(w);
   }
 
   get receipts(): ReceiptStore {
@@ -71,6 +79,8 @@ export class Supervisor {
     // No resolver survives a restart: open interactions become `interrupted`, never re-opened.
     this.interactions.recover();
     await this.lifecycle.recover();
+    // A child whose launch may have run and that left no durable result report fences its parent (invariant 4a).
+    this.children.recover();
   }
 
   /**
@@ -171,6 +181,16 @@ export class Supervisor {
       },
       actor,
     );
+  }
+
+  /** `children.launch`: an untyped child queued under the parent's running execution. */
+  launchChild(id: string, request: ChildLaunch): Promise<Receipt> {
+    return this.input.launchChild(id, request);
+  }
+
+  /** `children.report`: a child's claim, allowed under a fence; never proof. */
+  report(id: string, r: Report): Promise<Receipt> {
+    return this.children.report(id, r);
   }
 
   resolveUnknown(id: string, r: Resolve): Promise<Receipt> {

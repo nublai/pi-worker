@@ -17,6 +17,7 @@ import { ProvenNoEffect, Refusal } from '../b2/errors.js';
 import type { Journal } from '../journal/journal.js';
 import type { DurableLabel } from '../journal/labels.js';
 import { recheck } from '../grants/authority.js';
+import type { JournalAppended } from '../generated/events.js';
 
 export type Receipt = components['schemas']['Receipt'];
 export type Operation = Receipt['operation'];
@@ -50,6 +51,8 @@ export type Effect = (intent: Receipt) => Promise<ReceiptPatch>;
 
 export class ReceiptStore {
   readonly all = new Map<string, Receipt>();
+  /** The fsynced append of each receipt's latest record in this process (a durable event's proof). */
+  readonly appended = new Map<string, JournalAppended>();
   private inFlight = new Map<string, { hash: string; operation: Operation; promise: Promise<Receipt> }>();
 
   constructor(
@@ -70,7 +73,8 @@ export class ReceiptStore {
     if (isFinal(prior)) throw new Error('receipt is final');
     if (Buffer.byteLength(JSON.stringify(receipt)) > this.maxResultBytes) throw new Error('receipt exceeds reserved bound');
     const final = FINAL.has(receipt.state);
-    this.journal.append('receipt', receipt, label, final ? receipt.command_id : undefined);
+    const { appended } = this.journal.append('receipt', receipt, label, final ? receipt.command_id : undefined);
+    this.appended.set(receipt.command_id, appended);
     if (final) this.journal.release(receipt.command_id);
     this.all.set(receipt.command_id, receipt);
     return receipt;

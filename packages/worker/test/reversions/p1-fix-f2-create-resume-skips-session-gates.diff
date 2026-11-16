@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 18a223c..aa898ae 100644
+index 1e14271..4e76be2 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -177,7 +177,11 @@ export class Lifecycle {
+@@ -221,7 +221,11 @@ export class Lifecycle {
          }
          this.s.exclusiveCwd(cwd);
          // The same session gates as every other resume: a new worker identity never erases session uncertainty.
@@ -14,4 +14,4 @@ index 18a223c..aa898ae 100644
 +        }
        },
      );
-   }
+     // A typed child whose launch may have run fences its parent: the parent cannot simply launch a replacement.

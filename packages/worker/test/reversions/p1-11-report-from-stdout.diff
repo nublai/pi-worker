@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/host/host.ts b/packages/worker/src/host/host.ts
+index 4d319e5..8ed7c91 100644
+--- a/packages/worker/src/host/host.ts
++++ b/packages/worker/src/host/host.ts
+@@ -172,7 +172,8 @@ export class LineHost extends EventEmitter implements SessionHost {
+         this.pending.delete(record.id as string);
+         clearTimeout(waiter.timer);
+         waiter.resolve(record as PiResponse);
+-      } else if (record.type !== 'response') this.emit('event', record);
++      } else if (record.type === 'report') this.emit('report', { report_id: String(record.report_id), kind: record.kind === 'help' ? 'help' : 'result', message: String(record.message) });
++      else if (record.type !== 'response') this.emit('event', record);
+     }
+     if (Buffer.byteLength(this.buffer) > LINE_LIMIT) {
+       this.fail(new Error('pi stdout line exceeds limit'));

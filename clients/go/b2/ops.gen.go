@@ -92,6 +92,7 @@ var EventTypes = []string{
 	"execution.settled",
 	"fence.resolved",
 	"interactions.changed",
+	"child.reported",
 }
 
 // WorkersList calls workers.list (GET /b2/workers).

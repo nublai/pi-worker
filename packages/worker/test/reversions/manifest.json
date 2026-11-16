@@ -104,6 +104,20 @@
         "p1-10-no-cancel-before-move.diff",
         "p1-10-any-grant-answers.diff"
       ]
+    },
+    "children": {
+      "command": "npm run test:conformance && npm test -- children invariants",
+      "diffs": [
+        "p1-11-lineage-after-spawn.diff",
+        "p1-11-help-discharges-fence.diff",
+        "p1-11-no-missing-report-fence.diff",
+        "p1-11-report-from-stdout.diff",
+        "p1-11-no-parent-subset-check.diff",
+        "p1-11-report-ignores-revocation.diff",
+        "p1-11-child-env-keeps-socket.diff",
+        "p1-11-unknown-child-not-fencing-parent.diff",
+        "p1-11-row-left-todo.diff"
+      ]
     }
   }
 }

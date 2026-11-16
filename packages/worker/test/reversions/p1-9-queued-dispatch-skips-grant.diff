@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/supervisor/input.ts b/packages/worker/src/supervisor/input.ts
-index 00ce3c2..38b741e 100644
+index 6743612..aa01ee9 100644
 --- a/packages/worker/src/supervisor/input.ts
 +++ b/packages/worker/src/supervisor/input.ts
-@@ -262,12 +262,12 @@ export class Input {
+@@ -321,12 +321,12 @@ export class Input {
          this.s.binding(live, item.request);
          this.writable(live);
          // The grant that admitted it is rechecked before anything is written for this dispatch.
@@ -10,7 +10,7 @@ index 00ce3c2..38b741e 100644
          // An automatic flush is never owner authorization: a crash here recovers the intent no_effect.
          this.s.receipts.readyQueued(id);
          // The dispatch runs under the admitting grant, so the receipt flow rechecks it again at the dispatch point.
-         const run = () => this.prompt(w.worker_id, { ...item.request } as Prompt, item.operation);
+         const run = () => (item.operation === 'children.launch' ? this.dispatchChild(live, id, item.request as ChildLaunch) : this.prompt(w.worker_id, { ...item.request } as Prompt, item.operation));
 -        const r = await (item.guard ? authority.run(item.guard, run) : run());
 +        void authority;
 +        const r = await run();

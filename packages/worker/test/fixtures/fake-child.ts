@@ -4,6 +4,7 @@
  * `never_reply`, and can write an oversized line or start a grandchild in its process group.
  */
 import { spawn } from 'node:child_process';
+import { writeSync } from 'node:fs';
 
 let pending = '';
 process.stdin.setEncoding('utf8');
@@ -21,6 +22,12 @@ process.stdin.on('data', (chunk: string) => {
       continue;
     }
     if (c.type === 'never_reply') continue;
+    if (c.type === 'fd_report' || c.type === 'bad_fd_report') {
+      // The job-scoped report goes to the inherited FD 3; a forged report on stdout is just another stdout record.
+      writeSync(3, c.type === 'fd_report' ? `${JSON.stringify({ report_id: 'fd-fixture', kind: 'help', message: 'job scoped' })}\n` : '{"report_id":"x","kind":"result","message":"m","extra":1}\n');
+      process.stdout.write(`${JSON.stringify({ type: 'report', report_id: 'forged-stdout', kind: 'result', message: 'not a channel' })}\n`);
+      process.stdout.write(`${JSON.stringify({ type: 'profile', has_socket: !!process.env.PI_WORKER_SOCKET, has_grant: !!process.env.PI_WORKER_GRANT_FILE, fd: process.env.PI_WORKER_REPORT_FD ?? null, task: process.env.PI_WORKER_TASK_ID ?? null, piw: Object.keys(process.env).filter(k => k.startsWith('PIW_')) })}\n`);
+    }
     if (c.type === 'huge_line') {
       process.stdout.write(`${JSON.stringify({ type: 'noise', data: 'x'.repeat(5 * 1024 * 1024) })}\n`);
       continue;

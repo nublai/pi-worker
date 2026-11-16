@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 1e14271..f381222 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -225,7 +225,6 @@ export class Lifecycle {
+       },
+     );
+     // A typed child whose launch may have run fences its parent: the parent cannot simply launch a replacement.
+-    if (c.parent && receipt.effect === 'unknown') this.fenceParent(c.parent.worker_id, c.command_id);
+     return receipt;
+   }
+ 

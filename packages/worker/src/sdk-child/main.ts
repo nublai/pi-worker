@@ -25,7 +25,9 @@ import {
 } from '@earendil-works/pi-coding-agent';
 import { Resolvers, type PiEvent, type UIAnswer } from './resolvers.js';
 
-type Launch = { sessionDir: string; provider: string; model: string; thinking: string; projectTrusted: boolean };
+type LaunchSpec = { tools: string[]; denied_tools: string[]; resources: { extensions: string[]; skills: string[] } };
+/** `launchSpec`: a typed child gets its explicit tools, denials and resources, and nothing discovered (P1-11). */
+type Launch = { sessionDir: string; provider: string; model: string; thinking: string; projectTrusted: boolean; launchSpec?: LaunchSpec | null };
 let launch: Launch;
 try {
   launch = JSON.parse(process.argv[2] ?? '') as Launch;
@@ -89,12 +91,26 @@ const bindingObserver: ExtensionFactory = pi => {
   });
 };
 
+const spec = launch.launchSpec ?? null;
 const runtimePromise = createAgentSessionRuntime(
   async options => {
     const services = await createAgentSessionServices({
       ...options,
       settingsManager: SettingsManager.create(options.cwd, options.agentDir, { projectTrusted: launch.projectTrusted }),
       resourceLoaderOptions: {
+        // A typed child loads only the resources its spec names: no discovered extensions, skills, prompt templates,
+        // context files or MCP servers.
+        ...(spec
+          ? {
+              noExtensions: true,
+              noSkills: true,
+              noPromptTemplates: true,
+              noContextFiles: true,
+              disabledBuiltinExtensions: ['mcp'],
+              additionalExtensionPaths: spec.resources.extensions,
+              additionalSkillPaths: spec.resources.skills,
+            }
+          : {}),
         extensionFactories: [
           { name: 'codemode', builtin: true, factory: createCodemodeExtension() },
           { name: 'tool_search', builtin: true, factory: createToolSearchExtension() },
@@ -112,6 +128,7 @@ const runtimePromise = createAgentSessionRuntime(
       model,
       // SAFETY: the supervisor passes a value of the spec's Thinking enum, which is pi's ThinkingLevel.
       thinkingLevel: launch.thinking as 'off',
+      ...(spec ? { tools: spec.tools, ...(spec.tools.length === 0 ? { noTools: 'all' as const } : {}), excludeTools: spec.denied_tools } : {}),
     });
     return { ...created, services, diagnostics: services.diagnostics };
   },

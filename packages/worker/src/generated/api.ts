@@ -920,7 +920,7 @@ export interface components {
         /** @enum {string} */
         EventEvidence: "observed_memory" | "supervisor_journal_fsynced";
         /** @description One SSE frame. `type` selects the member. */
-        EventFrame: components["schemas"]["SnapshotEvent"] | components["schemas"]["OverflowEvent"] | components["schemas"]["WorkerUpdatedEvent"] | components["schemas"]["SessionReboundEvent"] | components["schemas"]["ExecutionSettledEvent"] | components["schemas"]["FenceResolvedEvent"] | components["schemas"]["InteractionsChangedEvent"];
+        EventFrame: components["schemas"]["SnapshotEvent"] | components["schemas"]["OverflowEvent"] | components["schemas"]["WorkerUpdatedEvent"] | components["schemas"]["SessionReboundEvent"] | components["schemas"]["ExecutionSettledEvent"] | components["schemas"]["FenceResolvedEvent"] | components["schemas"]["InteractionsChangedEvent"] | components["schemas"]["ChildReportedEvent"];
         /** @description Sent first on every attach, at a synchronous barrier. `workers` is authoritative. No event replay. */
         SnapshotEvent: {
             /** @constant */
@@ -1020,6 +1020,27 @@ export interface components {
                 /** @constant */
                 external_effects_undone: false;
                 fence: components["schemas"]["Fence"] | null;
+            };
+        };
+        /** @description A child's report reached its durable receipt. A report is a claim, never proof; a `help` report never discharges the parent's launch fence. */
+        ChildReportedEvent: {
+            /** @constant */
+            type: "child.reported";
+            cursor: components["schemas"]["Cursor"];
+            event_id: components["schemas"]["Id"];
+            producer: components["schemas"]["Producer"];
+            execution_id: string | null;
+            /** @constant */
+            evidence: "supervisor_journal_fsynced";
+            worker_id: components["schemas"]["Id"];
+            data: {
+                report_command_id: components["schemas"]["Id"];
+                task_id: components["schemas"]["Id"];
+                parent_worker_id: string | null;
+                /** @enum {string} */
+                kind?: "result" | "help";
+                /** @constant */
+                claim_not_verified: true;
             };
         };
         /** @description The live interaction cards of a worker. */

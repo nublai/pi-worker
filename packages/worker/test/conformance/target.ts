@@ -54,7 +54,6 @@ export interface TargetOptions {
 
 export class TargetUnavailable extends Error {}
 
-export const TODO = 'needs the rows prerequisites (plan section 5.1)';
 
 function seam(host: Host): HostSeam {
   let rejectReply: (() => void) | undefined;

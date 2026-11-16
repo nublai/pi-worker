@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/supervisor.ts b/packages/worker/src/supervisor/supervisor.ts
+index fdefea5..5c7ed85 100644
+--- a/packages/worker/src/supervisor/supervisor.ts
++++ b/packages/worker/src/supervisor/supervisor.ts
+@@ -80,7 +80,6 @@ export class Supervisor {
+     this.interactions.recover();
+     await this.lifecycle.recover();
+     // A child whose launch may have run and that left no durable result report fences its parent (invariant 4a).
+-    this.children.recover();
+   }
+ 
+   /**

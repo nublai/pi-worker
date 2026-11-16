@@ -13,10 +13,11 @@ import { mkdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refusal } from '../b2/errors.js';
 import { SessionIndex } from '../history/session-index.js';
-import type { PiRecord, SessionHost } from '../host/host.js';
+import type { ChildReport, PiRecord, SessionHost } from '../host/host.js';
 import { killGroup } from '../host/process.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
 import { HOLDING, type Binding, type Create, type Live, type SupervisorState } from './state.js';
+import { currentGuard } from '../grants/authority.js';
 
 const GROUP_GONE = 'process_group_observed_gone; escaped_descendants_unproven';
 const reasonOf = (error: unknown): string => (error instanceof Error ? error.message.slice(0, 256) : 'launch_failed');
@@ -30,6 +31,14 @@ export class Lifecycle {
   readonly recoverers: ((live: Live) => void)[] = [];
   /** Called when a worker's execution can no longer settle (exit, fault, restart): the input module records it. */
   onUncertain: (live: Live, commandId: string, label: 'worker.exit' | 'worker.fault' | 'worker.recover') => void = () => {};
+  /** Typed launch checks (children module), run in create's validation before any record. */
+  typedLaunch: (c: Create) => void = c => {
+    if (c.parent || c.launch_spec) throw new Refusal('typed_child_launch_unsupported');
+  };
+  /** A typed child's FD 3 report (children module). */
+  onReport: (live: Live, report: ChildReport) => void = () => {};
+  /** Fences a parent on an uncertain child launch (children module). */
+  fenceParent: (parentId: string, commandId: string) => void = () => {};
   /** Writes allowed (input module): not fenced, no move in flight. A tool release is refused otherwise. */
   writable: (live: Live) => void = () => {
     throw new Error('input_not_wired');
@@ -64,6 +73,9 @@ export class Lifecycle {
     });
     host.on('exit', () => {
       if (live.host === host) this.guarded(live, () => this.onExit(live));
+    });
+    host.on('report', report => {
+      if (live.host === host) this.guarded(live, () => this.onReport(live, report));
     });
   }
 
@@ -160,16 +172,32 @@ export class Lifecycle {
       .catch(() => report());
   }
 
-  async create(c: Create): Promise<Receipt> {
+  /**
+   * `lineage` names the parent and its launch command of an untyped child launched through `children.launch`; a typed
+   * child carries `parent` in its create. Either way the lineage is in the starting row, durable before any spawn.
+   */
+  async create(c: Create, lineage?: { parent_worker_id: string; parent_launch_command_id: string }): Promise<Receipt> {
     let cwd = '';
     let resumeFile: string | undefined;
-    return this.s.receipts.run(
+    const receipt = await this.s.receipts.run(
       c.command_id,
       'workers.create',
       c,
       async () => {
         const live = this.s.newWorker(cwd, c);
         const w = live.worker;
+        if (c.launch_spec) w.launch_spec = structuredClone(c.launch_spec);
+        if (c.parent) {
+          w.parent = structuredClone(c.parent);
+          w.parent_worker_id = c.parent.worker_id;
+          w.parent_launch_command_id = c.command_id;
+        } else if (lineage) {
+          w.parent_worker_id = lineage.parent_worker_id;
+          w.parent_launch_command_id = lineage.parent_launch_command_id;
+        }
+        // The grant that created it: a typed child's reports and its own children recheck it.
+        const grantId = currentGuard()?.grant_id;
+        if (grantId) w.grant_source_id = grantId;
         // One live writer: the resume target is reserved atomically with validation, before any await, and stays
         // reserved through opening, identity checks and failure cleanup (the same reservations as sessions.rebind).
         const target = c.resume_session_id;
@@ -184,7 +212,7 @@ export class Lifecycle {
         }
       },
       () => {
-        if (c.parent || c.launch_spec) throw new Refusal('typed_child_launch_unsupported');
+        this.typedLaunch(c);
         try {
           if (!statSync(c.cwd).isDirectory()) throw new Error('not a directory');
           cwd = realpathSync(c.cwd);
@@ -196,6 +224,9 @@ export class Lifecycle {
         if (c.resume_session_id) resumeFile = this.s.resumable(c.resume_session_id, '');
       },
     );
+    // A typed child whose launch may have run fences its parent: the parent cannot simply launch a replacement.
+    if (c.parent && receipt.effect === 'unknown') this.fenceParent(c.parent.worker_id, c.command_id);
+    return receipt;
   }
 
   /** The dispatched part of create: spawn, identity, optional resume, readiness. */

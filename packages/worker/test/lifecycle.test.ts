@@ -463,7 +463,7 @@ test('lifecycle (real pi): a session_before_switch hook that ran and cancelled a
   }
 });
 
-test('lifecycle: create refuses before any record: not a directory, a typed child launch', async () => {
+test('lifecycle: create refuses before any record: not a directory, a typed launch it cannot run', async () => {
   const f = fixture();
   try {
     const before = readFileSync(f.journalFile);
@@ -471,8 +471,12 @@ test('lifecycle: create refuses before any record: not a directory, a typed chil
     await assert.rejects(f.supervisor.create(create(join(f.dir, 'file'))), /cwd_not_directory/);
     await assert.rejects(f.supervisor.create(create(join(f.dir, 'missing'))), /cwd_not_directory/);
     mkdirSync(join(f.dir, 'typed'));
-    const spec = { environment: { id: 'e', revision: 1, allowed_methods: [] }, role: 'r', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: [], seed_mode: 'standalone' as const };
-    await assert.rejects(f.supervisor.create({ ...create(join(f.dir, 'typed')), launch_spec: spec }), /typed_child_launch_unsupported/);
+    // Typed launches run from P1-11, unsandboxed; a sandboxed spec waits for P2-4 and is refused before any record.
+    const spec = { environment: { id: 'e', revision: 1, allowed_methods: [], filesystem: 'bwrap' as const }, role: 'r', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: [], seed_mode: 'standalone' as const };
+    await assert.rejects(f.supervisor.create({ ...create(join(f.dir, 'typed')), launch_spec: spec }), /sandboxed_children_not_supported_before_p2/);
+    // A typed child of a parent that does not exist is refused the same way.
+    const orphan = { worker_id: 'missing', worker_epoch: 'e', session_id: 's', binding_revision: 1, execution_id: 'x', task_id: 't', generation_id: 'g' };
+    await assert.rejects(f.supervisor.create({ ...create(join(f.dir, 'typed')), launch_spec: { ...spec, environment: { id: 'e', revision: 1, allowed_methods: [] } }, parent: orphan }), /unknown_worker/);
     assert.deepEqual(readFileSync(f.journalFile), before);
     assert.equal(f.hosts.length, 0);
   } finally {

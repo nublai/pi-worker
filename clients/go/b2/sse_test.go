@@ -207,6 +207,7 @@ func TestDecodeEventCoversManifest(t *testing.T) {
 		"execution.settled":    `{"type":"execution.settled","cursor":{"transport_epoch":"t","seq":1},"event_id":"e1","producer":"supervisor","execution_id":"x1","evidence":"observed_memory","worker_id":"w1","data":{"disposition":"handled"}}`,
 		"fence.resolved":       `{"type":"fence.resolved","cursor":{"transport_epoch":"t","seq":1},"event_id":"e1","producer":"supervisor","execution_id":null,"evidence":"supervisor_journal_fsynced","worker_id":"w1","data":{"command_id":"c","disposition":"keep","fence_generation":1,"external_effects_undone":false,"fence":null}}`,
 		"interactions.changed": `{"type":"interactions.changed","cursor":{"transport_epoch":"t","seq":1},"event_id":"e1","producer":"supervisor","execution_id":null,"evidence":"observed_memory","worker_id":"w1","data":{"interactions":[]}}`,
+		"child.reported":       `{"type":"child.reported","cursor":{"transport_epoch":"t","seq":1},"event_id":"e1","producer":"supervisor","execution_id":null,"evidence":"supervisor_journal_fsynced","worker_id":"w2","data":{"report_command_id":"r1","task_id":"job","parent_worker_id":"w1","kind":"result","claim_not_verified":true}}`,
 	}
 	for _, typ := range EventTypes {
 		sample, ok := samples[typ]

@@ -1,14 +1,14 @@
 /**
- * Contract invariants, ported from A0 `src/test/invariants.test.ts` case by case (plan section 3.2). Each case lands
- * in the first PR where every method it calls exists, with every assertion kept: the resolve, generation,
- * recovered-intent and abandon-queue cases at P1-6; the binding case at P1-10; the child cases at P1-11.
+ * Contract invariants, ported from A0 `src/test/invariants.test.ts` case by case (plan section 3.2), with every
+ * assertion kept: the resolve, generation, recovered-intent and abandon-queue cases at P1-6; the binding case at
+ * P1-10; the child cases at P1-11, when the file became green as a whole.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { Refusal } from '../../src/b2/errors.js';
 import { requestHash } from '../../src/receipts/receipts.js';
-import { bind, fixture } from '../supervisor-fixture.js';
+import { bind, fixture, tick } from '../supervisor-fixture.js';
 
 for (const disposition of ['keep', 'abandon', 'observed'] as const) {
   test(`resolve ${disposition}: latch, generation, binding, final receipt and durable tombstone`, async () => {
@@ -189,6 +189,108 @@ test('new/fork/resume change same-process binding; stale delayed prompt and dupl
     assert.ok(h.cancelled.includes('old-question'));
     assert.ok(frames.includes('session.rebound'));
     sub.close();
+  } finally {
+    f.cleanup();
+  }
+});
+
+for (const disposition of ['keep', 'abandon'] as const) {
+  test(`queued follow-up and pending child pause under fence then ${disposition}`, async () => {
+    const f = fixture();
+    try {
+      const w = await f.create();
+      const h = f.hosts[0]!;
+      const native = h.request.bind(h);
+      let reject!: () => void;
+      let first = true;
+      const dropped = new Promise<never>((_r, no) => {
+        reject = () => no(new Error('lost reply'));
+      });
+      dropped.catch(() => {});
+      h.request = async c => {
+        const reply = await native(c);
+        if (c.type === 'prompt' && first) {
+          first = false;
+          await dropped;
+        }
+        return reply;
+      };
+      const pending = f.supervisor.prompt(w.worker_id, { ...bind(w, 'run'), message: 'run' });
+      await tick();
+      const running = f.supervisor.get(w.worker_id);
+      const execution_id = running.execution!.execution_id;
+      await f.supervisor.followUp(w.worker_id, { ...bind(w, 'follow'), message: 'next', execution_id });
+      await f.supervisor.launchChild(w.worker_id, { ...bind(w, 'child'), execution_id, launch: { command_id: 'create-child', cwd: f.dir, provider: 'p', model: 'm', thinking: 'off' } });
+      reject();
+      await pending;
+      h.emit('event', { type: 'agent_settled' });
+      await tick();
+      assert.equal(h.prompts, 1);
+      assert.equal(f.hosts.length, 1);
+      const fenced = f.supervisor.get(w.worker_id);
+      assert.ok(fenced.queued!.every(q => q.state === 'paused'));
+      for (const action of [
+        () => f.supervisor.prompt(w.worker_id, { ...bind(w, 'denied'), message: 'no' }),
+        () => f.supervisor.rebind(w.worker_id, { ...bind(w, 'new'), action: 'new' }),
+        () => f.supervisor.followUp(w.worker_id, { ...bind(w, 'more'), execution_id, message: 'no' }),
+      ]) {
+        await assert.rejects(action(), (e: unknown) => e instanceof Refusal && e.effect === 'no_effect' && e.uncertain_command_id === 'run');
+      }
+      await f.supervisor.resolveUnknown(w.worker_id, { ...bind(w, 'resolve'), uncertain_command_id: 'run', fence_generation: fenced.fence!.fence_generation, disposition });
+      await tick();
+      await tick();
+      if (disposition === 'keep') {
+        assert.equal(h.prompts, 2);
+        h.emit('event', { type: 'agent_settled' });
+        await tick();
+        await tick();
+        assert.equal(f.hosts.length, 2);
+        assert.equal(f.supervisor.receipts.all.get('follow')?.state, 'delivered');
+      } else {
+        assert.equal(h.prompts, 1);
+        assert.equal(f.hosts.length, 1);
+        assert.equal(f.supervisor.receipts.all.get('follow')?.disposition, 'abandoned_without_dispatch');
+      }
+    } finally {
+      f.cleanup();
+    }
+  });
+}
+
+for (const reported of [false, true]) {
+  test(`child recovery ${reported ? 'with' : 'without'} fsynced report preserves parent launch uncertainty`, async () => {
+    const f = fixture();
+    try {
+      const w = await f.create();
+      await f.supervisor.prompt(w.worker_id, { ...bind(w, 'run'), message: 'run' });
+      f.hosts[0]!.emit('event', { type: 'agent_settled' });
+      await f.supervisor.launchChild(w.worker_id, { ...bind(w, 'launch'), execution_id: f.supervisor.get(w.worker_id).execution!.execution_id, launch: { command_id: 'create-child', cwd: f.dir, provider: 'p', model: 'm', thinking: 'off' } });
+      await tick();
+      await tick();
+      const child = f.supervisor.list().find(x => x.parent_worker_id === w.worker_id)!;
+      assert.ok(child);
+      const delivered = f.supervisor.receipts.all.get('launch');
+      assert.equal(delivered?.state, 'delivered');
+      if (reported) await f.supervisor.report(child.worker_id, { ...bind(child, 'child-report'), task_id: 'launch', result_digest: 'sha256:claim' });
+      const next = await f.restart(() => assert.fail('no replacement'));
+      assert.equal(next.get(w.worker_id).fence?.command_id ?? null, reported ? null : 'launch');
+      assert.deepEqual(next.receipts.all.get('launch'), delivered);
+    } finally {
+      f.cleanup();
+    }
+  });
+}
+
+test('cancel, interrupt and evidence reports allowed under fence without lifting it', async () => {
+  const f = fixture();
+  try {
+    const w = await f.create();
+    f.hosts[0]!.failure = true;
+    await f.supervisor.prompt(w.worker_id, { ...bind(w, 'lost'), message: 'run' });
+    for (const interrupt of [false, true]) assert.equal((await f.supervisor.control(w.worker_id, bind(w, `control-${interrupt}`), interrupt)).state, 'delivered');
+    assert.equal((await f.supervisor.report(w.worker_id, { ...bind(w, 'report'), task_id: 'task', result_digest: 'sha256:claim' })).state, 'delivered');
+    assert.equal(f.supervisor.get(w.worker_id).fence?.command_id, 'lost');
+    assert.equal(f.hosts[0]!.commands.filter(c => c.type === 'clear_queue').length, 2);
   } finally {
     f.cleanup();
   }

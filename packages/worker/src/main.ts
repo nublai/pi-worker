@@ -25,6 +25,8 @@ process.umask(0o077);
 privateDir(paths.stateDir);
 privateDir(dirname(paths.socketPath));
 
+// Every request needs a bearer grant registered by the owner with the local `grant` command (src/grant.ts).
+const grants = new GrantStore(paths.stateDir);
 // One supervisor per state directory: the journal lock refuses a second one before anything is read.
 const state = openState(paths.stateDir);
 const supervisor = new Supervisor({
@@ -40,13 +42,15 @@ const supervisor = new Supervisor({
       model: launch.create.model,
       thinking: launch.create.thinking,
       projectTrusted: launch.create.project_trusted === true,
+      // A typed child: its launch spec, and its task's FD 3 report channel (unsandboxed until P2-4).
+      launchSpec: launch.create.launch_spec ?? null,
+      taskId: launch.create.parent?.task_id ?? null,
     }),
+  grants,
 });
 // Recovery before the socket listens: undispatched intents become intent_recovered, dispatched ones outcome_unknown,
 // and every worker that held a session is cleanup_pending with its old pi process group killed. No replay.
 await supervisor.recover();
-// Every request needs a bearer grant registered by the owner with the local `grant` command (src/grant.ts).
-const grants = new GrantStore(paths.stateDir);
 const app = createApp({ supervisorId: state.supervisorId, supervisorEpoch: state.supervisorEpoch, piVersion: pinnedPiVersion(), supervisor, grants });
 const server = createB2Server(app.handle);
 await listenPrivate(server, paths.socketPath);
