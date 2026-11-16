@@ -106,7 +106,8 @@
         "p1-10-any-grant-answers.diff",
         "p1-fix-b-denied-release-claims-stage-4.diff",
         "p1-fix-f2-child-releases-without-supervisor.diff",
-        "p1-fix-f2-seam-releases-without-approval.diff"
+        "p1-fix-f2-seam-releases-without-approval.diff",
+        "p1-fix-f5-deadline-after-accept-left-accepted.diff"
       ]
     },
     "children": {

@@ -268,6 +268,7 @@ export class Interactions {
         { ...metadata, worker_id: worker.worker_id },
         async () => {
           writable();
+          const pending = l.record;
           l.record = {
             ...l.record,
             status: 'accepted',
@@ -282,8 +283,13 @@ export class Interactions {
           clearTimeout(l.timer);
           this.save(l.record, 'interaction.accept');
           this.hooks.changed(worker.worker_id);
-          writable();
-          if (this.now() >= l.record.deadline) throw new Refusal('interaction_deadline_passed');
+          try {
+            writable();
+            if (this.now() >= l.record.deadline) throw new Refusal('interaction_deadline_passed');
+          } catch (error) {
+            this.refusedAfterAccept(l, pending, a.answer_id);
+            throw error;
+          }
           this.receipts.dispatch(a.command_id, { worker_id: worker.worker_id, answer_stage: 1 });
           const fenceGeneration = worker.fence_generation ?? 0;
           const answer = a.outcome === 'cancel' ? { outcome: 'cancel' } : { outcome: 'answer', ...(a.value !== undefined ? { value: a.value } : {}), ...(a.option_id !== undefined ? { option_id: a.option_id } : {}) };
@@ -355,6 +361,26 @@ export class Interactions {
     }
     if (result.state === 'outcome_unknown') this.hooks.fence(worker.worker_id, a.command_id);
     return result;
+  }
+
+  /**
+   * An accepted answer refused before its dispatch (its deadline passed during the acceptance fsync, or the session
+   * stopped being writable): nothing reached the resolver, so the interaction is not left `accepted`. Past its
+   * deadline it closes `timeout` with the native resolver cancelled behind a durable marker (what the deadline timer,
+   * cleared at acceptance, would have done); otherwise it is pending again under its timer.
+   */
+  private refusedAfterAccept(l: Live, pending: Interaction, answerId: string): void {
+    this.answers.delete(answerId);
+    delete l.guard;
+    l.record = pending;
+    if (this.now() >= pending.deadline) {
+      this.close(l, 'timeout', true);
+      return;
+    }
+    this.save(l.record, 'interaction.accept');
+    this.hooks.changed(l.record.worker_id);
+    l.timer = setTimeout(() => this.expire(l), Math.max(1, pending.deadline - this.now()));
+    l.timer.unref();
   }
 
   /**
