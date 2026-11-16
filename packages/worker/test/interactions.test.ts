@@ -319,6 +319,52 @@ for (const mutation of ['none', 'grant', 'policy', 'expiry', 'digest', 'binding'
   });
 }
 
+for (const denial of ['grant', 'binding', 'approval'] as const) {
+  test(`interactions: a release the supervisor denied (${denial}) is never stage 4, even when the child claims it released`, async () => {
+    const f = setup();
+    try {
+      const w = await f.create();
+      f.attach();
+      let authorized = true;
+      const approval = { gate_token: 'gate', digest: 'input-sha256', policy_revision: 'p1', expiry: Date.now() + 30000, operation: 'bash', resource: f.dir, environment: f.dir, offered_scope: 'once' };
+      const i = f.open('tool_approval', 'approval', { approval });
+      const guard = Object.assign(
+        () => {
+          if (!authorized) throw new Error('revoked');
+        },
+        { grant_id: 'fixture' },
+      );
+      assert.equal((await authority.run(guard, () => f.supervisor.answer(w.worker_id, f.answer(i, 'approve', { value: true })))).answer_stage, 3);
+      const event: Record<string, unknown> = { type: 'gate_check', ...approval };
+      if (denial === 'grant') authorized = false;
+      if (denial === 'binding') f.supervisor.state.require(w.worker_id).worker.binding_revision++;
+      if (denial === 'approval') event.digest = 'changed';
+      // A child that ignores the denial and says it released the tool anyway.
+      const sent: PiRecord[] = [];
+      const original = f.hosts[0]!.request.bind(f.hosts[0]);
+      f.hosts[0]!.request = async c => {
+        if (c.type !== 'gate_release') return original(c);
+        sent.push(c);
+        return { type: 'response', id: 'r', success: true, data: { released: true } };
+      };
+      await f.supervisor.interactions.gate(f.supervisor.state.require(w.worker_id).worker, event as PiRecord, () => {});
+      assert.equal(sent[0]?.allowed, false, 'the supervisor denied the release');
+      const release = f.supervisor.receipts.all.get('approve:release')!;
+      assert.notEqual(release.answer_stage, 4, 'a denied release is never stage 4');
+      assert.notEqual(release.stage, 'tool_released');
+      // The child contradicted the denial: what it did is unknown, and the session fences.
+      assert.equal(release.state, 'outcome_unknown');
+      assert.equal(release.effect, 'unknown');
+      const status = f.supervisor.interactionStatus(w.worker_id, String(i.interaction_id));
+      assert.notEqual(status.answer_stage, 4);
+      assert.notEqual(status.status, 'tool_released');
+      assert.ok(f.supervisor.get(w.worker_id).fence?.uncertain_command_ids?.includes('approve:release'));
+    } finally {
+      f.cleanup();
+    }
+  });
+}
+
 test('interactions: deadline validation refuses at the boundary before the timeout callback can run', async () => {
   const f = setup();
   try {
