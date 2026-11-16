@@ -18,7 +18,10 @@ namespaces (`kernel.apparmor_restrict_unprivileged_userns=0` on Ubuntu 24.04, or
 
 **Primary: GitHub-hosted `ubuntu-24.04`** (`.github/workflows/kernel.yml`). The job installs bubblewrap, sets the
 AppArmor user-namespace sysctl to 0 for the throwaway runner, enables linger for the runner user, then runs
-`kernel.sh`. The P0-8 result is recorded in the PR that added it (nublai/pi-worker#4).
+`kernel.sh`. **P0-8 result (2026-11-16): the hosted runner runs the tier.** `kernel.yml` run 43811794698 on
+`cd8f492`: kernel 7.0.0-1017-azure, bubblewrap 0.9.0, systemd 255, user manager controllers `cpu memory pids`; both
+smoke tests pass, 0 skips, 0 units left. The same suite passed on an exe.dev VM (kernel 6.12.115, Ubuntu 24.04.5) in
+the `p0-hello` run under `docs/evidence/p0/`.
 
 **Fallback (decision D4), if the hosted runner stops providing any of the above:** an ephemeral self-hosted runner on
 an exe.dev tester VM (the `exe-dev-test-vm` and `setup-github-runner` skills), labelled for `kernel.yml` only, with a
