@@ -129,6 +129,12 @@
         "p1-fix-b-child-environment-outside-parent.diff",
         "p1-fix-b-typed-child-env-not-allowlisted.diff"
       ]
+    },
+    "history": {
+      "command": "npm test -- history",
+      "diffs": [
+        "p1-fix-f1-marker-uses-sdk-leaf.diff"
+      ]
     }
   }
 }

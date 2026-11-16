@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/history/session-index.ts b/packages/worker/src/history/session-index.ts
+index db64602..13e714e 100644
+--- a/packages/worker/src/history/session-index.ts
++++ b/packages/worker/src/history/session-index.ts
+@@ -73,7 +73,7 @@ export class SessionIndex {
+    * an SDK selection, the file's last entry. Never an entry pi has not written.
+    */
+   get watermark(): string | null {
+-    return this.activeLeaf === undefined ? this.leaf : this.verified;
++    return this.leafId;
+   }
+ 
+   /** pi selected an entry the file does not have yet: history is behind pi (lag). */
