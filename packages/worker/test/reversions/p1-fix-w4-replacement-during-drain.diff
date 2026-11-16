@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
+index 55573ab..d3a5e9a 100644
+--- a/packages/worker/src/supervisor/children.ts
++++ b/packages/worker/src/supervisor/children.ts
+@@ -78,7 +78,6 @@ export class Children {
+     const parentId = live.worker.parent_worker_id;
+     if (!live.worker.parent_launch_command_id || !parentId) return;
+     // Until the check below runs, the parent may not launch another child (it could be a replacement).
+-    this.s.childEnding.set(parentId, (this.s.childEnding.get(parentId) ?? 0) + 1);
+     const settled = live.host?.reportsSettled?.() ?? Promise.resolve();
+     void settled
+       // Reports emitted while the pipe drained are recorded by a chain of microtasks; let those finish first.

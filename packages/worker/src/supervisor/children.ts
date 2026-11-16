@@ -75,7 +75,10 @@ export class Children {
    * no durable result report fences its parent durably: the parent cannot launch a replacement (invariant 4a, live).
    */
   private ended(live: Live): void {
-    if (!live.worker.parent_launch_command_id) return;
+    const parentId = live.worker.parent_worker_id;
+    if (!live.worker.parent_launch_command_id || !parentId) return;
+    // Until the check below runs, the parent may not launch another child (it could be a replacement).
+    this.s.childEnding.set(parentId, (this.s.childEnding.get(parentId) ?? 0) + 1);
     const settled = live.host?.reportsSettled?.() ?? Promise.resolve();
     void settled
       // Reports emitted while the pipe drained are recorded by a chain of microtasks; let those finish first.
@@ -86,6 +89,11 @@ export class Children {
       })
       .catch(() => {
         /* storage failure: the journal refuses every write; recovery fences the parent from the durable records */
+      })
+      .finally(() => {
+        const n = (this.s.childEnding.get(parentId) ?? 1) - 1;
+        if (n > 0) this.s.childEnding.set(parentId, n);
+        else this.s.childEnding.delete(parentId);
       });
   }
 
@@ -136,6 +144,7 @@ export class Children {
     if (!c.parent) return;
     const parent = this.s.require(c.parent.worker_id);
     this.input.writable(parent);
+    if (this.s.childEnding.has(parent.worker.worker_id)) throw new Refusal('child_end_unsettled');
     this.s.binding(parent, { ...c.parent, command_id: c.command_id });
     if (parent.worker.status !== 'ready' || parent.worker.execution?.execution_id !== c.parent.execution_id || parent.worker.execution.state === 'settled') {
       throw new Refusal('stale_parent_execution');

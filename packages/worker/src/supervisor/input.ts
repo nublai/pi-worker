@@ -246,6 +246,8 @@ export class Input {
         this.s.binding(live, request);
         this.writable(live);
         if (live.worker.launch_spec || request.launch.parent || request.launch.launch_spec) throw new Refusal('typed_children_use_workers_create');
+        // A child of this parent just ended and its missing-report check has not run: no replacement yet (4a).
+        if (this.s.childEnding.has(id)) throw new Refusal('child_end_unsettled');
         this.ready(live);
         if (request.execution_id !== live.worker.execution?.execution_id) throw new Refusal('stale_execution');
         this.checkQueue(live);

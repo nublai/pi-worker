@@ -93,6 +93,11 @@ export class SupervisorState {
   interactions?: Interactions;
   /** The grant registry, to recheck the grant that created a worker (children, reports). */
   grants?: GrantStore;
+  /**
+   * Parents with a child whose process ended and whose live missing-report check has not run yet (it waits for the
+   * child's report channel to drain): a new child launch under such a parent is refused `child_end_unsettled`.
+   */
+  readonly childEnding = new Map<string, number>();
   /** A child's delivered report claims, for its row (children module). */
   childClaims?: (w: Worker) => NonNullable<Worker['child_reports']>;
 

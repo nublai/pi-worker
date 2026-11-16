@@ -436,6 +436,11 @@ test('children: a typed child that dies without a durable report fences its live
     await tick();
     await tick();
     f.hosts[1]!.emit('exit');
+    // In the same turn as the exit, before the report channel drained, no replacement may launch either.
+    const early = join(f.dir, 'early');
+    mkdirSync(early);
+    await assert.rejects(() => f.supervisor.create({ ...c, command_id: 'early', cwd: early }), /child_end_unsettled/);
+    assert.equal(f.supervisor.receipts.all.has('early'), false, 'refused before any record');
     await tick();
     await tick();
     const fenced = f.supervisor.get(p.worker_id);

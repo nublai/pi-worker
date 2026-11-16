@@ -223,6 +223,8 @@ export class Lifecycle {
       },
       () => {
         this.typedLaunch(c);
+        // A queued untyped launch that comes due while a sibling's missing-report check is pending waits for it (4a).
+        if (lineage && this.s.childEnding.has(lineage.parent_worker_id)) throw new Refusal('child_end_unsettled');
         try {
           if (!statSync(c.cwd).isDirectory()) throw new Error('not a directory');
           cwd = realpathSync(c.cwd);

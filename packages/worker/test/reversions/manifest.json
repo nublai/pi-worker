@@ -127,7 +127,8 @@
         "p1-fix-w4-no-live-missing-report-fence.diff",
         "p1-fix-w4-exit-before-reports-drained.diff",
         "p1-fix-b-child-environment-outside-parent.diff",
-        "p1-fix-b-typed-child-env-not-allowlisted.diff"
+        "p1-fix-b-typed-child-env-not-allowlisted.diff",
+        "p1-fix-w4-replacement-during-drain.diff"
       ]
     },
     "history": {
