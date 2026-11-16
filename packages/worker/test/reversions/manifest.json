@@ -87,7 +87,8 @@
         "p1-9-no-scope-check.diff",
         "p1-9-queued-dispatch-skips-grant.diff",
         "p1-9-no-recheck-at-dispatch.diff",
-        "p1-9-stream-ignores-revocation.diff"
+        "p1-9-stream-ignores-revocation.diff",
+        "p1-fix-b-scope-distinguishes-missing-worker.diff"
       ]
     },
     "interactions": {
