@@ -55,7 +55,7 @@ set -e
 # loaded after the bounded wait is (units.sh).
 # shellcheck source=harness/ci/units.sh
 . "$repo/harness/ci/units.sh"
-left=$(piw_leftover_units)
+left=$(piw_leftover_units) || fail "could not list piw-* units after the suite"
 if [ -n "$left" ]; then
   # shellcheck disable=SC2046
   systemctl --user stop $(printf '%s\n' "$left" | cut -d: -f1) || true

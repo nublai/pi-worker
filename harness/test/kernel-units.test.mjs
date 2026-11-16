@@ -16,23 +16,25 @@ echo "$*" >> "$STUB_DIR/calls.log"
 [ "$2" = list-units ] || exit 0
 n=$(($(cat "$STUB_DIR/count" 2>/dev/null || echo 0) + 1))
 echo "$n" > "$STUB_DIR/count"
+if [ -f "$STUB_DIR/fail.$n" ]; then echo "Failed to connect to bus" >&2; exit 1; fi
 f="$STUB_DIR/list.$n"
 [ -f "$f" ] || f=$(ls "$STUB_DIR"/list.* | sort -t. -k2 -n | tail -1)
 cat "$f"
 `;
 
 /** Runs piw_leftover_units against scripted listings; returns its output lines and the number of listings read. */
-function check(listings, tries = 5) {
+function check(listings, tries = 5, { failAt = [], status = 0 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'piw-units-'));
   try {
     writeFileSync(join(dir, 'systemctl'), STUB);
     chmodSync(join(dir, 'systemctl'), 0o755);
     listings.forEach((l, i) => writeFileSync(join(dir, `list.${i + 1}`), l ? `${l}\n` : ''));
+    failAt.forEach(n => writeFileSync(join(dir, `fail.${n}`), ''));
     const r = spawnSync('bash', ['-c', `set -euo pipefail; . "$1"; piw_leftover_units ${tries} 0.01`, 'check', units], {
       env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, STUB_DIR: dir },
       encoding: 'utf8',
     });
-    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.status, status, r.stderr);
     const calls = readFileSync(join(dir, 'calls.log'), 'utf8').trim().split('\n');
     assert.ok(calls.every(c => c === '--user list-units --all --plain --no-legend piw-*'), `only listings, never a stop: ${calls}`);
     return { left: r.stdout.split('\n').filter(Boolean), listings: calls.length };
@@ -76,4 +78,15 @@ test('kernel units: a transient unit that goes is dropped; a real leftover besid
   const real = 'piw-smoke-2750.scope loaded active running piw-smoke-2750.scope';
   const r = check([`${WRAPPER} loaded inactive dead /bin/sh -c ...\n${real}`, real]);
   assert.deepEqual(r.left, ['piw-smoke-2750.scope:loaded/active/running']);
+});
+
+test('kernel units: a listing that fails is an error, never an empty list (review p1b4)', () => {
+  const r = check([''], 5, { failAt: [1], status: 2 });
+  assert.deepEqual(r.left, []);
+  assert.equal(r.listings, 1);
+});
+
+test('kernel units: a live unit followed by a failed listing is still an error, not "nothing left" (review p1b4)', () => {
+  const r = check([`${WRAPPER} loaded active running /bin/sh -c ...`, ''], 5, { failAt: [2], status: 2 });
+  assert.equal(r.listings, 2);
 });
