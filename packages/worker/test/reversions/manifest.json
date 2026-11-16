@@ -103,7 +103,8 @@
         "p1-10-unknown-answer-not-fenced.diff",
         "p1-10-payload-persisted.diff",
         "p1-10-no-cancel-before-move.diff",
-        "p1-10-any-grant-answers.diff"
+        "p1-10-any-grant-answers.diff",
+        "p1-fix-b-denied-release-claims-stage-4.diff"
       ]
     },
     "children": {

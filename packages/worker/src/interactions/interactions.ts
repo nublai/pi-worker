@@ -388,8 +388,18 @@ export class Interactions {
       }
       this.receipts.dispatch(command_id, { worker_id: worker.worker_id });
       const reply = await l.host.request({ type: 'gate_release', gate_token: event.gate_token, digest: event.digest, allowed });
-      // The child rechecks the artifact, policy and expiry too; only its `released: true` is a release.
-      const released = reply.success && reply.data?.released === true;
+      const claimed = reply.success && reply.data?.released === true;
+      if (claimed && !allowed) {
+        // The child says it released a tool the supervisor denied: never stage 4, and what it ran is unknown.
+        l.record = { ...l.record, status: 'release_contradicted', outcome: 'released_against_denial', release_command_id: command_id };
+        this.save(l.record, 'interaction.release');
+        this.live.delete(l.record.interaction_id);
+        this.hooks.changed(worker.worker_id);
+        throw new Error('release_claimed_against_denial');
+      }
+      // Stage 4 needs both: the supervisor allowed the release and the child, rechecking artifact, policy and expiry
+      // itself, released it.
+      const released = allowed && claimed;
       l.record = { ...l.record, status: released ? 'tool_released' : 'release_denied', answer_stage: released ? 4 : (l.record.answer_stage ?? 3), release_command_id: command_id };
       this.save(l.record, 'interaction.release');
       this.live.delete(l.record.interaction_id);
