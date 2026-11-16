@@ -17,6 +17,16 @@ import type { ReceiptStore } from '../receipts/receipts.js';
 export type Worker = components['schemas']['Worker'];
 export type Create = components['schemas']['Create'];
 export type Binding = components['schemas']['Binding'];
+export type Prompt = components['schemas']['Prompt'];
+export type FollowUp = components['schemas']['FollowUp'];
+export type Steer = components['schemas']['Steer'];
+export type Control = components['schemas']['Control'];
+
+/** A queued input: its payload stays in memory only; a restart recovers its intent `no_effect`. */
+export interface Queued {
+  readonly operation: 'sessions.prompt' | 'sessions.follow_up';
+  readonly request: Prompt | FollowUp;
+}
 
 /** What a worker record carries besides the B2 row: never prompt or answer text. */
 export interface Persisted {
@@ -40,6 +50,8 @@ export interface Live extends Persisted {
   nativeRebinding?: boolean;
   observedIdle?: boolean;
   moveTimer?: NodeJS.Timeout;
+  /** The supervisor-owned follow-up queue (cap 32), in arrival order. */
+  pending?: Map<string, Queued>;
 }
 
 export interface HostLaunch {

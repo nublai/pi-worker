@@ -80,10 +80,11 @@ func TestIntegrationHelloAnd501(t *testing.T) {
 		hello.Limits.AttachmentMaxBytes != int(OpAttachmentsStage.MaxBodyBytes) || hello.Limits.EventFrameBytes != frameLimit {
 		t.Fatalf("hello = %+v", hello)
 	}
-	_, err = c.SessionsPrompt(ctx, "w1", Prompt{CommandId: "c1", WorkerEpoch: "e1", SessionId: "s1", BindingRevision: 1, Message: "m"})
+	// files.read stays unsupported until P2-4.
+	_, err = c.FilesRead(ctx, "w1", FileRead{Path: "/r/file", Roots: []string{"/r"}})
 	var f *ClientFailure
 	if !errors.As(err, &f) || f.Phase != PhaseHTTP || f.Status != 501 || f.Effect != NoEffect || f.Body == nil || f.Body.Error != "operation_not_implemented" {
-		t.Fatalf("prompt: %v", err)
+		t.Fatalf("files.read: %v", err)
 	}
 	_, err = c.SessionsPrompt(ctx, "w1", Prompt{CommandId: "c1", WorkerEpoch: "e1", SessionId: "s1", BindingRevision: 0, Message: "m"})
 	if !errors.As(err, &f) || f.Status != 400 || f.Effect != NoEffect || f.Body.Error != "request_schema_mismatch" {

@@ -29,8 +29,9 @@ test('server: listens only on a 0600 socket in an owned 0700 directory and answe
     const hello = await socketCall(socket, 'GET', '/b2/hello');
     assert.equal(hello.status, 200);
     assert.equal(response_hello_200(hello.body), true);
-    const prompt = await socketCall(socket, 'POST', '/b2/workers/w1/prompt', { command_id: 'c', worker_epoch: 'e', session_id: 's', binding_revision: 1, message: 'm' });
-    assert.deepEqual(prompt, { status: 501, body: { error: 'operation_not_implemented', effect: 'no_effect' } });
+    // files.read stays unsupported until P2-4 (sessions.prompt is served from P1-5).
+    const unsupported = await socketCall(socket, 'POST', '/b2/workers/w1/files/read', { path: '/r/file', roots: ['/r'] });
+    assert.deepEqual(unsupported, { status: 501, body: { error: 'operation_not_implemented', effect: 'no_effect' } });
   } finally {
     await close(server);
     tmp.cleanup();

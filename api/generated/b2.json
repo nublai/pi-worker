@@ -230,7 +230,6 @@
         ],
         "x-piw-mutation": true,
         "x-piw-body": "json",
-        "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
           "content": {
@@ -280,7 +279,6 @@
         ],
         "x-piw-mutation": true,
         "x-piw-body": "json",
-        "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
           "content": {
@@ -312,6 +310,52 @@
           },
           "501": {
             "$ref": "#/components/responses/NotImplemented"
+          }
+        }
+      }
+    },
+    "/b2/workers/{worker_id}/steer": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkerId"
+        }
+      ],
+      "post": {
+        "operationId": "sessions.steer",
+        "summary": "Steer the named running execution (delivered after its current turn)",
+        "tags": [
+          "input"
+        ],
+        "x-piw-mutation": true,
+        "x-piw-body": "json",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Steer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Receipt"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/Unknown"
           }
         }
       }
@@ -537,7 +581,6 @@
         ],
         "x-piw-mutation": true,
         "x-piw-body": "json",
-        "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
           "content": {
@@ -587,7 +630,6 @@
         ],
         "x-piw-mutation": true,
         "x-piw-body": "json",
-        "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
           "content": {
@@ -1560,10 +1602,52 @@
           },
           "message": {
             "$ref": "#/components/schemas/Text"
+          },
+          "if_busy": {
+            "type": "string",
+            "enum": [
+              "steer",
+              "follow_up",
+              "reject"
+            ],
+            "description": "What to do when an execution is running: `steer` it, queue a `follow_up` after it, or `reject` the prompt (`worker_busy`, `no_effect`). Absent means `reject`."
           }
         }
       },
       "FollowUp": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command_id",
+          "worker_epoch",
+          "session_id",
+          "binding_revision",
+          "message",
+          "execution_id"
+        ],
+        "properties": {
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "worker_epoch": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "binding_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "message": {
+            "$ref": "#/components/schemas/Text"
+          },
+          "execution_id": {
+            "$ref": "#/components/schemas/Id"
+          }
+        }
+      },
+      "Steer": {
         "type": "object",
         "additionalProperties": false,
         "required": [
@@ -2730,6 +2814,7 @@
               "sessions.resolve_unknown",
               "sessions.rebind",
               "sessions.follow_up",
+              "sessions.steer",
               "children.launch",
               "children.report",
               "executions.cancel",

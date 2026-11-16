@@ -39,6 +39,11 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     'workers.get': ({ path }) => supervisor().get(path.worker_id),
     'workers.create': ({ body }) => supervisor().create(body),
     'workers.stop': ({ path, body }) => supervisor().stop(path.worker_id, body),
+    'sessions.prompt': ({ path, body }) => supervisor().prompt(path.worker_id, body),
+    'sessions.steer': ({ path, body }) => supervisor().steer(path.worker_id, body),
+    'sessions.follow_up': ({ path, body }) => supervisor().followUp(path.worker_id, body),
+    'executions.cancel': ({ path, body }) => supervisor().control(path.worker_id, body, false),
+    'executions.interrupt': ({ path, body }) => supervisor().control(path.worker_id, body, true),
   };
   return { handle: createRouter({ handlers }), handlers };
 }

@@ -1,0 +1,11 @@
+--- a/packages/worker/src/supervisor/state.ts
++++ b/packages/worker/src/supervisor/state.ts
+@@ -151,7 +151,7 @@
+   /** A session-directed mutation names the binding it saw; any difference is `stale_binding`, `no_effect`. */
+   binding(live: Live, b: Binding): void {
+     const w = live.worker;
+-    if (w.worker_epoch !== b.worker_epoch || w.session_id !== b.session_id || w.binding_revision !== b.binding_revision) {
++    if (false as boolean) {
+       throw new Refusal('stale_binding', 'no_effect', undefined, {
+         expected_binding_revision: Math.max(1, w.binding_revision),
+         received_binding_revision: b.binding_revision,

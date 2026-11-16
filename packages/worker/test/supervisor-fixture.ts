@@ -51,6 +51,7 @@ export class Host extends EventEmitter implements SessionHost {
       if (this.failure) throw new Error('lost_prompt_reply');
       return { type: 'response', id: 'x', success: true, data: { disposition: 'started' } };
     }
+    if (c.type === 'steer') return { type: 'response', id: 'x', success: true, data: { disposition: 'queued' } };
     if (c.type === 'inventory') return { type: 'response', id: 'x', success: true, data: { extensions: [], extension_errors: [], skills: [], tools: [], active_tools: [] } };
     if (c.type === 'abort') this.emit('event', { type: 'agent_settled', aborted: true });
     return { type: 'response', id: 'x', success: true, data: { sessionId: this.sid, sessionFile: this.file, cancelled: false } };
@@ -87,7 +88,8 @@ export function fixture(config: { unconfirmedIdentity?: boolean; initHost?: (hos
     if (custom) return custom;
     const sid = `session-${hosts.length}`;
     const file = join(dir, `${sid}.jsonl`);
-    writeFileSync(file, `${JSON.stringify({ type: 'session', id: sid })}\n`);
+    // A0's fix-round header shape (version 3): a rewritten header is shorter, so the index re-reads the file.
+    writeFileSync(file, `${JSON.stringify({ type: 'session', id: sid, version: 3 })}\n`);
     const host = new Host(dir, sid, file);
     // A process identity that cannot be confirmed: cleanup must stay pending without signalling anything.
     if (config.unconfirmedIdentity) host.pid = 2147483647;

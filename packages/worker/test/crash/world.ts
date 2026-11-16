@@ -131,11 +131,19 @@ export function openWorld(root: string, scenario: boolean): World {
     switch (op) {
       case 'create':
         return supervisor.create(b);
-      case 'stop': {
+      case 'prompt':
+        return supervisor.prompt(id!, b);
+      case 'steer':
+        return supervisor.steer(id!, b);
+      case 'follow_up':
+        return supervisor.followUp(id!, b);
+      case 'stop':
+      case 'cancel':
+      case 'interrupt': {
         const h = hosts.find(x => x.file === supervisor.state.require(id!).sessionFile);
         if (h) h.effectCommand = String(body.command_id);
         try {
-          return await supervisor.stop(id!, b);
+          return op === 'stop' ? await supervisor.stop(id!, b) : await supervisor.control(id!, b, op === 'interrupt');
         } finally {
           if (h) h.effectCommand = undefined;
         }
