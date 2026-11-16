@@ -28,6 +28,7 @@ export const SESSION_DIRECTED = new Set<Receipt['operation']>([
   'sessions.follow_up',
   'sessions.steer',
   'sessions.rebind',
+  'sessions.new',
   'children.launch',
   'interactions.answer_if_current',
   'interactions.release',
