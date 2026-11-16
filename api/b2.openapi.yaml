@@ -529,7 +529,6 @@ paths:
       tags: [interactions]
       x-piw-mutation: false
       x-piw-body: none
-      x-piw-status: unsupported
       responses:
         '200':
           description: Live interactions.
@@ -555,7 +554,6 @@ paths:
       tags: [interactions]
       x-piw-mutation: false
       x-piw-body: none
-      x-piw-status: unsupported
       parameters:
         - name: interaction_id
           in: query
@@ -587,7 +585,6 @@ paths:
       tags: [interactions]
       x-piw-mutation: true
       x-piw-body: json
-      x-piw-status: unsupported
       requestBody:
         required: true
         content:

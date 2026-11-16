@@ -30,6 +30,7 @@ export class Input {
     readonly lifecycle: Lifecycle,
   ) {
     lifecycle.observers.push((live, event) => this.observe(live, event));
+    lifecycle.writable = live => this.writable(live);
     lifecycle.onUncertain = (live, commandId, label) => this.uncertain(live, commandId, label);
     lifecycle.recoverers.push(live => this.recover(live));
   }
@@ -299,6 +300,8 @@ export class Input {
       async () => {
         this.s.receipts.dispatch(b.command_id, { worker_id: id, ...(live.worker.execution ? { execution_id: live.worker.execution.execution_id } : {}) });
         this.dropQueued(live, interrupt ? 'interrupt' : 'cancel');
+        // Live dialogs are cancelled at their exact resolvers (Escape semantics), never answered.
+        if (live.host && !live.exited) await this.s.interactions?.cancelAll(id, live.host);
         if (!live.host || live.exited || live.worker.status !== 'ready') {
           this.s.persist(live, 'control.done');
           return { state: 'delivered', stage: 'requested', effect: 'observed', result: { requested: true, disposition: 'unknown', profile: 'no_live_host' } };

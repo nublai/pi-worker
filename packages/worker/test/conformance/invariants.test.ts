@@ -144,3 +144,52 @@ test('resolved duplicate stays read-only, but a NEW crash of a kept live run rel
     f.cleanup();
   }
 });
+
+test('new/fork/resume change same-process binding; stale delayed prompt and duplicate open name cause', async () => {
+  const f = fixture();
+  try {
+    const original = await f.create();
+    const id = original.worker_id;
+    const h = f.hosts[0]!;
+    const frames: string[] = [];
+    const sub = f.supervisor.subscribe(frame => void frames.push(frame.type), { workerIds: [id] });
+    h.holdUI = true;
+    h.emit('event', { type: 'extension_ui_request', id: 'old-question', method: 'input' });
+    assert.equal(f.supervisor.get(id).pending_interactions.length, 1);
+    h.holdUI = false;
+    const r = await f.supervisor.rebind(id, { ...bind(original, 'new'), action: 'new' });
+    assert.equal(r.state, 'delivered');
+    let current = f.supervisor.get(id);
+    assert.equal(current.binding_revision, 2);
+    assert.notEqual(current.session_id, original.session_id);
+    await assert.rejects(
+      f.supervisor.prompt(id, { ...bind(original, 'delayed'), message: 'no' }),
+      (e: unknown) => e instanceof Refusal && e.effect === 'no_effect' && e.details.received_binding_revision === 1,
+    );
+    await f.supervisor.rebind(id, { ...bind(current, 'resume'), action: 'resume', target_session_id: original.session_id! });
+    current = f.supervisor.get(id);
+    assert.equal(current.session_id, original.session_id);
+    assert.equal(current.binding_revision, 3);
+    appendFileSync(h.file, `${JSON.stringify({ type: 'message', id: 'user', parentId: null, message: { role: 'user', content: [] } })}\n`);
+    current = f.supervisor.get(id);
+    await assert.rejects(f.supervisor.rebind(id, { ...bind(current, 'stale-leaf'), action: 'fork', source_leaf_id: 'old', entry_id: 'user' }), /stale_source_leaf/);
+    await f.supervisor.rebind(id, { ...bind(current, 'fork'), action: 'fork', source_leaf_id: current.leaf_id, entry_id: 'user' });
+    current = f.supervisor.get(id);
+    assert.equal(current.binding_revision, 4);
+    // A0's RPC host refused B2 navigation (`tree_navigation_unavailable`); the SDK host navigates, so a navigation that
+    // does not name the leaf it saw is the refusal here (no_effect, before any dispatch).
+    await assert.rejects(f.supervisor.rebind(id, { ...bind(current, 'navigate'), action: 'navigate', entry_id: 'user' }), /stale_source_leaf/);
+    const second = await f.create();
+    await assert.rejects(
+      f.supervisor.rebind(second.worker_id, { ...bind(second, 'duplicate-open'), action: 'resume', target_session_id: current.session_id! }),
+      (e: unknown) => e instanceof Refusal && e.effect === 'no_effect' && e.details.holder_worker_id === id,
+    );
+    assert.equal(h.prompts, 0);
+    assert.deepEqual(f.supervisor.get(id).pending_interactions, []);
+    assert.ok(h.cancelled.includes('old-question'));
+    assert.ok(frames.includes('session.rebound'));
+    sub.close();
+  } finally {
+    f.cleanup();
+  }
+});

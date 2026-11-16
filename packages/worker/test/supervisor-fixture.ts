@@ -24,6 +24,12 @@ export class Host extends EventEmitter implements SessionHost {
   commands: PiRecord[] = [];
   before = (_c: PiRecord) => {};
   stopOk = true;
+  /** Native ids the supervisor cancelled at their resolver (`cancel_ui`). */
+  cancelled: string[] = [];
+  /** Cancellations never return while set (a resolver that hangs). */
+  holdUI = false;
+  /** The exact resolver's acknowledgement of an answer (the SDK child's `Resolvers.answer`). */
+  answerUI: (nativeId: string, answer: Record<string, unknown>) => Promise<{ consumed: boolean; outcome?: string }> = async () => ({ consumed: true, outcome: 'answered' });
 
   constructor(
     readonly dir: string,
@@ -45,6 +51,13 @@ export class Host extends EventEmitter implements SessionHost {
       this.file = String(c.sessionPath);
       this.sid = (JSON.parse(readFileSync(this.file, 'utf8').split('\n')[0]!) as { id: string }).id;
     }
+    if (c.type === 'cancel_ui') {
+      this.cancelled.push(String(c.nativeId));
+      if (this.holdUI) await new Promise<never>(() => {});
+      return { type: 'response', id: 'x', success: true, data: { consumed: true, outcome: 'cancel' } };
+    }
+    if (c.type === 'answer_ui') return { type: 'response', id: 'x', success: true, data: { ...(await this.answerUI(String(c.nativeId), c.answer as Record<string, unknown>)) } };
+    if (c.type === 'gate_release') return { type: 'response', id: 'x', success: true, data: { released: c.allowed === true } };
     if (c.type === 'prompt') {
       this.prompts++;
       this.emit('event', { type: 'agent_start' });

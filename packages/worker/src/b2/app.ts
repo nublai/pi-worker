@@ -115,6 +115,13 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     'sessions.new': ({ path, body }) => supervisor().newSession(path.worker_id, body),
     'sessions.resolve_unknown': ({ path, body }) => supervisor().resolveUnknown(path.worker_id, body),
     'history.page': ({ path, query }) => supervisor().history(path.worker_id, query),
+    'interactions.list': ({ path }) => supervisor().interactionList(path.worker_id),
+    'interactions.status': ({ path, query }) => supervisor().interactionStatus(path.worker_id, query.interaction_id),
+    'interactions.answer_if_current': ({ path, body, caller }) => {
+      // Only a grant that answers for a person (the bridge profile) may answer; the actor is its opaque reference.
+      if (!caller?.answers_for_person) throw new Refusal('grant_cannot_answer_for_person');
+      return supervisor().answer(path.worker_id, body, { caller: caller.caller, grant_id: caller.grant_id });
+    },
     'items.read': ({ path }) => supervisor().item(path.worker_id, path.entry_id),
     'events.subscribe': ({ query, header, caller }) => {
       const s = supervisor();

@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
+index f5def47..f8bad9c 100644
+--- a/packages/worker/src/interactions/interactions.ts
++++ b/packages/worker/src/interactions/interactions.ts
+@@ -284,7 +284,6 @@ export class Interactions {
+           this.hooks.changed(worker.worker_id);
+           writable();
+           if (this.now() >= l.record.deadline) throw new Refusal('interaction_deadline_passed');
+-          this.receipts.dispatch(a.command_id, { worker_id: worker.worker_id, answer_stage: 1 });
+           const fenceGeneration = worker.fence_generation ?? 0;
+           const answer = a.outcome === 'cancel' ? { outcome: 'cancel' } : { outcome: 'answer', ...(a.value !== undefined ? { value: a.value } : {}), ...(a.option_id !== undefined ? { option_id: a.option_id } : {}) };
+           const response = await l.host.request({ type: 'answer_ui', nativeId: l.record.native_id, answer });

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
+index f5def47..de6f638 100644
+--- a/packages/worker/src/interactions/interactions.ts
++++ b/packages/worker/src/interactions/interactions.ts
+@@ -289,7 +289,7 @@ export class Interactions {
+           const answer = a.outcome === 'cancel' ? { outcome: 'cancel' } : { outcome: 'answer', ...(a.value !== undefined ? { value: a.value } : {}), ...(a.option_id !== undefined ? { option_id: a.option_id } : {}) };
+           const response = await l.host.request({ type: 'answer_ui', nativeId: l.record.native_id, answer });
+           if (!response.success) throw new Error('answer_reply_failed_after_dispatch');
+-          const consumed = response.data?.consumed === true;
++          const consumed = response.success;
+           const negative = response.data?.consumed === false;
+           let current =
+             worker.worker_epoch === a.worker_epoch &&

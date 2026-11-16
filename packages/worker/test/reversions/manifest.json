@@ -89,6 +89,21 @@
         "p1-9-no-recheck-at-dispatch.diff",
         "p1-9-stream-ignores-revocation.diff"
       ]
+    },
+    "interactions": {
+      "command": "npm test -- interactions",
+      "diffs": [
+        "p1-10-no-deadline-check.diff",
+        "p1-10-no-answer-dispatch-marker.diff",
+        "p1-10-answer-hash-includes-value.diff",
+        "p1-10-second-winner.diff",
+        "p1-10-negative-ack-claims-stage-3.diff",
+        "p1-10-release-skips-grant.diff",
+        "p1-10-unknown-answer-not-fenced.diff",
+        "p1-10-payload-persisted.diff",
+        "p1-10-no-cancel-before-move.diff",
+        "p1-10-any-grant-answers.diff"
+      ]
     }
   }
 }

@@ -73,6 +73,12 @@ export class EffectHost extends Host {
   }
 
   override async request(c: PiRecord): Promise<PiResponse> {
+    // Interactions (P1-10): an answer the exact resolver receives, a native cancel, a tool release. Each names the
+    // command it belongs to by the scenario's convention: `<native_id>-answer`, the move or control in flight (or
+    // `timeout:<native_id>` for a deadline cancel, which only its write-ahead marker covers), `<gate_token>-answer:release`.
+    if (c.type === 'cancel_ui') this.control('cancel_ui', this.effectCommand ?? `timeout:${String(c.nativeId)}`);
+    if (c.type === 'answer_ui') this.control('answer_ui', `${String(c.nativeId)}-answer`);
+    if (c.type === 'gate_release') this.control('gate_release', `${String(c.gate_token)}-answer:release`);
     if (c.type === 'get_state' && !this.identified) {
       this.identified = true;
       this.emit('event', { type: 'host_identity', sessionId: this.sid, sessionFile: this.file, leafId: null });
@@ -155,6 +161,9 @@ export function openWorld(root: string, scenario: boolean): World {
         return supervisor.followUp(id!, b);
       case 'resolve':
         return supervisor.resolveUnknown(id!, b);
+      case 'answer':
+        // A retry after a restart sends a different value: the recorded outcome comes back without revalidating it.
+        return supervisor.answer(id!, scenario ? b : ({ ...body, value: 'DIFFERENT_AFTER_RESTART' } as never));
       case 'stop':
       case 'cancel':
       case 'interrupt':

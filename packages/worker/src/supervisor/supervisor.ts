@@ -12,6 +12,7 @@ import type { Journal } from '../journal/journal.js';
 import type { Receipt, ReceiptStore } from '../receipts/receipts.js';
 import { Bindings, type Rebind } from './binding.js';
 import { Fence, type Resolve } from './fence.js';
+import { Interactions, type Answer, type Interaction } from '../interactions/interactions.js';
 import { Input } from './input.js';
 import { Lifecycle } from './lifecycle.js';
 import { SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker } from './state.js';
@@ -34,6 +35,7 @@ export class Supervisor {
   readonly input: Input;
   readonly fence: Fence;
   readonly bindings: Bindings;
+  readonly interactions: Interactions;
 
   constructor(options: SupervisorOptions) {
     this.state = new SupervisorState(options.journal, options.receipts, options.supervisorEpoch, options.stateDir, options.factory);
@@ -41,6 +43,20 @@ export class Supervisor {
     this.input = new Input(this.state, this.lifecycle);
     this.fence = new Fence(this.state, this.lifecycle, this.input);
     this.bindings = new Bindings(this.state, this.lifecycle, this.input, this.fence);
+    this.interactions = new Interactions(options.journal, options.receipts, {
+      changed: workerId => {
+        const live = this.state.workers.get(workerId);
+        if (!live) return;
+        this.state.events.publish('interactions.changed', { worker_id: workerId, execution_id: live.worker.execution?.execution_id ?? null, data: { interactions: this.interactions.list(workerId) } });
+        this.state.publishChanged(live);
+      },
+      // An uncertain answer or release fences the session durably before its receipt is returned (invariant 3).
+      fence: (workerId, commandId) => {
+        const live = this.state.require(workerId);
+        if (this.fence.latch(live, commandId)) this.state.persist(live, 'fence.latch');
+      },
+    });
+    this.state.interactions = this.interactions;
   }
 
   get receipts(): ReceiptStore {
@@ -52,6 +68,8 @@ export class Supervisor {
     // The owner's durable `keep` of a recovered intent survives restarts; any other intent_ready does not.
     const kept = (r: Receipt) => !!r.worker_id && (this.state.workers.get(r.worker_id)?.worker.resolutions ?? []).some(x => x.command_id === r.command_id && x.disposition === 'keep');
     this.state.receipts.recover(kept);
+    // No resolver survives a restart: open interactions become `interrupted`, never re-opened.
+    this.interactions.recover();
     await this.lifecycle.recover();
   }
 
@@ -125,6 +143,34 @@ export class Supervisor {
 
   control(id: string, b: Control, interrupt: boolean): Promise<Receipt> {
     return this.input.control(id, b, interrupt);
+  }
+
+  /** Live interaction cards of a worker, with their payload (memory only). */
+  interactionList(id: string): Interaction[] {
+    this.state.require(id);
+    return this.interactions.list(id);
+  }
+
+  interactionStatus(id: string, interactionId: string): Interaction {
+    this.state.require(id);
+    return this.interactions.status(id, interactionId);
+  }
+
+  /**
+   * Answers an interaction if it is current. The worker must be live and writable (no fence, no move in flight);
+   * `actor` is the bridge's opaque device reference and the answering grant, journaled with the outcome.
+   */
+  answer(id: string, a: Answer, actor: { caller?: string; grant_id?: string } = {}): Promise<Receipt> {
+    const live = this.state.require(id);
+    return this.interactions.answer(
+      live.worker,
+      a,
+      () => {
+        this.input.writable(live);
+        if (live.faulted || !live.host || !['starting', 'ready'].includes(live.worker.status)) throw new Refusal('worker_not_ready');
+      },
+      actor,
+    );
   }
 
   resolveUnknown(id: string, r: Resolve): Promise<Receipt> {

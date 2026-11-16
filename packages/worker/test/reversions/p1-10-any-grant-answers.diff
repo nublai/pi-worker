@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index b3d3c74..c8d4b6e 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -119,7 +119,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+     'interactions.status': ({ path, query }) => supervisor().interactionStatus(path.worker_id, query.interaction_id),
+     'interactions.answer_if_current': ({ path, body, caller }) => {
+       // Only a grant that answers for a person (the bridge profile) may answer; the actor is its opaque reference.
+-      if (!caller?.answers_for_person) throw new Refusal('grant_cannot_answer_for_person');
++      if (!caller) throw new Refusal('grant_cannot_answer_for_person');
+       return supervisor().answer(path.worker_id, body, { caller: caller.caller, grant_id: caller.grant_id });
+     },
+     'items.read': ({ path }) => supervisor().item(path.worker_id, path.entry_id),

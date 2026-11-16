@@ -67,6 +67,13 @@ export async function checkRecovery(root: string, extra: Check[] = []): Promise<
     if (e.native_file) assert.ok(native.some(n => n.command_id === e.command_id && n.operation === e.operation), 'a native control artifact corroborates the effect');
     else if (e.kind === 'prompt' || e.kind === 'steer') assert.ok(native.some(n => n.type === 'message' && n.id === e.entry_id), 'the session file corroborates the input');
     else assert.ok(native.some(n => n.type === 'session' && n.id === e.session_id), 'a session header corroborates the spawn or move');
+    const key0 = `${e.kind}:${e.command_id}`;
+    if (e.command_id.startsWith('timeout:')) {
+      // A deadline cancel has no command; its write-ahead marker is checked by the interactions oracle.
+      assert.ok(!seen.has(key0), `no duplicate native effect: ${key0}`);
+      seen.add(key0);
+      continue;
+    }
     const r = receipts.get(e.command_id);
     assert.ok(r, `native effect ${e.kind}:${e.command_id} needs a recovered receipt`);
     assert.notEqual(r.effect, 'no_effect', `native effect ${e.kind}:${e.command_id} recovered ${r.state}/${r.effect}`);

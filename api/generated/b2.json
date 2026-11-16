@@ -823,7 +823,6 @@
         ],
         "x-piw-mutation": false,
         "x-piw-body": "none",
-        "x-piw-status": "unsupported",
         "responses": {
           "200": {
             "description": "Live interactions.",
@@ -865,7 +864,6 @@
         ],
         "x-piw-mutation": false,
         "x-piw-body": "none",
-        "x-piw-status": "unsupported",
         "parameters": [
           {
             "name": "interaction_id",
@@ -917,7 +915,6 @@
         ],
         "x-piw-mutation": true,
         "x-piw-body": "json",
-        "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
           "content": {
