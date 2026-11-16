@@ -2,7 +2,7 @@
 // npm run generate: api/b2.openapi.yaml → bundle → TS types → validators → route and event tables (worker and client).
 // Every output is committed; `npm run check:generated` reruns this and fails on any difference.
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -63,6 +63,14 @@ write(join(clientOut, 'routes.ts'), clientRouteTable(ops));
 const goOut = join(root, 'clients', 'go', 'b2');
 const toolsGo = join(root, 'tools', 'go');
 const goEnv = { GOWORK: 'off' };
+// Generation runs on exactly the toolchain tools/go/go.mod names (plan 4.4). With GOTOOLCHAIN=local the `toolchain`
+// line is not enforced by Go itself, so check it here: another Go fails generation instead of drifting the output.
+const wantGo = /^toolchain (go\S+)$/m.exec(readFileSync(join(toolsGo, 'go.mod'), 'utf8'))?.[1];
+const goVersion = spawnSync('go', ['env', 'GOVERSION', 'GOROOT'], { cwd: toolsGo, encoding: 'utf8', env: { ...process.env, ...goEnv } });
+const [haveGo, goRoot] = (goVersion.stdout ?? '').trim().split('\n');
+if (!wantGo || haveGo !== wantGo) {
+  throw new Error(`Go generation needs ${wantGo ?? 'a toolchain line in tools/go/go.mod'}, found ${haveGo || 'no go'}; put that Go first on PATH (GOTOOLCHAIN=local)`);
+}
 const oapi = spawnSync('go', ['tool', 'oapi-codegen', '-config', join(goOut, 'oapi-codegen.yaml'), '-o', join(goOut, 'models.gen.go'), bundle], {
   cwd: toolsGo,
   stdio: 'inherit',
@@ -71,4 +79,4 @@ const oapi = spawnSync('go', ['tool', 'oapi-codegen', '-config', join(goOut, 'oa
 if (oapi.error || oapi.status !== 0) throw new Error(`oapi-codegen failed (Go is required for npm run generate): ${oapi.error ?? oapi.status}`);
 console.log(`wrote ${join(goOut, 'models.gen.go').slice(root.length)}`);
 write(join(goOut, 'ops.gen.go'), goOps(spec, ops, eventInfo));
-run('gofmt', ['-w', join(goOut, 'models.gen.go'), join(goOut, 'ops.gen.go')]);
+run(join(goRoot, 'bin', 'gofmt'), ['-w', join(goOut, 'models.gen.go'), join(goOut, 'ops.gen.go')]);

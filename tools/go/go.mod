@@ -2,6 +2,8 @@ module github.com/nublai/pi-worker/tools/go
 
 go 1.25.0
 
+toolchain go1.26.11
+
 tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
 
 require (
