@@ -165,9 +165,12 @@ func (c *Client) newRequest(ctx context.Context, op Operation, path []string, qu
 	if err != nil {
 		return nil, err
 	}
-	// GotConn fires after the dial and peer check, just before the request is written. From then on a failure may
-	// follow a partial or complete write (a cancelled context can cut the write before WroteRequest fires), so it
-	// is unknown. WroteRequest is recorded too, for the same verdict.
+	// The boundary is the connection handoff, a conservative policy: GotConn fires after the dial and peer check,
+	// just before the transport may write, and from then on every failure is unknown. WroteRequest (which Go also
+	// fires, with its error, when a write fails partway) gives the same verdict. On Go 1.24 to 1.27 Do waits for
+	// the write loop before returning an error, so the handoff rule only relabels a connected-but-unwritten failure
+	// as unknown; it keeps that verdict if a later Go returns before the write loop reports.
+	// TestClassificationBoundaryIsConnectionHandoff and TestFailureDuringPartialWriteIsUnknown pin both.
 	trace := &httptrace.ClientTrace{
 		GotConn:      func(httptrace.GotConnInfo) { connected.Store(true) },
 		WroteRequest: func(httptrace.WroteRequestInfo) { connected.Store(true) },

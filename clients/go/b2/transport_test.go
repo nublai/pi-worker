@@ -2,11 +2,14 @@ package b2
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,6 +104,104 @@ func TestDropAfterWriteIsUnknownOneAttempt(t *testing.T) {
 	defer mu.Unlock()
 	if !strings.HasPrefix(strings.ToLower(request), "close|") || !strings.Contains(request, "do not replay") {
 		t.Fatalf("request = %q", request)
+	}
+}
+
+// stallConn passes the first half of the first write to the worker, then blocks until the connection is closed, as
+// a write stuck on a full socket buffer does: request bytes have reached the peer, but the write has not returned.
+type stallConn struct {
+	net.Conn
+	closed chan struct{}
+	once   sync.Once
+}
+
+func (s *stallConn) Write(p []byte) (int, error) {
+	n, err := s.Conn.Write(p[:len(p)/2])
+	if err != nil {
+		return n, err
+	}
+	<-s.closed
+	return n, net.ErrClosed
+}
+
+func (s *stallConn) Close() error {
+	s.once.Do(func() { close(s.closed) })
+	return s.Conn.Close()
+}
+
+// A timeout while the request is half written is unknown: the worker already holds request bytes.
+func TestFailureDuringPartialWriteIsUnknown(t *testing.T) {
+	path := socketPath(t)
+	l, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	received := make(chan []byte, 1)
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		buf := make([]byte, 64<<10)
+		n, _ := conn.Read(buf)
+		received <- buf[:n]
+		io.Copy(io.Discard, conn)
+	}()
+	c := New(path, WithTimeout(100*time.Millisecond))
+	transport := c.http.Transport.(*http.Transport)
+	dial := transport.DialContext
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		conn, err := dial(ctx, network, addr)
+		if err != nil {
+			return nil, err
+		}
+		return &stallConn{Conn: conn, closed: make(chan struct{})}, nil
+	}
+	_, err = c.SessionsPrompt(context.Background(), "w1", prompt("partial"))
+	f := asFailure(t, err)
+	select {
+	case got := <-received:
+		if !bytes.HasPrefix(got, []byte("POST /b2/workers/w1/prompt HTTP/1.1")) {
+			t.Fatalf("worker received %q", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("worker received no request bytes")
+	}
+	if f.Phase != PhaseAfterWrite || f.Effect != UnknownEffect {
+		t.Fatalf("bytes reached the worker but the failure is %s %s: %v", f.Phase, f.Effect, f.Err)
+	}
+}
+
+// handoffTransport stands in for http.Transport at the classification boundary: it reports the connection handoff
+// (GotConn) when handoff is set, never reports WroteRequest, and fails.
+type handoffTransport struct{ handoff bool }
+
+func (h handoffTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if trace := httptrace.ContextClientTrace(req.Context()); h.handoff && trace != nil && trace.GotConn != nil {
+		trace.GotConn(httptrace.GotConnInfo{})
+	}
+	return nil, errors.New("connection lost")
+}
+
+// The boundary is the connection handoff, not WroteRequest (review F5). Once the transport holds a peer-checked
+// connection for this request, a failure is unknown even if no write was reported; this is the conservative policy.
+// Go 1.24 to 1.27 also fire WroteRequest, with its error, for a failed partial write before Do returns (the test
+// above), so on those versions the handoff rule only relabels a connected-but-unwritten failure as unknown. A
+// failure before the handoff (dial, peer check) is no_effect.
+func TestClassificationBoundaryIsConnectionHandoff(t *testing.T) {
+	for _, tc := range []struct {
+		handoff bool
+		phase   Phase
+		effect  Effect
+	}{{true, PhaseAfterWrite, UnknownEffect}, {false, PhaseBeforeWrite, NoEffect}} {
+		c := New(socketPath(t))
+		c.http.Transport = handoffTransport{handoff: tc.handoff}
+		_, err := c.SessionsPrompt(context.Background(), "w1", prompt("handoff"))
+		if f := asFailure(t, err); f.Phase != tc.phase || f.Effect != tc.effect {
+			t.Fatalf("handoff=%v: got %s %s, want %s %s", tc.handoff, f.Phase, f.Effect, tc.phase, tc.effect)
+		}
 	}
 }
 
