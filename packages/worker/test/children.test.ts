@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseJournal } from '../src/journal/journal.js';
 import { openState } from '../src/journal/state.js';
@@ -59,7 +59,9 @@ export const spec: NonNullable<Create['launch_spec']> = {
 async function parent(f: Fixture, launch_spec = spec): Promise<Worker> {
   const cwd = join(f.dir, 'parent');
   mkdirSync(cwd);
-  const r = await f.supervisor.create({ command_id: 'parent', cwd, provider: 'p', model: 'm', thinking: 'off', launch_spec });
+  // The parent's tree is the test directory, so its children's sibling directories are inside it.
+  const environment = { ...launch_spec.environment, root: launch_spec.environment.root ?? f.dir };
+  const r = await f.supervisor.create({ command_id: 'parent', cwd, provider: 'p', model: 'm', thinking: 'off', launch_spec: { ...launch_spec, environment } });
   const w = f.supervisor.get(r.worker_id!);
   await f.supervisor.prompt(w.worker_id, { ...bind(w, 'task'), message: 'fan out' });
   return f.supervisor.get(w.worker_id);
@@ -476,6 +478,65 @@ test('children: a faulted typed child (bad report channel) fences its live paren
     await tick();
     await tick();
     assert.deepEqual(f.supervisor.get(p.worker_id).fence?.uncertain_command_ids, [c.command_id]);
+  } finally {
+    f.cleanup();
+  }
+});
+
+for (const escape of ['cwd-outside', 'root-wider', 'root-outside', 'symlink-cwd', 'dotdot-cwd', 'cwd-outside-own-root', 'root-missing'] as const) {
+  test(`children: a typed child's cwd and environment.root stay inside the parent's tree (realpath): ${escape}`, async () => {
+    const f = fixture();
+    try {
+      const tree = join(f.dir, 'parent');
+      const p = await parent(f, { ...structuredClone(spec), environment: { ...spec.environment, root: tree } });
+      const c = child(f, p);
+      const outside = join(f.dir, 'outside');
+      mkdirSync(outside);
+      const inside = join(tree, 'work');
+      mkdirSync(inside);
+      c.cwd = inside;
+      c.launch_spec!.environment.root = tree;
+      if (escape === 'cwd-outside') c.cwd = outside;
+      if (escape === 'root-wider') c.launch_spec!.environment.root = '/';
+      if (escape === 'root-outside') c.launch_spec!.environment.root = outside;
+      if (escape === 'symlink-cwd') {
+        symlinkSync(outside, join(tree, 'link'));
+        c.cwd = join(tree, 'link');
+      }
+      if (escape === 'dotdot-cwd') c.cwd = `${tree}/../outside`;
+      if (escape === 'cwd-outside-own-root') {
+        mkdirSync(join(tree, 'own'));
+        c.launch_spec!.environment.root = join(tree, 'own');
+      }
+      if (escape === 'root-missing') c.launch_spec!.environment.root = join(tree, 'missing');
+      await assert.rejects(() => f.supervisor.create(c), escape === 'root-missing' ? /child_root_not_directory/ : /child_environment_outside_parent/);
+      assert.equal(f.hosts.length, 1, 'refused before any spawn');
+      assert.equal(f.supervisor.state.workers.size, 1, 'refused before any record');
+      // The same child inside the parent's tree launches.
+      c.cwd = inside;
+      c.launch_spec!.environment.root = tree;
+      assert.equal((await f.supervisor.create(c)).state, 'delivered');
+    } finally {
+      f.cleanup();
+    }
+  });
+}
+
+test('children: a typed child of a parent without environment.root stays inside the parent cwd; public route refuses the escape', async () => {
+  const f = fixture();
+  try {
+    const api = publicApi(f, 'wide');
+    const tree = join(f.dir, 'rootless');
+    mkdirSync(tree);
+    const created = await api.request('POST', '/b2/workers', { json: { command_id: 'rootless', cwd: tree, provider: 'p', model: 'm', thinking: 'off', launch_spec: spec } });
+    const pw = f.supervisor.get((created.body as { worker_id: string }).worker_id);
+    await api.request('POST', `/b2/workers/${pw.worker_id}/prompt`, { json: { ...bind(pw, 'go'), message: 'go' } });
+    const p = f.supervisor.get(pw.worker_id);
+    const c = child(f, p);
+    const escaped = await api.request('POST', '/b2/workers', { json: { ...c, launch_spec: { ...c.launch_spec, environment: { ...c.launch_spec!.environment, root: '/' } } } });
+    assert.equal(escaped.status, 409, JSON.stringify(escaped.body));
+    assert.deepEqual(escaped.body, { error: 'child_environment_outside_parent', effect: 'no_effect' });
+    assert.equal(f.hosts.length, 1);
   } finally {
     f.cleanup();
   }
