@@ -1,10 +1,12 @@
 /**
  * The supervisor facade the B2 handlers call. Each domain lives in its own module over the shared state
  * (state.ts): lifecycle (create, stop, exit, recovery) and input (prompt, steer, follow-up queue, cancel,
- * interrupt) and fence (latch, resolve_unknown). P1-7 adds the binding module.
+ * interrupt) fence (latch, resolve_unknown) and
+ * bindings (rebind, sessions.new, native moves).
  */
 import type { Journal } from '../journal/journal.js';
 import type { Receipt, ReceiptStore } from '../receipts/receipts.js';
+import { Bindings, type Rebind } from './binding.js';
 import { Fence, type Resolve } from './fence.js';
 import { Input } from './input.js';
 import { Lifecycle } from './lifecycle.js';
@@ -23,12 +25,14 @@ export class Supervisor {
   readonly lifecycle: Lifecycle;
   readonly input: Input;
   readonly fence: Fence;
+  readonly bindings: Bindings;
 
   constructor(options: SupervisorOptions) {
     this.state = new SupervisorState(options.journal, options.receipts, options.supervisorEpoch, options.stateDir, options.factory);
     this.lifecycle = new Lifecycle(this.state);
     this.input = new Input(this.state, this.lifecycle);
     this.fence = new Fence(this.state, this.lifecycle, this.input);
+    this.bindings = new Bindings(this.state, this.lifecycle, this.input, this.fence);
   }
 
   get receipts(): ReceiptStore {
@@ -80,6 +84,23 @@ export class Supervisor {
 
   resolveUnknown(id: string, r: Resolve): Promise<Receipt> {
     return this.fence.resolve(id, r);
+  }
+
+  rebind(id: string, b: Rebind): Promise<Receipt> {
+    return this.bindings.rebind(id, b);
+  }
+
+  newSession(id: string, b: Binding): Promise<Receipt> {
+    return this.bindings.newSession(id, b);
+  }
+
+  /** A native move that never binds is reconciled from pi's state after this delay (15 s). */
+  get nativeMoveTimeoutMs(): number {
+    return this.bindings.nativeMoveTimeoutMs;
+  }
+
+  set nativeMoveTimeoutMs(ms: number) {
+    this.bindings.nativeMoveTimeoutMs = ms;
   }
 
   shutdown(): Promise<void> {

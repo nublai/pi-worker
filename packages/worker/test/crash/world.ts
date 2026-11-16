@@ -82,7 +82,8 @@ export class EffectHost extends Host {
     }
     const result = await super.request(c);
     if (c.type === 'clear_queue' || c.type === 'abort') this.control(c.type);
-    if (['new_session', 'switch_session', 'fork'].includes(c.type)) effect(this.root, { kind: 'rebind', command_id: String(c.command ?? c.type), session_file: this.file, session_id: this.sid });
+    // A B2 binding move: a native artifact names its command (native moves pi makes alone are not B2 effects).
+    if (['new_session', 'switch_session', 'fork', 'navigate'].includes(c.type)) this.control(c.type);
     if (c.type === 'prompt' && this.gate) {
       const gate = this.gate;
       this.gate = undefined;
@@ -141,10 +142,14 @@ export function openWorld(root: string, scenario: boolean): World {
         return supervisor.resolveUnknown(id!, b);
       case 'stop':
       case 'cancel':
-      case 'interrupt': {
+      case 'interrupt':
+      case 'rebind':
+      case 'new': {
         const h = hosts.find(x => x.file === supervisor.state.require(id!).sessionFile);
         if (h) h.effectCommand = String(body.command_id);
         try {
+          if (op === 'rebind') return await supervisor.rebind(id!, b);
+          if (op === 'new') return await supervisor.newSession(id!, b);
           return op === 'stop' ? await supervisor.stop(id!, b) : await supervisor.control(id!, b, op === 'interrupt');
         } finally {
           if (h) h.effectCommand = undefined;

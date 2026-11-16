@@ -35,6 +35,7 @@ var (
 	OpSessionsFollowUp            = Operation{ID: "sessions.follow_up", Method: "POST", Path: "/b2/workers/{worker_id}/follow_up", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpSessionsSteer               = Operation{ID: "sessions.steer", Method: "POST", Path: "/b2/workers/{worker_id}/steer", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpSessionsRebind              = Operation{ID: "sessions.rebind", Method: "POST", Path: "/b2/workers/{worker_id}/rebind", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
+	OpSessionsNew                 = Operation{ID: "sessions.new", Method: "POST", Path: "/b2/workers/{worker_id}/new", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpSessionsResolveUnknown      = Operation{ID: "sessions.resolve_unknown", Method: "POST", Path: "/b2/workers/{worker_id}/resolve_unknown", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpWorkersStop                 = Operation{ID: "workers.stop", Method: "POST", Path: "/b2/workers/{worker_id}/stop", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpWorkersRelaunch             = Operation{ID: "workers.relaunch", Method: "POST", Path: "/b2/workers/{worker_id}/relaunch", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
@@ -62,6 +63,7 @@ var Operations = []Operation{
 	OpSessionsFollowUp,
 	OpSessionsSteer,
 	OpSessionsRebind,
+	OpSessionsNew,
 	OpSessionsResolveUnknown,
 	OpWorkersStop,
 	OpWorkersRelaunch,
@@ -148,6 +150,15 @@ func (c *Client) SessionsSteer(ctx context.Context, workerID string, body Steer)
 func (c *Client) SessionsRebind(ctx context.Context, workerID string, body Rebind) (*Receipt, error) {
 	var out Receipt
 	if err := c.do(ctx, OpSessionsRebind, []string{workerID}, nil, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SessionsNew calls sessions.new (POST /b2/workers/{worker_id}/new). A mutation: sent once, never retried.
+func (c *Client) SessionsNew(ctx context.Context, workerID string, body Binding) (*Receipt, error) {
+	var out Receipt
+	if err := c.do(ctx, OpSessionsNew, []string{workerID}, nil, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

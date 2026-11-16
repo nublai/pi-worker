@@ -1,0 +1,10 @@
+--- a/packages/worker/src/supervisor/binding.ts
++++ b/packages/worker/src/supervisor/binding.ts
+@@ -137,7 +137,6 @@
+           }
+           this.input.dropQueued(live, 'binding_changed');
+           w.session_id = state.data.sessionId;
+-          w.binding_revision++;
+           w.session_identity_evidence = 'pi_sdk_session_id';
+           live.sessionFile = state.data.sessionFile;
+           live.index = new SessionIndex(live.sessionFile);

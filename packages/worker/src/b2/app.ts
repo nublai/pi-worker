@@ -44,6 +44,8 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     'sessions.follow_up': ({ path, body }) => supervisor().followUp(path.worker_id, body),
     'executions.cancel': ({ path, body }) => supervisor().control(path.worker_id, body, false),
     'executions.interrupt': ({ path, body }) => supervisor().control(path.worker_id, body, true),
+    'sessions.rebind': ({ path, body }) => supervisor().rebind(path.worker_id, body),
+    'sessions.new': ({ path, body }) => supervisor().newSession(path.worker_id, body),
     'sessions.resolve_unknown': ({ path, body }) => supervisor().resolveUnknown(path.worker_id, body),
   };
   return { handle: createRouter({ handlers }), handlers };

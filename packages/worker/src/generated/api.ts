@@ -134,6 +134,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/b2/workers/{worker_id}/new": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bind a new session (pi's /new); the binding revision moves and the old binding is refused */
+        post: operations["sessions.new"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/b2/workers/{worker_id}/resolve_unknown": {
         parameters: {
             query?: never;
@@ -780,7 +799,7 @@ export interface components {
         Receipt: {
             command_id: components["schemas"]["Id"];
             /** @enum {string} */
-            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.follow_up" | "sessions.steer" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release" | "attachments.stage";
+            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.new" | "sessions.follow_up" | "sessions.steer" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release" | "attachments.stage";
             request_hash: string;
             /** @enum {string} */
             state: "intent" | "intent_recovered" | "accepted" | "delivered" | "rejected" | "outcome_unknown" | "queued" | "queue_ready" | "intent_ready";
@@ -1236,6 +1255,29 @@ export interface operations {
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["Unknown"];
             501: components["responses"]["NotImplemented"];
+        };
+    };
+    "sessions.new": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Binding"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Receipt"];
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            413: components["responses"]["TooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["Unknown"];
         };
     };
     "sessions.resolve_unknown": {

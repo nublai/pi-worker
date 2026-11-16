@@ -77,7 +77,7 @@ test('conformance: every call body in the fixture validates against the B2 spec'
  * Rows whose prerequisites have landed (plan section 5.1). A row leaves `todo` only in the PR the plan names:
  * 02, 03, 07, 08, 09 and 11 at P1-6; 01 and 10 at P1-7; 04, 05 and 06 at P1-11.
  */
-const GREEN: ReadonlySet<string> = new Set(['02-unknown', '03-fenced-write', '07-observed', '08-generation', '09-restart', '11-control']);
+const GREEN: ReadonlySet<string> = new Set(['01-binding', '02-unknown', '03-fenced-write', '07-observed', '08-generation', '09-restart', '10-cleanup-resume', '11-control']);
 
 for (const row of transitions.rows) {
   test(`contract 0.1 fixture ${row.id}`, GREEN.has(row.id) ? {} : { todo: TODO }, async () => {

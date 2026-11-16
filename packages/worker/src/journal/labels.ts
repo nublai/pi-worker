@@ -46,6 +46,11 @@ export const DURABLE_LABELS = [
   // Fence (supervisor/fence.ts): the owner's resolution tombstone, durable before any receipt it clears or authorizes.
   // The latch itself is durable under the label of the step that caused it (execution.unknown, worker.exit, ...).
   'fence.resolve',
+  // Binding changes (supervisor/binding.ts): a B2 move's new binding, a native move pi made, and the fence latched on
+  // its own when a move's outcome became unknown.
+  'binding.rebind',
+  'binding.native',
+  'fence.latch',
 ] as const;
 
 export type DurableLabel = (typeof DURABLE_LABELS)[number];

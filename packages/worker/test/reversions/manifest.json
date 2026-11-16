@@ -47,6 +47,13 @@
         "p1-6-fence-not-durable-before-reply.diff",
         "p1-6-any-fence-generation.diff"
       ]
+    },
+    "binding": {
+      "command": "npm run test:conformance -- 01 10 && npm test -- binding",
+      "diffs": [
+        "p1-7-rebind-keeps-revision.diff",
+        "p1-7-no-native-move-refusal.diff"
+      ]
     }
   }
 }

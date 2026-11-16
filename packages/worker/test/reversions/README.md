@@ -23,3 +23,5 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `p1-6-no-fenced-write-refusal.diff` | the fenced-write refusal (`session_fenced`) | row `03-fenced-write`, invariants and fence tests (group `fence`) |
 | `p1-6-fence-not-durable-before-reply.diff` | the durable fence before the reply of a lost-reply prompt | row `02-unknown` (`disk.fence`), `HTTP … durable fence before response headers (M1, M6)` (group `fence`) |
 | `p1-6-any-fence-generation.diff` | the fence generation check of `resolve_unknown` | row `08-generation`, invariants (group `fence`) |
+| `p1-7-rebind-keeps-revision.diff` | the binding revision bump of a B2 move | row `01-binding` (group `binding`) |
+| `p1-7-no-native-move-refusal.diff` | the write refusal while a native move is in flight | `m4: a native move that never completes…`, `m3 (SDK)…` (group `binding`) |

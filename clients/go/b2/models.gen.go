@@ -651,6 +651,7 @@ const (
 	ReceiptOperationInteractionsAnswerIfCurrent ReceiptOperation = "interactions.answer_if_current"
 	ReceiptOperationInteractionsRelease         ReceiptOperation = "interactions.release"
 	ReceiptOperationSessionsFollowUp            ReceiptOperation = "sessions.follow_up"
+	ReceiptOperationSessionsNew                 ReceiptOperation = "sessions.new"
 	ReceiptOperationSessionsPrompt              ReceiptOperation = "sessions.prompt"
 	ReceiptOperationSessionsRebind              ReceiptOperation = "sessions.rebind"
 	ReceiptOperationSessionsResolveUnknown      ReceiptOperation = "sessions.resolve_unknown"
@@ -678,6 +679,8 @@ func (e ReceiptOperation) Valid() bool {
 	case ReceiptOperationInteractionsRelease:
 		return true
 	case ReceiptOperationSessionsFollowUp:
+		return true
+	case ReceiptOperationSessionsNew:
 		return true
 	case ReceiptOperationSessionsPrompt:
 		return true
@@ -1029,6 +1032,7 @@ const (
 	StopReceiptOperationInteractionsAnswerIfCurrent StopReceiptOperation = "interactions.answer_if_current"
 	StopReceiptOperationInteractionsRelease         StopReceiptOperation = "interactions.release"
 	StopReceiptOperationSessionsFollowUp            StopReceiptOperation = "sessions.follow_up"
+	StopReceiptOperationSessionsNew                 StopReceiptOperation = "sessions.new"
 	StopReceiptOperationSessionsPrompt              StopReceiptOperation = "sessions.prompt"
 	StopReceiptOperationSessionsRebind              StopReceiptOperation = "sessions.rebind"
 	StopReceiptOperationSessionsResolveUnknown      StopReceiptOperation = "sessions.resolve_unknown"
@@ -1056,6 +1060,8 @@ func (e StopReceiptOperation) Valid() bool {
 	case StopReceiptOperationInteractionsRelease:
 		return true
 	case StopReceiptOperationSessionsFollowUp:
+		return true
+	case StopReceiptOperationSessionsNew:
 		return true
 	case StopReceiptOperationSessionsPrompt:
 		return true
@@ -2181,6 +2187,9 @@ type InteractionsAnswerIfCurrentJSONRequestBody = Answer
 
 // ExecutionsInterruptJSONRequestBody defines body for ExecutionsInterrupt for application/json ContentType.
 type ExecutionsInterruptJSONRequestBody = Control
+
+// SessionsNewJSONRequestBody defines body for SessionsNew for application/json ContentType.
+type SessionsNewJSONRequestBody = Binding
 
 // SessionsPromptJSONRequestBody defines body for SessionsPrompt for application/json ContentType.
 type SessionsPromptJSONRequestBody = Prompt
