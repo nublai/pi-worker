@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index e0bd70d..ce22f6a 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -118,7 +118,6 @@ async function gateRelease(request: GateRequest): Promise<void> {
+   // The terminal notification of a gate that does not release; sent before the extension hears the denial.
+   const closed = (reason: string) => emit({ type: 'gate_closed', gate_token: binding.gate_token, reason });
+   if (allowed !== true || generation !== bindingGeneration || Date.now() >= binding.expiry) {
+-    closed(allowed !== true ? 'not_approved' : generation !== bindingGeneration ? 'binding_moved' : 'expired');
+     request.respond(false);
+     return;
+   }

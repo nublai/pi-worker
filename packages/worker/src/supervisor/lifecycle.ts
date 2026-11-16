@@ -104,6 +104,8 @@ export class Lifecycle {
     const interactions = this.s.interactions;
     if (event.type === 'extension_ui_request' && live.host && interactions) interactions.open(w, live.host, event);
     if (event.type === 'resolver_closed' && interactions) interactions.resolverClosed(w.worker_id, String(event.native_id), String(event.outcome));
+    // Every gate ends with one terminal notification; it settles the approval the gate owned.
+    if ((event.type === 'gate_closed' || event.type === 'gate_released') && interactions) interactions.gateEnded(w.worker_id, String(event.gate_token), event.type === 'gate_released');
     if (event.type === 'gate_check' && interactions) {
       const host = live.host;
       void interactions.gate(w, event, () => this.writable(live)).catch(error => {

@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
+index ba35c56..2d72495 100644
+--- a/packages/worker/src/interactions/interactions.ts
++++ b/packages/worker/src/interactions/interactions.ts
+@@ -438,7 +438,6 @@ export class Interactions {
+    * proves that. A release the child reports without a delivered release receipt is `release_reported`, stage 3.
+    */
+   private settleGate(l: Live, released: boolean): void {
+-    if (this.live.get(l.record.interaction_id) !== l || l.record.status !== 'consumed') return;
+     l.record = { ...l.record, status: released ? 'release_reported' : 'gate_closed' };
+     this.save(l.record, 'interaction.gate_close');
+     this.live.delete(l.record.interaction_id);

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
+index ba35c56..49de19a 100644
+--- a/packages/worker/src/interactions/interactions.ts
++++ b/packages/worker/src/interactions/interactions.ts
+@@ -430,7 +430,7 @@ export class Interactions {
+     // A pending card's resolver closes through resolver_closed or its deadline, never through a gate notification.
+     if (!l || l.record.status === 'pending') return;
+     l.gateEnd = released;
+-    if (l.record.status === 'consumed' && !l.releasing) this.settleGate(l, released);
++    if (l.record.status === 'consumed' && (!l.releasing || true)) this.settleGate(l, released);
+   }
+ 
+   /**
