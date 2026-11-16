@@ -26,7 +26,7 @@ export async function childrenScenario(root: string): Promise<void> {
     },
     { grant_id: grant.grant_id, caller_name: grant.caller, methods: grant.methods },
   );
-  const spec: NonNullable<Create['launch_spec']> = { environment: { id: root, revision: 1, allowed_methods: ['children.report'] }, role: 'test', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: ['children.report'], seed_mode: 'standalone' };
+  const spec: NonNullable<Create['launch_spec']> = { environment: { id: root, revision: 1, root, allowed_methods: ['children.report'] }, role: 'test', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: ['children.report'], seed_mode: 'standalone' };
   const dir = (name: string) => {
     const cwd = join(root, name);
     mkdirSync(cwd, { recursive: true });

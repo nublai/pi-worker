@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
+index b1637ff..15a50d3 100644
+--- a/packages/worker/src/supervisor/children.ts
++++ b/packages/worker/src/supervisor/children.ts
+@@ -157,7 +157,7 @@ export class Children {
+     const tree = realDir(p.environment.root ?? parent.worker.cwd, 'parent_root_not_directory');
+     const root = spec.environment.root === undefined ? tree : realDir(spec.environment.root, 'child_root_not_directory');
+     const cwd = realDir(c.cwd, 'cwd_not_directory');
+-    if (!within(tree, root) || !within(root, cwd)) throw new Refusal('child_environment_outside_parent');
++    void within, cwd;
+     this.active(parent.worker.grant_source_id);
+   }
+ 

@@ -5,7 +5,9 @@
  *
  * - A typed child (`workers.create` with `parent` and `launch_spec`) has a launch spec that is a subset of its
  *   environment's methods, of the creating caller's grant, and of its parent's spec (methods, environment methods,
- *   tools, denials, resources). The parent must be writable (no fence, no move), name its current binding and its
+ *   tools, denials, resources), and its environment stays inside the parent's tree: its `environment.root` and its
+ *   cwd resolve (realpath) under the parent's `environment.root`, or the parent's cwd when it has none. P2-8 adds the
+ *   O_NOFOLLOW open of the child root; until then a symlink swapped after this check is a named limit. The parent must be writable (no fence, no move), name its current binding and its
  *   running execution, and its creating grant must still be active. Every check runs before any record or spawn.
  * - Lineage (`parent`, `parent_worker_id`, `parent_launch_command_id`) is in the child's starting row, durable before
  *   its dispatch record and spawn (lifecycle.ts). An unknown child create fences the parent on that command.
@@ -20,6 +22,8 @@
  *   a typed child only a report its own FD 3 delivered does. An untyped child (`children.launch`) has no FD 3: its B2
  *   report, under the same grant rechecks, still discharges (the frozen invariants case).
  */
+import { realpathSync, statSync } from 'node:fs';
+import { isAbsolute, relative } from 'node:path';
 import { Refusal } from '../b2/errors.js';
 import { authority, currentGuard } from '../grants/authority.js';
 import type { ChildReport } from '../host/host.js';
@@ -33,6 +37,22 @@ export type Report = import('../generated/api.js').components['schemas']['Report
 export type ChildClaim = import('../generated/api.js').components['schemas']['ChildClaim'];
 
 const subset = (child: readonly string[], parent: readonly string[]) => child.every(x => parent.includes('*') || parent.includes(x));
+
+/** `path` is `root` or below it; both are real paths. */
+const within = (root: string, path: string): boolean => {
+  const rel = relative(root, path);
+  return rel === '' || (!isAbsolute(rel) && rel !== '..' && !rel.startsWith('../'));
+};
+
+/** The real path of an existing directory (symlinks and `..` resolved), or the refusal. */
+function realDir(path: string, refusal: string): string {
+  try {
+    if (!statSync(path).isDirectory()) throw new Error('not a directory');
+    return realpathSync(path);
+  } catch {
+    throw new Refusal(refusal);
+  }
+}
 
 export class Children {
   /** Report receipts already announced (`child.reported` once per receipt). */
@@ -132,6 +152,12 @@ export class Children {
     ) {
       throw new Refusal('child_authority_not_subset');
     }
+    // The child's environment is inside the parent's tree: its environment root (when given) and its cwd resolve, with
+    // symlinks and `..`, under the parent's root (its environment.root, else its cwd), and the cwd under its own root.
+    const tree = realDir(p.environment.root ?? parent.worker.cwd, 'parent_root_not_directory');
+    const root = spec.environment.root === undefined ? tree : realDir(spec.environment.root, 'child_root_not_directory');
+    const cwd = realDir(c.cwd, 'cwd_not_directory');
+    if (!within(tree, root) || !within(root, cwd)) throw new Refusal('child_environment_outside_parent');
     this.active(parent.worker.grant_source_id);
   }
 
