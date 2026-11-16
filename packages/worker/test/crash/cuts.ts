@@ -13,4 +13,20 @@ export interface CutScenario {
 
 export const CUT_SCENARIOS: readonly CutScenario[] = [
   { scenario: 'journal', file: 'journal.test.ts', labels: ['journal.open_file', 'journal.open_directory', 'supervisor.start'] },
+  {
+    scenario: 'receipts',
+    file: 'receipts.test.ts',
+    labels: [
+      'journal.open_file',
+      'journal.open_directory',
+      'supervisor.start',
+      'receipt.intent',
+      'receipt.dispatch',
+      'receipt.result',
+      'receipt.recover',
+      'receipt.unknown',
+      'receipt.queue_ready',
+      'receipt.resolve_intent',
+    ],
+  },
 ];

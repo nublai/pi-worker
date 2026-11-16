@@ -736,7 +736,6 @@ paths:
       tags: [readback]
       x-piw-mutation: false
       x-piw-body: none
-      x-piw-status: unsupported
       responses:
         '200':
           description: The receipt.

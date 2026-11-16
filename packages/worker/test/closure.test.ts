@@ -33,14 +33,18 @@ function withPromptServed(handler: (input: unknown) => unknown): RequestHandler 
   return createRouter({ handlers, routes: served });
 }
 
-test('closure: every spec operation is routed (200 when served, 501 no_effect when unsupported, never 404/405)', async () => {
+test('closure: every spec operation is routed (its handler when served, 501 no_effect when unsupported, never 404/405)', async () => {
+  // Served operations need supervisor state; this embedded router has none, so a served operation answers hello's
+  // 200 or `409 supervisor_state_unavailable`, both from its handler. Each served operation's own test replays its
+  // wire fixtures against real state (receipts-get.test.ts, and the supervisor tests from P1-4).
   const { handle } = createApp();
   const fixtures = new Map(wireFixtures().map(f => [f.operationId, f.fixture]));
   for (const operationId of specOperationIds()) {
     const route = table[operationId];
     assert.ok(route, `${operationId} has no route`);
     const response = await send(handle, operationId, fixtures.get(operationId)!.request);
-    if (route.supported) assert.equal(response.status, 200, operationId);
+    if (operationId === 'hello') assert.equal(response.status, 200, operationId);
+    else if (route.supported) assert.deepEqual(response, { status: 409, body: { error: 'supervisor_state_unavailable', effect: 'no_effect' } }, operationId);
     else assert.deepEqual(response, { status: 501, body: { error: 'operation_not_implemented', effect: 'no_effect' } }, operationId);
   }
 });
@@ -112,6 +116,7 @@ test('closure: a mutation whose response fails its schema is 500 unknown naming 
 
 test('closure: a refusal status the operation does not declare is a response_schema_mismatch', async () => {
   const handlers: Handlers = {
+    ...createApp().handlers,
     hello: () => {
       throw new Refusal('teapot', 'no_effect', undefined, {}, 418);
     },

@@ -1,0 +1,11 @@
+--- a/packages/worker/src/receipts/receipts.ts
++++ b/packages/worker/src/receipts/receipts.ts
+@@ -179,7 +179,7 @@
+           if (isFinal(current)) return current;
+           // Before the dispatch record nothing ran. After it, only explicit proof (ProvenNoEffect) is no_effect; a
+           // default Refusal is not that proof.
+-          const noEffect = current.state === 'intent' || error instanceof ProvenNoEffect;
++          const noEffect = current.state === 'intent' || error instanceof Refusal;
+           return this.update(
+             commandId,
+             {

@@ -1,0 +1,12 @@
+--- a/packages/worker/src/receipts/receipts.ts
++++ b/packages/worker/src/receipts/receipts.ts
+@@ -214,7 +214,8 @@
+    * crash between them recovers `outcome_unknown`, never `no_effect` with an effect.
+    */
+   async dispatchThen<T>(commandId: string, patch: ReceiptPatch, write: () => Promise<T>): Promise<T> {
++    const written = write();
+     this.dispatch(commandId, patch);
+-    return write();
++    return written;
+   }
+ }

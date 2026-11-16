@@ -1,10 +1,10 @@
 --- a/packages/worker/src/journal/labels.ts
 +++ b/packages/worker/src/journal/labels.ts
-@@ -9,6 +9,7 @@
-   'journal.open_directory',
-   // The supervisor start record: persistent supervisor id, fresh epoch.
-   'supervisor.start',
+@@ -4,6 +4,7 @@
+  * adds its cut in the same PR (plan section 5).
+  */
+ export const DURABLE_LABELS = [
 +  'journal.compact',
- ] as const;
- 
- export type DurableLabel = (typeof DURABLE_LABELS)[number];
+   // The journal file after open and torn-tail truncation, then its directory entry.
+   'journal.open_file',
+   'journal.open_directory',

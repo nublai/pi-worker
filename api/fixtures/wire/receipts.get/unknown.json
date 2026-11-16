@@ -1,0 +1,14 @@
+{
+  "request": {
+    "path": {
+      "command_id": "never-seen"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "unknown_command_id_is_not_proof_of_no_effect",
+      "effect": "unknown"
+    }
+  }
+}

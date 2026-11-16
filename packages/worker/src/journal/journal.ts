@@ -11,7 +11,7 @@ import { dirname } from 'node:path';
 import { durable } from './fsync.js';
 import type { DurableLabel } from './labels.js';
 
-export const JOURNAL_KINDS = ['supervisor'] as const;
+export const JOURNAL_KINDS = ['supervisor', 'receipt'] as const;
 export type JournalKind = (typeof JOURNAL_KINDS)[number];
 export type JournalRecord = { seq: number; kind: JournalKind; value: Record<string, unknown> };
 

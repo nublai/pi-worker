@@ -565,7 +565,7 @@ export const routes = {
     path: "/b2/receipts/{command_id}",
     segments: ["b2","receipts","{command_id}"],
     mutation: false,
-    supported: false,
+    supported: true,
     grantMethod: "receipts.get",
     stream: false,
     body: "none",
