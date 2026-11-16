@@ -337,8 +337,9 @@ export class Interactions {
           this.save(l.record, 'interaction.answer');
           if (l.record.kind !== 'tool_approval') this.live.delete(a.interaction_id);
           this.hooks.changed(worker.worker_id);
-          // The child's gate already ended (a No or a cancel ends it as soon as the resolver is consumed).
-          if (l.gateEnd !== undefined) this.settleGate(l, l.gateEnd);
+          // The child's gate already ended (a No or a cancel ends it as soon as the resolver is consumed). A release
+          // already in flight (its gate check arrived with this reply) owns the ending and settles it when it returns.
+          if (l.gateEnd !== undefined && !l.releasing) this.settleGate(l, l.gateEnd);
           return { state: 'delivered', stage: 'resolver_consumed', answer_stage: 3, effect: 'observed', result: { interaction_id: a.interaction_id, answer_id: a.answer_id, outcome, resolver_consumed: true } };
         },
         () => {

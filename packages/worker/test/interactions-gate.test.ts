@@ -8,6 +8,7 @@
  * capacity, each closes its gate and frees its slot (re-review R1): the worker stays ready, and the next Allow releases.
  */
 import { test } from 'node:test';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -269,6 +270,71 @@ test('interactions (real pi): more approvals answered No or cancelled than the l
     await settled('allowed');
     assert.equal((await row()).status, 'ready');
   } finally {
+    await s.shutdown();
+    opened.close();
+    tmp.cleanup();
+  }
+});
+
+test('interactions (real pi): a stalled reader buffers the Allow reply, its gate check and the release timeout together; the approval ends once', { timeout: 120_000 }, async () => {
+  // GPT review D1: only the supervisor's reading of the real child's stdout is paused, past the child's 10 s release
+  // timeout; the child and its clock are unchanged. On resume one chunk carries the answer's reply, the gate check and
+  // the gate's timeout close.
+  const tmp = privateTmp();
+  const root = realpathSync(tmp.dir);
+  const cwd = join(root, 'workspace');
+  const state = join(root, 'state');
+  const agent = join(root, 'agent');
+  for (const dir of [cwd, state, join(agent, 'extensions')]) mkdirSync(dir, { recursive: true });
+  writeFileSync(join(agent, 'extensions', 'gated.ts'), gated(`[call('stalled.txt'), fauxAssistantMessage('stalled')]`));
+  const opened = openState(state);
+  const grants = new GrantStore(state);
+  let host: SdkHost | undefined;
+  const s = new Supervisor({
+    journal: opened.journal,
+    receipts: new ReceiptStore(opened.journal),
+    supervisorEpoch: opened.supervisorEpoch,
+    stateDir: state,
+    grants,
+    factory: launch =>
+      (host = new SdkHost(
+        { cwd: launch.cwd, sessionDir: launch.sessionDir, provider: launch.create.provider, model: launch.create.model, thinking: launch.create.thinking, projectTrusted: false },
+        { env: { PATH: process.env.PATH, HOME: agent, PI_CODING_AGENT_DIR: agent } },
+      )),
+  });
+  const stdout = () => (host as unknown as { child: ChildProcessWithoutNullStreams }).child.stdout;
+  const { token } = grants.register({ caller: 'owner', grant_id: 'owner', scope: { worker_ids: ['*'], cwd_roots: ['*'] }, methods: ['*'], answers_for_person: true });
+  const api = createMemoryTransport(createApp({ supervisor: s, grants }).handle, { authorization: `Bearer ${token}` });
+  try {
+    const created = await api.request('POST', '/b2/workers', { json: { command_id: 'create', cwd, provider: 'faux', model: 'faux-1', thinking: 'off' } });
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    const id = (created.body as { worker_id: string }).worker_id;
+    const w = s.get(id);
+    const bind = (command_id: string) => ({ command_id, worker_epoch: w.worker_epoch, session_id: w.session_id, binding_revision: w.binding_revision });
+    assert.equal((await api.request('POST', `/b2/workers/${id}/prompt`, { json: { ...bind('prompt'), message: 'write stalled.txt' } })).status, 200);
+    const card = await until(() => s.interactionList(id).find(i => i.kind === 'tool_approval'), 'approval card');
+    stdout().pause();
+    const answering = api.request('POST', `/b2/workers/${id}/interactions/answer`, {
+      json: { ...bind('allow'), answer_id: 'allow', interaction_id: card.interaction_id, revision: card.revision, kind: 'tool_approval', outcome: 'answer', value: true },
+    });
+    await delay(11_000);
+    stdout().resume();
+    const answered = await answering;
+    assert.equal(answered.status, 200, JSON.stringify(answered.body));
+    assert.equal((answered.body as { answer_stage: number }).answer_stage, 3, 'the answer is honestly stage 3');
+    const release = await until(() => final(s.receipts.all.get('allow:release')), 'release receipt');
+    assert.equal(release.state, 'delivered', 'the release keeps its own receipt');
+    assert.equal(release.answer_stage, 3, 'a release after the gate timed out is never stage 4');
+    assert.equal(release.result?.released, false);
+    await until(() => (s.state.require(id).worker.execution?.state === 'settled' ? true : undefined), 'settlement');
+    const terminal = new Set(['gate_closed', 'release_reported', 'tool_released', 'release_denied', 'interrupted', 'release_contradicted']);
+    const writes = opened.journal.records.filter(r => r.kind === 'interaction' && r.value.interaction_id === card.interaction_id && terminal.has(String(r.value.status))).map(r => String(r.value.status));
+    assert.deepEqual(writes, ['release_denied'], 'one ended gate has exactly one terminal journal record');
+    assert.equal(existsSync(join(cwd, 'stalled.txt')), false, 'a timed-out gate never runs the tool');
+    assert.equal(s.get(id).status, 'ready');
+    assert.equal(s.get(id).fence, null);
+  } finally {
+    if (host) stdout().resume();
     await s.shutdown();
     opened.close();
     tmp.cleanup();

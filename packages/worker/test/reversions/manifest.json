@@ -113,7 +113,8 @@
         "p1-fix2-r1-answer-drops-early-gate-close.diff",
         "p1-fix2-r1-release-drops-gate-close.diff",
         "p1-fix2-r1-gate-close-races-release.diff",
-        "p1-fix2-r1-settle-not-once.diff"
+        "p1-fix2-r1-settle-not-once.diff",
+        "p1-fix3-d1-answer-settles-during-release.diff"
       ]
     },
     "children": {
