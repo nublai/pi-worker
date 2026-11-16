@@ -34,14 +34,30 @@ export PIW_SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o Use
 vssh() { ssh $PIW_SSH_OPTS "$vm.exe.xyz" "$@"; }
 
 finish() {
+  rc=$?
   set +e
+  trap - EXIT
   vssh "tar -C piw-run -cf - $run" 2>/dev/null | tar -C "$out/.." -xf - 2>/dev/null
+  # Tear down first, so the evidence records the outcome. Only a VM this run created is ever deleted.
+  if [ ! -e "$PIW_CREATED_FILE" ]; then
+    teardown=not_created
+  elif [ "$keep" = --keep-vm ]; then
+    teardown=retained; echo "run: kept $vm.exe.xyz"
+  elif harness/vm/teardown.sh "$vm"; then
+    teardown=deleted
+  else
+    teardown=failed; status=fail; step="$step; vm teardown failed"
+    echo "run: VM TEARDOWN FAILED: delete $vm manually (ssh exe.dev rm $vm)" >&2
+  fi
   note=$([ "$status" = pass ] || echo "failed at: $step")
-  node harness/lib/evidence.mjs "$out" "$commit" "$tree" "$vm" "$status" ${note:+"$note"} >/dev/null || echo "run: evidence record refused (privacy scan)" >&2
-  if [ ! -e "$PIW_CREATED_FILE" ]; then echo "run: $vm was not created by this run; nothing to delete"
-  elif [ "$keep" = --keep-vm ]; then echo "run: kept $vm.exe.xyz"; else harness/vm/teardown.sh "$vm"; fi
+  PIW_VM_TEARDOWN=$teardown node harness/lib/evidence.mjs "$out" "$commit" "$tree" "$vm" "$status" ${note:+"$note"} >/dev/null
+  ev=$?
+  [ $ev -eq 0 ] || echo "run: evidence record refused or failed" >&2
   rm -rf "$work"
-  echo "run: $journey $status; evidence in ${out#"$repo/"}"
+  echo "run: $journey $status; vm $teardown; evidence in ${out#"$repo/"}"
+  if [ $rc -ne 0 ]; then exit $rc; fi
+  if [ "$teardown" = failed ] || [ $ev -ne 0 ]; then exit 1; fi
+  exit 0
 }
 trap finish EXIT
 

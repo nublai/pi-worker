@@ -14,16 +14,18 @@ if (!dir || !/^[0-9a-f]{40}$/.test(commit ?? '') || !/^[0-9a-f]{40}$/.test(tree 
   process.exit(2);
 }
 const read = name => (existsSync(join(dir, name)) ? JSON.parse(readFileSync(join(dir, name), 'utf8')) : null);
+const teardown = process.env.PIW_VM_TEARDOWN ?? 'unknown'; // deleted | retained | failed | not_created
 const journey = read('journey.json');
 const privacy = scan([dir]);
 const record = {
   journey: journey?.journey ?? null,
   status,
   // A failed attempt stays recorded and labelled; it never counts as a pass.
-  counted: status === 'pass' && journey?.pass === true && privacy.findings.length === 0,
+  counted: status === 'pass' && ['deleted', 'retained'].includes(teardown) && journey?.pass === true && privacy.findings.length === 0,
   commit,
   tree,
   vm,
+  vm_teardown: teardown,
   recorded_at: new Date().toISOString(),
   platform: read('platform.json'),
   checks: journey?.checks ?? null,
