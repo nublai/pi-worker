@@ -1,0 +1,16 @@
+{
+  "name": "@nublai/pi-worker",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "pi-worker supervisor daemon (Node 26)",
+  "engines": {
+    "node": ">=26.12.1"
+  },
+  "main": "dist/src/main.js",
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "test": "npm run build && node ../../tools/node-test.mjs 'dist/test/**/*.test.js'"
+  }
+}
