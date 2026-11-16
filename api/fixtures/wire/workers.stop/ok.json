@@ -1,0 +1,33 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "command_id": "cmd-1",
+      "operation": "workers.stop",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "termination_observed",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+        "termination": "observed_stopped",
+        "stopped_worker_epoch": "epoch-1",
+        "current_worker_epoch": "epoch-1",
+        "profile": "cgroup_v2"
+      }
+    }
+  }
+}

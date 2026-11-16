@@ -1,0 +1,31 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "message": "hello"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "command_id": "cmd-1",
+      "operation": "sessions.prompt",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "dispatch_recorded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "execution_id": "exec-1",
+      "admission": "accepted",
+      "history_lag": true
+    }
+  }
+}

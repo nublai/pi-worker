@@ -1,0 +1,23 @@
+{
+  "request": {},
+  "response": {
+    "status": 200,
+    "body": {
+      "protocol": {
+        "major": 0,
+        "minor": 1
+      },
+      "worker_version": "0.0.0",
+      "supervisor_id": "sup-1",
+      "supervisor_epoch": "sup-epoch-1",
+      "pi_version": null,
+      "capabilities": [],
+      "limits": {
+        "request_body_bytes": 262144
+      },
+      "named_limits": [
+        "Linux results are not macOS results."
+      ]
+    }
+  }
+}

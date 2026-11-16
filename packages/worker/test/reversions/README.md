@@ -1,0 +1,13 @@
+# Reversions
+
+Each diff removes one guard. Its test must fail with the diff applied:
+
+```sh
+node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-name-pattern=closure' \
+  packages/worker/test/reversions/p0-4-*.diff
+```
+
+| Diff | Guard removed | Caught by |
+| --- | --- | --- |
+| `p0-4-no-response-validation.diff` | response validation in the router | closure tests on invalid responses |
+| `p0-4-drop-one-route.diff` | one route (`workers.stop`) | `closure: every spec operation is routed` |

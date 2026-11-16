@@ -10,6 +10,7 @@ export interface Validator {
   (data: unknown): boolean;
   errors?: ValidationError[] | null;
 }
+export declare const error: Validator;
 export declare const event_ExecutionSettledEvent: Validator;
 export declare const event_FenceResolvedEvent: Validator;
 export declare const event_InteractionsChangedEvent: Validator;

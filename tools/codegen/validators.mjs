@@ -84,6 +84,8 @@ export function generateValidators(spec, ops, eventInfo) {
   }
   for (const m of eventInfo.members) add(`event_${m.name}`, { $ref: `#/components/schemas/${m.name}` });
   add('event_frame', { $ref: `#/components/schemas/${eventInfo.unionName}` });
+  // Router-level refusals (unknown path, wrong method) belong to no operation but still carry Error.
+  add('error', { $ref: '#/components/schemas/Error' });
 
   let js = standaloneCode(ajv, exports).replace(UCS2, UCS2_INLINE);
   if (/\brequire\(/.test(js)) throw new Error('standalone validators need a runtime require; inline it or add the dependency deliberately');

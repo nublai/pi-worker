@@ -14503,3 +14503,26 @@ return errors === 0;
 }
 validate594.evaluated = {"dynamicProps":true,"dynamicItems":false};
 
+export const error = validate604;
+const schema244 = {"$id":"urn:piw:validator:error","$ref":"urn:piw:schema:Error"};
+
+function validate604(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
+/*# sourceURL="urn:piw:validator:error" */;
+let vErrors = null;
+let errors = 0;
+const evaluated0 = validate604.evaluated;
+if(evaluated0.dynamicProps){
+evaluated0.props = undefined;
+}
+if(evaluated0.dynamicItems){
+evaluated0.items = undefined;
+}
+if(!(validate64(data, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors}))){
+vErrors = vErrors === null ? validate64.errors : vErrors.concat(validate64.errors);
+errors = vErrors.length;
+}
+validate604.errors = vErrors;
+return errors === 0;
+}
+validate604.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
+

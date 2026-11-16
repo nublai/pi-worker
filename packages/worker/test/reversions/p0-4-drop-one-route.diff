@@ -1,0 +1,11 @@
+--- a/packages/worker/src/b2/router.ts
++++ b/packages/worker/src/b2/router.ts
+@@ -78,7 +78,7 @@
+ }
+ 
+ export function createRouter(options: RouterOptions): RequestHandler {
+-  const table = Object.values(options.routes ?? generatedRoutes);
++  const table = Object.values(options.routes ?? generatedRoutes).filter(r => r.operationId !== 'workers.stop');
+   const limit = options.requestBodyLimit ?? REQUEST_BODY_LIMIT;
+   // SAFETY: handlers is keyed by operationId and each handler is only called for its own route, after that route's
+   // parameter and body validators accepted the input, so the input matches the handler's generated input type.

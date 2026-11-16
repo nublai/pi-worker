@@ -1,0 +1,34 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "worker_id": "worker-1",
+      "worker_epoch": "epoch-1",
+      "supervisor_epoch": "sup-epoch-1",
+      "session_id": "session-1",
+      "session_identity_evidence": "pi_session_file",
+      "binding_revision": 1,
+      "leaf_id": "entry-9",
+      "cwd": "/home/u/project",
+      "status": "ready",
+      "foreground": "idle",
+      "execution": null,
+      "fence": null,
+      "history": {
+        "last_entry_id": "entry-9",
+        "lag": false,
+        "evidence": "pi_session_file"
+      },
+      "cleanup": "none",
+      "pending_interactions": [],
+      "queued": [],
+      "fence_generation": 0,
+      "host": "sdk"
+    }
+  }
+}

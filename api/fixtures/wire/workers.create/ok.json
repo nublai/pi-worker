@@ -1,0 +1,26 @@
+{
+  "request": {
+    "body": {
+      "command_id": "cmd-1",
+      "cwd": "/home/u/project",
+      "provider": "anthropic",
+      "model": "claude",
+      "thinking": "medium",
+      "host": "sdk"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "command_id": "cmd-1",
+      "operation": "workers.create",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1"
+    }
+  }
+}

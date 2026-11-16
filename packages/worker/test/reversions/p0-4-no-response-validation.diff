@@ -1,0 +1,11 @@
+--- a/packages/worker/src/b2/router.ts
++++ b/packages/worker/src/b2/router.ts
+@@ -87,7 +87,7 @@
+   /** Validates a reply against the operation's response schema for its status. */
+   function reply(route: Route, status: number, body: unknown, commandId: string | undefined): B2Response {
+     const spec = route.responses[String(status)];
+-    if (spec?.validate?.(body)) return { status, body };
++    if (spec?.validate || !spec?.validate) return { status, body }; // REVERSION: response validation removed
+     // Never let an unvalidated body out, and never make a validation failure look retryable: after a mutation's
+     // handler ran, the outcome is unknown and the caller must read the receipt for command_id.
+     const failure: ErrorBody =
