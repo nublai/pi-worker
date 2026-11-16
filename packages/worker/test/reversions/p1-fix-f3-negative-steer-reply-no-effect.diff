@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/input.ts b/packages/worker/src/supervisor/input.ts
+index d7a5c0f..7e7f178 100644
+--- a/packages/worker/src/supervisor/input.ts
++++ b/packages/worker/src/supervisor/input.ts
+@@ -194,7 +194,7 @@ export class Input {
+       live.host!.request({ type: 'steer', message }),
+     );
+     // A steer runs pi's input hooks and queues; only an explicit refusal before them proves no effect.
+-    if (!response.success && response.refused === 'before_input') throw new ProvenNoEffect(`pi_refused_steer: ${String(response.error).slice(0, 64)}`, 'host_refused_before_input_hooks');
++    if (!response.success) throw new ProvenNoEffect(`pi_refused_steer: ${String(response.error).slice(0, 64)}`, 'host_refused_before_input_hooks');
+     if (!response.success) throw new Error(`pi_steer_failed_after_dispatch: ${String(response.error ?? 'negative_reply').slice(0, 64)}`);
+     const disposition = String(response.data?.disposition);
+     if (disposition !== 'queued' && disposition !== 'handled') throw new Error('unexpected steer disposition');

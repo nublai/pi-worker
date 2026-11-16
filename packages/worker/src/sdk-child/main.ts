@@ -171,6 +171,10 @@ const ready = runtimePromise.then(async runtime => {
 });
 
 type Command = PiEvent & { id?: unknown };
+
+/** An explicit refusal before pi ran anything for this command: the one negative reply that proves no effect. */
+class RefusedBeforeInput extends Error {}
+
 /** Commands drain concurrently: the startup bind and a prompt may both be waiting on a dialog. */
 async function command(c: Command, reply: (data: Record<string, unknown>) => void): Promise<void> {
   if (c.type === 'answer_ui') {
@@ -197,6 +201,11 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
       break;
     }
     case 'prompt':
+      // pi runs input hooks before its own busy, model and auth checks, so its later throws prove nothing. A busy or
+      // compacting session is refused here instead, in the same synchronous turn as the call below (which enters the
+      // input hooks before its first await): nothing has run.
+      if (session.isStreaming) throw new RefusedBeforeInput('pi_busy');
+      if (session.isCompacting) throw new RefusedBeforeInput('pi_compacting');
       // The reply is pi's admission (preflight), sent as soon as it is known; settlement is the agent_settled event.
       await session.prompt(String(c.message), { preflightResult: disposition => reply({ disposition }) });
       break;
@@ -241,10 +250,13 @@ async function handle(c: Command): Promise<void> {
       replied = true;
       output({ type: 'response', id: c.id, success: true, data });
     });
-    // A prompt that pi rejected before preflight (for example a busy session) never replied: a negative answer.
+    // A command that returned without a reply (for example a prompt pi deferred) is not proof that nothing ran.
     if (!replied) output({ type: 'response', id: c.id, success: false, error: 'sdk_command_not_admitted' });
-  } catch {
-    if (!replied) output({ type: 'response', id: c.id, success: false, error: 'sdk_command_failed' });
+  } catch (error) {
+    if (replied) return;
+    // Only an explicit refusal before pi ran anything is marked; any other failure may follow input hooks.
+    if (error instanceof RefusedBeforeInput) output({ type: 'response', id: c.id, success: false, error: error.message, refused: 'before_input' });
+    else output({ type: 'response', id: c.id, success: false, error: 'sdk_command_failed' });
   }
 }
 

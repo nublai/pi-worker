@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index d259f35..538f123 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -255,7 +255,7 @@ async function handle(c: Command): Promise<void> {
+   } catch (error) {
+     if (replied) return;
+     // Only an explicit refusal before pi ran anything is marked; any other failure may follow input hooks.
+-    if (error instanceof RefusedBeforeInput) output({ type: 'response', id: c.id, success: false, error: error.message, refused: 'before_input' });
++    if (error instanceof Error) output({ type: 'response', id: c.id, success: false, error: error.message, refused: 'before_input' });
+     else output({ type: 'response', id: c.id, success: false, error: 'sdk_command_failed' });
+   }
+ }
