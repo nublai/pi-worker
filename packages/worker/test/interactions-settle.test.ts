@@ -20,6 +20,9 @@ const TERMINAL = new Set(['gate_closed', 'release_reported', 'tool_released', 'r
 
 const approval = (n: number) => ({ gate_token: `gate-${n}`, digest: 'digest', policy_revision: 'p1', expiry: Date.now() + 30_000, operation: 'bash', resource: 'fixture', environment: 'fixture', offered_scope: 'once' });
 
+/** A receipt once it is final. */
+const final = <T extends { state: string }>(r: T | undefined): T | undefined => (r && !['intent', 'accepted'].includes(r.state) ? r : undefined);
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>(r => {
@@ -184,6 +187,47 @@ test('interactions settle: a gate that times out while its release is in flight 
     const receipt = f.supervisor.receipts.all.get(`answer-${n}:release`)!;
     assert.equal(receipt.state, 'delivered');
     assert.equal(receipt.result?.released, false);
+    return 'release_denied';
+  }));
+
+test('interactions settle: an answer reply, its release check and the gate close buffered together end the approval once, at its release', () =>
+  repeated(async (f, id, n) => {
+    const h = f.hosts[0]!;
+    const { gate, i } = openApproval(f, id, n);
+    const entered = deferred<void>();
+    const reply = deferred<{ consumed: boolean; outcome?: string }>();
+    h.answerUI = () => {
+      entered.resolve();
+      return reply.promise;
+    };
+    const releaseReply = deferred<void>();
+    const original = h.request.bind(h);
+    h.request = async c => {
+      if (c.type !== 'gate_release') return original(c);
+      h.commands.push(c);
+      // Its reply comes on a later stdout read. The child's gate already timed out while the supervisor's reader
+      // stalled: no live gate, a correlated denial.
+      await releaseReply.promise;
+      return { type: 'response', id: 'r', success: true, data: { released: false } };
+    };
+    const answering = f.supervisor.answer(id, answerOf(f, id, n, i, {}));
+    await entered.promise;
+    // One stdout chunk after a stalled reader (GPT review D1): the answer's reply resolves, then the gate check and
+    // the gate's timeout close are handled synchronously, before the answer's continuation runs.
+    reply.resolve({ consumed: true, outcome: 'answered' });
+    h.emit('event', { type: 'gate_check', ...gate });
+    h.emit('event', { type: 'gate_closed', gate_token: gate.gate_token, reason: 'release_timeout' });
+    const r = await answering;
+    assert.equal(r.state, 'delivered');
+    assert.equal(r.answer_stage, 3, 'the answer is honestly stage 3: the exact resolver consumed it');
+    releaseReply.resolve();
+    for (let k = 0; k < 20 && final(f.supervisor.receipts.all.get(`answer-${n}:release`)) === undefined; k++) await tick();
+    h.request = original;
+    const receipt = f.supervisor.receipts.all.get(`answer-${n}:release`)!;
+    assert.equal(receipt.state, 'delivered', 'the release keeps its own receipt');
+    assert.equal(receipt.answer_stage, 3, 'a denied release is never stage 4');
+    assert.equal(receipt.result?.released, false);
+    assert.deepEqual(terminalWrites(f).get(i.interaction_id), ['release_denied'], 'the release owns the ending: one terminal journal record');
     return 'release_denied';
   }));
 

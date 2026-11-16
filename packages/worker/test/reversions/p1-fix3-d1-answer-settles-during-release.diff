@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
+index 4861696..6c9a55c 100644
+--- a/packages/worker/src/interactions/interactions.ts
++++ b/packages/worker/src/interactions/interactions.ts
+@@ -339,7 +339,7 @@ export class Interactions {
+           this.hooks.changed(worker.worker_id);
+           // The child's gate already ended (a No or a cancel ends it as soon as the resolver is consumed). A release
+           // already in flight (its gate check arrived with this reply) owns the ending and settles it when it returns.
+-          if (l.gateEnd !== undefined && !l.releasing) this.settleGate(l, l.gateEnd);
++          if (l.gateEnd !== undefined && (!l.releasing || true)) this.settleGate(l, l.gateEnd);
+           return { state: 'delivered', stage: 'resolver_consumed', answer_stage: 3, effect: 'observed', result: { interaction_id: a.interaction_id, answer_id: a.answer_id, outcome, resolver_consumed: true } };
+         },
+         () => {
