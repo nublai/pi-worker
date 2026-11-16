@@ -129,7 +129,13 @@ export class Fence {
         }
         if (r.disposition === 'abandon') this.input.dropQueued(live, 'resolve_abandon');
         // The durable resolution tombstone comes before any receipt it clears or authorizes.
-        this.s.persist(live, 'fence.resolve');
+        const appended = this.s.persist(live, 'fence.resolve');
+        this.s.events.publish('fence.resolved', {
+          worker_id: id,
+          execution_id: w.execution?.execution_id ?? null,
+          data: { command_id: uncertain, disposition: r.disposition, fence_generation: r.fence_generation, external_effects_undone: false, fence: w.fence },
+          appended,
+        });
         const target = this.s.receipts.all.get(uncertain);
         if (target && ['intent_recovered', 'intent_ready'].includes(target.state)) this.s.receipts.resolveIntent(uncertain, r.disposition);
         if (r.disposition !== 'abandon') setImmediate(() => void this.input.flush(live));

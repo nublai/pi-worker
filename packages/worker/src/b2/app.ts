@@ -8,6 +8,8 @@ import { createHello, type HelloSource } from './hello.js';
 import { createRouter, type RequestHandler } from './router.js';
 import type { Handlers } from './types.js';
 import type { ReceiptStore } from '../receipts/receipts.js';
+import { sseRecord } from '../events/hub.js';
+import { eventManifest, type Cursor } from '../generated/events.js';
 import type { Supervisor } from '../supervisor/supervisor.js';
 
 export interface AppOptions extends HelloSource {
@@ -18,6 +20,20 @@ export interface AppOptions extends HelloSource {
 }
 
 const unavailable = () => new Refusal('supervisor_state_unavailable');
+
+/** `Last-Event-ID`: the cursor of the last frame seen, as JSON. A malformed one is refused before the stream opens. */
+function cursorOf(raw: string | undefined): Cursor | null {
+  if (raw === undefined) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new Refusal('invalid_last_event_id', 'no_effect', undefined, {}, 400);
+  }
+  const c = value as Cursor;
+  if (!c || typeof c.transport_epoch !== 'string' || !Number.isSafeInteger(c.seq) || c.seq < 0) throw new Refusal('invalid_last_event_id', 'no_effect', undefined, {}, 400);
+  return { transport_epoch: c.transport_epoch, seq: c.seq };
+}
 
 export function createApp(options: AppOptions = {}): { handle: RequestHandler; handlers: Handlers } {
   const hello = createHello(options);
@@ -47,6 +63,28 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     'sessions.rebind': ({ path, body }) => supervisor().rebind(path.worker_id, body),
     'sessions.new': ({ path, body }) => supervisor().newSession(path.worker_id, body),
     'sessions.resolve_unknown': ({ path, body }) => supervisor().resolveUnknown(path.worker_id, body),
+    'history.page': ({ path, query }) => supervisor().history(path.worker_id, query),
+    'items.read': ({ path }) => supervisor().item(path.worker_id, path.entry_id),
+    'events.subscribe': ({ query, header }) => {
+      const s = supervisor();
+      const since = cursorOf(header['last-event-id']);
+      const types = query.types?.split(',');
+      if (types?.some(t => !(t in eventManifest))) throw new Refusal('unknown_event_type', 'no_effect', undefined, {}, 400);
+      const workerIds = query.worker_id?.split(',');
+      return {
+        sse: sink => {
+          const subscription = s.subscribe(frame => sink.write(sseRecord(frame)), {
+            since,
+            ...(workerIds ? { workerIds } : {}),
+            ...(types ? { types } : {}),
+            overflowResync: query.resync === 'overflow',
+            onEnd: () => sink.end(),
+          });
+          sink.onDrain(subscription.drain);
+          sink.onClose(subscription.close);
+        },
+      };
+    },
   };
   return { handle: createRouter({ handlers }), handlers };
 }

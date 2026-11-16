@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/events/hub.ts b/packages/worker/src/events/hub.ts
+index ea56a93..3bc36e0 100644
+--- a/packages/worker/src/events/hub.ts
++++ b/packages/worker/src/events/hub.ts
+@@ -205,7 +205,7 @@ export class EventHub {
+               : 'gap';
+     this.subscribers.add(sub);
+     const snapshot: Snapshot = { type: 'snapshot', workers, cursor, resync_reason };
+-    if (!validateEventFrame(snapshot) || Buffer.byteLength(sseRecord(snapshot)) > FRAME_BYTES) {
++    if (Buffer.byteLength(sseRecord(snapshot)) > FRAME_BYTES) {
+       this.log({ event: 'invalid_frame', type: 'snapshot', reason: validateEventFrame.errors?.[0]?.message ?? 'frame_too_large' });
+       this.overflow(sub, 'invalid_frame');
+       return { close, drain };

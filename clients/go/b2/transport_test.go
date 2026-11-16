@@ -344,7 +344,7 @@ func TestOperationTablePaths(t *testing.T) {
 		}
 		seen[op.ID] = true
 	}
-	if len(Operations) != 24 { // 22 in P0, plus sessions.steer (P1-5) and sessions.new (P1-7)
+	if len(Operations) != 25 { // 22 in P0, plus sessions.steer (P1-5), sessions.new (P1-7) and items.read (P1-8)
 		t.Fatalf("operations = %d", len(Operations))
 	}
 }

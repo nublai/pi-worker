@@ -1,6 +1,7 @@
 /** Handler types derived from the generated operations, so a handler's input and output match the spec. */
 import type { operations } from '../generated/api.js';
 import type { SupportedOperationId } from '../generated/routes.js';
+import type { B2Stream } from './router.js';
 
 type OpOf<K extends keyof operations> = operations[K];
 
@@ -18,7 +19,11 @@ export type RequestBody<K extends keyof operations> = OpOf<K> extends { requestB
   : OpOf<K> extends { requestBody: { content: object } }
     ? AsyncIterable<Uint8Array>
     : undefined;
-export type OkBody<K extends keyof operations> = OpOf<K> extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
+export type OkBody<K extends keyof operations> = OpOf<K> extends { responses: { 200: { content: { 'application/json': infer R } } } }
+  ? R
+  : OpOf<K> extends { responses: { 200: { content: { 'text/event-stream': unknown } } } }
+    ? B2Stream
+    : never;
 
 export interface HandlerInput<K extends keyof operations> {
   readonly path: PathParams<K>;
@@ -28,7 +33,10 @@ export interface HandlerInput<K extends keyof operations> {
   readonly body: RequestBody<K>;
 }
 
-/** A handler returns the 200 body or throws a Refusal. The router validates whatever it returns. */
+/**
+ * A handler returns the 200 body or throws a Refusal. The router validates whatever it returns; an `sse` operation
+ * returns a B2Stream whose frames the event hub validates one by one.
+ */
 export type Handler<K extends keyof operations> = (input: HandlerInput<K>) => OkBody<K> | Promise<OkBody<K>>;
 
 /** One handler per operation the spec does not mark unsupported; a missing handler is a compile error. */

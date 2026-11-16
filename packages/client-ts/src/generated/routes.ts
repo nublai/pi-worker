@@ -38,6 +38,7 @@ export const routes = {
   "interactions.status": { method: "GET", path: "/b2/workers/{worker_id}/interactions/status", mutation: false, stream: false, body: "none", mediaTypes: [], maxBodyBytes: 0, responseMode: "json", maxFrameBytes: null },
   "interactions.answer_if_current": { method: "POST", path: "/b2/workers/{worker_id}/interactions/answer", mutation: true, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
   "history.page": { method: "GET", path: "/b2/workers/{worker_id}/history", mutation: false, stream: false, body: "none", mediaTypes: [], maxBodyBytes: 0, responseMode: "json", maxFrameBytes: null },
+  "items.read": { method: "GET", path: "/b2/workers/{worker_id}/entries/{entry_id}", mutation: false, stream: false, body: "none", mediaTypes: [], maxBodyBytes: 0, responseMode: "json", maxFrameBytes: null },
   "files.read": { method: "POST", path: "/b2/workers/{worker_id}/files/read", mutation: false, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144, responseMode: "json", maxFrameBytes: null },
   "attachments.stage": { method: "PUT", path: "/b2/attachments/{attachment_id}", mutation: true, stream: false, body: "binary", mediaTypes: ["image/jpeg","image/png","image/webp"], maxBodyBytes: 2097152, responseMode: "json", maxFrameBytes: null },
   "receipts.get": { method: "GET", path: "/b2/receipts/{command_id}", mutation: false, stream: false, body: "none", mediaTypes: [], maxBodyBytes: 0, responseMode: "json", maxFrameBytes: null },

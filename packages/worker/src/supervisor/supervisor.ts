@@ -4,6 +4,10 @@
  * interrupt) fence (latch, resolve_unknown) and
  * bindings (rebind, sessions.new, native moves).
  */
+import { Refusal } from '../b2/errors.js';
+import type { EventHub, Send, SubscribeOptions, Subscription } from '../events/hub.js';
+import type { components } from '../generated/api.js';
+import type { HistoryPage } from '../history/session-index.js';
 import type { Journal } from '../journal/journal.js';
 import type { Receipt, ReceiptStore } from '../receipts/receipts.js';
 import { Bindings, type Rebind } from './binding.js';
@@ -11,6 +15,10 @@ import { Fence, type Resolve } from './fence.js';
 import { Input } from './input.js';
 import { Lifecycle } from './lifecycle.js';
 import { SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker } from './state.js';
+
+export type HistoryItem = components['schemas']['HistoryItem'];
+/** items.read's cap on one entry's raw line (1 MiB, within the client's 2 MiB response limit). */
+export const ITEM_MAX_BYTES = 1024 * 1024;
 
 export interface SupervisorOptions {
   readonly journal: Journal;
@@ -47,11 +55,48 @@ export class Supervisor {
     await this.lifecycle.recover();
   }
 
-  /** One worker row, refreshed from its session file. A read failure faults the worker in memory only. */
+  /**
+   * One worker row, refreshed from its session file. A read failure faults the worker in memory only. A refresh that
+   * changed a derived field (history marker, leaf) is published once as an in-memory `worker.updated`.
+   */
   get(id: string): Worker {
     const live = this.state.require(id);
     this.lifecycle.guarded(live, () => this.state.refresh(live), true);
+    this.state.publishChanged(live);
     return this.state.view(live);
+  }
+
+  get events(): EventHub {
+    return this.state.events;
+  }
+
+  /**
+   * Attaches one subscriber to the supervisor-wide stream at its synchronous barrier: the rows are read (refreshing
+   * each worker, which may publish derived changes before the barrier), then the snapshot, then later events only.
+   */
+  subscribe(send: Send, options: SubscribeOptions = {}): Subscription {
+    return this.state.events.subscribe(() => this.list(), send, options);
+  }
+
+  /** One history page of the worker's bound session, pinned at a watermark (the current leaf by default). */
+  history(id: string, q: { watermark?: string; after?: string; limit?: number }): HistoryPage {
+    const live = this.state.require(id);
+    this.get(id);
+    if (q.after !== undefined && q.watermark === undefined) throw new Refusal('after_requires_watermark', 'no_effect', undefined, {}, 400);
+    const page = live.index.page(q.watermark === undefined ? null : { watermark: q.watermark, after: q.after ?? null }, q.limit ?? 50);
+    // The cursor values are the caller's; the refusal names the problem, never the value.
+    if ('error' in page) throw new Refusal('history_cursor_not_on_session_path', 'no_effect', undefined, {}, 400);
+    return page;
+  }
+
+  /** One whole entry of the worker's bound session (items.read), up to ITEM_MAX_BYTES of its raw line. */
+  item(id: string, entryId: string): HistoryItem {
+    const live = this.state.require(id);
+    this.get(id);
+    const item = live.index.item(entryId, ITEM_MAX_BYTES);
+    if (item === null) throw new Refusal('unknown_entry');
+    if ('error' in item) throw new Refusal(item.error);
+    return { entry: item.entry, bytes: item.bytes, evidence: 'pi_session_file' };
   }
 
   list(): Worker[] {

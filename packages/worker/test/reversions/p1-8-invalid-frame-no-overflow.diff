@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/events/hub.ts b/packages/worker/src/events/hub.ts
+index ea56a93..b9a31a9 100644
+--- a/packages/worker/src/events/hub.ts
++++ b/packages/worker/src/events/hub.ts
+@@ -99,7 +99,6 @@ export class EventHub {
+       (this.publishers[type] as (input: PublishInput<T>) => void)(input);
+     } catch (error) {
+       this.log({ event: 'invalid_frame', type, reason: error instanceof Error ? error.message.slice(0, 256) : 'publish_failed' });
+-      for (const sub of this.subscribers) if (this.wants(sub, type, input.worker_id)) this.overflow(sub, 'invalid_frame');
+     }
+   }
+ 

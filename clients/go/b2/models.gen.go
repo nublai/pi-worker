@@ -248,6 +248,21 @@ func (e GitPinKind) Valid() bool {
 	}
 }
 
+// Defines values for HistoryItemEvidence.
+const (
+	HistoryItemEvidencePiSessionFile HistoryItemEvidence = "pi_session_file"
+)
+
+// Valid indicates whether the value is a known member of the HistoryItemEvidence enum.
+func (e HistoryItemEvidence) Valid() bool {
+	switch e {
+	case HistoryItemEvidencePiSessionFile:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HistoryMarkerEvidence.
 const (
 	HistoryMarkerEvidencePiSessionFile HistoryMarkerEvidence = "pi_session_file"
@@ -851,6 +866,7 @@ func (e ResolveDisposition) Valid() bool {
 // Defines values for SessionReboundEventDataAction.
 const (
 	SessionReboundEventDataActionFork     SessionReboundEventDataAction = "fork"
+	SessionReboundEventDataActionNative   SessionReboundEventDataAction = "native"
 	SessionReboundEventDataActionNavigate SessionReboundEventDataAction = "navigate"
 	SessionReboundEventDataActionNew      SessionReboundEventDataAction = "new"
 	SessionReboundEventDataActionResume   SessionReboundEventDataAction = "resume"
@@ -860,6 +876,8 @@ const (
 func (e SessionReboundEventDataAction) Valid() bool {
 	switch e {
 	case SessionReboundEventDataActionFork:
+		return true
+	case SessionReboundEventDataActionNative:
 		return true
 	case SessionReboundEventDataActionNavigate:
 		return true
@@ -874,13 +892,13 @@ func (e SessionReboundEventDataAction) Valid() bool {
 
 // Defines values for SessionReboundEventDataSource.
 const (
-	Native SessionReboundEventDataSource = "native"
+	SessionReboundEventDataSourceNative SessionReboundEventDataSource = "native"
 )
 
 // Valid indicates whether the value is a known member of the SessionReboundEventDataSource enum.
 func (e SessionReboundEventDataSource) Valid() bool {
 	switch e {
-	case Native:
+	case SessionReboundEventDataSourceNative:
 		return true
 	default:
 		return false
@@ -1589,6 +1607,17 @@ type HistoryCursor struct {
 	Watermark string  `json:"watermark"`
 }
 
+// HistoryItem defines model for HistoryItem.
+type HistoryItem struct {
+	// Bytes The size of the entry's raw line in the session file.
+	Bytes    int                    `json:"bytes"`
+	Entry    map[string]interface{} `json:"entry"`
+	Evidence HistoryItemEvidence    `json:"evidence"`
+}
+
+// HistoryItemEvidence defines model for HistoryItem.Evidence.
+type HistoryItemEvidence string
+
 // HistoryMarker defines model for HistoryMarker.
 type HistoryMarker struct {
 	Evidence    HistoryMarkerEvidence `json:"evidence"`
@@ -1918,6 +1947,7 @@ type SessionReboundEvent struct {
 	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
 	Cursor Cursor `json:"cursor"`
 	Data   struct {
+		// Action The move. `native` when pi moved on its own and the worker cannot tell which move it was.
 		Action          SessionReboundEventDataAction  `json:"action"`
 		BindingRevision int                            `json:"binding_revision"`
 		Old             *map[string]interface{}        `json:"old,omitempty"`
@@ -1932,7 +1962,7 @@ type SessionReboundEvent struct {
 	WorkerId    Id                          `json:"worker_id"`
 }
 
-// SessionReboundEventDataAction defines model for SessionReboundEvent.Data.Action.
+// SessionReboundEventDataAction The move. `native` when pi moved on its own and the worker cannot tell which move it was.
 type SessionReboundEventDataAction string
 
 // SessionReboundEventDataSource defines model for SessionReboundEvent.Data.Source.

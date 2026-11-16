@@ -352,8 +352,41 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Page the bound session's pi entries */
+        /**
+         * Page the bound session's pi entries
+         * @description Raw pi entries on the visible path from the session root to a
+         *     pinned watermark (the current leaf when no watermark is given),
+         *     oldest first. An entry too large for a page is a `too_large`
+         *     stub; read it with `items.read`. History never creates a live
+         *     interaction.
+         */
         get: operations["history.page"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/b2/workers/{worker_id}/entries/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+                entry_id: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read one whole pi entry of the bound session
+         * @description The full entry a history page stubbed as `too_large`, up to
+         *     1 MiB of its raw line; a longer entry is refused
+         *     `entry_too_large`, `no_effect`. Image bytes are read with
+         *     `blobs.read` (P1-16).
+         */
+        get: operations["items.read"];
         put?: never;
         post?: never;
         delete?: never;
@@ -857,6 +890,15 @@ export interface components {
             /** @constant */
             evidence: "pi_session_file";
         };
+        HistoryItem: {
+            entry: {
+                [key: string]: unknown;
+            };
+            /** @description The size of the entry's raw line in the session file. */
+            bytes: number;
+            /** @constant */
+            evidence: "pi_session_file";
+        };
         FileRead: {
             path: components["schemas"]["AbsolutePath"];
             roots: components["schemas"]["AbsolutePath"][];
@@ -932,8 +974,11 @@ export interface components {
             data: {
                 session_id: string | null;
                 binding_revision: number;
-                /** @enum {string} */
-                action: "new" | "fork" | "resume" | "navigate";
+                /**
+                 * @description The move. `native` when pi moved on its own and the worker cannot tell which move it was.
+                 * @enum {string}
+                 */
+                action: "new" | "fork" | "resume" | "navigate" | "native";
                 /** @enum {string} */
                 source?: "native";
                 old?: {
@@ -1556,6 +1601,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HistoryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            500: components["responses"]["Unknown"];
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    "items.read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+                entry_id: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entry. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryItem"];
                 };
             };
             400: components["responses"]["BadRequest"];

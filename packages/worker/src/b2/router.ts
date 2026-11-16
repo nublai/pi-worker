@@ -26,10 +26,31 @@ export interface B2Request {
   readonly body?: AsyncIterable<Uint8Array> | Uint8Array;
 }
 
+/** The transport side of an SSE response: one complete record per write. */
+export interface StreamSink {
+  /** Writes one SSE record; false when the transport buffer is full (wait for `onDrain`). */
+  write(record: string): boolean;
+  /** Ends the response after what was written. */
+  end(): void;
+  /** Drops the connection. */
+  destroy(): void;
+  onDrain(listener: () => void): void;
+  onClose(listener: () => void): void;
+}
+
+/** What an `sse` operation's handler returns: started once the 200 headers are written. */
+export interface B2Stream {
+  readonly sse: (sink: StreamSink) => void;
+}
+
 export interface B2Response {
   readonly status: number;
   readonly body: unknown;
+  /** Present for a 200 of an `sse` operation; every frame is validated by the event hub before it is written. */
+  readonly stream?: B2Stream;
 }
+
+const isStream = (value: unknown): value is B2Stream => typeof (value as B2Stream | null)?.sse === 'function';
 
 export interface RouterOptions {
   readonly handlers: Handlers;
@@ -199,6 +220,10 @@ export function createRouter(options: RouterOptions): RequestHandler {
         throw new Refusal('operation_not_implemented', 'no_effect', undefined, {}, 501);
       }
       const result = await handler({ path, query, header, body });
+      if (route.stream) {
+        if (!isStream(result)) throw new Error('stream operation returned no stream');
+        return { status: 200, body: null, stream: result };
+      }
       return reply(route, 200, result, commandId);
     } catch (error) {
       if (error instanceof Refusal) return reply(route, error.status, error.toBody(), commandId);

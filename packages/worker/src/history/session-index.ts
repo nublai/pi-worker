@@ -156,6 +156,24 @@ export class SessionIndex {
 
   hasEntry(id: string): boolean { this.refresh(); return this.byId.has(id); }
 
+  /** One whole entry up to `maxBytes` of its raw line (items.read); null when it is not in the file. */
+  item(id: string, maxBytes: number): { entry: HistoryEntry; bytes: number } | { error: 'entry_too_large' | 'entry_unreadable' } | null {
+    this.refresh();
+    const meta = this.byId.get(id);
+    if (!meta || this.file === null) return null;
+    if (meta.oversize || meta.length > maxBytes) return { error: 'entry_too_large' };
+    const fd = this.openFile();
+    try {
+      const value = JSON.parse(readAt(fd, meta.offset, meta.length)) as Record<string, unknown>;
+      if (value.id !== id) return { error: 'entry_unreadable' };
+      return { entry: value as HistoryEntry, bytes: meta.length };
+    } catch {
+      return { error: 'entry_unreadable' };
+    } finally {
+      closeSync(fd);
+    }
+  }
+
   /** Exact agent_settled attribution only; admission or model text is insufficient. */
   hasSettlement(executionId: string, commandId: string): boolean {
     this.refresh();

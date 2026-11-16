@@ -47,6 +47,7 @@ var (
 	OpInteractionsStatus          = Operation{ID: "interactions.status", Method: "GET", Path: "/b2/workers/{worker_id}/interactions/status", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpInteractionsAnswerIfCurrent = Operation{ID: "interactions.answer_if_current", Method: "POST", Path: "/b2/workers/{worker_id}/interactions/answer", Mutation: true, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpHistoryPage                 = Operation{ID: "history.page", Method: "GET", Path: "/b2/workers/{worker_id}/history", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
+	OpItemsRead                   = Operation{ID: "items.read", Method: "GET", Path: "/b2/workers/{worker_id}/entries/{entry_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
 	OpFilesRead                   = Operation{ID: "files.read", Method: "POST", Path: "/b2/workers/{worker_id}/files/read", Mutation: false, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0}
 	OpAttachmentsStage            = Operation{ID: "attachments.stage", Method: "PUT", Path: "/b2/attachments/{attachment_id}", Mutation: true, Stream: false, Body: "binary", MediaTypes: []string{"image/jpeg", "image/png", "image/webp"}, MaxBodyBytes: 2097152, Response: "json", MaxFrameBytes: 0}
 	OpReceiptsGet                 = Operation{ID: "receipts.get", Method: "GET", Path: "/b2/receipts/{command_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0}
@@ -75,6 +76,7 @@ var Operations = []Operation{
 	OpInteractionsStatus,
 	OpInteractionsAnswerIfCurrent,
 	OpHistoryPage,
+	OpItemsRead,
 	OpFilesRead,
 	OpAttachmentsStage,
 	OpReceiptsGet,
@@ -272,6 +274,15 @@ func (c *Client) HistoryPage(ctx context.Context, workerID string, params *Histo
 	}
 	var out HistoryPage
 	if err := c.do(ctx, OpHistoryPage, []string{workerID}, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ItemsRead calls items.read (GET /b2/workers/{worker_id}/entries/{entry_id}).
+func (c *Client) ItemsRead(ctx context.Context, workerID string, entryID string) (*HistoryItem, error) {
+	var out HistoryItem
+	if err := c.do(ctx, OpItemsRead, []string{workerID, entryID}, nil, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

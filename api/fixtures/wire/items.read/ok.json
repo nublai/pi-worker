@@ -1,0 +1,20 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1",
+      "entry_id": "entry-9"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "entry": {
+        "type": "message",
+        "id": "entry-9",
+        "parentId": "entry-8"
+      },
+      "bytes": 64,
+      "evidence": "pi_session_file"
+    }
+  }
+}
