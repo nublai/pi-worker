@@ -171,6 +171,14 @@
         "p1-12-evicts-unresolved-unknown.diff",
         "p1-12-child-launch-evicted.diff"
       ]
+    },
+    "crash-matrix": {
+      "command": "npm run test:crash -- matrix pi",
+      "diffs": [
+        "p1-13-unknown-command-replays.diff",
+        "p1-2-dispatch-marker-after-write.diff",
+        "p1-11-no-missing-report-fence.diff"
+      ]
     }
   }
 }

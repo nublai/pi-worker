@@ -13,6 +13,8 @@
  * - `grants`: the owner's grant command registers two grants with bearer files and revokes one (grants-scenario.ts).
  * - `interactions`: answers, cancels, tool releases, a navigation and a lost acknowledgement (interactions-scenario.ts).
  * - `children`: a typed child with an FD report and a stop, an untyped child launched from a queue (children-scenario.ts).
+ * - `matrix`: A0's crash-matrix scenario (prompt, moves, observed, keep and abandon with a follow-up and a child launch,
+ *   cancel, interrupt, reports, stop, a grant), with no restart (matrix-scenario.ts); `matrix-recover` is its recovery.
  * - `compaction`: tight retention evicting delivered receipts across count- and byte-triggered compactions while a
  *   fenced unknown, a resolved one, controls and an unreported child stay retained (compaction-scenario.ts).
  */
@@ -29,6 +31,7 @@ import { grantsScenario } from '../grants-scenario.js';
 import { interactionsScenario } from '../interactions-scenario.js';
 import { childrenScenario } from '../children-scenario.js';
 import { compactionScenario } from '../compaction-scenario.js';
+import { matrixRecover, matrixScenario } from '../matrix-scenario.js';
 
 const [mode, root] = process.argv.slice(2);
 assert.ok(root && isAbsolute(root), 'the parent supplies a per-run temporary directory');
@@ -59,6 +62,14 @@ if (mode === 'journal') {
   process.exit(0);
 } else if (mode === 'resume') {
   await resumeScenario(root);
+  process.stdout.write(`${JSON.stringify({ done: true })}\n`);
+  process.exit(0);
+} else if (mode === 'matrix') {
+  await matrixScenario(root);
+  process.stdout.write(`${JSON.stringify({ done: true })}\n`);
+  process.exit(0);
+} else if (mode === 'matrix-recover') {
+  await matrixRecover(root);
   process.stdout.write(`${JSON.stringify({ done: true })}\n`);
   process.exit(0);
 } else if (mode === 'compaction') {
