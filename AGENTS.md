@@ -17,19 +17,24 @@ Read before changing behaviour:
    new contract revision approved by the founder. When a frozen test fails, fix the code.
 2. **Conformance first.** A behaviour change starts with a test that is red on the base revision, then the fix.
    Ported tests keep every assertion; record each port in `packages/worker/test/PORTED.md`. Conformance and
-   security assertions are never weakened.
+   security assertions are never weakened. A PR's gate uses only methods that exist at that PR (the plan's Deps
+   column): a ported case lands in the first PR where everything it calls exists, never as a `skip`, and a frozen
+   row leaves `todo` only in the PR the plan names for it (section 5.1).
 3. **OpenAPI is the source.** Edit `api/b2.openapi.yaml`, run `npm run generate`, commit the generated files, and
    add a wire fixture for every new or changed operation. Generated files are only ever produced by the generator.
-   Request and response validation stay on in production.
+   Request and response validation stay on in production. Every operation declares its body and response modes
+   and a non-JSON body its byte limit; the 256 KiB cap is for JSON bodies only. Tool and generator versions are
+   exact pins (plan section 4.4); a bump is its own PR with the regenerated files.
 4. **Runtimes.** The daemon runs on Node 26. `@nublai/pi-worker-client` keeps pi's Node floor (22.19). The Go client
-   builds with Go 1.24 and the standard library only.
+   builds with Go 1.24 and the standard library only; its models are generated with the Go 1.26.11 toolchain in
+   `tools/go`. Go steps run with `GOTOOLCHAIN=local`.
 5. **No blind replay.** A mutation is sent once. After its dispatch record, a failure is `outcome_unknown` and
    fences the session, unless the code throws `ProvenNoEffect` with evidence that nothing happened. Clients classify
    before-write failures as `no_effect` and after-write failures as `unknown`, then read the receipt. A disconnect is
    never a cancel.
-6. **Security review.** A change to `b2/` auth or the parent channel, `grants/`, `containment/`, `sandbox/` or
-   `owner-git/` merges only after Claude and Grok reviews, both from a model family other than the author's, and
-   with a reversion for each guard it adds that fails by assertion.
+6. **Security review.** A change to `b2/` auth or the parent channel, `grants/`, the child launch spec or FD
+   report, `containment/`, `sandbox/` or `owner-git/` merges only after Claude and Grok reviews, both from a model
+   family other than the author's, and with a reversion for each guard it adds that fails by assertion.
 7. **Owner Git** in any checkout a sandboxed agent could write goes through `owner-git` (`safeGit`, `safeGitRun`).
 8. **Live journeys run on throwaway exe.dev VMs** (the `exe-dev-test-vm` skill), never on ms-a2 or hetzner until the
    plan says so. Linux only.
