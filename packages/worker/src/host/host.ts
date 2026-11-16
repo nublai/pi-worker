@@ -18,7 +18,11 @@ import { fileURLToPath } from 'node:url';
 import { killGroup, processToken } from './process.js';
 
 export type PiRecord = Record<string, unknown> & { type: string };
-export type PiResponse = { type: 'response'; id: string; success: boolean; data?: Record<string, unknown>; error?: string };
+/**
+ * `refused: 'before_input'` marks an explicit refusal the child made before pi ran any input hook, staging or queue
+ * action: the only negative reply that proves no effect. Any other negative reply after dispatch is unknown.
+ */
+export type PiResponse = { type: 'response'; id: string; success: boolean; data?: Record<string, unknown>; error?: string; refused?: 'before_input' };
 
 /** The seam the supervisor drives; the conformance and crash tests supply a deterministic fake. */
 export interface SessionHost {

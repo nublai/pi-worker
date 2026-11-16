@@ -7,11 +7,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/b2/app.js';
 import { createMemoryTransport } from '../src/b2/memory.js';
 import { Refusal } from '../src/b2/errors.js';
+import { SdkHost } from '../src/host/host.js';
 import { parseJournal } from '../src/journal/journal.js';
 import { openState } from '../src/journal/state.js';
 import { ReceiptStore } from '../src/receipts/receipts.js';
@@ -147,16 +149,23 @@ test('input: a dropped prompt reply is outcome_unknown, durable before the reply
   }
 });
 
-test('input: a negative pi reply is ProvenNoEffect with evidence; a handled prompt settles at once; slash commands refuse', async () => {
+test('input: an explicit pi refusal before its input hooks is ProvenNoEffect with evidence; a handled prompt settles at once; slash commands refuse', async () => {
   const f = fixture();
   try {
     const w = await f.create();
     const h = f.hosts[0]!;
     const native = h.request.bind(h);
-    let reply: 'negative' | 'handled' = 'negative';
-    h.request = async c => (c.type === 'prompt' ? (h.prompts++, reply === 'negative' ? { type: 'response', id: 'x', success: false } : { type: 'response', id: 'x', success: true, data: { disposition: 'handled' } }) : native(c));
+    let reply: 'refused' | 'handled' = 'refused';
+    h.request = async c =>
+      c.type === 'prompt'
+        ? (h.prompts++,
+          reply === 'refused'
+            ? { type: 'response', id: 'x', success: false, error: 'pi_busy', refused: 'before_input' }
+            : { type: 'response', id: 'x', success: true, data: { disposition: 'handled' } })
+        : native(c);
     const rejected = await f.supervisor.prompt(w.worker_id, { ...bind(w, 'rejected'), message: 'x' });
     assert.deepEqual([rejected.state, rejected.effect, rejected.admission], ['rejected', 'no_effect', 'rejected']);
+    assert.match(rejected.error ?? '', /pi_busy/);
     assert.equal(f.supervisor.get(w.worker_id).execution, null);
     assert.equal(f.supervisor.get(w.worker_id).foreground, 'idle');
     reply = 'handled';
@@ -167,6 +176,85 @@ test('input: a negative pi reply is ProvenNoEffect with evidence; a handled prom
     assert.equal(h.prompts, 2);
   } finally {
     f.cleanup();
+  }
+});
+
+test('input: a generic negative pi reply after dispatch is not proof of no effect: prompt and steer are outcome_unknown and fence', async () => {
+  const f = fixture();
+  try {
+    const w = await f.create();
+    const h = f.hosts[0]!;
+    const native = h.request.bind(h);
+    h.request = async c => (c.type === 'prompt' ? (h.prompts++, { type: 'response', id: 'x', success: false, error: 'sdk_command_failed' }) : native(c));
+    const failed = await f.supervisor.prompt(w.worker_id, { ...bind(w, 'failed'), message: 'x' });
+    assert.deepEqual([failed.state, failed.effect], ['outcome_unknown', 'unknown']);
+    let row = f.supervisor.get(w.worker_id);
+    assert.equal(row.execution?.state, 'outcome_unknown');
+    assert.equal(row.fence?.command_id, 'failed');
+    assert.equal(latestWorker(f.journalFile, w.worker_id).fence?.command_id, 'failed', 'the fence is durable');
+    await assert.rejects(f.supervisor.prompt(w.worker_id, { ...bind(w, 'next'), message: 'x' }), (e: unknown) => noEffect('session_fenced')(e) && (e as Refusal).uncertain_command_id === 'failed');
+
+    // A steer pi answers negatively may already have run its input hooks or queued: unknown too.
+    const g = fixture();
+    try {
+      const v = await g.create();
+      const hv = g.hosts[0]!;
+      const nativeV = hv.request.bind(hv);
+      hv.request = async c => (c.type === 'steer' ? { type: 'response', id: 'x', success: false, error: 'sdk_command_failed' } : nativeV(c));
+      await g.supervisor.prompt(v.worker_id, { ...bind(v, 'run'), message: 'x' });
+      const execution = g.supervisor.get(v.worker_id).execution!;
+      const steer = await g.supervisor.steer(v.worker_id, { ...bind(v, 'steer'), execution_id: execution.execution_id, message: 'y' });
+      assert.deepEqual([steer.state, steer.effect], ['outcome_unknown', 'unknown']);
+      row = g.supervisor.get(v.worker_id);
+      assert.ok(row.fence?.uncertain_command_ids?.includes('steer'));
+    } finally {
+      g.cleanup();
+    }
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('input (real pi): a prompt pi refuses after its input hooks ran is outcome_unknown and fences, never no_effect', { timeout: 60_000 }, async () => {
+  const tmp = privateTmp();
+  const root = realpathSync(tmp.dir);
+  const cwd = join(root, 'workspace');
+  const state = join(root, 'state');
+  const agent = join(root, 'agent');
+  const home = join(root, 'home');
+  for (const dir of [cwd, state, home, join(agent, 'extensions')]) mkdirSync(dir, { recursive: true });
+  // An input hook with an observable effect; pi runs it before its model and credential checks.
+  writeFileSync(
+    join(agent, 'extensions', 'effect.ts'),
+    `import {writeFileSync} from 'node:fs';\nexport default pi => { pi.on('input', (_e, ctx) => { writeFileSync(ctx.cwd + '/input-effect', '1'); return { action: 'continue' }; }); };\n`,
+  );
+  const opened = openState(state);
+  // No credentials anywhere: only PATH, an empty HOME and an empty agent directory. pi refuses at its auth check.
+  const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home, PI_CODING_AGENT_DIR: agent };
+  const s = new Supervisor({
+    journal: opened.journal,
+    receipts: new ReceiptStore(opened.journal),
+    supervisorEpoch: opened.supervisorEpoch,
+    stateDir: state,
+    factory: launch =>
+      new SdkHost(
+        { cwd: launch.cwd, sessionDir: launch.sessionDir, provider: launch.create.provider, model: launch.create.model, thinking: launch.create.thinking, projectTrusted: false },
+        { env },
+      ),
+  });
+  try {
+    const created = await s.create({ command_id: 'create', cwd, provider: 'anthropic', model: 'claude-sonnet-4-5', thinking: 'off' });
+    assert.equal(created.state, 'delivered', JSON.stringify(created));
+    const w = s.get(created.worker_id!);
+    const r = await s.prompt(w.worker_id, { ...bind(w, 'hooked'), message: 'an ordinary prompt' });
+    assert.equal(existsSync(join(cwd, 'input-effect')), true, 'the input hook ran: an effect happened before pi refused');
+    assert.deepEqual([r.state, r.effect], ['outcome_unknown', 'unknown'], JSON.stringify(r));
+    assert.equal(s.get(w.worker_id).fence?.command_id, 'hooked');
+    assert.equal(latestWorker(opened.journal.file, w.worker_id).fence?.command_id, 'hooked', 'durable');
+  } finally {
+    await s.shutdown();
+    opened.close();
+    tmp.cleanup();
   }
 });
 

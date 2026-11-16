@@ -124,11 +124,14 @@ export class Input {
         );
         if (live.faulted) throw new Error('worker fault during prompt');
         if (!response.success) {
+          // pi runs input hooks before its own refusals, so a negative reply is no proof that nothing happened: only
+          // the child's explicit refusal before any input hook is (D2). Anything else stays outcome_unknown.
+          if (response.refused !== 'before_input') throw new Error(`pi_prompt_failed_after_dispatch: ${String(response.error ?? 'negative_reply').slice(0, 64)}`);
           w.execution = null;
           w.foreground = 'idle';
           live.observedIdle = true;
           this.s.persist(live, 'execution.reply');
-          throw new ProvenNoEffect('pi_rejected_prompt', 'host_negative_prompt_response');
+          throw new ProvenNoEffect(`pi_refused_prompt: ${String(response.error).slice(0, 64)}`, 'host_refused_before_input_hooks');
         }
         const disposition = String(response.data?.disposition);
         if (disposition !== 'started' && disposition !== 'handled') throw new Error('unexpected prompt disposition');
@@ -190,7 +193,9 @@ export class Input {
     const response = await this.s.receipts.dispatchThen(commandId, { worker_id: live.worker.worker_id, execution_id: executionId }, () =>
       live.host!.request({ type: 'steer', message }),
     );
-    if (!response.success) throw new ProvenNoEffect('pi_rejected_steer', 'host_negative_steer_response');
+    // A steer runs pi's input hooks and queues; only an explicit refusal before them proves no effect.
+    if (!response.success && response.refused === 'before_input') throw new ProvenNoEffect(`pi_refused_steer: ${String(response.error).slice(0, 64)}`, 'host_refused_before_input_hooks');
+    if (!response.success) throw new Error(`pi_steer_failed_after_dispatch: ${String(response.error ?? 'negative_reply').slice(0, 64)}`);
     const disposition = String(response.data?.disposition);
     if (disposition !== 'queued' && disposition !== 'handled') throw new Error('unexpected steer disposition');
     return { state: 'delivered', stage: 'forwarded', effect: 'observed', admission: 'accepted', disposition };

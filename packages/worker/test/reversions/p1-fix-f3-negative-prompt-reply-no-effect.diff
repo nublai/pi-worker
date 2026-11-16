@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/input.ts b/packages/worker/src/supervisor/input.ts
+index d7a5c0f..2d4fd6e 100644
+--- a/packages/worker/src/supervisor/input.ts
++++ b/packages/worker/src/supervisor/input.ts
+@@ -126,7 +126,6 @@ export class Input {
+         if (!response.success) {
+           // pi runs input hooks before its own refusals, so a negative reply is no proof that nothing happened: only
+           // the child's explicit refusal before any input hook is (D2). Anything else stays outcome_unknown.
+-          if (response.refused !== 'before_input') throw new Error(`pi_prompt_failed_after_dispatch: ${String(response.error ?? 'negative_reply').slice(0, 64)}`);
+           w.execution = null;
+           w.foreground = 'idle';
+           live.observedIdle = true;
