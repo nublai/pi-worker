@@ -1,0 +1,85 @@
+{
+  "request": {
+    "query": {
+      "worker_id": "worker-1",
+      "types": "worker.updated"
+    }
+  },
+  "response": {
+    "status": 200,
+    "frames": [
+      {
+        "type": "snapshot",
+        "workers": [
+          {
+            "worker_id": "worker-1",
+            "worker_epoch": "epoch-1",
+            "supervisor_epoch": "sup-epoch-1",
+            "session_id": "session-1",
+            "session_identity_evidence": "pi_session_file",
+            "binding_revision": 1,
+            "leaf_id": "entry-9",
+            "cwd": "/home/u/project",
+            "status": "ready",
+            "foreground": "idle",
+            "execution": null,
+            "fence": null,
+            "history": {
+              "last_entry_id": "entry-9",
+              "lag": false,
+              "evidence": "pi_session_file"
+            },
+            "cleanup": "none",
+            "pending_interactions": [],
+            "queued": [],
+            "fence_generation": 0,
+            "host": "sdk"
+          }
+        ],
+        "cursor": {
+          "transport_epoch": "t-1",
+          "seq": 0
+        },
+        "resync_reason": "fresh"
+      },
+      {
+        "type": "worker.updated",
+        "cursor": {
+          "transport_epoch": "t-1",
+          "seq": 1
+        },
+        "event_id": "ev-1",
+        "producer": "supervisor",
+        "execution_id": null,
+        "evidence": "supervisor_journal_fsynced",
+        "worker_id": "worker-1",
+        "data": {
+          "worker": {
+            "worker_id": "worker-1",
+            "worker_epoch": "epoch-1",
+            "supervisor_epoch": "sup-epoch-1",
+            "session_id": "session-1",
+            "session_identity_evidence": "pi_session_file",
+            "binding_revision": 1,
+            "leaf_id": "entry-9",
+            "cwd": "/home/u/project",
+            "status": "ready",
+            "foreground": "idle",
+            "execution": null,
+            "fence": null,
+            "history": {
+              "last_entry_id": "entry-9",
+              "lag": false,
+              "evidence": "pi_session_file"
+            },
+            "cleanup": "none",
+            "pending_interactions": [],
+            "queued": [],
+            "fence_generation": 0,
+            "host": "sdk"
+          }
+        }
+      }
+    ]
+  }
+}

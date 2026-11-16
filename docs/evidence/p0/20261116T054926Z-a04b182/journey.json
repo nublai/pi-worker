@@ -1,0 +1,50 @@
+{
+  "journey": "p0-hello",
+  "pass": true,
+  "checks": {
+    "service_active": true,
+    "service_delegated": true,
+    "socket_0600": true,
+    "socket_dir_0700": true,
+    "service_cgroup_present": true,
+    "ts_hello": true,
+    "ts_501_no_effect": true,
+    "go_hello": true,
+    "go_501_no_effect": true,
+    "same_supervisor": true,
+    "limits_agree": true,
+    "no_piw_units_left": true,
+    "socket_removed": true,
+    "cgroup_removed": true
+  },
+  "ts": {
+    "client": "ts",
+    "hello": "ok",
+    "protocol_major": 0,
+    "supervisor_epoch": "58c1f872-6dcc-47d5-88b1-a8971c6db3a4",
+    "limits": {
+      "request_body_bytes": 262144,
+      "attachment_max_bytes": 2097152,
+      "attachments_per_message": 4,
+      "attachments_total_bytes": 8388608,
+      "event_frame_bytes": 1048576
+    },
+    "prompt_status": 501,
+    "prompt_effect": "no_effect"
+  },
+  "go": {
+    "client": "go",
+    "hello": "ok",
+    "limits": {
+      "attachment_max_bytes": 2097152,
+      "attachments_per_message": 4,
+      "attachments_total_bytes": 8388608,
+      "event_frame_bytes": 1048576,
+      "request_body_bytes": 262144
+    },
+    "prompt_effect": "no_effect",
+    "prompt_status": 501,
+    "protocol_major": 0,
+    "supervisor_epoch": "58c1f872-6dcc-47d5-88b1-a8971c6db3a4"
+  }
+}

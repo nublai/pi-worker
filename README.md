@@ -1,7 +1,18 @@
 # pi-worker
 
-One supervisor per machine that runs pi headless (RPC/SDK), one session per worker, with typed events and dialogs, a durable log, receipts, epochs and explicit unknown outcomes, and child sessions in worktrees and sandboxes.
+One supervisor per Linux user that runs pi headless, one session per worker, with typed events and dialogs, a
+durable journal, receipts, epochs and explicit unknown outcomes, and child sessions in worktrees and sandboxes. Its
+typed API (B2) is served over a private Unix socket.
 
-**Status: contract in draft.** Nothing is built here until the worker contract is validated (industry research refresh, council review, and reviews by the Shep and exmach sessions). The draft lives in nublai/root `.pi/plan/`.
+**Status: P0 (foundation) in progress.** The contract is nublai/root `.pi/plan/worker-contract.md`, revision 8
+(sections 0, 0.1 and 0.2 frozen). The build plan is [docs/plan/production.md](docs/plan/production.md); how agents
+work here is in [AGENTS.md](AGENTS.md).
 
-Intended license: MIT (nubl decision R21); the LICENSE file is added before the repository is made public.
+Requirements: Linux, Node 26.12.1 or later for the daemon (`.node-version` pins CI).
+
+```sh
+npm ci --ignore-scripts
+npm run check
+```
+
+License: [MIT](LICENSE) (nubl decision R21, plan decision D1).

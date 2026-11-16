@@ -1,0 +1,31 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "uncertain_command_id": "cmd-0",
+      "fence_generation": 1,
+      "disposition": "keep"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "command_id": "cmd-1",
+      "operation": "sessions.resolve_unknown",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "resolved",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "disposition": "keep"
+    }
+  }
+}

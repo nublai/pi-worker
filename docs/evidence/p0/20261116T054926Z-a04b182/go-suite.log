@@ -1,0 +1,3 @@
+ok  	github.com/nublai/pi-worker/clients/go/b2	4.556s
+ok  	github.com/nublai/pi-worker/clients/go/b2	1.294s
+stdlib only: github.com/nublai/pi-worker/clients/go

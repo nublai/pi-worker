@@ -1,0 +1,162 @@
+# Fails piw/unsupported-declares-501: an unsupported operation without a 501 response.
+openapi: 3.1.0
+info:
+  title: lint fixture
+  version: 0.0.0
+  license:
+    name: MIT
+    identifier: MIT
+  x-piw-json-max-bytes: 262144
+servers:
+  - url: http://pi-worker
+security:
+  - bearerGrant: []
+paths:
+  /b2/workers/{worker_id}/prompt:
+    post:
+      operationId: sessions.prompt
+      summary: Prompt
+      x-piw-mutation: true
+      x-piw-status: unsupported
+      x-piw-body: json
+      parameters:
+        - name: worker_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Prompt'
+      responses:
+        '200':
+          description: Receipt.
+          x-piw-response: json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /b2/attachments/{attachment_id}:
+    put:
+      operationId: attachments.stage
+      summary: Stage
+      x-piw-mutation: true
+      x-piw-status: unsupported
+      x-piw-body: binary
+      x-piw-max-bytes: 2097152
+      parameters:
+        - name: attachment_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Piw-Command-Id
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          image/jpeg: {}
+      responses:
+        '200':
+          description: Receipt.
+          x-piw-response: json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '501':
+          description: Not implemented.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /b2/events:
+    get:
+      operationId: events.subscribe
+      summary: Events
+      x-piw-mutation: false
+      x-piw-body: none
+      responses:
+        '200':
+          description: Events.
+          x-piw-response: sse
+          x-piw-max-frame-bytes: 1048576
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/EventFrame'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  securitySchemes:
+    bearerGrant:
+      type: http
+      scheme: bearer
+  schemas:
+    Error:
+      type: object
+      required: [error, effect]
+      properties:
+        error:
+          type: string
+        effect:
+          type: string
+          enum: [no_effect, unknown]
+    Prompt:
+      type: object
+      required: [command_id, message]
+      properties:
+        command_id:
+          type: string
+        message:
+          type: string
+    EventFrame:
+      oneOf:
+        - $ref: '#/components/schemas/PingEvent'
+        - $ref: '#/components/schemas/PongEvent'
+    PingEvent:
+      type: object
+      x-piw-event:
+        type: ping
+        producer: supervisor
+        durability: memory
+        visibility: worker
+      required: [type]
+      properties:
+        type:
+          type: string
+          const: ping
+    PongEvent:
+      type: object
+      x-piw-event:
+        type: pong
+        producer: pi
+        durability: journal
+        visibility: subscriber
+      required: [type]
+      properties:
+        type:
+          type: string
+          const: pong

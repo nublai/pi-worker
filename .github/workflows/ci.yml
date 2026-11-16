@@ -1,0 +1,94 @@
+# CI for every push and PR: build and tests on Linux, Node 26; the client also on
+# pi's Node floor (22.19). Actions are pinned by full SHA. No secrets.
+name: ci
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    # Generation (check:generated) and the Go tests in npm run check run on Go 1.26.11, the toolchain
+    # tools/go/go.mod names; generate.mjs refuses any other Go. GOTOOLCHAIN=local: Go never downloads a compiler.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: .node-version
+          cache: npm
+      # actions/setup-go v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: 1.26.11
+          cache: false
+      - run: go version
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+        env:
+          TMPDIR: ${{ runner.temp }}
+  go-client:
+    # The Go client builds and tests on Go 1.24 (Shep's bridge) with the standard library only,
+    # and talks to the built worker (hello and a 501).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: .node-version
+          cache: npm
+      # actions/setup-go v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: 1.24.13
+          cache: false
+      - run: go version
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: go vet, race tests, integration against the worker, stdlib-only gate
+        working-directory: clients/go
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          go vet ./...
+          GOOS=darwin go vet ./...
+          go build ./...
+          go test -race ./...
+          go test -tags integration ./...
+          ./stdlib-gate.sh
+  client-node22:
+    # @nublai/pi-worker-client keeps pi's Node floor; test it on exactly that version.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 22.19.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --version
+      - run: npm test -w @nublai/pi-worker-client
+        env:
+          TMPDIR: ${{ runner.temp }}

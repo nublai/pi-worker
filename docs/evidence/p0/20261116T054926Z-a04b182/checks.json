@@ -1,0 +1,48 @@
+{
+  "journey": "p0-hello",
+  "status": "pass",
+  "counted": true,
+  "commit": "a04b1826e2370d795bb850aa9f732611068d07ab",
+  "tree": "ed93def3e98be15b483fdd552750c23897778534",
+  "vm": "piw-p0-hello-11160549",
+  "recorded_at": "2026-11-16T05:50:36.033Z",
+  "platform": {
+    "kernel": "6.12.115",
+    "os": "Ubuntu 24.04.5 LTS",
+    "arch": "x86_64",
+    "node": "v26.13.1",
+    "go": "go1.24.13",
+    "git": "2.43.0",
+    "bwrap": "0.9.0",
+    "systemd": "255",
+    "user_manager_controllers": "cpu memory pids",
+    "apparmor_restrict_unprivileged_userns": "absent",
+    "pi": null
+  },
+  "checks": {
+    "service_active": true,
+    "service_delegated": true,
+    "socket_0600": true,
+    "socket_dir_0700": true,
+    "service_cgroup_present": true,
+    "ts_hello": true,
+    "ts_501_no_effect": true,
+    "go_hello": true,
+    "go_501_no_effect": true,
+    "same_supervisor": true,
+    "limits_agree": true,
+    "no_piw_units_left": true,
+    "socket_removed": true,
+    "cgroup_removed": true
+  },
+  "cleanup": {
+    "no_piw_units_left": true,
+    "socket_removed": true,
+    "cgroup_removed": true
+  },
+  "attention": [],
+  "privacy_scan": {
+    "scanned": 7,
+    "findings": 0
+  }
+}

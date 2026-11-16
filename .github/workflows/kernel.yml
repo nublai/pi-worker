@@ -1,0 +1,50 @@
+# Kernel tier (plan P0-8): cgroup v2 delegation and bwrap tests inside a delegated systemd user service, on a
+# GitHub-hosted ubuntu-24.04 runner. Runs on PRs that touch containment, sandbox, owner Git, B2 or the kernel tests,
+# nightly, and on demand. harness/ci/kernel.sh names any missing host facility and fails on a skip or a leftover
+# piw-* unit. Fallback if the hosted runner ever cannot: harness/ci/README.md. Actions pinned by full SHA. No secrets.
+name: kernel
+on:
+  pull_request:
+    paths:
+      - 'packages/worker/src/containment/**'
+      - 'packages/worker/src/sandbox/**'
+      - 'packages/worker/src/owner-git/**'
+      - 'packages/worker/src/b2/**'
+      - 'packages/worker/test/security/**'
+      - 'harness/ci/**'
+      - '.github/workflows/kernel.yml'
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: kernel-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  kernel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - name: Host setup (bubblewrap, user namespaces for this job, a user manager via linger)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap
+          # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor; allow them on this throwaway runner.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          sudo loginctl enable-linger "$(id -un)"
+          for _ in $(seq 1 100); do [ -S "/run/user/$(id -u)/bus" ] && break; sleep 0.1; done
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: harness/ci/kernel.sh
+        env:
+          TMPDIR: ${{ runner.temp }}

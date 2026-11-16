@@ -1,0 +1,33 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "query": {
+      "limit": "2"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "entries": [
+        {
+          "type": "message",
+          "id": "entry-8"
+        },
+        {
+          "type": "message",
+          "id": "entry-9"
+        }
+      ],
+      "watermark": "wm-1",
+      "next": {
+        "watermark": "wm-1",
+        "after": "entry-9"
+      },
+      "leafId": "entry-9",
+      "truncated": false,
+      "evidence": "pi_session_file"
+    }
+  }
+}

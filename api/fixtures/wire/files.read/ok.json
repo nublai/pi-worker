@@ -1,0 +1,22 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "path": "/sandbox/root/README.md",
+      "roots": [
+        "/sandbox/root"
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "path": "/sandbox/root/README.md",
+      "content": "# readme\n",
+      "bytes": 9,
+      "evidence": "pinned_file_read"
+    }
+  }
+}
