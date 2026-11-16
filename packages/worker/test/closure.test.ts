@@ -13,6 +13,9 @@ import { join } from 'node:path';
 import { createB2Server, listenPrivate } from '../src/b2/server.js';
 import { after } from 'node:test';
 import { bundledSpec, ownerGrant, privateTmp, socketRaw, specOperationIds, urlFor, wireFixtures, type WireFixture } from './helpers.js';
+import { createHash } from 'node:crypto';
+import { existsSync, readdirSync } from 'node:fs';
+import { fixture } from './supervisor-fixture.js';
 
 const table: Record<string, Route> = routes;
 // Every B2 request needs a bearer (P1-9): these closure checks run as the owner.
@@ -231,7 +234,7 @@ test('closure: every operation declares its body and response modes, and the spe
     }
   }
   assert.equal(table['attachments.stage']!.body, 'binary');
-  assert.equal(table['attachments.stage']!.supported, false);
+  assert.equal(table['attachments.stage']!.supported, true, 'served from P1-16');
 });
 
 test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE frame cap) and the retention limits', async () => {
@@ -252,25 +255,74 @@ test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE
     receipt_expired_ids_max: 16384,
     history_max_bytes: 16 * MiB,
     history_line_max_bytes: 64 * MiB,
+    blob_max_bytes: table['blobs.read']!.responses['200']!.maxBytes,
   });
 });
 
-test('closure: a 1 MiB body reaches the binary route (its 501), the same body to a JSON route is 413', async () => {
-  const memory = createMemoryTransport(app().handle, auth);
-  const oneMiB = Buffer.alloc(MiB, 0xff);
-  const binary = await memory.request('PUT', attachment, { raw: oneMiB, headers: attachmentHeaders() });
-  assert.deepEqual(binary, { status: 501, body: { error: 'operation_not_implemented', effect: 'no_effect' } });
-  const json = await memory.request('POST', '/b2/workers/w1/prompt', { raw: oneMiB, headers: { 'content-type': 'application/json' } });
-  assert.deepEqual(json, { status: 413, body: { error: 'request_too_large', effect: 'no_effect' } });
+/** A JPEG-magic body of `n` bytes and its SHA-256: what the staging route checks after the last byte. */
+function jpeg(n: number): { body: Buffer; sha: string } {
+  const body = Buffer.alloc(n, 0x5a);
+  body.set([0xff, 0xd8, 0xff, 0xe0]);
+  return { body, sha: createHash('sha256').update(body).digest('hex') };
+}
+
+/** A supervisor with one ready worker, and stage headers naming it (P1-16: the binary route's real handler). */
+async function stagingWorld() {
+  const f = fixture();
+  const owner = ownerGrant(f.dir);
+  const w = await f.create();
+  const handle = createApp({ supervisor: f.supervisor, grants: owner.grants }).handle;
+  let n = 0;
+  const headers = (sha: string, extra: Record<string, string> = {}) => ({
+    ...owner.headers,
+    'content-type': 'image/jpeg',
+    'piw-command-id': `cmd-stage-${++n}`,
+    'piw-worker-id': w.worker_id,
+    'piw-worker-epoch': w.worker_epoch,
+    'piw-session-id': w.session_id!,
+    'piw-binding-revision': String(w.binding_revision),
+    'piw-content-sha256': sha,
+    ...extra,
+  });
+  const staged = () => (existsSync(join(f.dir, 'attachments')) ? readdirSync(join(f.dir, 'attachments')) : []);
+  return { f, handle, headers, staged, memory: createMemoryTransport(handle) };
+}
+
+test('closure: a 1 MiB body reaches the binary route (staged by its handler), the same body to a JSON route is 413', async () => {
+  const world = await stagingWorld();
+  try {
+    const { body, sha } = jpeg(MiB);
+    const binary = await world.memory.request('PUT', '/b2/attachments/one-mib', { raw: body, headers: world.headers(sha) });
+    assert.equal(binary.status, 200, JSON.stringify(binary.body));
+    assert.deepEqual((binary.body as { result: unknown }).result, { attachment_id: 'one-mib', state: 'staged', bytes: MiB });
+    const json = await createMemoryTransport(app().handle, auth).request('POST', '/b2/workers/w1/prompt', { raw: Buffer.alloc(MiB, 0xff), headers: { 'content-type': 'application/json' } });
+    assert.deepEqual(json, { status: 413, body: { error: 'request_too_large', effect: 'no_effect' } });
+  } finally {
+    world.f.cleanup();
+  }
+});
+
+test('closure: the real binary handler stages a body at the limit and refuses the byte past it 413 with no staged file', async () => {
+  const world = await stagingWorld();
+  try {
+    const limit = table['attachments.stage']!.maxBodyBytes;
+    const at = jpeg(limit);
+    const ok = await world.memory.request('PUT', '/b2/attachments/at-limit', { raw: at.body, headers: world.headers(at.sha) });
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
+    const over = jpeg(limit + 1);
+    const refused = await world.memory.request('PUT', '/b2/attachments/over', { raw: over.body, headers: world.headers(over.sha, { 'content-length': '10' }) });
+    assert.deepEqual(refused, { status: 413, body: { error: 'request_too_large', effect: 'no_effect' } });
+    assert.equal(world.staged().length, 1, 'only the attachment at the limit is staged; no partial file is left');
+  } finally {
+    world.f.cleanup();
+  }
 });
 
 test('closure: binary body modes refuse over-limit bodies, wrong media types and bad headers no_effect', async () => {
   const memory = createMemoryTransport(app().handle, auth);
   const limit = table['attachments.stage']!.maxBodyBytes;
   const cases: [string, Promise<{ status: number; body: unknown }>, number, string][] = [
-    ['at the limit', memory.request('PUT', attachment, { raw: Buffer.alloc(limit), headers: attachmentHeaders() }), 501, 'operation_not_implemented'],
     ['declared over the limit', memory.request('PUT', attachment, { raw: Buffer.alloc(1), headers: attachmentHeaders({ 'content-length': String(limit + 1) }) }), 413, 'request_too_large'],
-    ['actually over the limit', memory.request('PUT', attachment, { raw: Buffer.alloc(limit + 1), headers: attachmentHeaders({ 'content-length': '10' }) }), 413, 'request_too_large'],
     ['json to binary', memory.request('PUT', attachment, { json: { command_id: 'c' }, headers: attachmentHeaders({ 'content-type': 'application/json' }) }), 415, 'unsupported_media_type'],
     ['undeclared image type', memory.request('PUT', attachment, { raw: Buffer.alloc(8), headers: attachmentHeaders({ 'content-type': 'image/gif' }) }), 415, 'unsupported_media_type'],
     ['no content type', memory.request('PUT', attachment, { raw: Buffer.alloc(8), headers: Object.fromEntries(Object.entries(attachmentHeaders()).filter(([k]) => k !== 'content-type')) }), 415, 'unsupported_media_type'],
@@ -312,26 +364,31 @@ test('closure: a served binary route hands its handler the counted stream; the b
   assert.deepEqual(seen, [MiB]);
 });
 
-test('closure: over the Unix socket, 1 MiB reaches the binary 501, a JSON MiB is 413, a chunked body past the binary limit is 413', async () => {
+test('closure: over the Unix socket, 1 MiB is staged by the binary handler, a JSON MiB is 413, a chunked body past the binary limit is 413', async () => {
+  const world = await stagingWorld();
   const tmp = privateTmp();
-  const server = createB2Server(app().handle);
+  const server = createB2Server(world.handle);
   try {
     const socket = join(tmp.dir, 'b2.sock');
     await listenPrivate(server, socket);
     const limit = table['attachments.stage']!.maxBodyBytes;
-    const binary = await socketRaw(socket, 'PUT', attachment, attachmentHeaders({ 'content-length': String(MiB) }), Buffer.alloc(MiB, 1));
-    assert.deepEqual(binary, { status: 501, body: { error: 'operation_not_implemented', effect: 'no_effect' } });
-    const chunked = await socketRaw(socket, 'PUT', attachment, attachmentHeaders(), Buffer.alloc(MiB, 1));
-    assert.equal(chunked.status, 501);
-    const json = await socketRaw(socket, 'POST', '/b2/workers/w1/prompt', { ...auth, 'content-type': 'application/json' }, Buffer.alloc(MiB, 0x20));
+    const one = jpeg(MiB);
+    const binary = await socketRaw(socket, 'PUT', '/b2/attachments/sock-1', world.headers(one.sha, { 'content-length': String(MiB) }), one.body);
+    assert.equal(binary.status, 200, JSON.stringify(binary.body));
+    const chunked = await socketRaw(socket, 'PUT', '/b2/attachments/sock-2', world.headers(one.sha), one.body);
+    assert.equal(chunked.status, 200, JSON.stringify(chunked.body));
+    const json = await socketRaw(socket, 'POST', '/b2/workers/w1/prompt', { ...world.headers(one.sha), 'content-type': 'application/json' }, Buffer.alloc(MiB, 0x20));
     assert.deepEqual(json, { status: 413, body: { error: 'request_too_large', effect: 'no_effect' } });
-    const over = await socketRaw(socket, 'PUT', attachment, attachmentHeaders(), Buffer.alloc(limit + 64 * 1024, 1));
+    const big = jpeg(limit + 64 * 1024);
+    const over = await socketRaw(socket, 'PUT', '/b2/attachments/sock-3', world.headers(big.sha), big.body);
     assert.deepEqual(over, { status: 413, body: { error: 'request_too_large', effect: 'no_effect' } });
-    const declared = await socketRaw(socket, 'PUT', attachment, attachmentHeaders({ 'content-length': String(limit + 1) }), Buffer.alloc(limit + 1, 1));
+    const declared = await socketRaw(socket, 'PUT', '/b2/attachments/sock-4', world.headers(big.sha, { 'content-length': String(limit + 1) }), big.body.subarray(0, limit + 1));
     assert.deepEqual(declared, { status: 413, body: { error: 'request_too_large', effect: 'no_effect' } });
+    assert.equal(world.staged().length, 2, 'the two accepted uploads, and no partial file from the refused ones');
   } finally {
     server.closeAllConnections();
     await new Promise<void>(r => server.close(() => r()));
     tmp.cleanup();
+    world.f.cleanup();
   }
 });

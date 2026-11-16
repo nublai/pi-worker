@@ -26,6 +26,66 @@ func (e AnswerOutcome) Valid() bool {
 	}
 }
 
+// Defines values for AttachmentStatusContentType.
+const (
+	Imagejpeg AttachmentStatusContentType = "image/jpeg"
+	Imagepng  AttachmentStatusContentType = "image/png"
+	Imagewebp AttachmentStatusContentType = "image/webp"
+)
+
+// Valid indicates whether the value is a known member of the AttachmentStatusContentType enum.
+func (e AttachmentStatusContentType) Valid() bool {
+	switch e {
+	case Imagejpeg:
+		return true
+	case Imagepng:
+		return true
+	case Imagewebp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AttachmentStatusEvidence.
+const (
+	AttachmentStatusEvidenceObservedMemory           AttachmentStatusEvidence = "observed_memory"
+	AttachmentStatusEvidenceSupervisorJournalFsynced AttachmentStatusEvidence = "supervisor_journal_fsynced"
+)
+
+// Valid indicates whether the value is a known member of the AttachmentStatusEvidence enum.
+func (e AttachmentStatusEvidence) Valid() bool {
+	switch e {
+	case AttachmentStatusEvidenceObservedMemory:
+		return true
+	case AttachmentStatusEvidenceSupervisorJournalFsynced:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AttachmentStatusState.
+const (
+	Receiving AttachmentStatusState = "receiving"
+	Released  AttachmentStatusState = "released"
+	Staged    AttachmentStatusState = "staged"
+)
+
+// Valid indicates whether the value is a known member of the AttachmentStatusState enum.
+func (e AttachmentStatusState) Valid() bool {
+	switch e {
+	case Receiving:
+		return true
+	case Released:
+		return true
+	case Staged:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ChildClaimClaimNotVerified.
 const (
 	ChildClaimClaimNotVerifiedTrue ChildClaimClaimNotVerified = true
@@ -871,6 +931,7 @@ func (e ReceiptEvidence) Valid() bool {
 
 // Defines values for ReceiptOperation.
 const (
+	ReceiptOperationAttachmentsRelease          ReceiptOperation = "attachments.release"
 	ReceiptOperationAttachmentsStage            ReceiptOperation = "attachments.stage"
 	ReceiptOperationChildrenLaunch              ReceiptOperation = "children.launch"
 	ReceiptOperationChildrenReport              ReceiptOperation = "children.report"
@@ -896,6 +957,8 @@ const (
 // Valid indicates whether the value is a known member of the ReceiptOperation enum.
 func (e ReceiptOperation) Valid() bool {
 	switch e {
+	case ReceiptOperationAttachmentsRelease:
+		return true
 	case ReceiptOperationAttachmentsStage:
 		return true
 	case ReceiptOperationChildrenLaunch:
@@ -1297,6 +1360,7 @@ func (e StopReceiptEvidence) Valid() bool {
 
 // Defines values for StopReceiptOperation.
 const (
+	StopReceiptOperationAttachmentsRelease          StopReceiptOperation = "attachments.release"
 	StopReceiptOperationAttachmentsStage            StopReceiptOperation = "attachments.stage"
 	StopReceiptOperationChildrenLaunch              StopReceiptOperation = "children.launch"
 	StopReceiptOperationChildrenReport              StopReceiptOperation = "children.report"
@@ -1322,6 +1386,8 @@ const (
 // Valid indicates whether the value is a known member of the StopReceiptOperation enum.
 func (e StopReceiptOperation) Valid() bool {
 	switch e {
+	case StopReceiptOperationAttachmentsRelease:
+		return true
 	case StopReceiptOperationAttachmentsStage:
 		return true
 	case StopReceiptOperationChildrenLaunch:
@@ -1676,6 +1742,36 @@ type Answer struct {
 
 // AnswerOutcome defines model for Answer.Outcome.
 type AnswerOutcome string
+
+// AttachmentStatus defines model for AttachmentStatus.
+type AttachmentStatus struct {
+	AttachmentId Id `json:"attachment_id"`
+
+	// Bytes For `receiving`, the bytes received so far.
+	Bytes int `json:"bytes"`
+
+	// CommandId The `attachments.stage` command that staged it (or is staging it).
+	CommandId   Id                          `json:"command_id"`
+	ContentType AttachmentStatusContentType `json:"content_type"`
+	Evidence    AttachmentStatusEvidence    `json:"evidence"`
+	ReleasedAt  *string                     `json:"released_at"`
+
+	// ReleasedBy The command that released it (`attachments.release`, or the prompt that delivered it).
+	ReleasedBy *string               `json:"released_by"`
+	Sha256     Sha256                `json:"sha256"`
+	StagedAt   *string               `json:"staged_at"`
+	State      AttachmentStatusState `json:"state"`
+	WorkerId   Id                    `json:"worker_id"`
+}
+
+// AttachmentStatusContentType defines model for AttachmentStatus.ContentType.
+type AttachmentStatusContentType string
+
+// AttachmentStatusEvidence defines model for AttachmentStatus.Evidence.
+type AttachmentStatusEvidence string
+
+// AttachmentStatusState defines model for AttachmentStatus.State.
+type AttachmentStatusState string
 
 // Binding defines model for Binding.
 type Binding struct {
@@ -2181,6 +2277,9 @@ type Limits struct {
 	// AttachmentsTotalBytes The most attachment bytes one `sessions.prompt` may reference.
 	AttachmentsTotalBytes int `json:"attachments_total_bytes"`
 
+	// BlobMaxBytes The largest image `blobs.read` returns.
+	BlobMaxBytes *int `json:"blob_max_bytes,omitempty"`
+
 	// EventFrameBytes The most bytes one `events.subscribe` SSE record may carry.
 	EventFrameBytes int `json:"event_frame_bytes"`
 
@@ -2192,7 +2291,8 @@ type Limits struct {
 
 	// JournalControlReserveBytes Journal room only control records may use: quota-exempt commands
 	// (`workers.stop`, `executions.cancel`, `executions.interrupt`,
-	// `sessions.resolve_unknown`, `children.report`) and stop, exit,
+	// `sessions.resolve_unknown`, `children.report`,
+	// `attachments.release`) and stop, exit,
 	// fault, fence and recovery records. Before dispatch, an ordinary
 	// command reserves room for every record it can emit (its receipts,
 	// and its worker's rows, settlements and interactions); it is refused
@@ -2321,6 +2421,10 @@ type Producer string
 
 // Prompt defines model for Prompt.
 type Prompt struct {
+	// Attachments Staged images of this worker, sent as real image blocks with the text. At most `hello.limits.attachments_per_message` and `attachments_total_bytes` in total, else refused `no_effect`; not with `if_busy: steer`. The receipt's `result.accepted_images` is the number of images pi put in the message. A delivered prompt releases them.
+	Attachments *[]struct {
+		AttachmentId Id `json:"attachment_id"`
+	} `json:"attachments,omitempty"`
 	BindingRevision int `json:"binding_revision"`
 	CommandId       Id  `json:"command_id"`
 
@@ -2409,6 +2513,11 @@ type ReceiptStage string
 
 // ReceiptState defines model for Receipt.State.
 type ReceiptState string
+
+// Release defines model for Release.
+type Release struct {
+	CommandId Id `json:"command_id"`
+}
 
 // Report defines model for Report.
 type Report struct {
@@ -2856,6 +2965,9 @@ type HistoryPageParams struct {
 type InteractionsStatusParams struct {
 	InteractionId Id `form:"interaction_id" json:"interaction_id"`
 }
+
+// AttachmentsReleaseJSONRequestBody defines body for AttachmentsRelease for application/json ContentType.
+type AttachmentsReleaseJSONRequestBody = Release
 
 // WorkersCreateJSONRequestBody defines body for WorkersCreate for application/json ContentType.
 type WorkersCreateJSONRequestBody = Create

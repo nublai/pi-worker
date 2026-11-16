@@ -29,7 +29,7 @@ const FINAL = new Set<Receipt['state']>(['delivered', 'rejected', 'outcome_unkno
  * Control and recovery never deadlock behind the ordinary count quota. The byte cap still applies, but they may use the
  * journal's control reserve, which ordinary commands may not.
  */
-export const QUOTA_EXEMPT = new Set<Operation>(['workers.stop', 'executions.cancel', 'executions.interrupt', 'sessions.resolve_unknown', 'children.report']);
+export const QUOTA_EXEMPT = new Set<Operation>(['workers.stop', 'executions.cancel', 'executions.interrupt', 'sessions.resolve_unknown', 'children.report', 'attachments.release']);
 
 export const isFinal = (receipt: Receipt | undefined): boolean => receipt !== undefined && FINAL.has(receipt.state);
 

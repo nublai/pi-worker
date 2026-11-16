@@ -1,10 +1,10 @@
 diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
-index cfea8ae..be37c16 100644
+index 1446d33..86617c4 100644
 --- a/packages/worker/src/sdk-child/main.ts
 +++ b/packages/worker/src/sdk-child/main.ts
-@@ -475,7 +475,7 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
-       {
-         const text = String(c.message);
+@@ -562,7 +562,7 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
+         });
+         if (blocks.length && !session.model?.input.includes('image')) throw new RefusedBeforeInput('model_without_image_input');
          // The worker owns the interrupt marker (S-5): the model gets it, the stamp keeps the text the user typed.
 -        const marked = afterAbortedTurn(session, text);
 +        const marked = afterAbortedTurn(session, text) && text === 'never';

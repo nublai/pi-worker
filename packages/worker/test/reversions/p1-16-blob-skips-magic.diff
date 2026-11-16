@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/features.ts b/packages/worker/src/supervisor/features.ts
+index 52790ec..6cb2d90 100644
+--- a/packages/worker/src/supervisor/features.ts
++++ b/packages/worker/src/supervisor/features.ts
+@@ -227,7 +227,7 @@ export class Features {
+     if (bytes.length > BLOB_MAX_BYTES) throw new Refusal('blob_too_large');
+     const gif = bytes.subarray(0, 6).toString('latin1');
+     const magic = mime === 'image/gif' ? gif === 'GIF87a' || gif === 'GIF89a' : sniff(bytes.subarray(0, 16)) === mime;
+-    if (!magic) throw new Refusal('blob_type_mismatch');
++    void magic;
+     return {
+       contentType: mime,
+       body: bytes,

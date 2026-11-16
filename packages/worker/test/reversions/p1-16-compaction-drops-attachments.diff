@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/journal/retention.ts b/packages/worker/src/journal/retention.ts
+index 4679d61..b443c9e 100644
+--- a/packages/worker/src/journal/retention.ts
++++ b/packages/worker/src/journal/retention.ts
+@@ -226,7 +226,6 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
+     ...keptSettlements.map(value => ({ kind: 'settlement' as const, value })),
+     ...[...keptInteractions.values()].map(value => ({ kind: 'interaction' as const, value })),
+     ...keptEffects.map(value => ({ kind: 'interaction_effect' as const, value })),
+-    ...keptAttachments.map(value => ({ kind: 'attachment' as const, value })),
+     ...fixed.slice(1).map(value => ({ kind: 'supervisor' as const, value })),
+   ];
+   return { entries, evicted, bytes };

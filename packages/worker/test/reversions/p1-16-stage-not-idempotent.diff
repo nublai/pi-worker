@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
+index 0c649e1..0e41feb 100644
+--- a/packages/worker/src/attachments/attachments.ts
++++ b/packages/worker/src/attachments/attachments.ts
+@@ -169,7 +169,7 @@ export class Attachments {
+     checks();
+     if (prior && prior.sha256 !== request.sha256) throw new Refusal('attachment_id_conflict');
+     if (prior && prior.state === 'released') throw new Refusal('attachment_released');
+-    if (prior) {
++    if (prior && request.sha256 === 'never') {
+       // The same image again: nothing is stored twice; a receipt for this command names the staged attachment.
+       await drain();
+       return this.receipts.run(

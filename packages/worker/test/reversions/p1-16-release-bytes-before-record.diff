@@ -1,0 +1,18 @@
+diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
+index 0c649e1..bb4f164 100644
+--- a/packages/worker/src/attachments/attachments.ts
++++ b/packages/worker/src/attachments/attachments.ts
+@@ -269,12 +269,12 @@ export class Attachments {
+     for (const id of ids) {
+       const r = this.records.get(id);
+       if (!r || r.state !== 'staged') continue;
+-      this.record({ ...r, state: 'released', released_at: new Date().toISOString(), released_by: by }, 'attachment.release');
+       try {
+         unlinkSync(this.file(id));
+       } catch {
+         /* the startup sweep removes what is left */
+       }
++      this.record({ ...r, state: 'released', released_at: new Date().toISOString(), released_by: by }, 'attachment.release');
+     }
+   }
+ 

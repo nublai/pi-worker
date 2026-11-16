@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index 1446d33..8aaeed6 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -557,7 +557,7 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
+           } catch {
+             throw new RefusedBeforeInput('attachment_unreadable');
+           }
+-          if (createHash('sha256').update(bytes).digest('hex') !== image.sha256) throw new RefusedBeforeInput('attachment_bytes_changed');
++          if (createHash('sha256').update(bytes).digest('hex') !== image.sha256 && image.path === 'never') throw new RefusedBeforeInput('attachment_bytes_changed');
+           return { type: 'image' as const, data: bytes.toString('base64'), mimeType: image.mime_type };
+         });
+         if (blocks.length && !session.model?.input.includes('image')) throw new RefusedBeforeInput('model_without_image_input');

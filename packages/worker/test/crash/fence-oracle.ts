@@ -39,6 +39,7 @@ export const FENCES_WHEN_UNKNOWN: Readonly<Record<Operation, boolean | typeof NA
   'sessions.resolve_unknown': false,
   'children.report': false, // child evidence reports stay allowed under a fence
   'attachments.stage': false, // staging writes the worker's staging area, not the session
+  'attachments.release': false, // removes staged bytes; no session write
 };
 function fencesWhenUnknown(pre: PreCrash, r: Receipt): boolean {
   const rule = FENCES_WHEN_UNKNOWN[r.operation];

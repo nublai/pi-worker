@@ -11,7 +11,10 @@ import { realpathSync, statSync } from 'node:fs';
 import { ProvenNoEffect, Refusal } from '../b2/errors.js';
 import type { RawReply } from '../b2/router.js';
 import type { components } from '../generated/api.js';
+import { createHash } from 'node:crypto';
 import { HISTORY_LINE_MAX_BYTES, readHistory } from '../history/session-file.js';
+import { SessionIndex } from '../history/session-index.js';
+import { sniff } from '../attachments/attachments.js';
 import type { PiRecord, SessionHost } from '../host/host.js';
 import type { Receipt } from '../receipts/receipts.js';
 import type { Fence } from './fence.js';
@@ -80,6 +83,27 @@ export function commandRows(own: readonly { name: string; description: string | 
     method: null,
   }));
   return [...builtins, ...rest];
+}
+
+/** The largest image blobs.read returns, and the longest entry line it parses to find one. */
+export const BLOB_MAX_BYTES = 16 * 1024 * 1024;
+const BLOB_LINE_MAX_BYTES = 64 * 1024 * 1024;
+const BLOB_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
+/** The image blocks of an entry, in document order. */
+function images(value: unknown, out: { data: string; mimeType: unknown }[] = [], depth = 0): { data: string; mimeType: unknown }[] {
+  if (depth > 64 || value === null || typeof value !== 'object') return out;
+  if (Array.isArray(value)) {
+    for (const v of value) images(v, out, depth + 1);
+    return out;
+  }
+  const r = value as Record<string, unknown>;
+  if (r.type === 'image' && typeof r.data === 'string') {
+    out.push({ data: r.data, mimeType: r.mimeType });
+    return out;
+  }
+  for (const v of Object.values(r)) images(v, out, depth + 1);
+  return out;
 }
 
 const THINKING = new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
@@ -177,6 +201,41 @@ export class Features {
         'piw-reset': read.reset,
         ...(read.tail ? { 'piw-tail-sha256': read.tail } : {}),
         'piw-history-line-max': HISTORY_LINE_MAX_BYTES,
+      },
+    };
+  }
+
+  /** One image of a session entry as bytes (blobs.read): an allowed media type that matches its magic, within the cap. */
+  blob(sessionId: string, entryId: string, index: number): RawReply {
+    const known = this.s.sessionFiles.get(sessionId);
+    if (!known) throw new Refusal('unknown_session');
+    const line = new SessionIndex(known.file).raw(entryId, BLOB_LINE_MAX_BYTES);
+    if (line === null) throw new Refusal('unknown_entry');
+    if ('error' in line) throw new Refusal('entry_too_large');
+    let entry: unknown;
+    try {
+      entry = JSON.parse(line.toString('utf8'));
+    } catch {
+      throw new Refusal('entry_unreadable');
+    }
+    const found = images(entry)[index];
+    if (!found) throw new Refusal('unknown_blob');
+    const mime = typeof found.mimeType === 'string' ? found.mimeType.toLowerCase() : '';
+    if (!BLOB_TYPES.has(mime)) throw new Refusal('blob_type_not_allowed');
+    if (found.data.length > Math.ceil(BLOB_MAX_BYTES / 3) * 4 + 4) throw new Refusal('blob_too_large');
+    const bytes = Buffer.from(found.data, 'base64');
+    if (bytes.length > BLOB_MAX_BYTES) throw new Refusal('blob_too_large');
+    const gif = bytes.subarray(0, 6).toString('latin1');
+    const magic = mime === 'image/gif' ? gif === 'GIF87a' || gif === 'GIF89a' : sniff(bytes.subarray(0, 16)) === mime;
+    if (!magic) throw new Refusal('blob_type_mismatch');
+    return {
+      contentType: mime,
+      body: bytes,
+      headers: {
+        'piw-session-id': sessionId,
+        'piw-entry-id': entryId,
+        'piw-blob-index': index,
+        'piw-blob-sha256': createHash('sha256').update(bytes).digest('hex'),
       },
     };
   }

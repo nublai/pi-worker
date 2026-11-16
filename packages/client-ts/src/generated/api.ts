@@ -534,14 +534,27 @@ export interface paths {
             };
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Read a staged attachment's state (after an upload whose reply was lost)
+         * @description `receiving` while its upload is still streaming (memory), `staged` once its journal record is durable,
+         *     `released` after `attachments.release` or after the prompt that used it was delivered. An unknown id is
+         *     never proof that nothing was staged: `unknown_attachment_is_not_proof_of_no_effect`, `effect: unknown`.
+         */
+        get: operations["attachments.status"];
         /**
          * Stage one image for a later prompt (streamed binary upload)
          * @description The body is the image bytes, streamed; it never goes through the JSON path. The worker counts bytes as
-         *     they arrive and refuses a body over `x-piw-max-bytes` (`hello.limits.attachment_max_bytes`) with `413`.
-         *     The command and binding travel in headers. After the last byte the SHA-256 must equal
-         *     `Piw-Content-Sha256` and the magic bytes must match the content type. A failure after the request bytes
-         *     are written is `effect: unknown`: read the receipt, never re-upload blindly. Served from P1-16.
+         *     they arrive into a private staging file and refuses a body over `x-piw-max-bytes`
+         *     (`hello.limits.attachment_max_bytes`) with `413`, removing the file. The command and the worker travel
+         *     in headers; the session headers are recorded, and the prompt that uses the attachment checks its own
+         *     binding. After the last byte the SHA-256 must equal `Piw-Content-Sha256` and the magic bytes must match
+         *     the content type, else `400`, nothing staged. Then one journal record makes it `staged`.
+         *
+         *     Idempotent by `attachment_id` plus SHA-256 (Shep's S-4): the same id with the same hash returns a receipt
+         *     for the attachment already staged and stores nothing twice; the same id with another hash is refused
+         *     `attachment_id_conflict`. A failure after the request bytes are written is `effect: unknown`: read
+         *     `attachments.status` (or the receipt), never re-upload blindly. Allowed under a fence: staging writes no
+         *     session; the prompt that uses the attachment is refused.
          */
         put: operations["attachments.stage"];
         post?: never;
@@ -675,6 +688,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/b2/attachments/{attachment_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attachment_id: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release a staged attachment and remove its bytes
+         * @description The released record is durable before the bytes are removed, so no prompt can use them afterwards. Allowed
+         *     under a fence. A prompt that was delivered releases its attachments itself; the image stays in pi's
+         *     session file and `blobs.read` serves it from there.
+         */
+        post: operations["attachments.release"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/b2/sessions/{session_id}/entries/{entry_id}/blobs/{index}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: components["parameters"]["SessionId"];
+                entry_id: components["schemas"]["Id"];
+                index: number;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read one image of a session entry as bytes
+         * @description The `index`-th image block of the entry, in document order, decoded from pi's session file: the image pi
+         *     stored (after its own normalization), so the photo card renders what the model got. Scope is as for
+         *     `sessions.get`. The media type must be in the image allowlist and match the bytes' magic, and the image
+         *     is at most `hello.limits.blob_max_bytes`; otherwise refused `no_effect`.
+         */
+        get: operations["blobs.read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/b2/receipts/{command_id}": {
         parameters: {
             query?: never;
@@ -787,7 +851,8 @@ export interface components {
             /**
              * @description Journal room only control records may use: quota-exempt commands
              *     (`workers.stop`, `executions.cancel`, `executions.interrupt`,
-             *     `sessions.resolve_unknown`, `children.report`) and stop, exit,
+             *     `sessions.resolve_unknown`, `children.report`,
+             *     `attachments.release`) and stop, exit,
              *     fault, fence and recovery records. Before dispatch, an ordinary
              *     command reserves room for every record it can emit (its receipts,
              *     and its worker's rows, settlements and interactions); it is refused
@@ -835,6 +900,8 @@ export interface components {
             history_max_bytes?: number;
             /** @description The longest single session-file line `sessions.history` returns. */
             history_line_max_bytes?: number;
+            /** @description The largest image `blobs.read` returns. */
+            blob_max_bytes?: number;
         };
         Binding: {
             command_id: components["schemas"]["Id"];
@@ -853,6 +920,10 @@ export interface components {
              * @enum {string}
              */
             if_busy?: "steer" | "follow_up" | "reject";
+            /** @description Staged images of this worker, sent as real image blocks with the text. At most `hello.limits.attachments_per_message` and `attachments_total_bytes` in total, else refused `no_effect`; not with `if_busy: steer`. The receipt's `result.accepted_images` is the number of images pi put in the message. A delivered prompt releases them. */
+            attachments?: {
+                attachment_id: components["schemas"]["Id"];
+            }[];
         };
         FollowUp: {
             command_id: components["schemas"]["Id"];
@@ -1178,6 +1249,28 @@ export interface components {
             name: string;
             args?: string;
         };
+        Release: {
+            command_id: components["schemas"]["Id"];
+        };
+        AttachmentStatus: {
+            attachment_id: components["schemas"]["Id"];
+            worker_id: components["schemas"]["Id"];
+            /** @enum {string} */
+            state: "receiving" | "staged" | "released";
+            /** @enum {string} */
+            content_type: "image/jpeg" | "image/png" | "image/webp";
+            /** @description For `receiving`, the bytes received so far. */
+            bytes: number;
+            sha256: components["schemas"]["Sha256"];
+            /** @description The `attachments.stage` command that staged it (or is staging it). */
+            command_id: components["schemas"]["Id"];
+            staged_at: string | null;
+            released_at: string | null;
+            /** @description The command that released it (`attachments.release`, or the prompt that delivered it). */
+            released_by: string | null;
+            /** @enum {string} */
+            evidence: "supervisor_journal_fsynced" | "observed_memory";
+        };
         /** @description Stable across appends to one session file; changes when the file is replaced. */
         FileIdentity: string;
         Sha256: string;
@@ -1268,7 +1361,7 @@ export interface components {
         Receipt: {
             command_id: components["schemas"]["Id"];
             /** @enum {string} */
-            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.new" | "sessions.follow_up" | "sessions.steer" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release" | "attachments.stage" | "session.configure" | "sessions.compact" | "resources.reload" | "commands.invoke";
+            operation: "workers.create" | "sessions.prompt" | "workers.stop" | "workers.relaunch" | "sessions.resolve_unknown" | "sessions.rebind" | "sessions.new" | "sessions.follow_up" | "sessions.steer" | "children.launch" | "children.report" | "executions.cancel" | "executions.interrupt" | "interactions.answer_if_current" | "interactions.release" | "attachments.stage" | "session.configure" | "sessions.compact" | "resources.reload" | "commands.invoke" | "attachments.release";
             request_hash: string;
             /** @enum {string} */
             state: "intent" | "intent_recovered" | "accepted" | "delivered" | "rejected" | "outcome_unknown" | "queued" | "queue_ready" | "intent_ready";
@@ -2241,6 +2334,31 @@ export interface operations {
             501: components["responses"]["NotImplemented"];
         };
     };
+    "attachments.status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attachment_id: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentStatus"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            500: components["responses"]["Unknown"];
+        };
+    };
     "attachments.stage": {
         parameters: {
             query?: never;
@@ -2419,6 +2537,63 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommandList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            500: components["responses"]["Unknown"];
+        };
+    };
+    "attachments.release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attachment_id: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Release"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Receipt"];
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            413: components["responses"]["TooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["Unknown"];
+        };
+    };
+    "blobs.read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: components["parameters"]["SessionId"];
+                entry_id: components["schemas"]["Id"];
+                index: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The image bytes. */
+            200: {
+                headers: {
+                    "Piw-Session-Id": components["schemas"]["Id"];
+                    "Piw-Entry-Id": components["schemas"]["Id"];
+                    "Piw-Blob-Index": number;
+                    "Piw-Blob-Sha256": components["schemas"]["Sha256"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/webp": string;
+                    "image/gif": string;
                 };
             };
             400: components["responses"]["BadRequest"];

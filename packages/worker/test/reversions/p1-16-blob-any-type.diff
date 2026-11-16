@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/features.ts b/packages/worker/src/supervisor/features.ts
+index 52790ec..84b65a8 100644
+--- a/packages/worker/src/supervisor/features.ts
++++ b/packages/worker/src/supervisor/features.ts
+@@ -221,7 +221,7 @@ export class Features {
+     const found = images(entry)[index];
+     if (!found) throw new Refusal('unknown_blob');
+     const mime = typeof found.mimeType === 'string' ? found.mimeType.toLowerCase() : '';
+-    if (!BLOB_TYPES.has(mime)) throw new Refusal('blob_type_not_allowed');
++    void BLOB_TYPES;
+     if (found.data.length > Math.ceil(BLOB_MAX_BYTES / 3) * 4 + 4) throw new Refusal('blob_too_large');
+     const bytes = Buffer.from(found.data, 'base64');
+     if (bytes.length > BLOB_MAX_BYTES) throw new Refusal('blob_too_large');

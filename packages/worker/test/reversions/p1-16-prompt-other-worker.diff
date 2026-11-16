@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
+index 0c649e1..acf8152 100644
+--- a/packages/worker/src/attachments/attachments.ts
++++ b/packages/worker/src/attachments/attachments.ts
+@@ -256,7 +256,7 @@ export class Attachments {
+     if (new Set(ids).size !== ids.length) throw new Refusal('duplicate_attachment');
+     const out = ids.map(id => {
+       const r = this.records.get(id);
+-      if (!r || r.worker_id !== workerId) throw new Refusal('unknown_attachment');
++      if (!r) throw new Refusal('unknown_attachment');
+       if (r.state !== 'staged') throw new Refusal('attachment_not_staged');
+       return { id, path: this.file(id), sha256: r.sha256, mime_type: r.content_type, bytes: r.bytes };
+     });

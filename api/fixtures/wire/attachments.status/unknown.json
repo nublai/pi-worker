@@ -1,0 +1,14 @@
+{
+  "request": {
+    "path": {
+      "attachment_id": "photo-9"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "unknown_attachment_is_not_proof_of_no_effect",
+      "effect": "unknown"
+    }
+  }
+}

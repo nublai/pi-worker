@@ -327,7 +327,7 @@ func TestRedirectIsNotFollowed(t *testing.T) {
 }
 
 func TestOperationTablePaths(t *testing.T) {
-	if OpSessionsHistory.Response != "ndjson" || OpEventsSubscribe.Response != "sse" || frameLimit != 1<<20 || OpAttachmentsStage.Body != "binary" || OpAttachmentsStage.MaxBodyBytes != 2<<20 || OpHello.Body != "none" || OpSessionsPrompt.MaxBodyBytes != 256<<10 {
+	if OpSessionsHistory.Response != "ndjson" || OpBlobsRead.Response != "binary" || OpEventsSubscribe.Response != "sse" || frameLimit != 1<<20 || OpAttachmentsStage.Body != "binary" || OpAttachmentsStage.MaxBodyBytes != 2<<20 || OpHello.Body != "none" || OpSessionsPrompt.MaxBodyBytes != 256<<10 {
 		t.Fatalf("modes: %+v %+v", OpEventsSubscribe, OpAttachmentsStage)
 	}
 	got, err := fillPath(OpReceiptsGet, []string{"a/b c"})
@@ -346,8 +346,8 @@ func TestOperationTablePaths(t *testing.T) {
 	}
 	// 22 in P0, plus sessions.steer (P1-5), sessions.new (P1-7), items.read (P1-8), and session.configure,
 	// sessions.list, sessions.get, sessions.history, models.list and commands.list (P1-14), and sessions.compact,
-	// resources.reload and commands.invoke (P1-15).
-	if len(Operations) != 34 {
+	// resources.reload and commands.invoke (P1-15), and attachments.status, attachments.release and blobs.read (P1-16).
+	if len(Operations) != 37 {
 		t.Fatalf("operations = %d", len(Operations))
 	}
 }

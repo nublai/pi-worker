@@ -100,6 +100,14 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     if (!sessionVisible(caller, row)) throw new Refusal('grant_scope_denied');
     return row;
   };
+  /**
+   * An attachment is in scope when its worker is. A scoped grant gets the same refusal for an unknown attachment as
+   * for one outside its scope; a grant over every worker learns that it is unknown (never proof of no effect).
+   */
+  const attachmentScope = (caller: Caller | undefined, id: string): void => {
+    const owner = supervisor().attachments.owner(id);
+    if (owner === undefined ? !seesAll(caller) : !visible(caller, owner)) throw new Refusal('grant_scope_denied');
+  };
   /** models.list and commands.list: a worker in scope, or a cwd in the caller's cwd scope. */
   const featureTarget = (caller: Caller | undefined, q: { worker_id?: string; cwd?: string; project_trusted?: boolean }) => {
     if (q.worker_id !== undefined) inScope(caller, q.worker_id);
@@ -164,6 +172,37 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     'sessions.compact': ({ path, body }) => supervisor().compact(path.worker_id, body),
     'resources.reload': ({ path, body }) => supervisor().reload(path.worker_id, body),
     'commands.invoke': ({ path, body }) => supervisor().invoke(path.worker_id, body),
+    'attachments.stage': ({ path, header, body, mediaType, caller }) => {
+      const s = supervisor();
+      inScope(caller, header['piw-worker-id']);
+      return s.stageAttachment(
+        {
+          attachment_id: path.attachment_id,
+          command_id: header['piw-command-id'],
+          worker_id: header['piw-worker-id'],
+          worker_epoch: header['piw-worker-epoch'],
+          session_id: header['piw-session-id'],
+          binding_revision: header['piw-binding-revision'],
+          sha256: header['piw-content-sha256'],
+          // SAFETY: the router accepted the media type only from the operation's declared image types.
+          content_type: mediaType as 'image/jpeg',
+        },
+        body,
+      );
+    },
+    'attachments.status': ({ path, caller }) => {
+      attachmentScope(caller, path.attachment_id);
+      return supervisor().attachments.status(path.attachment_id);
+    },
+    'attachments.release': ({ path, body, caller }) => {
+      const s = supervisor();
+      attachmentScope(caller, path.attachment_id);
+      return s.attachments.release(path.attachment_id, body.command_id, () => attachmentScope(caller, path.attachment_id));
+    },
+    'blobs.read': ({ path, caller }) => {
+      sessionRow(caller, path.session_id);
+      return supervisor().features.blob(path.session_id, path.entry_id, path.index);
+    },
     'sessions.list': ({ query, caller }) => supervisor().features.list(row => sessionVisible(caller, row), query),
     'sessions.get': ({ path, caller }) => sessionRow(caller, path.session_id),
     'sessions.history': ({ path, query, caller }) => {

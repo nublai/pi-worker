@@ -1,0 +1,24 @@
+{
+  "request": {
+    "path": {
+      "attachment_id": "photo-1"
+    },
+    "headers": {
+      "Content-Type": "image/jpeg",
+      "Piw-Command-Id": "cmd-attach-3",
+      "Piw-Worker-Id": "worker-1",
+      "Piw-Worker-Epoch": "epoch-1",
+      "Piw-Session-Id": "session-1",
+      "Piw-Binding-Revision": "1",
+      "Piw-Content-Sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "bodyBase64": "/9j/4AAQSkZJRgABAQAAAQABAAD/2Q=="
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "error": "attachment_sha256_mismatch",
+      "effect": "no_effect"
+    }
+  }
+}

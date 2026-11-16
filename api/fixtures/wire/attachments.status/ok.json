@@ -1,0 +1,23 @@
+{
+  "request": {
+    "path": {
+      "attachment_id": "photo-1"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "attachment_id": "photo-1",
+      "worker_id": "worker-1",
+      "state": "staged",
+      "content_type": "image/jpeg",
+      "bytes": 22,
+      "sha256": "d20f6ffd523b78a86cd2f916fa34af5d1918d75f7b142237c752ad6b254213ab",
+      "command_id": "cmd-attach-1",
+      "staged_at": "2026-11-16T04:30:00Z",
+      "released_at": null,
+      "released_by": null,
+      "evidence": "supervisor_journal_fsynced"
+    }
+  }
+}
