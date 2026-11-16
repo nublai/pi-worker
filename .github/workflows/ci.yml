@@ -37,6 +37,82 @@ jobs:
       - run: npm run check
         env:
           TMPDIR: ${{ runner.temp }}
+  crash:
+    # npm run test:crash: SIGKILL-at-fsync recovery tests. Same toolchains as check.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: .node-version
+          cache: npm
+      # actions/setup-go v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: 1.26.11
+          cache: false
+      - run: go version
+      - run: npm ci --ignore-scripts
+      - run: npm run test:crash
+        env:
+          TMPDIR: ${{ runner.temp }}
+  reversion-groups:
+    # The shard list comes from the manifest, so a new group can never be left out of CI.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      groups: ${{ steps.list.outputs.groups }}
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: .node-version
+      - id: list
+        run: echo "groups=$(node harness/lib/reversions.mjs --list | jq -Rnc '[inputs]')" >> "$GITHUB_OUTPUT"
+  reversions:
+    # One shard per manifest group. Each applies the group's guard-reversion diffs and fails unless a named test
+    # fails by assertion for every one (harness/lib/reversions.mjs --group, the same as --all locally).
+    needs: reversion-groups
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    name: reversions (${{ matrix.group }})
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(needs.reversion-groups.outputs.groups) }}
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: .node-version
+          cache: npm
+      # actions/setup-go v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: 1.26.11
+          cache: false
+      - run: go version
+      - run: npm ci --ignore-scripts
+      - run: node harness/lib/reversions.mjs --group ${{ matrix.group }}
+        env:
+          TMPDIR: ${{ runner.temp }}
   go-client:
     # The Go client builds and tests on Go 1.24 (Shep's bridge) with the standard library only,
     # and talks to the built worker (hello and a 501).
