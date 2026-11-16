@@ -18,7 +18,8 @@ tree=$(git rev-parse 'HEAD^{tree}')
 milestone=${journey%%-*}
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 run="$stamp-${commit:0:7}"
-vm="piw-$journey-$(date -u +%m%d%H%M)"
+# Unique per run (random suffix): two runs, or a retry after --keep-vm, never share a name. PIW_VM_NAME is for tests.
+vm=${PIW_VM_NAME:-piw-$journey-$(date -u +%m%d%H%M)-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')}
 out="$repo/docs/evidence/$milestone/$run"
 mkdir -p "$out"
 work=$(mktemp -d)
@@ -26,6 +27,8 @@ bundle="$work/head.bundle"
 remote_run="piw-run/$run"
 status=fail
 step=start
+# create.sh touches this once `exe.dev new` succeeded: only then does this run own a VM it may delete.
+export PIW_CREATED_FILE="$work/vm-created"
 # A fresh VM has a new host key: accept it on first use into a run-local known_hosts, never the operator's.
 export PIW_SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$work/known_hosts"
 vssh() { ssh $PIW_SSH_OPTS "$vm.exe.xyz" "$@"; }
@@ -35,7 +38,8 @@ finish() {
   vssh "tar -C piw-run -cf - $run" 2>/dev/null | tar -C "$out/.." -xf - 2>/dev/null
   note=$([ "$status" = pass ] || echo "failed at: $step")
   node harness/lib/evidence.mjs "$out" "$commit" "$tree" "$vm" "$status" ${note:+"$note"} >/dev/null || echo "run: evidence record refused (privacy scan)" >&2
-  if [ "$keep" = --keep-vm ]; then echo "run: kept $vm.exe.xyz"; else harness/vm/teardown.sh "$vm"; fi
+  if [ ! -e "$PIW_CREATED_FILE" ]; then echo "run: $vm was not created by this run; nothing to delete"
+  elif [ "$keep" = --keep-vm ]; then echo "run: kept $vm.exe.xyz"; else harness/vm/teardown.sh "$vm"; fi
   rm -rf "$work"
   echo "run: $journey $status; evidence in ${out#"$repo/"}"
 }

@@ -8,12 +8,14 @@ vm=${1:?vm name}
 comment=${2:-pi-worker-journey}
 case "$vm$comment" in *[[:space:]]*) echo "create: name and comment must have no spaces" >&2; exit 2 ;; esac
 ssh exe.dev new --name="$vm" --comment="$comment" --no-email --json >/dev/null
-for _ in $(seq 1 60); do
+# Record that this run created the VM before waiting for it: a readiness failure must still be torn down.
+[ -z "${PIW_CREATED_FILE:-}" ] || : >"$PIW_CREATED_FILE"
+for _ in $(seq 1 "${PIW_READY_TRIES:-60}"); do
   if ssh $ssh_opts -o ConnectTimeout=8 "$vm.exe.xyz" true 2>/dev/null; then
     echo "create: $vm.exe.xyz is up"
     exit 0
   fi
-  sleep 5
+  sleep "${PIW_READY_SLEEP:-5}"
 done
 echo "create: $vm.exe.xyz did not answer SSH" >&2
 exit 1
