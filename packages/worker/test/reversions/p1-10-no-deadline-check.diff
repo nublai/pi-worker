@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
+index f5def47..44619a6 100644
+--- a/packages/worker/src/interactions/interactions.ts
++++ b/packages/worker/src/interactions/interactions.ts
+@@ -337,7 +337,6 @@ export class Interactions {
+           if (r.status !== 'pending') throw new Refusal('interaction_already_answered');
+           if (r.worker_epoch !== a.worker_epoch || r.session_id !== a.session_id || r.binding_revision !== a.binding_revision || r.revision !== a.revision) throw new Refusal('stale_interaction');
+           if (r.kind !== a.kind) throw new Refusal('wrong_interaction_kind');
+-          if (this.now() >= r.deadline) throw new Refusal('interaction_deadline_passed');
+           if (a.outcome === 'cancel') {
+             if (a.value !== undefined || a.option_id !== undefined) throw new Refusal('cancel_has_value');
+             return;

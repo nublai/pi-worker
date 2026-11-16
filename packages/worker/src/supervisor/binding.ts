@@ -56,6 +56,8 @@ export class Bindings {
     const initialized = w.session_id !== null;
     if (initialized) {
       this.input.dropQueued(live, 'binding_changed');
+      // pi aborted every resolver before the move; their interactions are interrupted.
+      this.s.interactions?.invalidate(w.worker_id, 'interrupted');
       w.binding_revision++;
     }
     w.session_id = event.sessionId;
@@ -121,6 +123,8 @@ export class Bindings {
         live.rebinding = true;
         try {
           this.s.receipts.dispatch(b.command_id, { worker_id: id });
+          // Every live resolver, including accepted answers and consumed approvals, is cancelled before the move.
+          await this.s.interactions?.cancelAll(id, live.host!);
           const command: PiRecord =
             b.action === 'new'
               ? { type: 'new_session' }

@@ -182,6 +182,11 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
     reply({ ...resolvers.answer(String(c.nativeId), c.answer as UIAnswer) });
     return;
   }
+  if (c.type === 'cancel_ui') {
+    // The supervisor's own cancel (deadline, binding move, interrupt) through the same exact resolver.
+    reply({ ...resolvers.answer(String(c.nativeId), { outcome: 'cancel' }) });
+    return;
+  }
   if (c.type === 'abort') cancelAll();
   const runtime = await ready;
   const session = runtime.session;

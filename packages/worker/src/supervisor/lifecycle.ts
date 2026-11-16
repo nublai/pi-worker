@@ -30,6 +30,10 @@ export class Lifecycle {
   readonly recoverers: ((live: Live) => void)[] = [];
   /** Called when a worker's execution can no longer settle (exit, fault, restart): the input module records it. */
   onUncertain: (live: Live, commandId: string, label: 'worker.exit' | 'worker.fault' | 'worker.recover') => void = () => {};
+  /** Writes allowed (input module): not fenced, no move in flight. A tool release is refused otherwise. */
+  writable: (live: Live) => void = () => {
+    throw new Error('input_not_wired');
+  };
   /** Joins an uncertain command to the worker's fence in memory (the fence module); the caller persists. */
   latch: (live: Live, commandId: string) => boolean = () => {
     throw new Error('fence_not_wired');
@@ -81,18 +85,16 @@ export class Lifecycle {
       this.s.refresh(live);
     }
     if (event.type === 'message_end') live.completedMessages++;
-    if (event.type === 'extension_ui_request' && ['select', 'confirm', 'input', 'editor', 'tool_approval'].includes(String(event.method))) {
-      // Until interactions land (P1-10) every dialog is cancelled at once through its exact resolver; pi sees a
-      // cancel, never an invented answer. A failed cancel faults the worker closed.
+    // Dialogs become typed interactions (P1-10): metadata durable, payload in memory, answered through the exact
+    // resolver. Only the resolver's own close ends one; a gate check asks for a tool release.
+    const interactions = this.s.interactions;
+    if (event.type === 'extension_ui_request' && live.host && interactions) interactions.open(w, live.host, event);
+    if (event.type === 'resolver_closed' && interactions) interactions.resolverClosed(w.worker_id, String(event.native_id), String(event.outcome));
+    if (event.type === 'gate_check' && interactions) {
       const host = live.host;
-      void host
-        ?.request({ type: 'answer_ui', nativeId: String(event.id), answer: { outcome: 'cancel' } })
-        .then(r => {
-          if (!r.success) throw new Error('dialog_cancel_failed');
-        })
-        .catch(error => {
-          if (live.host === host) this.fault(live, error);
-        });
+      void interactions.gate(w, event, () => this.writable(live)).catch(error => {
+        if (live.host === host) this.fault(live, error);
+      });
     }
     for (const observe of this.observers) observe(live, event);
   }
@@ -101,6 +103,8 @@ export class Lifecycle {
     if (live.exited) return;
     live.exited = true;
     const w = live.worker;
+    // The process and its resolvers are gone: every interaction of the worker is interrupted.
+    this.s.interactions?.invalidate(w.worker_id, 'interrupted');
     // A stop that already observed the group gone keeps that stronger evidence.
     if (w.status === 'stopped' && live.pid === null) return;
     if (live.moveTimer) {
@@ -119,6 +123,11 @@ export class Lifecycle {
     if (live.faulted) return;
     live.faulted = true;
     const w = live.worker;
+    try {
+      this.s.interactions?.invalidate(w.worker_id, 'interrupted');
+    } catch {
+      /* storage may be unavailable; the faulted worker refuses answers in memory */
+    }
     w.status = 'cleanup_pending';
     w.cleanup = 'worker_fault; cleanup_unproven';
     w.foreground = 'unknown';

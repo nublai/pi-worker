@@ -60,6 +60,16 @@ export const DURABLE_LABELS = [
   'grant.revoke_file',
   'grant.revoke_directory',
   'grant.bearer_file',
+  // Interactions (interactions/interactions.ts): a dialog's metadata when it opens, its close (timeout, cancel,
+  // resolver closed, binding change), the accepted answer before dispatch, the resolver's acknowledgement (stage 2 or
+  // 3), a tool release (stage 4 or denied), the write-ahead marker before a native cancel, and restart interruption.
+  'interaction.open',
+  'interaction.close',
+  'interaction.accept',
+  'interaction.answer',
+  'interaction.release',
+  'interaction.cancel',
+  'interaction.recover',
 ] as const;
 
 export type DurableLabel = (typeof DURABLE_LABELS)[number];

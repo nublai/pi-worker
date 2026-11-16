@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
+index f5def47..bed109e 100644
+--- a/packages/worker/src/interactions/interactions.ts
++++ b/packages/worker/src/interactions/interactions.ts
+@@ -377,7 +377,6 @@ export class Interactions {
+       writable();
+       let allowed = true;
+       try {
+-        l.guard?.();
+         if (l.record.status !== 'consumed' || l.record.outcome !== 'answered' || l.record.binding_revision !== worker.binding_revision || l.record.worker_epoch !== worker.worker_epoch || l.record.session_id !== worker.session_id) {
+           throw new Refusal('approval_not_current');
+         }

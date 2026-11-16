@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
+index f5def47..9580c88 100644
+--- a/packages/worker/src/interactions/interactions.ts
++++ b/packages/worker/src/interactions/interactions.ts
+@@ -353,7 +353,6 @@ export class Interactions {
+     } finally {
+       this.attempts.delete(a.command_id);
+     }
+-    if (result.state === 'outcome_unknown') this.hooks.fence(worker.worker_id, a.command_id);
+     return result;
+   }
+ 

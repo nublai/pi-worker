@@ -12,7 +12,7 @@ import { durable } from './fsync.js';
 import type { DurableLabel } from './labels.js';
 import type { JournalAppended } from '../generated/events.js';
 
-export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement'] as const;
+export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement', 'interaction', 'interaction_effect'] as const;
 export type JournalKind = (typeof JOURNAL_KINDS)[number];
 export type JournalRecord = { seq: number; kind: JournalKind; value: Record<string, unknown> };
 

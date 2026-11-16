@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
+index f5def47..a76be2d 100644
+--- a/packages/worker/src/interactions/interactions.ts
++++ b/packages/worker/src/interactions/interactions.ts
+@@ -265,7 +265,7 @@ export class Interactions {
+       result = await this.receipts.run(
+         a.command_id,
+         'interactions.answer_if_current',
+-        { ...metadata, worker_id: worker.worker_id },
++        { ...a, worker_id: worker.worker_id },
+         async () => {
+           writable();
+           l.record = {

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
+index 70746b8..8f75582 100644
+--- a/packages/worker/src/supervisor/state.ts
++++ b/packages/worker/src/supervisor/state.ts
+@@ -120,7 +120,7 @@ export class SupervisorState {
+     this.catalog(live);
+     // Only interaction metadata is durable; payloads (title, prefill, options) stay in memory.
+     const record: Persisted = {
+-      worker: { ...live.worker, pending_interactions: this.interactions?.summaries(live.worker.worker_id) ?? [] },
++      worker: { ...live.worker, pending_interactions: this.interactions?.list(live.worker.worker_id) ?? [] },
+       sessionFile: live.sessionFile,
+       pid: live.pid,
+       token: live.token,

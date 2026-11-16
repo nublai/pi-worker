@@ -14,6 +14,7 @@ import type { DurableLabel } from '../journal/labels.js';
 import { SessionIndex } from '../history/session-index.js';
 import { EventHub } from '../events/hub.js';
 import type { JournalAppended } from '../generated/events.js';
+import type { Interactions } from '../interactions/interactions.js';
 import type { ReceiptStore } from '../receipts/receipts.js';
 import type { Guard } from '../grants/authority.js';
 
@@ -86,6 +87,8 @@ export class SupervisorState {
   readonly sessionReservations = new Map<string, string>();
   /** The supervisor-wide event stream; its transport epoch is this start's supervisor epoch. */
   readonly events: EventHub;
+  /** Live interactions (set by the Supervisor once every module exists). */
+  interactions?: Interactions;
 
   constructor(
     readonly journal: Journal,
@@ -115,8 +118,9 @@ export class SupervisorState {
    */
   persist(live: Live, label: DurableLabel): JournalAppended {
     this.catalog(live);
+    // Only interaction metadata is durable; payloads (title, prefill, options) stay in memory.
     const record: Persisted = {
-      worker: live.worker,
+      worker: { ...live.worker, pending_interactions: this.interactions?.summaries(live.worker.worker_id) ?? [] },
       sessionFile: live.sessionFile,
       pid: live.pid,
       token: live.token,
@@ -125,8 +129,8 @@ export class SupervisorState {
     };
     // SAFETY: Persisted is a plain JSON object (no methods, no cycles); the journal stores it as a record value.
     const { appended } = this.journal.append('worker', record as unknown as Record<string, unknown>, label);
-    this.published.set(live.worker.worker_id, JSON.stringify(live.worker));
-    this.events.publish('worker.updated', { worker_id: live.worker.worker_id, execution_id: live.worker.execution?.execution_id ?? null, data: { worker: this.view(live) }, appended });
+    this.published.set(live.worker.worker_id, JSON.stringify(this.view(live)));
+    this.events.publish('worker.updated', { worker_id: live.worker.worker_id, execution_id: live.worker.execution?.execution_id ?? null, data: { worker: structuredClone(record.worker) }, appended });
     return appended;
   }
 
@@ -135,7 +139,7 @@ export class SupervisorState {
 
   /** Publishes the row as an in-memory `worker.updated` when it differs from the last published one. */
   publishChanged(live: Live): void {
-    const row = JSON.stringify(live.worker);
+    const row = JSON.stringify(this.view(live));
     if (this.published.get(live.worker.worker_id) === row) return;
     this.published.set(live.worker.worker_id, row);
     this.events.publish('worker.updated', { worker_id: live.worker.worker_id, execution_id: live.worker.execution?.execution_id ?? null, data: { worker: this.view(live) } });
@@ -230,9 +234,9 @@ export class SupervisorState {
     if (holder) throw new Refusal('exclusive_environment_already_bound', 'no_effect', undefined, { holder_worker_id: holder.worker.worker_id });
   }
 
-  /** A snapshot of the worker row for readers. */
+  /** A snapshot of the worker row for readers, with its live interaction cards (payload included, memory only). */
   view(live: Live): Worker {
-    return structuredClone(live.worker);
+    return { ...structuredClone(live.worker), pending_interactions: this.interactions?.list(live.worker.worker_id) ?? [] };
   }
 }
 
