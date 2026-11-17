@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { routes } from '@nublai/pi-worker-client';
 import { parse } from '../src/args.js';
-import { COMMANDS, UsageError } from '../src/commands.js';
+import { COMMANDS, commandByName, UsageError } from '../src/commands.js';
 import { buildRequest, help, imageType } from '../src/run.js';
 import { uuidv7 } from '../src/uuid.js';
 
@@ -27,6 +27,26 @@ test('cli: one command per B2 operation, named by its operationId, plus the loca
   }
   // The upload names its worker (a Piw-Worker-Id header) and its file; the attachment id is --attachment-id or minted.
   assert.deepEqual(COMMANDS.find(c => c.mode === 'stage')?.args.map(a => a.name), ['WORKER', 'FILE']);
+});
+
+test('cli: every x-piw-mutation route mints a command id; a session-directed one is a binding command; a read never mints', () => {
+  for (const [op, route] of Object.entries(routes)) {
+    const command = commandByName.get(op)!;
+    const parsed = { command, args: { worker_id: 'w1', attachment_id: 'a1', session_id: 's1', entry_id: 'e1', index: '0', command_id: 'c1' }, flags: new Map(), help: false };
+    if (!route.mutation) {
+      assert.ok(['call', 'read', 'watch'].includes(command.mode), `${op} is not a mutation`);
+      assert.equal(buildRequest(command, parsed, () => 'minted').body?.command_id, undefined, `${op} mints no command id`);
+      continue;
+    }
+    // The route decides the mode: the image upload is `stage`; a path naming a worker is a session write (`binding`).
+    const mode = route.body === 'binary' ? 'stage' : route.path.includes('{worker_id}') ? 'binding' : 'command';
+    assert.equal(command.mode, mode, `${op} runs as ${mode}`);
+    assert.equal(buildRequest(command, parsed, () => 'minted').body?.command_id, 'minted', `${op} mints its command id`);
+    if (mode !== 'command') {
+      const flags = command.options.map(o => o.flag);
+      for (const flag of ['command-id', 'worker-epoch', 'session-id', 'binding-revision']) assert.ok(flags.includes(flag), `${op} takes --${flag}`);
+    }
+  }
 });
 
 test('cli: flags go anywhere, as --flag value or --flag=value; globals before the command', () => {
