@@ -9,7 +9,8 @@ import (
 
 // Host is the fixture-only stand-in for a worker's pi process: it counts native prompt submissions, can lose or
 // hold the next prompt reply, and injects native events. It never produces a model effect on its own: a prompt
-// starts (agent_start) and is acknowledged, and nothing settles until Emit("agent_settled").
+// starts (agent_start) and is acknowledged, and nothing settles until Emit("agent_settled"). It writes what the SDK
+// child and pi write for the input itself (input.go): the input stamp and the user message, never a reply.
 type Host struct {
 	f       *Fake
 	w       *worker
@@ -215,19 +216,24 @@ func (h *Host) live() bool {
 
 // prompt is one native prompt submission with its images (f.mu held): it starts, then replies with the number of
 // images pi put in the message, loses or holds its reply.
-func (h *Host) prompt(images int) (int, error) {
+func (h *Host) prompt(in promptInput) (accepted int, marked bool, err error) {
 	h.prompts++
 	mode := h.mode
 	h.mode = ""
-	accepted := images
+	images := len(in.attachments)
+	accepted = images
 	if images > 0 && h.accept != nil {
 		accepted = min(*h.accept, images)
 		h.accept = nil
 	}
+	// The SDK child applies the worker's interrupt rule and stamps the input; pi starts and writes the user message.
+	st := h.f.st
+	marked = st.writeStamp(h.w, in)
 	h.emit("agent_start")
+	st.writeUserMessage(h.w, in, marked, accepted)
 	switch mode {
 	case "drop":
-		return 0, errDroppedReply
+		return 0, marked, errDroppedReply
 	case "hold":
 		held := h.held
 		h.f.mu.Unlock()
@@ -236,9 +242,9 @@ func (h *Host) prompt(images int) (int, error) {
 		case <-h.f.closed:
 		}
 		h.f.mu.Lock()
-		return 0, errDroppedReply
+		return 0, marked, errDroppedReply
 	}
-	return accepted, nil
+	return accepted, marked, nil
 }
 
 // Drain lets due queued input run to the next barrier. The fake dispatches due input as soon as it is due, so this

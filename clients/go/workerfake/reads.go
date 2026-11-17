@@ -19,8 +19,8 @@ import (
 )
 
 // The session catalog and its reads, as packages/worker/src/supervisor/features.ts and history/session-file.ts serve
-// them: every session a worker of this fake has bound has a session file (its header line, then whatever
-// AppendHistory adds); sessions.get and sessions.list read the catalog, sessions.history reads a file's complete
+// them: every session a worker of this fake has bound has a session file (its header line, each prompt's input
+// stamp and user message and pi's aborted turns (input.go), and whatever AppendHistory adds); sessions.get and sessions.list read the catalog, sessions.history reads a file's complete
 // lines by byte range with the identity, tail and prefix checks, and blobs.read an image of one of its entries. A
 // session the catalog does not know is unknown_session, never another session's bytes.
 
@@ -122,7 +122,12 @@ func (f *Fake) ReplaceHistory(sessionID string, data []byte) error {
 func (f *Fake) changeHistory(sessionID string, change func(*sessionFile)) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	s := f.st
+	return f.st.changeHistory(sessionID, change)
+}
+
+// changeHistory changes a session's file (f.mu held), then the worker holding it publishes its row and
+// history.appended, as the worker's index does when pi writes.
+func (s *state) changeHistory(sessionID string, change func(*sessionFile)) error {
 	sf := s.sessions[sessionID]
 	if sf == nil {
 		return errors.New("unknown_session")
