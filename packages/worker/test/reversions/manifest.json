@@ -199,7 +199,12 @@
         "p1-14-ndjson-unchecked.diff",
         "p1-14-socket-group-any-mode.diff",
         "p1d-fix-f1-same-size-rewrite-kept.diff",
-        "p1d-fix-f4-image-line-not-summarized.diff"
+        "p1d-fix-f4-image-line-not-summarized.diff",
+        "p1d-fix-grok-f3-session-open-follows-symlink.diff",
+        "p1d-fix-grok-f3-session-open-any-file-type.diff",
+        "p1d-fix-grok-f3-history-plain-open.diff",
+        "p1d-fix-grok-f3-summary-plain-open.diff",
+        "p1d-fix-grok-f3-index-plain-open.diff"
       ]
     },
     "features": {

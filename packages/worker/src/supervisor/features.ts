@@ -188,7 +188,7 @@ export class Features {
       ...(q.identity !== undefined ? { identity: q.identity } : {}),
       ...(q.tail !== undefined ? { tail: q.tail } : {}),
     }, this.s.summaries.generations);
-    if ('error' in read) throw new Refusal(read.error, 'no_effect', undefined, {}, read.error === 'history_line_too_large' ? 409 : 400);
+    if ('error' in read) throw new Refusal(read.error, 'no_effect', undefined, {}, read.error === 'history_line_too_large' || read.error === 'session_file_not_regular' ? 409 : 400);
     return {
       contentType: 'application/x-ndjson',
       body: read.body,

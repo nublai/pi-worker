@@ -5,7 +5,7 @@
  * supervisor's own records (the resume catalog), never from a client.
  */
 import { createHash } from 'node:crypto';
-import { closeSync, fstatSync, openSync, readSync, type BigIntStats } from 'node:fs';
+import { closeSync, constants, fstatSync, openSync, readSync, type BigIntStats } from 'node:fs';
 import type { components } from '../generated/api.js';
 
 export type SessionStats = components['schemas']['SessionStats'];
@@ -28,6 +28,23 @@ const DATA_KEY = Buffer.from('"data":"');
 const PREVIEW_CHARS = 280;
 
 const sha256 = (data: Buffer | string) => createHash('sha256').update(data).digest('hex');
+
+/**
+ * Opens a session file for reading: never through a symlink at its path (`O_NOFOLLOW`, `ELOOP`), without blocking on
+ * a FIFO, and only a regular file (`ENOTREG` otherwise). The path's parent directories are trusted here; P2 pins opens
+ * to a root for sandboxed workers.
+ */
+export function openSessionFile(file: string): number {
+  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  if (!fstatSync(fd).isFile()) {
+    closeSync(fd);
+    throw Object.assign(new Error('session file is not a regular file'), { code: 'ENOTREG' });
+  }
+  return fd;
+}
+
+/** A session file at its path that is a symlink or not a regular file. */
+const notRegular = (error: unknown) => ['ELOOP', 'ENOTREG'].includes(String((error as NodeJS.ErrnoException).code));
 
 function readAt(fd: number, offset: number, length: number): Buffer {
   const buffer = Buffer.alloc(length);
@@ -110,7 +127,7 @@ export interface HistoryRead {
   readonly body: Buffer;
 }
 
-export type HistoryReadError = 'history_offset_past_watermark' | 'history_offset_not_line_start' | 'history_line_too_large';
+export type HistoryReadError = 'history_offset_past_watermark' | 'history_offset_not_line_start' | 'history_line_too_large' | 'session_file_not_regular';
 
 /**
  * Complete lines from `offset`, at most `maxBytes` unless one line alone is longer (then that line, up to
@@ -126,8 +143,10 @@ export function readHistory(
   let fd: number;
   try {
     if (file === null) throw Object.assign(new Error('no file'), { code: 'ENOENT' });
-    fd = openSync(file, 'r');
+    fd = openSessionFile(file);
   } catch (error) {
+    // A symlink or a special file at the catalog path is never read, nor followed to another file.
+    if (notRegular(error)) return { error: 'session_file_not_regular' };
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     // The same rule over an empty file: another identity, or a tail no line here can match, resets.
     const reset = (q.identity !== undefined && q.identity !== ABSENT_IDENTITY) || (q.offset > 0 && q.tail !== undefined);
@@ -342,9 +361,10 @@ export class Summaries {
     if (file === null) return emptySummary(ABSENT_IDENTITY);
     let fd: number;
     try {
-      fd = openSync(file, 'r');
+      fd = openSessionFile(file);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      // Nothing is summarized from a symlink or a special file at the catalog path, as if it were absent.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !notRegular(error)) throw error;
       this.cache.delete(file);
       return emptySummary(ABSENT_IDENTITY);
     }
