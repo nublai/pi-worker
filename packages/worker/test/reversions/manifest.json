@@ -304,7 +304,8 @@
     "first-user-line": {
       "command": "npm test -- first-user-line",
       "diffs": [
-        "p1-19-first-user-line-unbounded.diff"
+        "p1-19-first-user-line-unbounded.diff",
+        "p1-19-first-user-line-splits-surrogate.diff"
       ]
     },
     "go-workerfake": {

@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
-index 46a6a5c..7be90ed 100644
+index 8e07ac8..b22906f 100644
 --- a/packages/worker/src/history/session-file.ts
 +++ b/packages/worker/src/history/session-file.ts
-@@ -355,7 +355,7 @@ function fold(s: Summary, entry: Record<string, unknown>): void {
+@@ -362,7 +362,7 @@ function fold(s: Summary, entry: Record<string, unknown>): void {
      s.stats.user_messages++;
      const text = stripMarker(textOf(message.content)).trim();
      if (text) s.preview = text.slice(0, PREVIEW_CHARS);
--    if (text && s.first_user_line === null) s.first_user_line = firstLine(text).slice(0, PREVIEW_CHARS);
+-    if (text && s.first_user_line === null) s.first_user_line = headOf(firstLine(text), PREVIEW_CHARS);
 +    if (text && s.first_user_line === null) s.first_user_line = firstLine(text);
    }
    if (entry.type === 'message' && message.role === 'assistant') {

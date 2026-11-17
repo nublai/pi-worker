@@ -29,6 +29,13 @@ const PREVIEW_CHARS = 280;
 
 const sha256 = (data: Buffer | string) => createHash('sha256').update(data).digest('hex');
 
+/** The first `n` UTF-16 code units of `text`, never ending inside a surrogate pair (the Go fake's utf16Prefix). */
+export function headOf(text: string, n: number): string {
+  if (text.length <= n) return text;
+  const c = text.charCodeAt(n - 1);
+  return text.slice(0, c >= 0xd800 && c <= 0xdbff ? n - 1 : n);
+}
+
 /**
  * Opens a session file for reading: never through a symlink at its path (`O_NOFOLLOW`, `ELOOP`), without blocking on
  * a FIFO, and only a regular file (`ENOTREG` otherwise). The path's parent directories are trusted here; P2 pins opens
@@ -355,7 +362,7 @@ function fold(s: Summary, entry: Record<string, unknown>): void {
     s.stats.user_messages++;
     const text = stripMarker(textOf(message.content)).trim();
     if (text) s.preview = text.slice(0, PREVIEW_CHARS);
-    if (text && s.first_user_line === null) s.first_user_line = firstLine(text).slice(0, PREVIEW_CHARS);
+    if (text && s.first_user_line === null) s.first_user_line = headOf(firstLine(text), PREVIEW_CHARS);
   }
   if (entry.type === 'message' && message.role === 'assistant') {
     s.stats.assistant_messages++;

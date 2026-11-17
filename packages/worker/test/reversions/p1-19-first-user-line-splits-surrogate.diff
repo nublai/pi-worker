@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
+index 8e07ac8..4c2b2a9 100644
+--- a/packages/worker/src/history/session-file.ts
++++ b/packages/worker/src/history/session-file.ts
+@@ -362,7 +362,7 @@ function fold(s: Summary, entry: Record<string, unknown>): void {
+     s.stats.user_messages++;
+     const text = stripMarker(textOf(message.content)).trim();
+     if (text) s.preview = text.slice(0, PREVIEW_CHARS);
+-    if (text && s.first_user_line === null) s.first_user_line = headOf(firstLine(text), PREVIEW_CHARS);
++    if (text && s.first_user_line === null) s.first_user_line = firstLine(text).slice(0, PREVIEW_CHARS);
+   }
+   if (entry.type === 'message' && message.role === 'assistant') {
+     s.stats.assistant_messages++;
