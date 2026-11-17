@@ -3241,7 +3241,7 @@ type Worker struct {
 	Fence           *Fence         `json:"fence"`
 	FenceGeneration *int           `json:"fence_generation,omitempty"`
 
-	// FirstUserLine The first line of the session's first user text, without the worker's interrupt marker and trimmed, at most 280 characters, read from the session file as `preview` is (a title fallback). Null before pi wrote a user message with text.
+	// FirstUserLine The first line of the session's first user text, without the worker's interrupt marker and trimmed, at most 280 UTF-16 code units and never cut inside a character, read from the session file as `preview` is (a title fallback). Null before pi wrote a user message with text.
 	FirstUserLine *string          `json:"first_user_line,omitempty"`
 	Foreground    WorkerForeground `json:"foreground"`
 	GitPin        *GitPin          `json:"git_pin,omitempty"`

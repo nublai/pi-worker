@@ -8,6 +8,7 @@
  * hub keeps at most one undelivered delta per worker for a backpressured subscriber (events/hub.ts), so a delta
  * storm cannot overflow a subscriber queue. Tool ids, names and summaries are cut to the schema's bounds.
  */
+import { headOf } from '../history/session-file.js';
 import type { PiRecord } from '../host/host.js';
 import type { Lifecycle } from './lifecycle.js';
 import type { Live, SupervisorState } from './state.js';
@@ -28,13 +29,6 @@ export function tailOf(text: string, n = TAIL_CHARS): string {
   const c = text.charCodeAt(start);
   if (c >= 0xdc00 && c <= 0xdfff) start++;
   return text.slice(start);
-}
-
-/** The first `n` UTF-16 code units of `text`, never ending inside a surrogate pair. */
-function headOf(text: string, n: number): string {
-  if (text.length <= n) return text;
-  const c = text.charCodeAt(n - 1);
-  return text.slice(0, c >= 0xd800 && c <= 0xdbff ? n - 1 : n);
 }
 
 /** The text parts of pi's partial assistant message, joined as the session file's preview joins them. */

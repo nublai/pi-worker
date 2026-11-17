@@ -87,3 +87,24 @@ func mustJSON(t *testing.T, v any) string {
 	}
 	return string(data)
 }
+
+// The cut never splits a character: with the 280th UTF-16 code unit inside an emoji, the line ends before it, as the
+// worker's does (PR #20 GPT 5).
+func TestFirstUserLineIsNeverCutInsideACharacter(t *testing.T) {
+	fake, err := workerfake.Start(workerfake.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fake.Close()
+	ctx := context.Background()
+	c := fake.Client()
+	w := newWorker(t, ctx, c, "create-1")
+	data := fmt.Sprintf(`{"type":"message","id":"u1","message":{"role":"user","content":%q}}`+"\n", strings.Repeat("a", 279)+"😀 and more")
+	if err := fake.AppendHistory(*w.SessionId, []byte(data)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := c.WorkersGet(ctx, w.WorkerId)
+	if err != nil || got.FirstUserLine == nil || *got.FirstUserLine != strings.Repeat("a", 279) {
+		t.Fatalf("first_user_line %v %v", got.FirstUserLine, err)
+	}
+}

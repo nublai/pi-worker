@@ -188,6 +188,7 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `pr20-fake-first-prompt-ungranted.diff` | the Go fake refuses a create or child launch with `first_prompt` `grant_method_denied` unless the grant may call `sessions.prompt` (PR #20 GPT 2) | `TestFirstPromptNeedsTheSessionsPromptGrant` (group `go-workerfake`) |
 | `pr20-fake-tool-memory-unbounded.diff` | the Go fake remembers at most 64 unfinished tool calls, the oldest forgotten first (activity.ts; PR #20 GPT 4) | `TestToolEventsAreBoundedAsTheWorkerBoundsThem` (group `go-workerfake`) |
 | `pr20-fake-tool-fields-uncut.diff` | the Go fake cuts tool call ids to 512 and names to 128 UTF-16 code units and makes the summary one line of at most 200, as the worker does (PR #20 GPT 4) | `TestToolEventsAreBoundedAsTheWorkerBoundsThem` (group `go-workerfake`) |
+| `p1-19-first-user-line-splits-surrogate.diff` | `first_user_line` is cut at 280 UTF-16 code units never inside a surrogate pair, as the Go fake cuts it (PR #20 GPT 5) | `first_user_line: never cut inside a character, and the schema holds it to 280 code units` (group `first-user-line`) |
 
 The `go-b2-auth` group runs `go test ./b2/` in `clients/go` and turns each `--- FAIL: <name>` line into the `✖ <name>`
 line the runner counts, so a Go build error stays `failed_without_assertion`. The darwin `LOCAL_PEERCRED` layout

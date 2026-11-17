@@ -61,6 +61,27 @@ test('first_user_line: the first line of the first user text, marker stripped, t
   }
 });
 
+test('first_user_line: never cut inside a character, and the schema holds it to 280 code units (PR #20 GPT 5)', async () => {
+  const f = fixture();
+  try {
+    const w = await f.create();
+    const id = w.worker_id;
+    // The 280th code unit is the first half of an emoji: the line ends before it, as the Go fake's does.
+    appendFileSync(f.supervisor.state.require(id).sessionFile!, user('u1', `${'a'.repeat(279)}😀 and more`));
+    const line = (f.supervisor.get(id) as Worker).first_user_line!;
+    assert.equal(line, 'a'.repeat(279));
+    assert.equal(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(line), false, 'no lone surrogate');
+    let snapshot!: EventFrame;
+    f.supervisor.subscribe(frame => void (snapshot ??= frame)).close();
+    assert.equal(snapshot.type, 'snapshot');
+    const withLine = (text: string) => ({ ...snapshot, workers: (snapshot as { workers: Worker[] }).workers.map(r => ({ ...r, first_user_line: text })) });
+    assert.equal(validateEventFrame(withLine('z'.repeat(280))), true, JSON.stringify(validateEventFrame.errors));
+    assert.equal(validateEventFrame(withLine('z'.repeat(281))), false, 'a longer first_user_line is outside the schema');
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('first_user_line: a durable worker.updated carries the row workers.get returns, display fields included (PR #20 GPT 1)', async () => {
   const f = fixture();
   try {
