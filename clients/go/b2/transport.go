@@ -5,7 +5,10 @@
 // here, as the contract requires:
 //
 //   - One attempt per call. Keep-alives are off, redirects are not followed, the body cannot be replayed.
-//   - Before the bearer is sent, the socket peer's UID must be the expected worker owner (SO_PEERCRED).
+//   - Before any byte is written, the socket peer's UID must be the expected worker owner (SO_PEERCRED on Linux,
+//     LOCAL_PEERCRED on macOS; other systems refuse to connect).
+//   - The grant is read from the opened file: no symlink, an exact regular 0600 file owned by the effective UID,
+//     at most 64 KiB (grant_unix.go).
 //   - A failure before the connection is handed to the writer is NoEffect; after it, UnknownEffect.
 //   - A worker refusal keeps the worker's effect; anything but an explicit no_effect is UnknownEffect.
 package b2
@@ -45,7 +48,7 @@ type Client struct {
 type Option func(*Client)
 
 // WithGrantFile names a 0600 JSON file {"token": "..."} written by `pi-worker grant register`. It is read on every
-// call, so a rotated grant takes effect without a restart.
+// call, so a rotated grant takes effect without a restart, and checked on every read (see readGrantFile).
 func WithGrantFile(path string) Option { return func(c *Client) { c.grantFile = path } }
 
 // WithExpectedUID sets the UID the socket's listener must have. Default: this process's UID.
@@ -102,7 +105,7 @@ func (c *Client) bearer() (string, error) {
 	if c.grantFile == "" {
 		return "", nil
 	}
-	data, err := os.ReadFile(c.grantFile)
+	data, err := readGrantFile(c.grantFile)
 	if err != nil {
 		return "", fmt.Errorf("b2: grant file unreadable: %w", err)
 	}

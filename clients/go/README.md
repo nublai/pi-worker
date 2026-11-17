@@ -7,7 +7,8 @@ included).
 | --- | --- |
 | `b2/models.gen.go` | Models from oapi-codegen v2.8.2, models only (`b2/oapi-codegen.yaml`; the tool is pinned in `tools/go/go.mod`). |
 | `b2/ops.gen.go` | Operation table, `EventTypes`, `GrantProfiles` and typed JSON call wrappers, from `tools/codegen/go.mjs`. |
-| `b2/transport.go` | Unix-socket transport: SO_PEERCRED owner check before the bearer, one attempt, no keep-alive, no redirects, classification. |
+| `b2/transport.go` | Unix-socket transport: peer owner check before any byte is written (`peercred_linux.go` SO_PEERCRED, `peercred_darwin.go` LOCAL_PEERCRED, refused elsewhere), one attempt, no keep-alive, no redirects, classification. |
+| `b2/grant_unix.go` | Grant read from the opened file on every call: `O_NOFOLLOW`, non-blocking, exact regular 0600, owned by the effective UID, at most 64 KiB. Refused on other systems (`grant_other.go`). |
 | `b2/bytes.go` | The byte operations: `AttachmentsStage` (streamed upload, never buffered whole or re-sent), `SessionsHistory` and `BlobsRead` (byte reads with their headers). |
 | `b2/sse.go`, `b2/events.go` | The SSE loop (`Watch`) and the event union decoder. Never reconnects on its own. |
 | `workerfake/` | A fake worker for driver tests (below). |
