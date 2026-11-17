@@ -358,6 +358,7 @@ test('sandbox: a sandboxed child launches in its root (factory told, session dir
     assert.deepEqual(f.supervisor.history(outside.worker_id!, {}).entries, [], 'a session file outside the root is never read');
     assert.equal(f.supervisor.get(outside.worker_id!).history.last_entry_id, null);
     assert.throws(() => f.supervisor.features.history(f.supervisor.get(outside.worker_id!).session_id!, {}), /session_file_not_regular/, 'sessions.history never reads it either');
+    assert.throws(() => f.supervisor.features.blob(f.supervisor.get(outside.worker_id!).session_id!, 'entry', 0), /unknown_entry/, 'blobs.read never reads it either');
     // files.read over B2: a sandboxed worker's root only, inside explicit roots; the response validates.
     writeFileSync(join(child.cwd, 'README.md'), '# readme\n');
     const owner = ownerGrant(f.dir);
