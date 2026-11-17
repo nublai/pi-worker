@@ -13,6 +13,8 @@
  *   execution and command). Resolving never claims an external effect was undone.
  * - A create that binds an existing session (create-with-resume) is a session write too: its unknown outcome fences
  *   the target, which the worker holds as its session.
+ * - So is a relaunch, which reopens the worker's own session in a fresh pi: once a host exists, its unknown outcome
+ *   fences that session (a stop, exit or fault that ends it while it initializes too).
  * - After a restart, an unsettled execution and every unresolved `outcome_unknown` session-directed receipt fence
  *   again; a resolved duplicate stays read-only.
  */
@@ -38,6 +40,8 @@ export const SESSION_DIRECTED = new Set<Receipt['operation']>([
   'sessions.compact',
   'resources.reload',
   'commands.invoke',
+  // A relaunch reopens the worker's existing session in a fresh pi: its switch hooks may have run (GPT and Grok PR #27).
+  'workers.relaunch',
 ]);
 
 /**

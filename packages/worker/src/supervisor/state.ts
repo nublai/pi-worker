@@ -94,6 +94,8 @@ export interface Live extends Persisted {
   command?: string;
   observedIdle?: boolean;
   moveTimer?: NodeJS.Timeout;
+  /** The command of a relaunch still initializing (memory): its process ending makes its outcome unknown. */
+  launching?: string;
   /** The domain cleanup in flight (lifecycle): one at a time per worker; a pi exit during it starts no other. */
   cleaning?: Promise<boolean>;
   /** The supervisor-owned follow-up queue (cap 32), in arrival order. */

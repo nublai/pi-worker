@@ -33,7 +33,8 @@ export const FENCES_WHEN_UNKNOWN: Readonly<Record<Operation, boolean | typeof NA
   // create's fresh session has no prior state to protect.
   'workers.create': NAMES_EXISTING_SESSION,
   'workers.stop': false, // termination stays allowed under a fence and never replaces it
-  'workers.relaunch': false, // termination and relaunch of the worker, gated by cleanup (invariant 2)
+  // A relaunch reopens the worker's existing session in a fresh pi: pi may have run its switch hooks or opened it.
+  'workers.relaunch': true,
   'executions.cancel': false,
   'executions.interrupt': false,
   'sessions.resolve_unknown': false,
