@@ -2,17 +2,12 @@
   "request": {
     "body": {
       "command_id": "cmd-chat-2",
-      "cwd": "/home/u/photos",
+      "cwd": "/home/u/notes",
       "provider": "anthropic",
       "model": "claude",
       "thinking": "medium",
       "first_prompt": {
-        "message": "What is in this photo?",
-        "attachments": [
-          {
-            "attachment_id": "photo-expired"
-          }
-        ]
+        "message": "/compact"
       }
     }
   },
@@ -29,7 +24,7 @@
       "created_at": "2026-11-17T08:31:00Z",
       "worker_id": "worker-8",
       "admission": "rejected",
-      "error": "unknown_attachment",
+      "error": "slash_commands_use_typed_methods",
       "history_lag": false,
       "result": {
         "worker_id": "worker-8",

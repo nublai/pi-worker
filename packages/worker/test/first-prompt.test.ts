@@ -20,10 +20,9 @@ import { ownerGrant, socketCall } from './helpers.js';
 
 const TEXT = 'first words of a new chat, never journaled';
 
-/** The spec's FirstPrompt (declared here so that this file also builds on the revision before it). */
+/** The spec's FirstPrompt, text only (declared here so that this file also builds on the revision before it). */
 interface FirstPrompt {
   message: string;
-  attachments?: { attachment_id: string }[];
 }
 
 function createRequest(f: Fixture, commandId: string, firstPrompt: FirstPrompt | undefined): Create {
@@ -112,8 +111,6 @@ test('first_prompt: refused at admission, the worker is still created and the cr
   const f = fixture();
   try {
     const cases: [string, FirstPrompt, string][] = [
-      // An attachment staged for no worker (or another one), released or expired: unknown here.
-      ['photo-chat', { message: 'look at this', attachments: [{ attachment_id: 'photo-expired' }] }, 'unknown_attachment'],
       ['slash-chat', { message: '/compact' }, 'slash_commands_use_typed_methods'],
     ];
     for (const [id, first, error] of cases) {
@@ -301,6 +298,22 @@ test('first_prompt: a crash after pi settled the first prompt but before its rep
     assert.equal(w.fence?.command_id, 'crash-chat', 'recovery fences the session on the create');
   } finally {
     release();
+    f.cleanup();
+  }
+});
+
+test('first_prompt: text only, a first prompt with attachments is refused by the schema and creates nothing (P1-19 follow-up 4)', async () => {
+  const f = fixture();
+  const s = await serve(f);
+  try {
+    const body = { ...createRequest(f, 'photo-chat', { message: 'look at this' }), first_prompt: { message: 'look at this', attachments: [{ attachment_id: 'photo-1' }] } };
+    const refused = await socketCall(s.socket, 'POST', '/b2/workers', body, s.headers);
+    assert.equal(refused.status, 400, JSON.stringify(refused.body));
+    assert.equal((refused.body as { effect?: string }).effect, 'no_effect');
+    assert.equal(f.hosts.length, 0, 'nothing was created');
+    assert.equal(f.supervisor.receipts.all.has('photo-chat'), false);
+  } finally {
+    await s.close();
     f.cleanup();
   }
 });

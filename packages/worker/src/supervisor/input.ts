@@ -66,36 +66,30 @@ export class Input {
 
   /**
    * `workers.create` with `first_prompt` (FirstPrompt in the spec), once the new worker is ready: its first execution,
-   * under the create's command id and receipt. A refusal at admission (the checks of `sessions.prompt`) records and
-   * sends nothing: the receipt is the created worker plus `admission: rejected` and the typed refusal. Otherwise the
+   * under the create's command id and receipt, text only. A refusal at admission (the checks of `sessions.prompt`)
+   * records and sends nothing: the receipt is the created worker plus `admission: rejected` and the typed refusal. Otherwise the
    * execution id joins the create's receipt, durably, before any byte of the prompt reaches pi. After that record a
    * failure fences the new session on the create, durably, then throws: the create ends `outcome_unknown`.
    */
   async first(live: Live, c: Create, created: ReceiptPatch): Promise<ReceiptPatch> {
     const first = c.first_prompt!;
-    const id = live.worker.worker_id;
     const rejected = (error: Refusal): ReceiptPatch => ({ ...created, admission: 'rejected', error: error.message.slice(0, 256) });
-    let images: Images = [];
     try {
       this.writable(live);
       this.ready(live);
       if (first.message.trimStart().startsWith('/')) throw new Refusal('slash_commands_use_typed_methods');
-      if (first.attachments?.length) {
-        if (!this.attachments) throw new Refusal('attachments_unavailable');
-        images = this.attachments.forPrompt(id, first.attachments.map(a => a.attachment_id), { count: ATTACHMENTS_PER_MESSAGE, bytes: ATTACHMENTS_TOTAL_BYTES });
-      }
       if (live.command || live.worker.foreground !== 'idle') throw new Refusal('worker_busy');
     } catch (error) {
       if (error instanceof Refusal && error.effect === 'no_effect') return rejected(error);
       throw error;
     }
     try {
-      const patch = await this.execute(live, c.command_id, first.message, images, (executionId, write) => {
+      // Text only: images go with sessions.prompt once the worker exists (an attachment is staged for a live worker).
+      const patch = await this.execute(live, c.command_id, first.message, [], (executionId, write) => {
         // The first prompt's dispatch record: the create's receipt names the execution (and the worker it made).
         this.s.receipts.update(c.command_id, { execution_id: executionId, ...(created.result ? { result: created.result } : {}) }, 'receipt.dispatch');
         return write();
       });
-      if (images.length) this.attachments?.releaseNow(images.map(i => i.id), c.command_id);
       return { ...created, ...patch, result: { ...created.result, ...patch.result } };
     } catch (error) {
       // pi's explicit refusal before any input hook: nothing ran, the worker stays created and idle, and no execution
