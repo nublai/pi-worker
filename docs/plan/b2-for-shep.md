@@ -161,9 +161,9 @@ One SSE stream per supervisor: `GET /b2/events?worker_id=…&types=…` (both fi
 | --- | --- | --- |
 | `snapshot` | every authorized worker row, live interactions with payloads, fences, a history marker per worker (last entry known in the file, `lag`), cursor, `resync_reason` | sent first on every attach |
 | `overflow` | cursor | then the stream closes |
-| `worker.updated` | the full worker row (status, `status_since`, `settle_count`, foreground, fence, cleanup, binding) | journal or memory, labelled |
+| `worker.updated` | the full worker row (status, `status_since`, `settle_count`, `recent_settlements`, foreground, fence, cleanup, binding) | journal or memory, labelled |
 | `session.rebound` | new `binding_revision`, `session_id`, `leaf_id`, cause (`new`, `fork`, `resume`, `navigate`, `native`) | journal |
-| `execution.admitted`, `execution.started`, `execution.settled` | `execution_id`, `command_id`, disposition | journal for settled |
+| `execution.admitted`, `execution.started`, `execution.settled` | `execution_id`, `command_id`, disposition | journal for admitted and started; settled is memory, its settlement journaled in the row's `recent_settlements` |
 | `assistant.delta` | text delta (transient; replaces the screen tail) | memory |
 | `tool.started`, `tool.finished` | tool call id, name, short summary (the "pending tool") | memory |
 | `interactions.changed` | live cards for the worker | memory (outcomes journaled) |
@@ -171,8 +171,23 @@ One SSE stream per supervisor: `GET /b2/events?worker_id=…&types=…` (both fi
 | `receipt.updated` | `command_id`, state, effect | journal |
 | `history.appended` | `session_id`, new watermark | memory |
 | `attachment.updated` | attachment id, state | journal |
+| `child.reported` | report command, task, parent, kind; a claim, never proof | journal |
 
 Every event has a transport cursor `{transport_epoch, seq}` and a semantic `event_id`, `producer`, `evidence`.
+
+**As built (P1-19).** Every row of the table is in the spec's event manifest. `assistant.delta` carries `{tail,
+length}`: the last at most 2,048 characters of the assistant message's text so far and its full length, taken from
+pi's own `message_update` text deltas, so a client replaces its screen tail and a lost delta costs nothing; a
+subscriber whose transport is backpressured holds at most one undelivered delta per worker, so a delta storm never
+overflows its queue. `tool.started` and `tool.finished` come from pi's `tool_execution_start` and
+`tool_execution_end` with `tool_call_id`, `name` and a one-line `summary` (the first of the arguments `command`,
+`path`, `file_path`, `pattern`, `url`, `query`, `description`, at most 200 characters); `tool.finished` adds
+`is_error`. These three have producer `pi`, are memory only and are lost on overflow or reconnect by design.
+`receipt.updated` carries the journaled receipt record; `attachment.updated` the attachment's durable record;
+`fence.set` the uncertain command that joined the fence, the generation and the fence. Settlement recovery: every
+worker row carries `recent_settlements`, newest first, at most 8 (`execution_id`, `command_id`, `disposition`,
+`settled_at`), journaled with the row, so a reconnect snapshot, also after a supervisor restart, shows the
+settlements a subscriber missed; a `settle_count` gap larger than the list means the rest are only in history.
 
 **Reconnect.** The bridge reconnects with `Last-Event-ID`. The worker never replays: it answers with a fresh
 `snapshot` whose `resync_reason` is `current`, `gap`, `epoch` (supervisor restarted) or `overflow`. Controls stay
