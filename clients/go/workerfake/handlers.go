@@ -38,17 +38,27 @@ var statefulOps map[string]handler
 
 func init() {
 	statefulOps = map[string]handler{
-		"hello":          locked(hello),
-		"workers.list":   locked(workersList),
-		"workers.get":    locked(workersGet),
-		"workers.create": body(func(s *state, c *call, b b2.Create) (any, error) { return s.create(b, nil) }),
-		"workers.stop":   body(func(s *state, c *call, b b2.Binding) (any, error) { return s.stop(c.path["worker_id"], b) }),
+		"hello":        locked(hello),
+		"workers.list": locked(workersList),
+		"workers.get":  locked(workersGet),
+		"workers.create": body(func(s *state, c *call, b b2.Create) (any, error) {
+			if err := s.mayPrompt(b); err != nil {
+				return nil, err
+			}
+			return s.create(b, nil)
+		}),
+		"workers.stop": body(func(s *state, c *call, b b2.Binding) (any, error) { return s.stop(c.path["worker_id"], b) }),
 		"sessions.prompt": body(func(s *state, c *call, b b2.Prompt) (any, error) {
 			return s.prompt(c.path["worker_id"], b, "sessions.prompt", b)
 		}),
 		"sessions.follow_up": body(func(s *state, c *call, b b2.FollowUp) (any, error) { return s.followUp(c.path["worker_id"], b) }),
 		"sessions.steer":     body(steer),
-		"children.launch":    body(func(s *state, c *call, b b2.ChildLaunch) (any, error) { return s.launchChild(c.path["worker_id"], b) }),
+		"children.launch": body(func(s *state, c *call, b b2.ChildLaunch) (any, error) {
+			if err := s.mayPrompt(b.Launch); err != nil {
+				return nil, err
+			}
+			return s.launchChild(c.path["worker_id"], b)
+		}),
 		"executions.cancel": body(func(s *state, c *call, b b2.Control) (any, error) {
 			return s.control(c.path["worker_id"], b, "executions.cancel")
 		}),
@@ -79,6 +89,15 @@ func init() {
 		"models.list":                    locked(func(s *state, c *call) (any, error) { return featureTarget(s, c, "models.list") }),
 		"commands.list":                  locked(func(s *state, c *call) (any, error) { return featureTarget(s, c, "commands.list") }),
 	}
+}
+
+// mayPrompt: a first prompt is a prompt, so a create (direct or a child launch's) that carries one needs a grant that
+// may also call sessions.prompt; otherwise grant_method_denied/no_effect before any worker or receipt (b2/app.ts).
+func (s *state) mayPrompt(c b2.Create) error {
+	if c.FirstPrompt != nil && !s.f.methods["sessions.prompt"] {
+		return refuse("grant_method_denied")
+	}
+	return nil
 }
 
 // StatefulOps lists the operations the stateful fake answers from its state; the rest answer from wire fixtures.
