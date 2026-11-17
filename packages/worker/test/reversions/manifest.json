@@ -170,7 +170,9 @@
         "p1c-fix-f2-no-control-room.diff",
         "p1c-fix-f3-pin-any-child-report.diff",
         "p1c-fix-f4-catalog-dropped.diff",
-        "p1c-fix-f5-ordinary-past-advertised-max.diff"
+        "p1c-fix-f5-ordinary-past-advertised-max.diff",
+        "p1c-fix-f7-reserved-append-hits-floor.diff",
+        "p1c-fix-f7-no-fence-reservation.diff"
       ]
     },
     "compaction": {
