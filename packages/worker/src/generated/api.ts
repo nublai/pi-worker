@@ -1148,9 +1148,29 @@ export interface components {
             placeholder?: string;
             prefill?: components["schemas"]["Text"];
             options?: components["schemas"]["InteractionOption"][];
-            approval?: {
-                [key: string]: unknown;
-            };
+            approval?: components["schemas"]["ApprovalBinding"];
+        };
+        /**
+         * @description A `tool_approval` card's approval: exactly what the worker's SDK
+         *     child binds the tool gate to (sdk-child `Approval` plus its
+         *     `gate_token`). The gate's release (`gate_check`) must repeat every
+         *     field but `gate_token` unchanged and before `expiry`. The supervisor
+         *     admits a card only with this whole object; any other field is
+         *     dropped, and a card without a valid binding is never shown (its
+         *     native dialog is cancelled, so the gate denies the tool).
+         */
+        ApprovalBinding: {
+            /** @description The extension's digest of the exact tool input. */
+            digest: string;
+            policy_revision: string;
+            /** @description Milliseconds since the Unix epoch; the gate denies at or after it. */
+            expiry: number;
+            operation: string;
+            resource: string;
+            environment: string;
+            offered_scope: string;
+            /** @description The child's id for this gate (a UUID); its terminal notification names it. */
+            gate_token: string;
         };
         Interactions: components["schemas"]["Interaction"][];
         /** @description A pending native interaction not yet admitted as a typed interaction. */

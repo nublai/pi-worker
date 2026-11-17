@@ -1,0 +1,26 @@
+diff --git a/packages/worker/src/interactions/interactions.ts b/packages/worker/src/interactions/interactions.ts
+index b668f7f..3bb0487 100644
+--- a/packages/worker/src/interactions/interactions.ts
++++ b/packages/worker/src/interactions/interactions.ts
+@@ -164,11 +164,7 @@ export class Interactions {
+     if (!KINDS.has(kind)) return;
+     // A tool gate's card carries exactly the typed binding. Without a valid one it is never shown: its native dialog
+     // is cancelled, so the child's gate denies the tool.
+-    const approval = kind === 'tool_approval' ? approvalBinding(event.approval) : null;
+-    if (kind === 'tool_approval' && !approval) {
+-      void this.cancelNative(host, String(event.id)).catch(() => {});
+-      return;
+-    }
++    void approvalBinding;
+     const mine = [...this.live.values()].filter(l => l.record.worker_id === worker.worker_id);
+     if (mine.length >= CAPACITY) throw new Error('interaction_capacity');
+     if (mine.some(l => l.record.native_id === String(event.id))) throw new Error('duplicate_native_interaction');
+@@ -190,7 +186,7 @@ export class Interactions {
+       evidence: 'supervisor_journal_fsynced',
+       deadline,
+       status: 'pending',
+-      ...(approval ? { approval } : {}),
++      ...(kind === 'tool_approval' && event.approval && typeof event.approval === 'object' ? { approval: structuredClone(event.approval as ApprovalBinding) } : {}),
+     };
+     const options = kind === 'select' && Array.isArray(event.options) ? event.options.map(String) : undefined;
+     const payload: Record<string, unknown> = {};

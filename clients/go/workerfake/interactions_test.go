@@ -7,7 +7,10 @@ package workerfake_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -241,5 +244,66 @@ func TestCompactionInterruptsLiveInteractions(t *testing.T) {
 	a.Value = raw(true)
 	if _, err := c.InteractionsAnswerIfCurrent(ctx, w.WorkerId, a); !isRefusal(err, http.StatusConflict, "interaction_not_pending") {
 		t.Fatalf("answer after compact: %v", err)
+	}
+}
+
+// A tool_approval card carries its whole typed approval binding (ApprovalBinding) and nothing else; the fake opens
+// none without a valid binding, as the worker shows none, and other kinds carry no approval (P1-19 follow-up 6).
+// The cards are built from JSON, as a driver's fixture would be, so an extension's extra field is in the input.
+func TestToolApprovalCarriesItsTypedBinding(t *testing.T) {
+	fake, err := workerfake.Start(workerfake.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fake.Close()
+	ctx := context.Background()
+	c := fake.Client()
+	w := newWorker(t, ctx, c, "create-1")
+	expiry := time.Now().Add(time.Minute).UnixMilli()
+	binding := fmt.Sprintf(`"digest":"sha256-9f2c41","policy_revision":"policy-3","expiry":%d,"operation":"write","resource":"src/login.ts","environment":"/home/u/app","offered_scope":"once"`, expiry)
+	card := func(kind, approval string) b2.Interaction {
+		t.Helper()
+		var in b2.Interaction
+		if err := json.Unmarshal([]byte(fmt.Sprintf(`{"kind":%q%s}`, kind, approval)), &in); err != nil {
+			t.Fatal(err)
+		}
+		return in
+	}
+	opened, err := fake.OpenInteraction(w.WorkerId, card("tool_approval", `,"approval":{`+binding+`,"gate_token":"gate-1","note":"not in the binding"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	approvalKeys := func() []string {
+		t.Helper()
+		cards, _ := wireGet(t, fake, "/b2/workers/"+w.WorkerId+"/interactions").([]any)
+		for _, x := range cards {
+			if m, _ := x.(map[string]any); m["interaction_id"] == opened.InteractionId {
+				approval, _ := m["approval"].(map[string]any)
+				keys := slices.Sorted(maps.Keys(approval))
+				return keys
+			}
+		}
+		return nil
+	}
+	want := []string{"digest", "environment", "expiry", "gate_token", "offered_scope", "operation", "policy_revision", "resource"}
+	if got := approvalKeys(); !slices.Equal(got, want) {
+		t.Fatalf("approval fields %v, want exactly %v", got, want)
+	}
+	for name, approval := range map[string]string{
+		"none":          ``,
+		"no gate token": `,"approval":{` + binding + `}`,
+		"long token":    `,"approval":{` + binding + `,"gate_token":"` + strings.Repeat("g", 129) + `"}`,
+		"empty digest":  `,"approval":{` + strings.Replace(binding, `"sha256-9f2c41"`, `""`, 1) + `,"gate_token":"g"}`,
+	} {
+		if _, err := fake.OpenInteraction(w.WorkerId, card("tool_approval", approval)); err == nil || err.Error() != "invalid_tool_approval" {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	confirm, err := fake.OpenInteraction(w.WorkerId, card("confirm", `,"approval":{`+binding+`,"gate_token":"gate-2"}`))
+	if err != nil || confirm.Approval != nil {
+		t.Fatalf("a confirm carries no approval: %+v %v", confirm.Approval, err)
+	}
+	if list, _ := c.InteractionsList(ctx, w.WorkerId); len(list) != 2 {
+		t.Fatalf("cards %d, want the approval and the confirm", len(list))
 	}
 }

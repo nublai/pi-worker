@@ -1118,6 +1118,44 @@
       }
      ]
     }
+   },
+   "tool-approval": {
+    "request": {
+     "path": {
+      "worker_id": "worker-2"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": [
+      {
+       "interaction_id": "int-2",
+       "native_id": "native-2",
+       "worker_id": "worker-2",
+       "worker_epoch": "epoch-2",
+       "session_id": "session-2",
+       "binding_revision": 1,
+       "revision": 1,
+       "kind": "tool_approval",
+       "deadline": 1794817830000,
+       "status": "pending",
+       "source": "pi.tool_gate",
+       "evidence": "supervisor_journal_fsynced",
+       "payload_evidence": "observed_memory",
+       "title": "write approval",
+       "approval": {
+        "digest": "sha256-9f2c41",
+        "policy_revision": "policy-3",
+        "expiry": 1794817860000,
+        "operation": "write",
+        "resource": "src/login.ts",
+        "environment": "/home/u/app",
+        "offered_scope": "once",
+        "gate_token": "3f1c2b7e-5d4a-4c1b-9e2f-7a6b5c4d3e2f"
+       }
+      }
+     ]
+    }
    }
   },
   "interactions.status": {
