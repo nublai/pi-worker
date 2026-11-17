@@ -5,14 +5,14 @@
 
 | Path | What |
 | --- | --- |
-| `b2.openapi.yaml` | Operations, schemas and the event manifest (`x-piw-mutation`, `x-piw-status`, `x-piw-event`), body and response modes (`x-piw-body`, `x-piw-max-bytes`, `x-piw-response`, `x-piw-max-frame-bytes`, `info.x-piw-json-max-bytes`). |
+| `b2.openapi.yaml` | Operations, schemas and the event manifest (`x-piw-mutation`, `x-piw-status`, `x-piw-event`), body and response modes (`x-piw-body`, `x-piw-max-bytes`, `x-piw-response`, `x-piw-max-frame-bytes`, `info.x-piw-json-max-bytes`), grant profiles (`info.x-piw-grant-profiles`; `bridge` is Shep's method list). |
 | `redocly.yaml` | Lint rules (Redocly `recommended` plus the `piw` plugin) and the bundle target. |
 | `redocly/piw-rules.js` | The `piw` rules: operationId is a contract method name, paths under `/b2/`, 4xx/5xx use `Error`, mutations require `command_id`, `unsupported` declares `501`, the event manifest, body and response modes on every operation (a binary body declares its byte limit; a binary mutation carries `Piw-Command-Id`). |
 | `lint-fixtures/` | One failing example per `piw` rule, plus `valid.yaml`, the baseline they are derived from. |
 | `generated/b2.json` | The bundled single-file spec (`npm run api:bundle`). |
 
 ```sh
-npm run api:lint          # lint the spec, then prove every piw rule fails on its fixture
+npm run api:lint          # lint the spec, prove every piw rule fails on its fixture, check the bridge profile
 npm run api:bundle        # write generated/b2.json
 npm run generate          # bundle, then every generated file below
 npm run check:generated   # regenerate and fail if any generated file differs from the commit
@@ -27,6 +27,13 @@ npm run check:generated   # regenerate and fail if any generated file differs fr
 | `packages/worker/src/generated/validators.js`, `.d.ts` | Ajv 2020 standalone: every request body, parameter set (path, query, header), JSON response per status and event; no runtime dependency |
 | `packages/worker/src/generated/routes.ts` | in-repo route table (`tools/codegen/tables.mjs`) |
 | `packages/worker/src/generated/events.ts` | in-repo event manifest and typed publishers; a `journal` event needs the journal append result |
+| `packages/client-ts/src/generated/api.ts`, `routes.ts` | openapi-typescript (a copy) and the client's route table |
+| `clients/go/b2/models.gen.go` | oapi-codegen v2.8.2, models only |
+| `clients/go/b2/ops.gen.go` | in-repo Go operation table, event types, grant profiles and typed JSON calls (`tools/codegen/go.mjs`) |
+| `clients/go/workerfake/fixtures.gen.json` | the Go fake's copy of `api/fixtures` (wire fixtures and `transitions.json`), embedded (`tools/codegen/go-fixtures.mjs`) |
+
+`tools/codegen/check-profiles.mjs` (in `api:lint`) fails unless `info.x-piw-grant-profiles.bridge` lists exactly the
+methods of [b2-for-shep.md](../docs/plan/b2-for-shep.md) section 2.1, each with an operation and a wire fixture.
 
 Redocly runs with telemetry off (`telemetry: 'off'` in `redocly.yaml` and `REDOCLY_TELEMETRY=off` in the scripts).
 

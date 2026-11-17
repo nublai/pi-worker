@@ -12,7 +12,7 @@
     "packages/worker"
   ],
   "scripts": {
-    "api:lint": "REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true redocly lint --config api/redocly.yaml b2 && node tools/codegen/lint-fixtures.mjs",
+    "api:lint": "REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true redocly lint --config api/redocly.yaml b2 && node tools/codegen/lint-fixtures.mjs && node tools/codegen/check-profiles.mjs",
     "api:bundle": "REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true redocly bundle --config api/redocly.yaml b2",
     "generate": "node tools/codegen/generate.mjs",
     "check:generated": "node tools/codegen/check-generated.mjs",

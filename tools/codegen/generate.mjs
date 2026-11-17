@@ -6,10 +6,11 @@ import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { events, jsonBodyLimit, loadSpec, operations } from './spec.mjs';
+import { events, grantProfiles, jsonBodyLimit, loadSpec, operations } from './spec.mjs';
 import { clientRouteTable, eventTable, routeTable } from './tables.mjs';
 import { generateValidators } from './validators.mjs';
 import { goOps } from './go.mjs';
+import { goFixtures } from './go-fixtures.mjs';
 import { checkPins } from './pins.mjs';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
@@ -78,5 +79,8 @@ const oapi = spawnSync('go', ['tool', 'oapi-codegen', '-config', join(goOut, 'oa
 });
 if (oapi.error || oapi.status !== 0) throw new Error(`oapi-codegen failed (Go is required for npm run generate): ${oapi.error ?? oapi.status}`);
 console.log(`wrote ${join(goOut, 'models.gen.go').slice(root.length)}`);
-write(join(goOut, 'ops.gen.go'), goOps(spec, ops, eventInfo));
+write(join(goOut, 'ops.gen.go'), goOps(spec, ops, eventInfo, grantProfiles(spec, ops)));
+// 6. The Go fake's copy of api/fixtures (wire fixtures and the frozen transitions), embedded so a vendored copy of
+// clients/go/workerfake needs nothing outside its directory.
+write(join(root, 'clients', 'go', 'workerfake', 'fixtures.gen.json'), goFixtures(root, ops));
 run(join(goRoot, 'bin', 'gofmt'), ['-w', join(goOut, 'models.gen.go'), join(goOut, 'ops.gen.go')]);

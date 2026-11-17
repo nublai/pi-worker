@@ -1,0 +1,2462 @@
+{
+ "generated": "by tools/codegen from api/fixtures; DO NOT EDIT",
+ "wire": {
+  "attachments.release": {
+   "ok": {
+    "request": {
+     "path": {
+      "attachment_id": "photo-1"
+     },
+     "body": {
+      "command_id": "cmd-release-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-release-1",
+      "operation": "attachments.release",
+      "request_hash": "sha256-9f8e7d",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:31:00Z",
+      "worker_id": "worker-1",
+      "result": {
+       "attachment_id": "photo-1",
+       "state": "released"
+      }
+     }
+    }
+   }
+  },
+  "attachments.stage": {
+   "duplicate": {
+    "request": {
+     "path": {
+      "attachment_id": "photo-1"
+     },
+     "headers": {
+      "Content-Type": "image/jpeg",
+      "Piw-Command-Id": "cmd-attach-2",
+      "Piw-Worker-Id": "worker-1",
+      "Piw-Worker-Epoch": "epoch-1",
+      "Piw-Session-Id": "session-1",
+      "Piw-Binding-Revision": "1",
+      "Piw-Content-Sha256": "d20f6ffd523b78a86cd2f916fa34af5d1918d75f7b142237c752ad6b254213ab"
+     },
+     "bodyBase64": "/9j/4AAQSkZJRgABAQAAAQABAAD/2Q=="
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-attach-2",
+      "operation": "attachments.stage",
+      "request_hash": "sha256-5c4b3a",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+       "attachment_id": "photo-1",
+       "state": "staged",
+       "bytes": 22,
+       "duplicate_of": "cmd-attach-1"
+      }
+     }
+    }
+   },
+   "ok": {
+    "request": {
+     "path": {
+      "attachment_id": "photo-1"
+     },
+     "headers": {
+      "Content-Type": "image/jpeg",
+      "Piw-Command-Id": "cmd-attach-1",
+      "Piw-Worker-Id": "worker-1",
+      "Piw-Worker-Epoch": "epoch-1",
+      "Piw-Session-Id": "session-1",
+      "Piw-Binding-Revision": "1",
+      "Piw-Content-Sha256": "d20f6ffd523b78a86cd2f916fa34af5d1918d75f7b142237c752ad6b254213ab"
+     },
+     "bodyBase64": "/9j/4AAQSkZJRgABAQAAAQABAAD/2Q=="
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-attach-1",
+      "operation": "attachments.stage",
+      "request_hash": "sha256-5c4b3a",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+       "attachment_id": "photo-1",
+       "state": "staged",
+       "bytes": 22
+      }
+     }
+    }
+   },
+   "sha-mismatch": {
+    "request": {
+     "path": {
+      "attachment_id": "photo-1"
+     },
+     "headers": {
+      "Content-Type": "image/jpeg",
+      "Piw-Command-Id": "cmd-attach-3",
+      "Piw-Worker-Id": "worker-1",
+      "Piw-Worker-Epoch": "epoch-1",
+      "Piw-Session-Id": "session-1",
+      "Piw-Binding-Revision": "1",
+      "Piw-Content-Sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+     },
+     "bodyBase64": "/9j/4AAQSkZJRgABAQAAAQABAAD/2Q=="
+    },
+    "response": {
+     "status": 400,
+     "body": {
+      "error": "attachment_sha256_mismatch",
+      "effect": "no_effect"
+     }
+    }
+   }
+  },
+  "attachments.status": {
+   "ok": {
+    "request": {
+     "path": {
+      "attachment_id": "photo-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "attachment_id": "photo-1",
+      "worker_id": "worker-1",
+      "state": "staged",
+      "content_type": "image/jpeg",
+      "bytes": 22,
+      "sha256": "d20f6ffd523b78a86cd2f916fa34af5d1918d75f7b142237c752ad6b254213ab",
+      "command_id": "cmd-attach-1",
+      "staged_at": "2026-11-16T04:30:00Z",
+      "released_at": null,
+      "released_by": null,
+      "evidence": "supervisor_journal_fsynced"
+     }
+    }
+   },
+   "unknown": {
+    "request": {
+     "path": {
+      "attachment_id": "photo-9"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "unknown_attachment_is_not_proof_of_no_effect",
+      "effect": "unknown"
+     }
+    }
+   }
+  },
+  "blobs.read": {
+   "ok": {
+    "request": {
+     "path": {
+      "session_id": "session-1",
+      "entry_id": "e2",
+      "index": "0"
+     }
+    },
+    "response": {
+     "status": 200,
+     "headers": {
+      "Piw-Session-Id": "session-1",
+      "Piw-Entry-Id": "e2",
+      "Piw-Blob-Index": "0",
+      "Piw-Blob-Sha256": "b1ff9c8ea3a780bad09b346c423d2d0e46815926879b18e841d928376a946640"
+     },
+     "contentType": "image/png",
+     "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+    }
+   },
+   "unknown": {
+    "request": {
+     "path": {
+      "session_id": "session-1",
+      "entry_id": "e2",
+      "index": "3"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "unknown_blob",
+      "effect": "no_effect"
+     }
+    }
+   }
+  },
+  "children.launch": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "execution_id": "exec-1",
+      "launch": {
+       "command_id": "cmd-child",
+       "cwd": "/home/u/project-child",
+       "provider": "anthropic",
+       "model": "claude",
+       "thinking": "low"
+      }
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "children.launch",
+      "request_hash": "sha256-0f1e2d",
+      "state": "queued",
+      "stage": "reserved",
+      "effect": "no_effect",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "admission": "queued"
+     }
+    }
+   }
+  },
+  "children.report": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "task_id": "task-1",
+      "result_digest": "sha256-ab12",
+      "kind": "result",
+      "message": "done"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "children.report",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "dispatch_recorded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1"
+     }
+    }
+   }
+  },
+  "commands.invoke": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-invoke-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "name": "deploy",
+      "args": "staging"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-invoke-1",
+      "operation": "commands.invoke",
+      "request_hash": "sha256-1a2b3c",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+       "disposition": "handled"
+      }
+     }
+    }
+   },
+   "unsupported": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-invoke-3",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "name": "login"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "unsupported_command",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "use-method": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-invoke-2",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "name": "new"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "use_method",
+      "effect": "no_effect",
+      "detail": "sessions.new"
+     }
+    }
+   }
+  },
+  "commands.list": {
+   "ok": {
+    "request": {
+     "query": {
+      "worker_id": "worker-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "commands": [
+       {
+        "name": "new",
+        "description": "Start a new session",
+        "source": "builtin",
+        "argument_hint": null,
+        "invocation": "method",
+        "method": "sessions.new"
+       },
+       {
+        "name": "compact",
+        "description": "Manually compact the session context",
+        "source": "builtin",
+        "argument_hint": null,
+        "invocation": "method",
+        "method": "sessions.compact"
+       },
+       {
+        "name": "login",
+        "description": "Configure provider authentication",
+        "source": "builtin",
+        "argument_hint": "<provider>",
+        "invocation": "unsupported",
+        "method": null
+       },
+       {
+        "name": "deploy",
+        "description": "Deploy the current branch",
+        "source": "extension",
+        "argument_hint": null,
+        "invocation": "commands.invoke",
+        "method": null
+       },
+       {
+        "name": "skill:review",
+        "description": "Review a change",
+        "source": "skill",
+        "argument_hint": null,
+        "invocation": "unsupported",
+        "method": null
+       }
+      ],
+      "evidence": "pi_worker_process"
+     }
+    }
+   }
+  },
+  "events.subscribe": {
+   "ok": {
+    "request": {
+     "query": {
+      "worker_id": "worker-1",
+      "types": "worker.updated"
+     }
+    },
+    "response": {
+     "status": 200,
+     "frames": [
+      {
+       "type": "snapshot",
+       "workers": [
+        {
+         "worker_id": "worker-1",
+         "worker_epoch": "epoch-1",
+         "supervisor_epoch": "sup-epoch-1",
+         "session_id": "session-1",
+         "session_identity_evidence": "pi_session_file",
+         "binding_revision": 1,
+         "leaf_id": "entry-9",
+         "cwd": "/home/u/project",
+         "status": "ready",
+         "foreground": "idle",
+         "execution": null,
+         "fence": null,
+         "history": {
+          "last_entry_id": "entry-9",
+          "lag": false,
+          "evidence": "pi_session_file"
+         },
+         "cleanup": "none",
+         "pending_interactions": [],
+         "queued": [],
+         "fence_generation": 0,
+         "host": "sdk"
+        }
+       ],
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 0
+       },
+       "resync_reason": "fresh"
+      },
+      {
+       "type": "worker.updated",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 1
+       },
+       "event_id": "ev-1",
+       "producer": "supervisor",
+       "execution_id": null,
+       "evidence": "supervisor_journal_fsynced",
+       "worker_id": "worker-1",
+       "data": {
+        "worker": {
+         "worker_id": "worker-1",
+         "worker_epoch": "epoch-1",
+         "supervisor_epoch": "sup-epoch-1",
+         "session_id": "session-1",
+         "session_identity_evidence": "pi_session_file",
+         "binding_revision": 1,
+         "leaf_id": "entry-9",
+         "cwd": "/home/u/project",
+         "status": "ready",
+         "foreground": "idle",
+         "execution": null,
+         "fence": null,
+         "history": {
+          "last_entry_id": "entry-9",
+          "lag": false,
+          "evidence": "pi_session_file"
+         },
+         "cleanup": "none",
+         "pending_interactions": [],
+         "queued": [],
+         "fence_generation": 0,
+         "host": "sdk"
+        }
+       }
+      }
+     ]
+    }
+   }
+  },
+  "executions.cancel": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "execution_id": "exec-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "executions.cancel",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "requested",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+       "requested": true,
+       "observed": "observed_stopped"
+      }
+     }
+    }
+   }
+  },
+  "executions.interrupt": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "executions.interrupt",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "requested",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+       "requested": true,
+       "observed": "unknown"
+      }
+     }
+    }
+   }
+  },
+  "files.read": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "path": "/sandbox/root/README.md",
+      "roots": [
+       "/sandbox/root"
+      ]
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "path": "/sandbox/root/README.md",
+      "content": "# readme\n",
+      "bytes": 9,
+      "evidence": "pinned_file_read"
+     }
+    }
+   }
+  },
+  "hello": {
+   "ok": {
+    "request": {},
+    "response": {
+     "status": 200,
+     "body": {
+      "protocol": {
+       "major": 0,
+       "minor": 1
+      },
+      "worker_version": "0.0.0",
+      "supervisor_id": "sup-1",
+      "supervisor_epoch": "sup-epoch-1",
+      "pi_version": null,
+      "capabilities": [],
+      "limits": {
+       "request_body_bytes": 262144,
+       "attachment_max_bytes": 2097152,
+       "attachments_per_message": 4,
+       "attachments_total_bytes": 8388608,
+       "event_frame_bytes": 1048576,
+       "journal_max_bytes": 33554432,
+       "journal_control_reserve_bytes": 1048576,
+       "ordinary_receipts_max": 4096,
+       "receipt_retention_min_seconds": 3600,
+       "receipt_expired_ids_max": 16384
+      },
+      "named_limits": [
+       "Linux results are not macOS results."
+      ]
+     }
+    }
+   }
+  },
+  "history.page": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "query": {
+      "limit": "2"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "entries": [
+       {
+        "type": "message",
+        "id": "entry-8"
+       },
+       {
+        "type": "message",
+        "id": "entry-9"
+       }
+      ],
+      "watermark": "wm-1",
+      "next": {
+       "watermark": "wm-1",
+       "after": "entry-9"
+      },
+      "leafId": "entry-9",
+      "truncated": false,
+      "evidence": "pi_session_file"
+     }
+    }
+   }
+  },
+  "interactions.answer_if_current": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "answer_id": "ans-1",
+      "interaction_id": "int-1",
+      "revision": 1,
+      "kind": "select",
+      "outcome": "answer",
+      "option_id": "opt-a",
+      "actor": "device-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "interactions.answer_if_current",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "resolver_consumed",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "answer_stage": 3
+     }
+    }
+   }
+  },
+  "interactions.list": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": [
+      {
+       "interaction_id": "int-1",
+       "native_id": "native-1",
+       "worker_id": "worker-1",
+       "worker_epoch": "epoch-1",
+       "session_id": "session-1",
+       "binding_revision": 1,
+       "revision": 1,
+       "kind": "select",
+       "deadline": 1794817800000,
+       "status": "pending",
+       "source": "pi.extension_ui",
+       "evidence": "supervisor_journal_fsynced",
+       "payload_evidence": "observed_memory",
+       "title": "Pick one",
+       "options": [
+        {
+         "option_id": "opt-a",
+         "label": "A"
+        },
+        {
+         "option_id": "opt-b",
+         "label": "B"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "interactions.status": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "query": {
+      "interaction_id": "int-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "interaction_id": "int-1",
+      "native_id": "native-1",
+      "worker_id": "worker-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "revision": 1,
+      "kind": "select",
+      "deadline": 1794817800000,
+      "status": "answered",
+      "source": "pi.extension_ui",
+      "evidence": "supervisor_journal_fsynced",
+      "payload_evidence": "observed_memory",
+      "title": "Pick one",
+      "options": [
+       {
+        "option_id": "opt-a",
+        "label": "A"
+       },
+       {
+        "option_id": "opt-b",
+        "label": "B"
+       }
+      ],
+      "answer_id": "ans-1",
+      "answer_command_id": "cmd-1",
+      "answer_stage": 3,
+      "outcome": "answer"
+     }
+    }
+   }
+  },
+  "items.read": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1",
+      "entry_id": "entry-9"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "entry": {
+       "type": "message",
+       "id": "entry-9",
+       "parentId": "entry-8"
+      },
+      "bytes": 64,
+      "evidence": "pi_session_file"
+     }
+    }
+   }
+  },
+  "models.list": {
+   "both": {
+    "request": {
+     "query": {
+      "worker_id": "worker-1",
+      "cwd": "/home/u/project"
+     }
+    },
+    "response": {
+     "status": 400,
+     "body": {
+      "error": "name_exactly_one_of_worker_id_or_cwd",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "cwd": {
+    "request": {
+     "query": {
+      "cwd": "/home/u/project",
+      "project_trusted": "false"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "models": [
+       {
+        "provider": "anthropic",
+        "id": "claude-sonnet-4-5",
+        "name": "Claude Sonnet 4.5",
+        "reasoning": true,
+        "input": [
+         "text",
+         "image"
+        ],
+        "context_window": 200000,
+        "max_tokens": 64000
+       }
+      ],
+      "current": null,
+      "thinking": null,
+      "thinking_levels": [],
+      "evidence": "pi_inventory_process"
+     }
+    }
+   },
+   "ok": {
+    "request": {
+     "query": {
+      "worker_id": "worker-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "models": [
+       {
+        "provider": "anthropic",
+        "id": "claude-sonnet-4-5",
+        "name": "Claude Sonnet 4.5",
+        "reasoning": true,
+        "input": [
+         "text",
+         "image"
+        ],
+        "context_window": 200000,
+        "max_tokens": 64000
+       }
+      ],
+      "current": {
+       "provider": "anthropic",
+       "id": "claude-sonnet-4-5"
+      },
+      "thinking": "medium",
+      "thinking_levels": [
+       "off",
+       "minimal",
+       "low",
+       "medium",
+       "high"
+      ],
+      "evidence": "pi_worker_process"
+     }
+    }
+   }
+  },
+  "receipts.get": {
+   "expired": {
+    "request": {
+     "path": {
+      "command_id": "evicted-1"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "receipt_expired",
+      "effect": "unknown",
+      "uncertain_command_id": "evicted-1"
+     }
+    }
+   },
+   "ok": {
+    "request": {
+     "path": {
+      "command_id": "cmd-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "sessions.prompt",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "dispatch_recorded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "execution_id": "exec-1"
+     }
+    }
+   },
+   "unknown": {
+    "request": {
+     "path": {
+      "command_id": "never-seen"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "unknown_command_id_is_not_proof_of_no_effect",
+      "effect": "unknown"
+     }
+    }
+   }
+  },
+  "resources.reload": {
+   "fenced": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-reload-2",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "session_fenced",
+      "effect": "no_effect",
+      "uncertain_command_id": "cmd-lost-1"
+     }
+    }
+   },
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-reload-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-reload-1",
+      "operation": "resources.reload",
+      "request_hash": "sha256-1a2b3c",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+       "extension_errors": []
+      }
+     }
+    }
+   }
+  },
+  "session.configure": {
+   "fenced": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-configure-2",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "thinking": "low"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "session_fenced",
+      "effect": "no_effect",
+      "uncertain_command_id": "cmd-lost-1"
+     }
+    }
+   },
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-configure-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "model": {
+       "provider": "anthropic",
+       "id": "claude-sonnet-4-5"
+      },
+      "thinking": "high",
+      "name": "Fix the login bug"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-configure-1",
+      "operation": "session.configure",
+      "request_hash": "sha256-7a6b5c",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+       "model": {
+        "provider": "anthropic",
+        "id": "claude-sonnet-4-5"
+       },
+       "thinking": "high",
+       "name": "Fix the login bug"
+      }
+     }
+    }
+   },
+   "stale": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-configure-3",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "name": "x"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "stale_binding",
+      "effect": "no_effect",
+      "expected_binding_revision": 2,
+      "received_binding_revision": 1
+     }
+    }
+   }
+  },
+  "sessions.compact": {
+   "busy": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-compact-2",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "worker_busy",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-compact-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "custom_instructions": "Keep the open TODOs."
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-compact-1",
+      "operation": "sessions.compact",
+      "request_hash": "sha256-1a2b3c",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+       "tokens_before": 48210,
+       "first_kept_entry_id": "entry-40"
+      }
+     }
+    }
+   }
+  },
+  "sessions.follow_up": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "message": "and then",
+      "execution_id": "exec-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "sessions.follow_up",
+      "request_hash": "sha256-0f1e2d",
+      "state": "queued",
+      "stage": "reserved",
+      "effect": "no_effect",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "admission": "queued"
+     }
+    }
+   }
+  },
+  "sessions.get": {
+   "ok": {
+    "request": {
+     "path": {
+      "session_id": "session-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "session_id": "session-1",
+      "cwd": "/home/u/project",
+      "title": "Fix the login bug",
+      "preview": "Done: the login form now validates the email.",
+      "created_at": "2026-11-16T04:00:00Z",
+      "last_activity_at": "2026-11-16T04:30:00Z",
+      "message_count": 12,
+      "holder_worker_id": null,
+      "last_worker_id": "worker-1",
+      "fenced": false,
+      "lineage": "root",
+      "stats": {
+       "user_messages": 4,
+       "assistant_messages": 8,
+       "tool_calls": 5,
+       "tokens": {
+        "input": 1200,
+        "output": 800,
+        "cache_read": 4000,
+        "cache_write": 300,
+        "total": 6300
+       },
+       "cost_total": 0.0421,
+       "models": [
+        {
+         "provider": "anthropic",
+         "model": "claude-sonnet-4-5",
+         "assistant_messages": 8,
+         "tokens_total": 6300,
+         "cost_total": 0.0421
+        }
+       ]
+      },
+      "evidence": "pi_session_file"
+     }
+    }
+   },
+   "unknown": {
+    "request": {
+     "path": {
+      "session_id": "session-404"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "unknown_session",
+      "effect": "no_effect"
+     }
+    }
+   }
+  },
+  "sessions.history": {
+   "ok": {
+    "request": {
+     "path": {
+      "session_id": "session-1"
+     },
+     "query": {
+      "format": "jsonl",
+      "offset": "0",
+      "max_bytes": "1048576"
+     }
+    },
+    "response": {
+     "status": 200,
+     "headers": {
+      "Piw-Session-Id": "session-1",
+      "Piw-File-Identity": "c0542a5886d8d0e8a5a469c0fb8a76a782c28dce3065649d4b1e9a3af210e0cf",
+      "Piw-Offset": "0",
+      "Piw-Next-Offset": "471",
+      "Piw-Watermark": "471",
+      "Piw-Reset": "false",
+      "Piw-Tail-Sha256": "406bd4e4d9c2d87fb8501495db55da42389198bd302ac3da24beca16b53568f0",
+      "Piw-Prefix-Sha256": "8264dbe5fef801f7fed2c6c3f34707c2a1855683fbd6ccda43ac8a77fb3b4d08",
+      "Piw-History-Line-Max": "67108864"
+     },
+     "contentType": "application/x-ndjson",
+     "bodyText": "{\"type\":\"session\",\"version\":3,\"id\":\"session-1\",\"timestamp\":\"2026-11-16T04:00:00Z\",\"cwd\":\"/home/u/project\"}\n{\"type\":\"custom\",\"customType\":\"pi-worker.input\",\"id\":\"e1\",\"parentId\":null,\"timestamp\":\"2026-11-16T04:00:01Z\",\"data\":{\"command_id\":\"cmd-1\",\"execution_id\":\"exec-1\",\"interrupt_marker\":false}}\n{\"type\":\"message\",\"id\":\"e2\",\"parentId\":\"e1\",\"timestamp\":\"2026-11-16T04:00:01Z\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Fix the login bug\"}],\"timestamp\":0}}\n"
+    }
+   },
+   "past-watermark": {
+    "request": {
+     "path": {
+      "session_id": "session-1"
+     },
+     "query": {
+      "offset": "999999"
+     }
+    },
+    "response": {
+     "status": 400,
+     "body": {
+      "error": "history_offset_past_watermark",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "reset-prefix": {
+    "request": {
+     "path": {
+      "session_id": "session-1"
+     },
+     "query": {
+      "format": "jsonl",
+      "offset": "471",
+      "max_bytes": "1048576",
+      "identity": "c0542a5886d8d0e8a5a469c0fb8a76a782c28dce3065649d4b1e9a3af210e0cf",
+      "tail": "406bd4e4d9c2d87fb8501495db55da42389198bd302ac3da24beca16b53568f0",
+      "prefix": "b6f0ed32893973273ebb5efa8a6a3041e1f94e34dea95aeaca2cbb61c486dff6"
+     }
+    },
+    "response": {
+     "status": 200,
+     "headers": {
+      "Piw-Session-Id": "session-1",
+      "Piw-File-Identity": "c0542a5886d8d0e8a5a469c0fb8a76a782c28dce3065649d4b1e9a3af210e0cf",
+      "Piw-Offset": "0",
+      "Piw-Next-Offset": "471",
+      "Piw-Watermark": "471",
+      "Piw-Reset": "true",
+      "Piw-Tail-Sha256": "406bd4e4d9c2d87fb8501495db55da42389198bd302ac3da24beca16b53568f0",
+      "Piw-Prefix-Sha256": "8264dbe5fef801f7fed2c6c3f34707c2a1855683fbd6ccda43ac8a77fb3b4d08",
+      "Piw-History-Line-Max": "67108864"
+     },
+     "contentType": "application/x-ndjson",
+     "bodyText": "{\"type\":\"session\",\"version\":3,\"id\":\"session-1\",\"timestamp\":\"2026-11-16T04:00:00Z\",\"cwd\":\"/home/u/project\"}\n{\"type\":\"custom\",\"customType\":\"pi-worker.input\",\"id\":\"e1\",\"parentId\":null,\"timestamp\":\"2026-11-16T04:00:01Z\",\"data\":{\"command_id\":\"cmd-1\",\"execution_id\":\"exec-1\",\"interrupt_marker\":false}}\n{\"type\":\"message\",\"id\":\"e2\",\"parentId\":\"e1\",\"timestamp\":\"2026-11-16T04:00:01Z\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Fix the login bug\"}],\"timestamp\":0}}\n"
+    }
+   }
+  },
+  "sessions.list": {
+   "ok": {
+    "request": {
+     "query": {
+      "cwd": "/home/u/project",
+      "limit": "100"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "sessions": [
+       {
+        "session_id": "session-1",
+        "cwd": "/home/u/project",
+        "title": "Fix the login bug",
+        "preview": "Done: the login form now validates the email.",
+        "created_at": "2026-11-16T04:00:00Z",
+        "last_activity_at": "2026-11-16T04:30:00Z",
+        "message_count": 12,
+        "holder_worker_id": null,
+        "last_worker_id": "worker-1",
+        "fenced": false,
+        "lineage": "root",
+        "stats": {
+         "user_messages": 4,
+         "assistant_messages": 8,
+         "tool_calls": 5,
+         "tokens": {
+          "input": 1200,
+          "output": 800,
+          "cache_read": 4000,
+          "cache_write": 300,
+          "total": 6300
+         },
+         "cost_total": 0.0421,
+         "models": [
+          {
+           "provider": "anthropic",
+           "model": "claude-sonnet-4-5",
+           "assistant_messages": 8,
+           "tokens_total": 6300,
+           "cost_total": 0.0421
+          }
+         ]
+        },
+        "evidence": "pi_session_file"
+       }
+      ],
+      "truncated": false
+     }
+    }
+   }
+  },
+  "sessions.new": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "sessions.new",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+       "session_id": "session-2",
+       "binding_revision": 2
+      }
+     }
+    }
+   }
+  },
+  "sessions.prompt": {
+   "beyond-retention": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "0190b2a4-1c00-7a3e-8b1f-3c5d7e9f1a2b",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "message": "sent long ago"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "command_id_beyond_retention",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "busy-follow-up": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-2",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "message": "and then this",
+      "if_busy": "follow_up"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-2",
+      "operation": "sessions.prompt",
+      "request_hash": "sha256-1a2b3c",
+      "state": "queued",
+      "stage": "reserved",
+      "effect": "no_effect",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:01Z",
+      "worker_id": "worker-1",
+      "admission": "queued"
+     }
+    }
+   },
+   "busy": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-3",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "message": "not now"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "worker_busy",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "message": "hello"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "sessions.prompt",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "dispatch_recorded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "execution_id": "exec-1",
+      "admission": "accepted",
+      "history_lag": true
+     }
+    }
+   }
+  },
+  "sessions.rebind": {
+   "cleanup-pending": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-2",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "action": "resume",
+      "target_session_id": "session-1"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "cleanup_pending_or_worker_not_ready",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "action": "fork",
+      "entry_id": "entry-4",
+      "source_leaf_id": "entry-9"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "sessions.rebind",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "dispatch_recorded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+       "binding_revision": 2
+      }
+     }
+    }
+   }
+  },
+  "sessions.resolve_unknown": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "uncertain_command_id": "cmd-0",
+      "fence_generation": 1,
+      "disposition": "keep"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "sessions.resolve_unknown",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "resolved",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "disposition": "keep"
+     }
+    }
+   },
+   "wrong-generation": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-2",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "uncertain_command_id": "uncertain",
+      "fence_generation": 999,
+      "disposition": "keep"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "wrong_fence_generation",
+      "effect": "no_effect",
+      "uncertain_command_id": "uncertain"
+     }
+    }
+   }
+  },
+  "sessions.steer": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "message": "also check the tests",
+      "execution_id": "exec-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "sessions.steer",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "execution_id": "exec-1",
+      "disposition": "queued"
+     }
+    }
+   }
+  },
+  "workers.create": {
+   "held": {
+    "request": {
+     "body": {
+      "command_id": "cmd-3",
+      "cwd": "/home/u/third",
+      "provider": "anthropic",
+      "model": "claude",
+      "thinking": "medium",
+      "resume_session_id": "session-1"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "session_already_bound",
+      "effect": "no_effect",
+      "holder_worker_id": "worker-1"
+     }
+    }
+   },
+   "ok": {
+    "request": {
+     "body": {
+      "command_id": "cmd-1",
+      "cwd": "/home/u/project",
+      "provider": "anthropic",
+      "model": "claude",
+      "thinking": "medium",
+      "host": "sdk"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "workers.create",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1"
+     }
+    }
+   },
+   "resume-cleanup-unproven": {
+    "request": {
+     "body": {
+      "command_id": "cmd-4",
+      "cwd": "/home/u/fourth",
+      "provider": "anthropic",
+      "model": "claude",
+      "thinking": "medium",
+      "resume_session_id": "session-1"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "target_cleanup_unproven",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "resume-fenced": {
+    "request": {
+     "body": {
+      "command_id": "cmd-5",
+      "cwd": "/home/u/fifth",
+      "provider": "anthropic",
+      "model": "claude",
+      "thinking": "medium",
+      "resume_session_id": "session-1"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "target_session_fenced",
+      "effect": "no_effect",
+      "uncertain_command_id": "cmd-1"
+     }
+    }
+   },
+   "resume": {
+    "request": {
+     "body": {
+      "command_id": "cmd-2",
+      "cwd": "/home/u/other",
+      "provider": "anthropic",
+      "model": "claude",
+      "thinking": "medium",
+      "resume_session_id": "session-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-2",
+      "operation": "workers.create",
+      "request_hash": "sha256-1a2b3c",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:31:00Z",
+      "worker_id": "worker-2",
+      "result": {
+       "worker_id": "worker-2",
+       "worker_epoch": "epoch-2",
+       "session_id": "session-1",
+       "binding_revision": 1
+      }
+     }
+    }
+   }
+  },
+  "workers.get": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "worker_id": "worker-1",
+      "worker_epoch": "epoch-1",
+      "supervisor_epoch": "sup-epoch-1",
+      "session_id": "session-1",
+      "session_identity_evidence": "pi_session_file",
+      "binding_revision": 1,
+      "leaf_id": "entry-9",
+      "cwd": "/home/u/project",
+      "status": "ready",
+      "foreground": "idle",
+      "execution": null,
+      "fence": null,
+      "history": {
+       "last_entry_id": "entry-9",
+       "lag": false,
+       "evidence": "pi_session_file"
+      },
+      "cleanup": "none",
+      "pending_interactions": [],
+      "queued": [],
+      "fence_generation": 0,
+      "host": "sdk",
+      "status_since": "2026-11-16T04:29:00Z",
+      "settle_count": 3,
+      "lineage": "root",
+      "repo_label": "project",
+      "title": "Fix the login bug",
+      "preview": "Done: the login form now validates the email.",
+      "last_activity_at": "2026-11-16T04:30:00Z",
+      "model": {
+       "provider": "anthropic",
+       "id": "claude-sonnet-4-5"
+      },
+      "thinking": "medium"
+     }
+    }
+   }
+  },
+  "workers.list": {
+   "ok": {
+    "request": {},
+    "response": {
+     "status": 200,
+     "body": [
+      {
+       "worker_id": "worker-1",
+       "worker_epoch": "epoch-1",
+       "supervisor_epoch": "sup-epoch-1",
+       "session_id": "session-1",
+       "session_identity_evidence": "pi_session_file",
+       "binding_revision": 1,
+       "leaf_id": "entry-9",
+       "cwd": "/home/u/project",
+       "status": "ready",
+       "foreground": "idle",
+       "execution": null,
+       "fence": null,
+       "history": {
+        "last_entry_id": "entry-9",
+        "lag": false,
+        "evidence": "pi_session_file"
+       },
+       "cleanup": "none",
+       "pending_interactions": [],
+       "queued": [],
+       "fence_generation": 0,
+       "host": "sdk"
+      }
+     ]
+    }
+   }
+  },
+  "workers.relaunch": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "workers.relaunch",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1"
+     }
+    }
+   }
+  },
+  "workers.stop": {
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-1",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-1",
+      "operation": "workers.stop",
+      "request_hash": "sha256-0f1e2d",
+      "state": "delivered",
+      "stage": "termination_observed",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-16T04:30:00Z",
+      "worker_id": "worker-1",
+      "result": {
+       "termination": "observed_stopped",
+       "stopped_worker_epoch": "epoch-1",
+       "current_worker_epoch": "epoch-1",
+       "profile": "cgroup_v2"
+      }
+     }
+    }
+   },
+   "stale": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "command_id": "cmd-2",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 2
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "stale_binding",
+      "effect": "no_effect",
+      "expected_binding_revision": 1,
+      "received_binding_revision": 2
+     }
+    }
+   }
+  }
+ },
+ "transitions": {
+  "prototype": true,
+  "fixture_schema": 1,
+  "contract_revision": 8,
+  "setup": "fresh idle worker and controller grant; fixture-only host lifecycle controls, never inferred model effects",
+  "macros": {
+   "unknown": [
+    {
+     "kind": "host_reply",
+     "mode": "drop"
+    },
+    {
+     "kind": "call",
+     "method": "sessions.prompt",
+     "command_id": "uncertain",
+     "binding": "initial",
+     "fields": {
+      "message": "uncertain"
+     }
+    }
+   ],
+   "queued": [
+    {
+     "kind": "host_reply",
+     "mode": "hold"
+    },
+    {
+     "kind": "begin",
+     "method": "sessions.prompt",
+     "command_id": "uncertain",
+     "binding": "initial",
+     "fields": {
+      "message": "uncertain"
+     }
+    },
+    {
+     "kind": "call",
+     "method": "sessions.follow_up",
+     "command_id": "queued-follow",
+     "binding": "initial",
+     "fields": {
+      "message": "follow",
+      "execution_id": "@worker.execution.execution_id"
+     }
+    },
+    {
+     "kind": "call",
+     "method": "children.launch",
+     "command_id": "queued-child",
+     "binding": "initial",
+     "fields": {
+      "execution_id": "@worker.execution.execution_id",
+      "launch": {
+       "command_id": "child-create",
+       "cwd": "@child_cwd",
+       "provider": "fixture",
+       "model": "fixture",
+       "thinking": "off"
+      }
+     }
+    },
+    {
+     "kind": "drop_reply"
+    },
+    {
+     "kind": "host_event",
+     "event": {
+      "type": "agent_settled"
+     }
+    },
+    {
+     "kind": "drain"
+    }
+   ]
+  },
+  "rows": [
+   {
+    "id": "01-binding",
+    "from": "bound(rev n)",
+    "event": "/new, fork, resume, tree move",
+    "to": "bound(rev n+1)",
+    "coverage": "partial: new/fork/resume tested; direct RPC tree navigation unsupported in Pi 1.5.2",
+    "steps": [
+     {
+      "kind": "call",
+      "method": "sessions.rebind",
+      "command_id": "new",
+      "binding": "initial",
+      "fields": {
+       "action": "new"
+      }
+     },
+     {
+      "kind": "call",
+      "method": "sessions.prompt",
+      "command_id": "stale",
+      "binding": "initial",
+      "fields": {
+       "message": "must not run"
+      }
+     }
+    ],
+    "expect": [
+     {
+      "path": "worker.binding_revision",
+      "equals": 2
+     },
+     {
+      "path": "result.effect",
+      "equals": "no_effect"
+     },
+     {
+      "path": "result.received_binding_revision",
+      "equals": 1
+     },
+     {
+      "path": "effects.prompts",
+      "equals": 0
+     }
+    ]
+   },
+   {
+    "id": "02-unknown",
+    "from": "bound",
+    "event": "mutation outcome_unknown",
+    "to": "fenced(g)",
+    "steps": [
+     {
+      "macro": "unknown"
+     }
+    ],
+    "expect": [
+     {
+      "path": "result.effect",
+      "equals": "unknown"
+     },
+     {
+      "path": "worker.fence.command_id",
+      "equals": "uncertain"
+     },
+     {
+      "path": "disk.fence.command_id",
+      "equals": "uncertain"
+     }
+    ]
+   },
+   {
+    "id": "03-fenced-write",
+    "from": "fenced(g)",
+    "event": "any write",
+    "to": "fenced(g)",
+    "steps": [
+     {
+      "macro": "unknown"
+     },
+     {
+      "kind": "call",
+      "method": "sessions.prompt",
+      "command_id": "denied",
+      "binding": "initial",
+      "fields": {
+       "message": "no effect"
+      }
+     }
+    ],
+    "expect": [
+     {
+      "path": "result.effect",
+      "equals": "no_effect"
+     },
+     {
+      "path": "result.uncertain_command_id",
+      "equals": "uncertain"
+     },
+     {
+      "path": "effects.prompts",
+      "equals": 1
+     }
+    ]
+   },
+   {
+    "id": "04-paused",
+    "from": "fenced(g)",
+    "event": "queued follow-up or child due",
+    "to": "fenced(g)",
+    "steps": [
+     {
+      "macro": "queued"
+     }
+    ],
+    "expect": [
+     {
+      "path": "worker.queued.0.state",
+      "equals": "paused"
+     },
+     {
+      "path": "worker.queued.1.state",
+      "equals": "paused"
+     },
+     {
+      "path": "effects.prompts",
+      "equals": 1
+     },
+     {
+      "path": "effects.hosts",
+      "equals": 1
+     }
+    ]
+   },
+   {
+    "id": "05-keep",
+    "from": "fenced(g)",
+    "event": "resolve_unknown(g, keep)",
+    "to": "bound",
+    "steps": [
+     {
+      "macro": "queued"
+     },
+     {
+      "kind": "call",
+      "method": "sessions.resolve_unknown",
+      "command_id": "resolve",
+      "binding": "initial",
+      "fields": {
+       "uncertain_command_id": "uncertain",
+       "fence_generation": "@worker.fence.fence_generation",
+       "disposition": "keep"
+      }
+     },
+     {
+      "kind": "drain"
+     },
+     {
+      "kind": "host_event",
+      "event": {
+       "type": "agent_settled"
+      }
+     },
+     {
+      "kind": "drain"
+     }
+    ],
+    "expect": [
+     {
+      "path": "worker.fence",
+      "equals": null
+     },
+     {
+      "path": "effects.prompts",
+      "equals": 2
+     },
+     {
+      "path": "effects.hosts",
+      "equals": 2
+     },
+     {
+      "path": "worker.queued.0.state",
+      "equals": "dispatched"
+     },
+     {
+      "path": "worker.queued.1.state",
+      "equals": "dispatched"
+     }
+    ]
+   },
+   {
+    "id": "06-abandon",
+    "from": "fenced(g)",
+    "event": "resolve_unknown(g, abandon)",
+    "to": "bound",
+    "steps": [
+     {
+      "macro": "queued"
+     },
+     {
+      "kind": "call",
+      "method": "sessions.resolve_unknown",
+      "command_id": "resolve",
+      "binding": "initial",
+      "fields": {
+       "uncertain_command_id": "uncertain",
+       "fence_generation": "@worker.fence.fence_generation",
+       "disposition": "abandon"
+      }
+     },
+     {
+      "kind": "drain"
+     }
+    ],
+    "expect": [
+     {
+      "path": "worker.fence",
+      "equals": null
+     },
+     {
+      "path": "effects.prompts",
+      "equals": 1
+     },
+     {
+      "path": "effects.hosts",
+      "equals": 1
+     },
+     {
+      "path": "worker.queued.0.state",
+      "equals": "dropped"
+     },
+     {
+      "path": "worker.queued.1.state",
+      "equals": "dropped"
+     }
+    ]
+   },
+   {
+    "id": "07-observed",
+    "from": "fenced(g)",
+    "event": "resolve_unknown(g, observed)",
+    "to": "bound",
+    "steps": [
+     {
+      "kind": "call",
+      "method": "sessions.prompt",
+      "command_id": "uncertain",
+      "binding": "initial",
+      "fields": {
+       "message": "uncertain"
+      }
+     },
+     {
+      "kind": "host_event",
+      "event": {
+       "type": "exit"
+      }
+     },
+     {
+      "kind": "host_event",
+      "event": {
+       "type": "agent_settled"
+      }
+     },
+     {
+      "kind": "call",
+      "method": "sessions.resolve_unknown",
+      "command_id": "resolve",
+      "binding": "initial",
+      "fields": {
+       "uncertain_command_id": "uncertain",
+       "fence_generation": "@worker.fence.fence_generation",
+       "disposition": "observed"
+      }
+     }
+    ],
+    "expect": [
+     {
+      "path": "worker.fence",
+      "equals": null
+     },
+     {
+      "path": "result.state",
+      "equals": "delivered"
+     },
+     {
+      "path": "effects.prompts",
+      "equals": 1
+     }
+    ]
+   },
+   {
+    "id": "08-generation",
+    "from": "fenced(g)",
+    "event": "resolve_unknown(g != supplied)",
+    "to": "fenced(g)",
+    "steps": [
+     {
+      "macro": "unknown"
+     },
+     {
+      "kind": "call",
+      "method": "sessions.resolve_unknown",
+      "command_id": "resolve",
+      "binding": "initial",
+      "fields": {
+       "uncertain_command_id": "uncertain",
+       "fence_generation": 999,
+       "disposition": "keep"
+      }
+     }
+    ],
+    "expect": [
+     {
+      "path": "result.effect",
+      "equals": "no_effect"
+     },
+     {
+      "path": "result.error",
+      "equals": "wrong_fence_generation"
+     },
+     {
+      "path": "worker.fence.fence_generation",
+      "equals": 1
+     }
+    ]
+   },
+   {
+    "id": "09-restart",
+    "from": "any",
+    "event": "supervisor restart",
+    "to": "cleanup_pending",
+    "profile": "unconfirmed_native_identity",
+    "steps": [
+     {
+      "kind": "call",
+      "method": "sessions.prompt",
+      "command_id": "uncertain",
+      "binding": "initial",
+      "fields": {
+       "message": "uncertain"
+      }
+     },
+     {
+      "kind": "restart"
+     }
+    ],
+    "expect": [
+     {
+      "path": "worker.status",
+      "equals": "cleanup_pending"
+     },
+     {
+      "path": "worker.fence.command_id",
+      "equals": "uncertain"
+     },
+     {
+      "path": "effects.prompts",
+      "equals": 1
+     }
+    ]
+   },
+   {
+    "id": "10-cleanup-resume",
+    "from": "cleanup_pending",
+    "event": "resume",
+    "to": "cleanup_pending",
+    "profile": "unconfirmed_native_identity",
+    "steps": [
+     {
+      "kind": "restart"
+     },
+     {
+      "kind": "call",
+      "method": "sessions.rebind",
+      "command_id": "resume",
+      "binding": "initial",
+      "fields": {
+       "action": "resume",
+       "target_session_id": "@initial.session_id"
+      }
+     }
+    ],
+    "expect": [
+     {
+      "path": "worker.status",
+      "equals": "cleanup_pending"
+     },
+     {
+      "path": "result.effect",
+      "equals": "no_effect"
+     },
+     {
+      "path": "worker.fence",
+      "equals": null
+     },
+     {
+      "path": "result.error",
+      "equals": "cleanup_pending_or_worker_not_ready"
+     },
+     {
+      "path": "effects.prompts",
+      "equals": 0
+     }
+    ]
+   },
+   {
+    "id": "11-control",
+    "from": "any",
+    "event": "cancel or interrupt",
+    "to": "same state",
+    "steps": [
+     {
+      "macro": "unknown"
+     },
+     {
+      "kind": "call",
+      "method": "executions.cancel",
+      "command_id": "cancel",
+      "binding": "initial",
+      "fields": {}
+     },
+     {
+      "kind": "call",
+      "method": "executions.interrupt",
+      "command_id": "interrupt",
+      "binding": "initial",
+      "fields": {}
+     }
+    ],
+    "expect": [
+     {
+      "path": "worker.fence.command_id",
+      "equals": "uncertain"
+     },
+     {
+      "path": "worker.fence.fence_generation",
+      "equals": 1
+     },
+     {
+      "path": "result.result.requested",
+      "equals": true
+     }
+    ]
+   }
+  ]
+ }
+}

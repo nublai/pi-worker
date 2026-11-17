@@ -45,6 +45,22 @@ export function jsonBodyLimit(spec) {
   return cap;
 }
 
+/**
+ * `info.x-piw-grant-profiles`: profile name → method list. Every method must be an operation of the spec, listed
+ * once; the lists keep their spec order.
+ */
+export function grantProfiles(spec, ops) {
+  const raw = spec.info?.['x-piw-grant-profiles'] ?? {};
+  const known = new Set(ops.map(o => o.operationId));
+  for (const [name, methods] of Object.entries(raw)) {
+    if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new Error(`x-piw-grant-profiles: bad profile name ${name}`);
+    if (!Array.isArray(methods) || methods.length === 0) throw new Error(`x-piw-grant-profiles.${name}: a non-empty method list`);
+    if (new Set(methods).size !== methods.length) throw new Error(`x-piw-grant-profiles.${name}: a method is listed twice`);
+    for (const m of methods) if (!known.has(m)) throw new Error(`x-piw-grant-profiles.${name}: ${m} is not an operation of the spec`);
+  }
+  return raw;
+}
+
 /** Operations in path order, with parameters, body and responses resolved to what generators need. */
 export function operations(spec) {
   const jsonCap = jsonBodyLimit(spec);
@@ -123,6 +139,7 @@ export function operations(spec) {
         responses,
         responseMode: ok.mode,
         maxFrameBytes: ok.maxFrameBytes,
+        maxResponseBytes: ok.maxBytes,
         stream: ok.mode === 'sse',
         raw: ok.mode === 'ndjson' || ok.mode === 'binary',
       });

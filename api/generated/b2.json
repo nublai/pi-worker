@@ -4,12 +4,47 @@
     "title": "pi-worker B2",
     "version": "0.1.0",
     "summary": "Caller-to-worker API (B2) of nubl's pi-worker supervisor.",
-    "description": "HTTP/1.1 over a private Unix socket (`$XDG_RUNTIME_DIR/pi-worker/b2.sock`, 0700 directory, 0600 socket).\nThere is no TCP listener. This document is the single source for the server's request and response\nvalidators, the TypeScript types and the Go models (`npm run generate`).\n\nSeeded from A0 (`prototype/a0` at `ee66117`, `openapi.json`). The method catalog is draft until P6\n(contract revision 8, sections 4 onward); the behavioural invariants (sections 0, 0.1, 0.2) are frozen.\n\nExtensions:\n- `x-piw-mutation` (every operation): `true` when the operation changes state. A mutation's body\n  requires `command_id`, a UUIDv7 (RFC 9562) the caller mints\n  when it creates the command; a client never retries it; a\n  failure after the request bytes are written is\n  `effect: unknown`. A command id the worker may have admitted\n  never runs again: past its retained receipt and expired id it\n  is refused `command_id_beyond_retention`, `effect: no_effect`\n  (see `receipt_expired_ids_max`).\n- `x-piw-status: unsupported`: the server routes and validates the operation and answers `501` with\n  `effect: no_effect`.\n- `x-piw-event` (every event schema): the event manifest (type, producer, durability, visibility).\n- `x-piw-body` (every operation): the request body mode. `json`: `application/json` only, at most\n  `x-piw-json-max-bytes` (below) unless the operation declares a smaller `x-piw-max-bytes`, validated\n  against its schema. `binary`: the declared media types only, streamed with a byte counter and refused\n  at `x-piw-max-bytes`, which a binary operation must declare. `none`: no body. The router enforces the\n  mode before any handler: a wrong content type is `415`, a body over the limit `413`, a body on a `none`\n  operation `400`, all `effect: no_effect`.\n- `x-piw-response` (every success response): `json`, `sse`, `ndjson` or `binary`. An `sse` response\n  declares `x-piw-max-frame-bytes`, the most bytes one record may carry. An `ndjson` or `binary` response\n  declares `x-piw-max-bytes` (the most body bytes) and its `headers`; the router validates the headers\n  against their schemas, the content type against the declared media types and the length against the\n  cap before anything is written, and an `ndjson` body must be complete lines, each one JSON value.\n\nNamed limit (invariant 8): private sockets and bearer grants do not isolate hostile code running as the\nsame OS user.\n",
+    "description": "HTTP/1.1 over a private Unix socket (`$XDG_RUNTIME_DIR/pi-worker/b2.sock`, 0700 directory, 0600 socket).\nThere is no TCP listener. This document is the single source for the server's request and response\nvalidators, the TypeScript types and the Go models (`npm run generate`).\n\nSeeded from A0 (`prototype/a0` at `ee66117`, `openapi.json`). The method catalog is draft until P6\n(contract revision 8, sections 4 onward); the behavioural invariants (sections 0, 0.1, 0.2) are frozen.\n\nExtensions:\n- `x-piw-mutation` (every operation): `true` when the operation changes state. A mutation's body\n  requires `command_id`, a UUIDv7 (RFC 9562) the caller mints\n  when it creates the command; a client never retries it; a\n  failure after the request bytes are written is\n  `effect: unknown`. A command id the worker may have admitted\n  never runs again: past its retained receipt and expired id it\n  is refused `command_id_beyond_retention`, `effect: no_effect`\n  (see `receipt_expired_ids_max`).\n- `x-piw-status: unsupported`: the server routes and validates the operation and answers `501` with\n  `effect: no_effect`.\n- `x-piw-event` (every event schema): the event manifest (type, producer, durability, visibility).\n- `x-piw-body` (every operation): the request body mode. `json`: `application/json` only, at most\n  `x-piw-json-max-bytes` (below) unless the operation declares a smaller `x-piw-max-bytes`, validated\n  against its schema. `binary`: the declared media types only, streamed with a byte counter and refused\n  at `x-piw-max-bytes`, which a binary operation must declare. `none`: no body. The router enforces the\n  mode before any handler: a wrong content type is `415`, a body over the limit `413`, a body on a `none`\n  operation `400`, all `effect: no_effect`.\n- `x-piw-response` (every success response): `json`, `sse`, `ndjson` or `binary`. An `sse` response\n  declares `x-piw-max-frame-bytes`, the most bytes one record may carry. An `ndjson` or `binary` response\n  declares `x-piw-max-bytes` (the most body bytes) and its `headers`; the router validates the headers\n  against their schemas, the content type against the declared media types and the length against the\n  cap before anything is written, and an `ndjson` body must be complete lines, each one JSON value.\n\n- `x-piw-grant-profiles` (in `info`): named method lists a grant can be registered with. `bridge` is\n  exactly the methods of Shep's worker driver (`docs/plan/b2-for-shep.md` section 2.1); `npm run api:lint`\n  fails if the two differ, and the Go fake's closure test needs a route and a wire fixture for each.\n\nNamed limit (invariant 8): private sockets and bearer grants do not isolate hostile code running as the\nsame OS user.\n",
     "license": {
       "name": "MIT",
       "identifier": "MIT"
     },
-    "x-piw-json-max-bytes": 262144
+    "x-piw-json-max-bytes": 262144,
+    "x-piw-grant-profiles": {
+      "bridge": [
+        "hello",
+        "workers.list",
+        "workers.get",
+        "sessions.list",
+        "sessions.get",
+        "models.list",
+        "commands.list",
+        "events.subscribe",
+        "history.page",
+        "items.read",
+        "sessions.history",
+        "blobs.read",
+        "interactions.list",
+        "interactions.status",
+        "receipts.get",
+        "attachments.status",
+        "files.read",
+        "workers.create",
+        "sessions.prompt",
+        "session.configure",
+        "sessions.new",
+        "sessions.rebind",
+        "sessions.compact",
+        "resources.reload",
+        "commands.invoke",
+        "interactions.answer_if_current",
+        "executions.interrupt",
+        "workers.stop",
+        "sessions.resolve_unknown",
+        "attachments.stage",
+        "attachments.release"
+      ]
+    }
   },
   "servers": [
     {

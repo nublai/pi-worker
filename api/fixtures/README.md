@@ -4,7 +4,8 @@
 
 `wire/<operationId>/<name>.json` holds one request and response example per file. Every operation has at least one;
 the closure tests (`packages/worker/test/closure.test.ts`) check that, and that every fixture validates against the
-spec. Add or update a fixture with every new or changed operation.
+spec. Add or update a fixture with every new or changed operation. The Go fake (`clients/go/workerfake`) embeds a
+generated copy of every fixture and answers from them, so two fixtures of one operation need different requests.
 
 ```json
 {
@@ -23,7 +24,9 @@ spec. Add or update a fixture with every new or changed operation.
 `transitions.json` is A0's fixture at contract revision 8 (`ee66117:src/test/fixtures/transitions.json`, copied byte
 for byte): one row per section 0.1 transition, `01-binding` to `11-control`. The replay runner is
 `packages/worker/test/conformance/transitions.test.ts` (`npm run test:conformance`); the rows run as `todo` until P1
-provides the supervisor, and P1 must turn all eleven green.
+provides the supervisor, and P1 must turn all eleven green. The Go replay
+(`clients/go/workerfake/transitions_test.go`, P1-17) runs the same rows through the Go client against the Go fake
+and pins the same semantic hash.
 
 - **Frozen fields:** each row's `id`, `from`, `event`, `to` and `expect`. Their canonical SHA-256 is pinned in the
   test. They change only with a new contract revision approved by the founder.
