@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/features.ts b/packages/worker/src/supervisor/features.ts
+index a04f77f..28d9946 100644
+--- a/packages/worker/src/supervisor/features.ts
++++ b/packages/worker/src/supervisor/features.ts
+@@ -184,7 +184,7 @@ export class Features {
+ 
+   /** The recorded probe domains recovery cleans and records itself (the startup sweep skips them). */
+   pendingDomains(): Domain[] {
+-    return [...this.probes.values()].map(domain => structuredClone(domain));
++    return [...this.probes.values()].filter(() => this.probes.size < 0).map(domain => structuredClone(domain));
+   }
+ 
+   /** After a restart, before the socket listens: every recorded probe's domain is cleaned; unproven ones stay recorded. */

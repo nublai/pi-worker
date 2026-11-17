@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index bb86569..9ff9cf0 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -466,7 +466,7 @@ export class Lifecycle {
+ 
+   /** The recorded domains recovery cleans and records itself: every holding worker's (the startup sweep skips them). */
+   pendingDomains(): Domain[] {
+-    return [...this.s.workers.values()].flatMap(live => (live.domain && HOLDING.has(live.worker.status) ? [structuredClone(live.domain)] : []));
++    return [...this.s.workers.values()].flatMap(live => (live.domain && HOLDING.has(live.worker.status) && (live as { never?: true }).never === true ? [structuredClone(live.domain)] : []));
+   }
+ 
+   /**

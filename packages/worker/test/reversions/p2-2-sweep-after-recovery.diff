@@ -1,0 +1,20 @@
+diff --git a/packages/worker/src/supervisor/supervisor.ts b/packages/worker/src/supervisor/supervisor.ts
+index 176f057..a12cea8 100644
+--- a/packages/worker/src/supervisor/supervisor.ts
++++ b/packages/worker/src/supervisor/supervisor.ts
+@@ -127,7 +127,6 @@ export class Supervisor {
+    * anything is recovered or recorded, so the daemon fails to start (P2-2).
+    */
+   async recover(): Promise<void> {
+-    await this.lifecycle.containment.sweep([...this.lifecycle.pendingDomains(), ...this.features.pendingDomains()]);
+     // The owner's durable `keep` of a recovered intent survives restarts; any other intent_ready does not.
+     const kept = (r: Receipt) => !!r.worker_id && (this.state.workers.get(r.worker_id)?.worker.resolutions ?? []).some(x => x.command_id === r.command_id && x.disposition === 'keep');
+     this.state.receipts.recover(kept);
+@@ -141,6 +140,7 @@ export class Supervisor {
+     await this.features.recover();
+     // A child whose launch may have run and that left no durable result report fences its parent (invariant 4a).
+     this.children.recover();
++    await this.lifecycle.containment.sweep([...this.lifecycle.pendingDomains(), ...this.features.pendingDomains()]);
+   }
+ 
+   /**

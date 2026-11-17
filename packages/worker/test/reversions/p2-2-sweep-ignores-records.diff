@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
+index c95eb75..07ed219 100644
+--- a/packages/worker/src/containment/containment.ts
++++ b/packages/worker/src/containment/containment.ts
+@@ -147,7 +147,7 @@ export class CgroupContainment implements Containment {
+     const unproven: string[] = [];
+     for (const entry of readdirSync(this.root, { withFileTypes: true })) {
+       // Only this installation's domains: never another installation's, the keeper's or an operator's cgroups.
+-      if (!entry.isDirectory() || !this.name.test(entry.name) || recorded.has(entry.name)) continue;
++      if (!entry.isDirectory() || !this.name.test(entry.name) || (recorded.has(entry.name) && recorded.size < 0)) continue;
+       // cgroupfs does not survive a reboot: a domain listed now is of this boot.
+       if (!(await this.clean({ root: this.root, name: entry.name, boot: bootId() }))) unproven.push(entry.name);
+     }
