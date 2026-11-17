@@ -29,7 +29,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { accessSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { bootId } from '../host/process.js';
 import { INSTALLATION_ID } from '../journal/state.js';
@@ -89,26 +89,43 @@ export class InstallationRefused extends Error {
 }
 
 /**
- * Takes this installation's lock for the daemon's lifetime, or throws `InstallationRefused`. It lives in the user's
- * runtime directory (`$XDG_RUNTIME_DIR`, else `/run/user/<uid>`), `pi-worker-installations/<installation>.lock`: every
- * daemon of this user on this host sees that directory whatever its state, socket or delegation path, so two daemons
+ * The directory of the installation locks: `/run/user/<euid>/pi-worker-installations`, whatever the caller's
+ * environment. Not `$XDG_RUNTIME_DIR`: two daemons started with different values (a unit's private RuntimeDirectory, a
+ * container, a script) would lock in different places and both run one installation (PR #23 Grok delta 2).
+ */
+export function installationLocks(): string {
+  return `/run/user/${process.geteuid!()}/pi-worker-installations`;
+}
+
+const owned0700 = (path: string): boolean => {
+  const st = lstatSync(path);
+  return st.isDirectory() && !st.isSymbolicLink() && st.uid === process.geteuid!() && (st.mode & 0o777) === 0o700;
+};
+
+/**
+ * Takes this installation's lock, or throws `InstallationRefused`. The caller owns the returned lock for its whole
+ * lifetime and releases it only when it stops: the lock is a connection that garbage collection closes once nothing
+ * references it, so a dropped lock is released while the daemon still runs (PR #23 GPT delta 3, Grok delta 1).
+ *
+ * It is `<locks>/<installation>.lock`, `locks` being `installationLocks()` (a test daemon passes its own): every daemon
+ * of this user on this host sees that directory whatever its state, socket, delegation or environment, so two daemons
  * on copies of one state contend there; it is per boot, as cgroupfs and so every domain is. Not in the state directory
  * (each copy has its own) and not in the delegation (cgroupfs holds no regular file for the record lock, and a keeper
- * delegation could differ between copies). The kernel drops it when the daemon dies. The runtime directory must exist;
- * it is never created.
+ * delegation could differ between copies). The kernel drops it when the daemon dies. The parent (`/run/user/<euid>`)
+ * must already be an owned, non-symlink 0700 directory: it is never created and there is no fallback, so a host without
+ * one refuses `installation_lock_unavailable`.
  */
-export function holdInstallation(installation: string, env: NodeJS.ProcessEnv = process.env): FileLock {
+export function holdInstallation(installation: string, locks: string = installationLocks()): FileLock {
   if (!INSTALLATION_ID.test(installation)) throw new Error('invalid installation id');
-  const runtime = env.XDG_RUNTIME_DIR || `/run/user/${process.getuid!()}`;
-  const dir = join(runtime, 'pi-worker-installations');
+  const dir = locks;
   try {
+    if (!owned0700(dirname(dir))) throw new Error(`${dirname(dir)} must be an existing, owned, non-symlink 0700 directory`);
     try {
       mkdirSync(dir, { mode: 0o700 });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     }
-    const st = lstatSync(dir);
-    if (!st.isDirectory() || st.uid !== process.getuid!() || (st.mode & 0o077) !== 0) throw new Error(`${dir} must be an owned, non-symlink 0700 directory`);
+    if (!owned0700(dir)) throw new Error(`${dir} must be an owned, non-symlink 0700 directory`);
     return acquireLock(join(dir, `${installation}.lock`));
   } catch (error) {
     if (error instanceof LockHeld) throw new InstallationRefused('installation_in_use', `another daemon runs installation ${installation} (a copy of this state directory)`);

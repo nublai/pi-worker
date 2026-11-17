@@ -10,6 +10,7 @@ import type { InventoryFactory } from './supervisor/features.js';
 import type { HostFactory } from './supervisor/state.js';
 import { openState, StateVersionRefused, type SupervisorState as OpenState } from './journal/state.js';
 import { GrantStore } from './grants/store.js';
+import type { FileLock } from './lock.js';
 import { ReceiptStore } from './receipts/receipts.js';
 import { Supervisor } from './supervisor/supervisor.js';
 
@@ -66,9 +67,10 @@ export function productionHosts(env?: NodeJS.ProcessEnv): { factory: HostFactory
 /**
  * Runs the daemon. `containment` opens the cleanup domains for the state's installation (journal/state.ts); it throws
  * when there is no delegation, and the daemon then refuses to start: it never listens, so nothing can run outside a
- * domain (P2-1).
+ * domain (P2-1). `options.installationLocks` is for the test daemon only (test/fixtures/daemon.ts): production takes the
+ * installation lock in `installationLocks()`, never in a directory the environment chooses.
  */
-export async function runDaemon(containment: (installation: string) => Containment): Promise<void> {
+export async function runDaemon(containment: (installation: string) => Containment, options: { installationLocks?: string } = {}): Promise<void> {
   const paths = resolvePaths();
   const access = resolveSocketAccess();
   // Every file and socket the supervisor creates is private from the moment it exists.
@@ -97,9 +99,11 @@ export async function runDaemon(containment: (installation: string) => Containme
 
   // One daemon per installation, held until the daemon exits (the kernel drops it then): a daemon on a copy of this
   // state shares its installation id and so its domain names, and is refused here, before its sweep could remove a
-  // domain this daemon's journal records (P2-2).
+  // domain this daemon's journal records (P2-2). The shutdown below owns the lock and releases it last: nothing else
+  // references it, and a lock nothing references is closed by garbage collection while the daemon still runs.
+  let installation: FileLock;
   try {
-    holdInstallation(state.installation);
+    installation = holdInstallation(state.installation, options.installationLocks);
   } catch (error) {
     if (!(error instanceof InstallationRefused)) throw error;
     console.error(JSON.stringify({ event: 'refused', reason: error.code, installation: state.installation, detail: error.message }));
@@ -153,6 +157,7 @@ export async function runDaemon(containment: (installation: string) => Containme
     // successor's socket, so the daemon never unlinks it itself.
     server.close(() => {
       state.close();
+      installation.release();
       process.exit(0);
     });
   }
