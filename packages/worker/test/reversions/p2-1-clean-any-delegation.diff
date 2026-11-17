@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
-index c95eb75..b099089 100644
+index 19caa0b..6391544 100644
 --- a/packages/worker/src/containment/containment.ts
 +++ b/packages/worker/src/containment/containment.ts
-@@ -93,8 +93,7 @@ export class CgroupContainment implements Containment {
+@@ -149,8 +149,7 @@ export class CgroupContainment implements Containment {
  
-   /** The domain's directory; only a domain of this delegation, with this installation's domain name. */
+   /** The domain's directory; only a domain this containment accepts. */
    private path(domain: Domain): string {
--    if (domain.root !== this.root || !this.name.test(domain.name)) throw new Error('cleanup delegation mismatch');
+-    if (!this.accepts(domain)) throw new Error('cleanup delegation mismatch');
 -    return join(this.root, domain.name);
 +    return join(domain.root, domain.name);
    }

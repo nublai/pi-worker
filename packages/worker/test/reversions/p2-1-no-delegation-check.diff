@@ -1,11 +1,11 @@
 diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
-index c95eb75..494aa3c 100644
+index 19caa0b..539a81a 100644
 --- a/packages/worker/src/containment/containment.ts
 +++ b/packages/worker/src/containment/containment.ts
-@@ -205,7 +205,7 @@ export function keeperUnit(stateDir: string): string {
- export function openContainment(stateDir: string, env: NodeJS.ProcessEnv = process.env): CgroupContainment {
+@@ -265,7 +265,7 @@ export function keeperUnit(installation: string): string {
+  */
+ export function openContainment(installation: string, env: NodeJS.ProcessEnv = process.env): CgroupContainment {
    if (process.platform !== 'linux') throw new Error('cgroup v2 delegation requires Linux');
-   const installation = installationId(stateDir);
 -  if (env.PIW_CGROUP_ROOT) return new CgroupContainment(checkDelegation(env.PIW_CGROUP_ROOT), installation);
 +  if (env.PIW_CGROUP_ROOT) return new CgroupContainment(env.PIW_CGROUP_ROOT, installation);
    const uid = process.getuid!();

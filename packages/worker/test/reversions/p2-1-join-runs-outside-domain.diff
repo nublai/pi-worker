@@ -1,9 +1,9 @@
 diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
-index c95eb75..a337fc6 100644
+index 19caa0b..263a9fe 100644
 --- a/packages/worker/src/containment/containment.ts
 +++ b/packages/worker/src/containment/containment.ts
-@@ -65,7 +65,7 @@ export function installationId(stateDir: string): string {
-   return createHash('sha256').update(realpathSync(stateDir)).digest('hex').slice(0, 20);
+@@ -116,7 +116,7 @@ export function holdInstallation(installation: string, env: NodeJS.ProcessEnv =
+   }
  }
  /** The fixed program that runs before any payload: it moves itself into the domain, then executes the payload. */
 -const JOIN = 'printf "%s\\n" "$$" > "$1/cgroup.procs" || exit 125; shift; exec "$@"';

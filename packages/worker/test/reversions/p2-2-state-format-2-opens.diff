@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/journal/state.ts b/packages/worker/src/journal/state.ts
+index 8793b22..afabd7f 100644
+--- a/packages/worker/src/journal/state.ts
++++ b/packages/worker/src/journal/state.ts
+@@ -41,7 +41,7 @@ export const journalPath = (stateDir: string) => join(stateDir, 'journal.jsonl')
+  * was a process-group kill). 2: P2-1 (per-epoch cgroup v2 cleanup domains named `w-<epoch>`). 3: P2-2 (a recorded
+  * random installation id; domains named `w-<installation>-<epoch>`).
+  */
+-export const STATE_VERSION = 3;
++export const STATE_VERSION = 2;
+ 
+ /** An installation id: 80 random bits, lowercase hex. */
+ export const INSTALLATION_ID = /^[0-9a-f]{20}$/;
