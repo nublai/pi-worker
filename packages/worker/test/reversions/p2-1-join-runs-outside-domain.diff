@@ -1,10 +1,10 @@
 diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
-index 714dc6f..5ec4135 100644
+index c95eb75..a337fc6 100644
 --- a/packages/worker/src/containment/containment.ts
 +++ b/packages/worker/src/containment/containment.ts
-@@ -36,7 +36,7 @@ export interface Containment {
- 
- const NAME = /^w-[a-zA-Z0-9-]+$/;
+@@ -65,7 +65,7 @@ export function installationId(stateDir: string): string {
+   return createHash('sha256').update(realpathSync(stateDir)).digest('hex').slice(0, 20);
+ }
  /** The fixed program that runs before any payload: it moves itself into the domain, then executes the payload. */
 -const JOIN = 'printf "%s\\n" "$$" > "$1/cgroup.procs" || exit 125; shift; exec "$@"';
 +const JOIN = 'printf "%s\\n" "$$" > "$1/cgroup.procs"; shift; exec "$@"';
