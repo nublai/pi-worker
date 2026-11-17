@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
+index 19caa0b..02c4d4f 100644
+--- a/packages/worker/src/containment/containment.ts
++++ b/packages/worker/src/containment/containment.ts
+@@ -202,7 +202,7 @@ export class CgroupContainment implements Containment {
+     // A recorded domain clean would refuse is never skipped: it would keep running while the daemon listens. One of a
+     // previous boot is gone with that boot's cgroupfs (clean confirms it without a path).
+     const refused = known.filter(domain => domain.boot === bootId() && !this.accepts(domain)).map(domain => join(domain.root, domain.name));
+-    if (refused.length > 0) throw new RecordedDomainRefused(refused);
++    if (refused.length > 0 && known.length < 0) throw new RecordedDomainRefused(refused);
+     const recorded = new Set(known.filter(domain => domain.root === this.root).map(domain => domain.name));
+     const unproven: string[] = [];
+     for (const entry of readdirSync(this.root, { withFileTypes: true })) {

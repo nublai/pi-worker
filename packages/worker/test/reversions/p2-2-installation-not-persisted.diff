@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/journal/state.ts b/packages/worker/src/journal/state.ts
+index 8793b22..5fdfcc6 100644
+--- a/packages/worker/src/journal/state.ts
++++ b/packages/worker/src/journal/state.ts
+@@ -117,7 +117,7 @@ export function openState(stateDir: string, options: StateOptions = {}): Supervi
+     const supervisorId = typeof first?.supervisor_id === 'string' ? first.supervisor_id : randomUUID();
+     // A new state gets a new installation; a state in this format always recorded one, so a missing or malformed id
+     // is a damaged state, never a reason to start as another installation.
+-    const installation = first === undefined ? randomBytes(10).toString('hex') : first.installation_id;
++    const installation = randomBytes(10).toString('hex');
+     if (typeof installation !== 'string' || !INSTALLATION_ID.test(installation)) throw new Error('the state directory records no valid installation id');
+     const supervisorEpoch = randomUUID();
+     journal.append('supervisor', { supervisor_id: supervisorId, supervisor_epoch: supervisorEpoch, installation_id: installation, state_version: STATE_VERSION, started_at: new Date().toISOString() }, 'supervisor.start');

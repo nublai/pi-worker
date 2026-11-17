@@ -1,11 +1,11 @@
 diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
-index c95eb75..19bc8d2 100644
+index 19caa0b..e7585a1 100644
 --- a/packages/worker/src/containment/containment.ts
 +++ b/packages/worker/src/containment/containment.ts
-@@ -143,7 +143,7 @@ export class CgroupContainment implements Containment {
-   }
- 
-   async sweep(known: readonly Domain[]): Promise<void> {
+@@ -203,7 +203,7 @@ export class CgroupContainment implements Containment {
+     // previous boot is gone with that boot's cgroupfs (clean confirms it without a path).
+     const refused = known.filter(domain => domain.boot === bootId() && !this.accepts(domain)).map(domain => join(domain.root, domain.name));
+     if (refused.length > 0) throw new RecordedDomainRefused(refused);
 -    const recorded = new Set(known.filter(domain => domain.root === this.root).map(domain => domain.name));
 +    const recorded = new Set(known.map(domain => domain.name));
      const unproven: string[] = [];

@@ -349,7 +349,8 @@
       "command": "npm test -- state-version",
       "diffs": [
         "p2-1-older-state-opens.diff",
-        "p2-1-state-refused-after-repair.diff"
+        "p2-1-state-refused-after-repair.diff",
+        "p2-2-state-format-2-opens.diff"
       ]
     },
     "sweep": {
@@ -363,7 +364,10 @@
         "p2-2-sweep-after-recovery.diff",
         "p2-2-sweep-failure-ignored.diff",
         "p2-2-known-omits-workers.diff",
-        "p2-2-known-omits-probes.diff"
+        "p2-2-known-omits-probes.diff",
+        "p2-2-installation-not-persisted.diff",
+        "p2-2-no-installation-lock.diff",
+        "p2-2-unaccepted-record-skipped.diff"
       ]
     }
   }

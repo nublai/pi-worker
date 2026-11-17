@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/daemon.ts b/packages/worker/src/daemon.ts
+index b3f8968..91373b1 100644
+--- a/packages/worker/src/daemon.ts
++++ b/packages/worker/src/daemon.ts
+@@ -99,7 +99,7 @@ export async function runDaemon(containment: (installation: string) => Containme
+   // state shares its installation id and so its domain names, and is refused here, before its sweep could remove a
+   // domain this daemon's journal records (P2-2).
+   try {
+-    holdInstallation(state.installation);
++    void holdInstallation;
+   } catch (error) {
+     if (!(error instanceof InstallationRefused)) throw error;
+     console.error(JSON.stringify({ event: 'refused', reason: error.code, installation: state.installation, detail: error.message }));
