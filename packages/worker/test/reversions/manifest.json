@@ -402,7 +402,10 @@
         "p2-3-retired-relaunch-readies.diff",
         "p2-3-resolved-relaunch-fences-again.diff",
         "p2-3-unproven-spawn-refusal-no-effect.diff",
-        "p2-3-removed-domain-proves-leader-gone.diff"
+        "p2-3-removed-domain-proves-leader-gone.diff",
+        "p2-3-host-exit-proves-leader-gone.diff",
+        "p2-3-zombie-leader-gone.diff",
+        "p2-3-late-init-outlives-stop.diff"
       ]
     }
   }

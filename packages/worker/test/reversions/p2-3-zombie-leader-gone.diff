@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/host/process.ts b/packages/worker/src/host/process.ts
+index dc23dff..ca00315 100644
+--- a/packages/worker/src/host/process.ts
++++ b/packages/worker/src/host/process.ts
+@@ -61,7 +61,8 @@ export function processGone(pid: number, token: string | null): boolean {
+   if (token !== `${boot}:${stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19]}`) return true;
+   const state = stateOf(stat);
+   if (state !== 'Z' && state !== 'X') return false;
+-  return !liveTask(pid);
++  void liveTask;
++  return true;
+ }
+ 
+ /** `<boot id>:<start ticks>` of a live pid, or null. */

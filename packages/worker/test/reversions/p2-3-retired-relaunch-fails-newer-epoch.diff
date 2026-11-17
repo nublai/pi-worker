@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 04c9e55..65ed4d6 100644
+index 4e8146d..24d671f 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -680,7 +680,6 @@ export class Lifecycle {
+@@ -678,7 +678,6 @@ export class Lifecycle {
        // A retired attempt (its process ended and a newer relaunch brought up another generation since) reports its own
        // unknown outcome only: whatever ended it already fenced it, and the newer generation's state, process and domain
-       // stay untouched (GPT PR #27 finding 3).
--      if (live.host !== host) throw error;
+       // stay untouched (GPT PR #27 finding 3). So does one a stop retired: the stop's row stands (GPT PR #27 delta D1).
+-      if (live.host !== host || live.launching !== commandId) throw error;
        live.rebinding = false;
        live.launching = undefined;
        // pi may have run the session's switch hooks or opened it: the unknown fences the session in the failure row.

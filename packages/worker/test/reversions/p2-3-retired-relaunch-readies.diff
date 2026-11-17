@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 04c9e55..95c33f2 100644
+index 4e8146d..708a748 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -656,7 +656,6 @@ export class Lifecycle {
-       live.completedMessages = 0;
-       this.s.refresh(live);
+@@ -654,7 +654,6 @@ export class Lifecycle {
        const inventory = await host.request({ type: 'inventory' });
--      if (live.host !== host) throw new Error('relaunch_superseded');
+       // Only the attempt still in flight publishes readiness: not one a stop retired (with or without a newer epoch
+       // since), nor one whose process ended meanwhile.
+-      if (live.host !== host || live.launching !== commandId || w.status !== 'starting') throw new Error('relaunch_superseded');
        if (!inventory.success || ((inventory.data?.extension_errors as unknown[] | undefined)?.length ?? 1) > 0) throw new Error('resource_inventory_failed');
        if (live.faulted) throw new Error('worker fault during initialization');
        w.resources = inventory.data!;

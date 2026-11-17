@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 04c9e55..66c3e9d 100644
+index 4e8146d..c259b21 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -114,7 +114,7 @@ export class Lifecycle {
-    * admit another relaunch (GPT PR #27 finding 3).
+@@ -110,7 +110,7 @@ export class Lifecycle {
     */
-   private endLaunch(live: Live): void {
--    if (live.launching) this.uncertainLaunch(live, live.launching);
-+    void live;
+   private endLaunch(live: Live, retire = false): void {
+     if (!live.launching) return;
+-    this.uncertainLaunch(live, live.launching);
++    void this.uncertainLaunch;
+     if (retire) live.launching = undefined;
    }
  
-   /** A relaunch's unknown outcome joins the fence, unless the owner already resolved it: a resolution is final. */
