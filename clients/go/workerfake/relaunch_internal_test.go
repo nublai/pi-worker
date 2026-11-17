@@ -109,6 +109,7 @@ func TestRelaunchAfterRestartNeedsConfirmedCleanup(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(func() { _ = fake.Close() })
 		ctx := context.Background()
 		c := fake.Client()
 		cr, err := c.WorkersCreate(ctx, b2.Create{CommandId: "create", Cwd: filepath.Join(t.TempDir(), "w"), Provider: "fixture", Model: "fixture", Thinking: "off"})
@@ -124,7 +125,6 @@ func TestRelaunchAfterRestartNeedsConfirmedCleanup(t *testing.T) {
 		if profile != "" && !refused(err, "cleanup_pending_or_cleanup_unproven") {
 			t.Fatalf("unconfirmed profile: %v", err)
 		}
-		fake.Close()
 	}
 }
 
@@ -136,6 +136,7 @@ func TestOwnerKeptPromptDispatchesOnceOnTheRelaunchedEpoch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(func() { _ = fake.Close() })
 		ctx := context.Background()
 		c := fake.Client()
 		cr, err := c.WorkersCreate(ctx, b2.Create{CommandId: "create", Cwd: filepath.Join(t.TempDir(), "w"), Provider: "fixture", Model: "fixture", Thinking: "off"})
@@ -186,7 +187,6 @@ func TestOwnerKeptPromptDispatchesOnceOnTheRelaunchedEpoch(t *testing.T) {
 			if !refused(err, "stale_binding") || fake.CurrentHost(id).Prompts() != 0 {
 				t.Fatalf("%s: kept prompt after it: %v", after, err)
 			}
-			fake.Close()
 			continue
 		}
 		if err != nil || got.State != "delivered" || fake.CurrentHost(id).Prompts() != 1 || fake.Host(id).Prompts() != 0 {
@@ -196,6 +196,5 @@ func TestOwnerKeptPromptDispatchesOnceOnTheRelaunchedEpoch(t *testing.T) {
 		if err != nil || again.State != got.State || *again.ExecutionId != *got.ExecutionId || fake.CurrentHost(id).Prompts() != 1 {
 			t.Fatalf("duplicate %+v %v", again, err)
 		}
-		fake.Close()
 	}
 }
