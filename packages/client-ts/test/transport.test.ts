@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer as httpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createServer as netServer, type Server } from 'node:net';
+import { createHash } from 'node:crypto';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -319,6 +320,49 @@ test('client: hello refuses an unknown protocol major', async () => {
   await listen(server, socket);
   try {
     await assert.rejects(new Client({ socketPath: socket }).hello(), (e: unknown) => e instanceof ProtocolMismatch && e.major === 1);
+  } finally {
+    await close(server);
+    t.cleanup();
+  }
+});
+
+test('client: attachments.stage sends the bytes once with their SHA-256 and the binding headers; a bad type or size never connects', async () => {
+  const t = tmp();
+  const socket = join(t.dir, 'worker.sock');
+  const seen: { method?: string; url?: string; headers: Record<string, string | string[] | undefined>; body: Buffer }[] = [];
+  const server = httpServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => {
+      seen.push({ method: req.method, url: req.url, headers: req.headers, body: Buffer.concat(chunks) });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ command_id: 'stage-1', operation: 'attachments.stage', state: 'delivered', result: { attachment_id: 'a 1' } }));
+    });
+  });
+  await listen(server, socket);
+  try {
+    const client = new Client({ socketPath: socket });
+    const params = { command_id: 'stage-1', worker_id: 'w1', worker_epoch: 'epoch-0', session_id: 'session-0', binding_revision: 2 };
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    const receipt = await client.stage('a 1', params, 'image/png', bytes);
+    assert.equal(receipt.command_id, 'stage-1');
+    assert.equal(seen.length, 1);
+    const [req] = seen;
+    assert.equal(req!.method, 'PUT');
+    assert.equal(req!.url, '/b2/attachments/a%201');
+    assert.equal(req!.headers['content-type'], 'image/png');
+    assert.equal(req!.headers['content-length'], String(bytes.length));
+    assert.equal(req!.headers['piw-command-id'], 'stage-1');
+    assert.equal(req!.headers['piw-worker-id'], 'w1');
+    assert.equal(req!.headers['piw-worker-epoch'], 'epoch-0');
+    assert.equal(req!.headers['piw-session-id'], 'session-0');
+    assert.equal(req!.headers['piw-binding-revision'], '2');
+    assert.equal(req!.headers['piw-content-sha256'], createHash('sha256').update(bytes).digest('hex'));
+    assert.deepEqual(req!.body, bytes);
+    for (const [type, body] of [['image/gif', bytes], ['image/png', Buffer.alloc(0)], ['image/png', Buffer.alloc(2 * 1024 * 1024 + 1)]] as const) {
+      await assert.rejects(client.stage('a2', params, type, body), (e: unknown) => e instanceof ClientFailure && e.phase === 'before_write' && e.effect === 'no_effect');
+    }
+    assert.equal(seen.length, 1, 'a refused upload never reaches the socket');
   } finally {
     await close(server);
     t.cleanup();
