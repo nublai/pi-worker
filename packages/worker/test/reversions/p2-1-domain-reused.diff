@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
+index 714dc6f..e3275c0 100644
+--- a/packages/worker/src/containment/containment.ts
++++ b/packages/worker/src/containment/containment.ts
+@@ -63,7 +63,7 @@ export class CgroupContainment implements Containment {
+     const path = this.path(domain);
+     // A generation is never reused, even when empty (mkdir refuses an existing directory).
+     try {
+-      mkdirSync(path);
++      mkdirSync(path, { recursive: true });
+     } catch (error) {
+       if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error('cleanup domain already exists; populated or not retired');
+       throw error;

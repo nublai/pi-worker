@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/binding.ts b/packages/worker/src/supervisor/binding.ts
+index 084a984..672dd11 100644
+--- a/packages/worker/src/supervisor/binding.ts
++++ b/packages/worker/src/supervisor/binding.ts
+@@ -139,7 +139,6 @@ export class Bindings {
+         try {
+           if (b.action === 'resume') {
+             live.resume = { session_id: b.target_session_id!, file: target! };
+-            this.s.persist(live, 'binding.reserve');
+           }
+           this.s.receipts.dispatch(b.command_id, { worker_id: id });
+           dispatched = true;

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/binding.ts b/packages/worker/src/supervisor/binding.ts
+index 084a984..609d410 100644
+--- a/packages/worker/src/supervisor/binding.ts
++++ b/packages/worker/src/supervisor/binding.ts
+@@ -183,7 +183,7 @@ export class Bindings {
+         } catch (error) {
+           // pi may have opened the target: the worker holds it from now on (its catalog entry names this worker), so
+           // it stays blocked by this worker's unproven cleanup and by the fence the unknown outcome latches below.
+-          if (live.resume && dispatched) this.holdTarget(live);
++          void dispatched;
+           delete live.resume;
+           throw error;
+         } finally {

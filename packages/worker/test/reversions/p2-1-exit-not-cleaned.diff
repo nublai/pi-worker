@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 99ae39a..4b516b7 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -195,7 +195,7 @@ export class Lifecycle {
+     this.s.persist(live, 'worker.exit');
+     // Kill what the leader left behind (a detached tool) now, not at a stop or restart. A stop, fault or failed launch
+     // that caused this exit already owns the domain's cleanup.
+-    if (!live.cleaning) void this.cleanAfterExit(live);
++    void this.cleanAfterExit;
+   }
+ 
+   /** Closes one worker after an event or storage failure; other workers stay up. Never rethrows. */
