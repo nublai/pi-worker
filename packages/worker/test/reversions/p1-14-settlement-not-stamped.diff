@@ -1,5 +1,5 @@
 diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
-index 1446d33..642f0f6 100644
+index e3b0449..328fb58 100644
 --- a/packages/worker/src/sdk-child/main.ts
 +++ b/packages/worker/src/sdk-child/main.ts
 @@ -379,7 +379,7 @@ async function bind(session: AgentSession): Promise<void> {
@@ -10,4 +10,4 @@ index 1446d33..642f0f6 100644
 +      void running.execution_id;
        running = null;
      }
-     // SAFETY: sanitize keeps an event's own fields, so the result is still a record with its string `type`.
+     // pi's leaf after the turn goes BEFORE its settlement: the supervisor settles the execution on `agent_settled`,
