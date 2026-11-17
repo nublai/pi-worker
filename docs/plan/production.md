@@ -387,7 +387,7 @@ green at P1-13. P2 adds sandboxed variants; it never re-scopes a P1 row.
 | Workflow | Runs on | Steps |
 | --- | --- | --- |
 | `ci.yml` (every push and PR) | GitHub-hosted `ubuntu-24.04`, Node 26 | `npm ci --ignore-scripts`; `npm run check` (lint spec, typecheck, build, unit, regression, conformance, crash, portable security); `npm run check:generated` (generation on Go 1.26.11); `client-ts` tests on Node 22.19; `clients/go` on Go 1.24.13 and 1.26.11 with `GOTOOLCHAIN=local`: `go vet`, `go test -race`, stdlib-only gate; cross-language test (Go client against the built worker) |
-| `kernel.yml` (every PR touching `containment/`, `sandbox/`, `owner-git/`, `b2/` channel code, and nightly) | Primary: GitHub-hosted `ubuntu-24.04`. Fallback: an ephemeral self-hosted runner on an exe.dev tester VM | Enable linger, install bubblewrap, allow unprivileged user namespaces for the job, then run the suite inside `systemd-run --user --pipe --wait -p Delegate=yes` with `PIW_TEST_KERNEL=1`; require 0 skips; stop every `piw-*` unit; fail on leftovers |
+| `kernel.yml` (every PR touching `containment/`, `sandbox/`, `owner-git/`, `b2/` channel code including the Go client's `clients/go/b2/` auth, and nightly) | Primary: GitHub-hosted `ubuntu-24.04`. Fallback: an ephemeral self-hosted runner on an exe.dev tester VM | Enable linger, install bubblewrap, allow unprivileged user namespaces for the job, then run the suite inside `systemd-run --user --pipe --wait -p Delegate=yes` with `PIW_TEST_KERNEL=1`; require 0 skips; stop every `piw-*` unit; fail on leftovers |
 | `release.yml` | P4 | section 7 |
 
 Actions are pinned by full SHA (A0's CI did this [a0 .github/workflows/ci.yml:18-21]). No secrets in `ci.yml` or
