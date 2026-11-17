@@ -1201,6 +1201,8 @@ export interface components {
             status_since?: string;
             /** @description Executions pi reported settled on this worker (finished-unseen on the phone). */
             settle_count?: number;
+            /** @description The worker's last settled executions, newest first, at most 8. Journaled with the row, so a subscriber that missed `execution.settled` (a disconnect, an overflow, a supervisor restart) recovers each settlement from the next snapshot. An execution appears once. The cap covers a reconnect gap of eight turns and keeps the row small in every snapshot, `worker.updated` and journal record; a `settle_count` gap larger than the list means some settlements are only in the session history. */
+            recent_settlements?: components["schemas"]["RecentSettlement"][];
             lineage?: components["schemas"]["Lineage"];
             /** @description The name of the Git work tree holding the cwd, else the cwd's base name. */
             repo_label?: string | null;
@@ -1211,6 +1213,14 @@ export interface components {
             last_activity_at?: string | null;
             model?: components["schemas"]["ModelRef"] | null;
             thinking?: components["schemas"]["Thinking"] | null;
+        };
+        RecentSettlement: {
+            execution_id: components["schemas"]["Id"];
+            command_id: components["schemas"]["Id"];
+            /** @description The disposition `execution.settled` carried. */
+            disposition: string;
+            /** @description RFC 3339 time the supervisor recorded the settlement. */
+            settled_at: string;
         };
         /**
          * @description A child names its parent; old and natively launched sessions are unknown, never roots.
@@ -1444,7 +1454,7 @@ export interface components {
         /** @enum {string} */
         EventEvidence: "observed_memory" | "supervisor_journal_fsynced";
         /** @description One SSE frame. `type` selects the member. */
-        EventFrame: components["schemas"]["SnapshotEvent"] | components["schemas"]["OverflowEvent"] | components["schemas"]["WorkerUpdatedEvent"] | components["schemas"]["SessionReboundEvent"] | components["schemas"]["ExecutionSettledEvent"] | components["schemas"]["FenceResolvedEvent"] | components["schemas"]["InteractionsChangedEvent"] | components["schemas"]["HistoryAppendedEvent"] | components["schemas"]["ChildReportedEvent"];
+        EventFrame: components["schemas"]["SnapshotEvent"] | components["schemas"]["OverflowEvent"] | components["schemas"]["WorkerUpdatedEvent"] | components["schemas"]["SessionReboundEvent"] | components["schemas"]["ExecutionSettledEvent"] | components["schemas"]["FenceResolvedEvent"] | components["schemas"]["InteractionsChangedEvent"] | components["schemas"]["HistoryAppendedEvent"] | components["schemas"]["ChildReportedEvent"] | components["schemas"]["ExecutionAdmittedEvent"] | components["schemas"]["ExecutionStartedEvent"] | components["schemas"]["AssistantDeltaEvent"] | components["schemas"]["ToolStartedEvent"] | components["schemas"]["ToolFinishedEvent"] | components["schemas"]["ReceiptUpdatedEvent"] | components["schemas"]["FenceSetEvent"] | components["schemas"]["AttachmentUpdatedEvent"];
         /** @description Sent first on every attach, at a synchronous barrier. `workers` is authoritative. No event replay. */
         SnapshotEvent: {
             /** @constant */
@@ -1510,7 +1520,7 @@ export interface components {
                 };
             };
         };
-        /** @description pi reported agent_settled for the execution. */
+        /** @description pi reported agent_settled for the execution (or pi handled the prompt without a turn). The frame is memory only; the settlement itself is journaled in the worker row's `recent_settlements`, which every snapshot carries. */
         ExecutionSettledEvent: {
             /** @constant */
             type: "execution.settled";
@@ -1522,6 +1532,7 @@ export interface components {
             evidence: "observed_memory";
             worker_id: components["schemas"]["Id"];
             data: {
+                command_id: components["schemas"]["Id"];
                 disposition: string;
             };
         };
@@ -1598,6 +1609,142 @@ export interface components {
                 file_identity: components["schemas"]["FileIdentity"];
                 watermark: number;
                 last_entry_id: string | null;
+            };
+        };
+        /** @description The supervisor admitted an execution and journaled it, before the prompt reaches pi. */
+        ExecutionAdmittedEvent: {
+            /** @constant */
+            type: "execution.admitted";
+            cursor: components["schemas"]["Cursor"];
+            event_id: components["schemas"]["Id"];
+            producer: components["schemas"]["Producer"];
+            execution_id: components["schemas"]["Id"];
+            /** @constant */
+            evidence: "supervisor_journal_fsynced";
+            worker_id: components["schemas"]["Id"];
+            data: {
+                command_id: components["schemas"]["Id"];
+            };
+        };
+        /** @description pi reported agent_start for the admitted execution; the row is journaled. */
+        ExecutionStartedEvent: {
+            /** @constant */
+            type: "execution.started";
+            cursor: components["schemas"]["Cursor"];
+            event_id: components["schemas"]["Id"];
+            producer: components["schemas"]["Producer"];
+            execution_id: components["schemas"]["Id"];
+            /** @constant */
+            evidence: "supervisor_journal_fsynced";
+            worker_id: components["schemas"]["Id"];
+            data: {
+                command_id: components["schemas"]["Id"];
+            };
+        };
+        /** @description The assistant text pi is streaming (pi's `message_update` text deltas), memory only and never replayed. `tail` is the last at most 2048 characters of the message's text so far and `length` its full length: a client replaces its screen tail with `tail`, so a lost delta costs nothing. A subscriber whose transport is backpressured holds at most one undelivered delta per worker (a newer one replaces it), so a delta storm cannot overflow its queue. */
+        AssistantDeltaEvent: {
+            /** @constant */
+            type: "assistant.delta";
+            cursor: components["schemas"]["Cursor"];
+            event_id: components["schemas"]["Id"];
+            producer: components["schemas"]["Producer"];
+            execution_id: string | null;
+            /** @constant */
+            evidence: "observed_memory";
+            worker_id: components["schemas"]["Id"];
+            data: {
+                tail: string;
+                length: number;
+            };
+        };
+        /** @description pi started a tool call (`tool_execution_start`): the pending tool. Memory only, never replayed. */
+        ToolStartedEvent: {
+            /** @constant */
+            type: "tool.started";
+            cursor: components["schemas"]["Cursor"];
+            event_id: components["schemas"]["Id"];
+            producer: components["schemas"]["Producer"];
+            execution_id: string | null;
+            /** @constant */
+            evidence: "observed_memory";
+            worker_id: components["schemas"]["Id"];
+            data: components["schemas"]["ToolCall"];
+        };
+        /** @description pi finished a tool call (`tool_execution_end`). Memory only, never replayed. */
+        ToolFinishedEvent: {
+            /** @constant */
+            type: "tool.finished";
+            cursor: components["schemas"]["Cursor"];
+            event_id: components["schemas"]["Id"];
+            producer: components["schemas"]["Producer"];
+            execution_id: string | null;
+            /** @constant */
+            evidence: "observed_memory";
+            worker_id: components["schemas"]["Id"];
+            data: {
+                tool_call_id: components["schemas"]["ToolCallId"];
+                name: components["schemas"]["ToolName"];
+                summary: components["schemas"]["ToolSummary"];
+                is_error: boolean;
+            };
+        };
+        ToolCall: {
+            tool_call_id: components["schemas"]["ToolCallId"];
+            name: components["schemas"]["ToolName"];
+            summary: components["schemas"]["ToolSummary"];
+        };
+        /** @description pi's tool call id (a longer one is cut to 512 characters, the same way in both events). */
+        ToolCallId: string;
+        ToolName: string;
+        /** @description One line about the call: the first of the arguments `command`, `path`, `file_path`, `pattern`, `url`, `query` or `description` that is a string, cut to 200 characters; null when there is none. */
+        ToolSummary: string | null;
+        /** @description A receipt record of a worker's command was journaled (intent, dispatch, result, recovery). `receipt` is that record; read `receipts.get` after a gap. */
+        ReceiptUpdatedEvent: {
+            /** @constant */
+            type: "receipt.updated";
+            cursor: components["schemas"]["Cursor"];
+            event_id: components["schemas"]["Id"];
+            producer: components["schemas"]["Producer"];
+            execution_id: string | null;
+            /** @constant */
+            evidence: "supervisor_journal_fsynced";
+            worker_id: components["schemas"]["Id"];
+            data: {
+                receipt: components["schemas"]["Receipt"];
+            };
+        };
+        /** @description An uncertain command joined the worker's fence (the fence latched or its generation rose), after the fenced row was journaled. Session writes are refused until `sessions.resolve_unknown`. */
+        FenceSetEvent: {
+            /** @constant */
+            type: "fence.set";
+            cursor: components["schemas"]["Cursor"];
+            event_id: components["schemas"]["Id"];
+            producer: components["schemas"]["Producer"];
+            /** @description The uncertain execution, when the uncertain command is the worker's execution. */
+            execution_id: string | null;
+            /** @constant */
+            evidence: "supervisor_journal_fsynced";
+            worker_id: components["schemas"]["Id"];
+            data: {
+                /** @description The uncertain command that joined the fence. */
+                command_id: components["schemas"]["Id"];
+                fence_generation: number;
+                fence: components["schemas"]["Fence"];
+            };
+        };
+        /** @description An attachment's durable record changed (`staged` or `released`). */
+        AttachmentUpdatedEvent: {
+            /** @constant */
+            type: "attachment.updated";
+            cursor: components["schemas"]["Cursor"];
+            event_id: components["schemas"]["Id"];
+            producer: components["schemas"]["Producer"];
+            execution_id: null;
+            /** @constant */
+            evidence: "supervisor_journal_fsynced";
+            worker_id: components["schemas"]["Id"];
+            data: {
+                attachment: components["schemas"]["AttachmentStatus"];
             };
         };
     };

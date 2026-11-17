@@ -125,8 +125,8 @@ test('grants: registered caller/method/scope enforced and scoped inventory/SSE c
     const seen: string[] = [];
     const watching = client.watch(frame => {
       if (frame.type === 'snapshot') {
-        f.supervisor.events.publish('execution.settled', { worker_id: b.worker_id, execution_id: 'x', data: { disposition: 'hidden' } });
-        f.supervisor.events.publish('execution.settled', { worker_id: a.worker_id, execution_id: 'x', data: { disposition: 'visible' } });
+        f.supervisor.events.publish('execution.settled', { worker_id: b.worker_id, execution_id: 'x', data: { command_id: 'c', disposition: 'hidden' } });
+        f.supervisor.events.publish('execution.settled', { worker_id: a.worker_id, execution_id: 'x', data: { command_id: 'c', disposition: 'visible' } });
         return true;
       }
       seen.push(frame.type === 'execution.settled' ? frame.data.disposition : frame.type);
@@ -278,7 +278,7 @@ test('grants: a revoked grant ends its event stream at the next frame, with no f
       '/b2/events',
       record => {
         if (record.event === 'snapshot') {
-          f.supervisor.events.publish('execution.settled', { worker_id: w.worker_id, execution_id: 'x', data: { disposition: 'before' } });
+          f.supervisor.events.publish('execution.settled', { worker_id: w.worker_id, execution_id: 'x', data: { command_id: 'c', disposition: 'before' } });
           return true;
         }
         // A frame after the revocation means the guard failed: stop reading so the assertion below reports it.
@@ -286,7 +286,7 @@ test('grants: a revoked grant ends its event stream at the next frame, with no f
         if (revokedAt < 0) {
           s.grants.revoke('watcher');
           revokedAt = 1;
-          f.supervisor.events.publish('execution.settled', { worker_id: w.worker_id, execution_id: 'x', data: { disposition: 'after' } });
+          f.supervisor.events.publish('execution.settled', { worker_id: w.worker_id, execution_id: 'x', data: { command_id: 'c', disposition: 'after' } });
         }
         return true;
       },

@@ -22,6 +22,26 @@ import { ATTACHMENTS_PER_MESSAGE, ATTACHMENTS_TOTAL_BYTES } from '../b2/hello.js
 
 export const QUEUE_CAP = 32;
 
+/**
+ * A worker row's `recent_settlements` cap (P1-19). Every snapshot, `worker.updated` and journal row carries the list,
+ * so it stays small (about 250 bytes an entry); executions settle one at a time, so eight covers a reconnect gap of
+ * eight turns. A larger `settle_count` gap tells the caller to read the session history.
+ */
+export const RECENT_SETTLEMENTS = 8;
+
+/**
+ * Records the worker's execution as settled in its row (memory; the caller persists the row): newest first, one entry
+ * per execution, at most RECENT_SETTLEMENTS. Returns the disposition `execution.settled` carries.
+ */
+export function recordSettlement(w: Live['worker'], disposition: string): string {
+  const e = w.execution!;
+  const list = w.recent_settlements ?? [];
+  // A second settlement report for the same execution keeps the first entry.
+  if (list.some(s => s.execution_id === e.execution_id)) return disposition;
+  w.recent_settlements = [{ execution_id: e.execution_id, command_id: e.command_id, disposition, settled_at: new Date().toISOString() }, ...list].slice(0, RECENT_SETTLEMENTS);
+  return disposition;
+}
+
 export class Input {
   /** Joins a command to the worker's fence (fence.ts); returns whether anything changed. In memory only. */
   latch: (live: Live, commandId: string) => boolean = () => false;
@@ -53,6 +73,7 @@ export class Input {
     if (receipt?.effect === 'no_effect' && (receipt.state === 'intent_recovered' || receipt.state === 'rejected')) {
       w.execution.state = 'settled';
       w.execution.disposition = 'no_effect_before_dispatch';
+      recordSettlement(w, 'no_effect_before_dispatch');
       w.foreground = 'idle';
     } else if (!this.resolved(live, w.execution.command_id) || ['ready', 'starting'].includes(w.status)) {
       // A kept live run that was still running at the crash is a NEW uncertainty: it relatches.
@@ -91,7 +112,8 @@ export class Input {
       w.foreground = w.fence ? 'unknown' : 'running';
       if (w.execution?.state === 'admitted') {
         w.execution.state = 'started';
-        this.s.persist(live, 'execution.start');
+        const appended = this.s.persist(live, 'execution.start');
+        this.s.events.publish('execution.started', { worker_id: w.worker_id, execution_id: w.execution.execution_id, data: { command_id: w.execution.command_id }, appended });
       }
     }
     if (event.type === 'agent_settled') {
@@ -99,6 +121,8 @@ export class Input {
       live.observedIdle = true;
       // The phone's finished-unseen counter (contract 8.1): every settlement pi reports for this worker.
       w.settle_count = (w.settle_count ?? 0) + 1;
+      const settled = w.execution;
+      const disposition = settled ? recordSettlement(w, settled.disposition ?? 'agent_settled') : null;
       if (w.execution) {
         w.execution.state = 'settled'; // Observed in memory even if persistence fails.
         this.s.journal.append(
@@ -110,7 +134,7 @@ export class Input {
       }
       this.s.refresh(live);
       this.s.persist(live, 'execution.settle');
-      if (w.execution) this.s.events.publish('execution.settled', { worker_id: w.worker_id, execution_id: w.execution.execution_id, data: { disposition: w.execution.disposition ?? 'agent_settled' } });
+      if (settled) this.s.events.publish('execution.settled', { worker_id: w.worker_id, execution_id: settled.execution_id, data: { command_id: settled.command_id, disposition: disposition! } });
       setImmediate(() => void this.flush(live));
     }
   }
@@ -130,7 +154,8 @@ export class Input {
         w.execution = { execution_id: randomUUID(), command_id: p.command_id, state: 'admitted' };
         w.foreground = 'running';
         live.observedIdle = false;
-        this.s.persist(live, 'execution.admit');
+        const admitted = this.s.persist(live, 'execution.admit');
+        this.s.events.publish('execution.admitted', { worker_id: id, execution_id: w.execution.execution_id, data: { command_id: p.command_id }, appended: admitted });
         const response = await this.s.receipts.dispatchThen(p.command_id, { worker_id: id, execution_id: w.execution.execution_id }, () =>
           // The command and execution ids go with the input: the child stamps them into pi's session file.
           live.host!.request({
@@ -158,12 +183,13 @@ export class Input {
         w.execution!.disposition = disposition;
         if (disposition === 'handled' && w.execution!.state === 'admitted') {
           w.execution!.state = 'settled';
+          recordSettlement(w, disposition);
           w.foreground = w.fence ? 'unknown' : 'idle';
           live.observedIdle = true;
         }
         this.s.refresh(live);
         this.s.persist(live, 'execution.reply');
-        if (disposition === 'handled') this.s.events.publish('execution.settled', { worker_id: id, execution_id: w.execution!.execution_id, data: { disposition } });
+        if (disposition === 'handled') this.s.events.publish('execution.settled', { worker_id: id, execution_id: w.execution!.execution_id, data: { command_id: p.command_id, disposition } });
         const patch: ReceiptPatch = {
           state: 'delivered',
           stage: 'forwarded',

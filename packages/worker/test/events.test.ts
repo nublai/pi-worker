@@ -17,7 +17,7 @@ import { bind, fixture, tick, type Fixture } from './supervisor-fixture.js';
 import { ownerGrant, sseRecords, type SseRecord } from './helpers.js';
 
 type Frame = EventFrame;
-const settled = (w: Worker, disposition: string) => ({ worker_id: w.worker_id, execution_id: 'x', data: { disposition } });
+const settled = (w: Worker, disposition: string) => ({ worker_id: w.worker_id, execution_id: 'x', data: { command_id: 'c', disposition } });
 
 async function serve(f: Fixture): Promise<{ socket: string; grantFile: string; headers: Record<string, string>; close: () => Promise<void> }> {
   const owner = ownerGrant(f.dir);

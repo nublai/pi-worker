@@ -27,6 +27,7 @@ import type { components } from '../generated/api.js';
 import { durable } from '../journal/fsync.js';
 import type { Journal } from '../journal/journal.js';
 import type { Receipt, ReceiptStore } from '../receipts/receipts.js';
+import type { JournalAppended } from '../generated/events.js';
 
 export type AttachmentStatus = components['schemas']['AttachmentStatus'];
 export type ContentType = AttachmentStatus['content_type'];
@@ -78,6 +79,8 @@ export class Attachments {
   readonly records = new Map<string, AttachmentStatus>();
   /** Uploads still streaming (memory only). */
   private readonly receiving = new Map<string, Receiving>();
+  /** Called after each attachment record is fsynced (the supervisor publishes `attachment.updated`). */
+  onRecord: (value: AttachmentStatus, appended: JournalAppended) => void = () => {};
 
   constructor(
     readonly journal: Journal,
@@ -174,8 +177,9 @@ export class Attachments {
 
   private record(value: AttachmentStatus, label: 'attachment.stage' | 'attachment.release'): void {
     // SAFETY: AttachmentStatus is a plain JSON object; the journal stores it as a record value.
-    this.journal.append('attachment', value as unknown as Record<string, unknown>, label);
+    const { appended } = this.journal.append('attachment', value as unknown as Record<string, unknown>, label);
     this.records.set(value.attachment_id, value);
+    this.onRecord(value, appended);
   }
 
   /**

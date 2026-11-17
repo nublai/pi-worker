@@ -66,7 +66,7 @@ test('generated: publishers stamp, label evidence from the journal result and va
     appended,
     data: { command_id: 'c1', disposition: 'keep', fence_generation: 1, external_effects_undone: false, fence: null },
   });
-  publish['execution.settled']({ worker_id: 'w1', execution_id: 'x1', data: { disposition: 'handled' } });
+  publish['execution.settled']({ worker_id: 'w1', execution_id: 'x1', data: { command_id: 'c1', disposition: 'handled' } });
   publish['worker.updated']({ worker_id: 'w1', execution_id: null, data: { worker: worker() } });
   publish['worker.updated']({ worker_id: 'w1', execution_id: null, appended, data: { worker: worker() } });
   assert.deepEqual(
@@ -80,7 +80,7 @@ test('generated: publishers stamp, label evidence from the journal result and va
   );
   for (const frame of frames) assert.equal(validateEventFrame(frame), true);
   assert.throws(
-    () => publish['execution.settled']({ worker_id: 'w1', execution_id: 'x1', data: { disposition: '' } }),
+    () => publish['execution.settled']({ worker_id: 'w1', execution_id: 'x1', data: { command_id: 'c1', disposition: '' } }),
     (e: unknown) => e instanceof EventSchemaError && e.eventType === 'execution.settled',
   );
   assert.equal(frames.length, 4);

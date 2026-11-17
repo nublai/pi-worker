@@ -11,6 +11,8 @@
  *   would have received it gets `overflow` and is closed, and the hub logs `invalid_frame`. A frame whose SSE record
  *   would exceed the spec's frame cap is treated the same way.
  * - Publishing never throws into the supervisor: an event problem costs subscribers a resync, never a worker.
+ * - `assistant.delta` carries the whole text tail, so a queued one is superseded by the next delta of the same worker:
+ *   a backpressured subscriber holds at most one undelivered delta per worker, and a delta storm cannot overflow it.
  */
 import { randomUUID } from 'node:crypto';
 import { routes } from '../generated/routes.js';
@@ -122,6 +124,7 @@ export class EventHub {
         continue;
       }
       if (sub.attaching || sub.blocked) {
+        if (frame.type === 'assistant.delta') this.supersede(sub, workerId);
         if (sub.queued.length >= this.maxQueued || sub.bytes + bytes > this.maxBytes) {
           this.overflow(sub, 'subscriber_queue_overflow');
           continue;
@@ -130,6 +133,14 @@ export class EventHub {
         sub.bytes += bytes;
       } else this.deliver(sub, frame);
     }
+  }
+
+  /** Drops the subscriber's undelivered `assistant.delta` of this worker: the newer one replaces its tail. */
+  private supersede(sub: Subscriber, workerId: string | undefined): void {
+    const i = sub.queued.findIndex(q => q.frame.type === 'assistant.delta' && q.frame.worker_id === workerId);
+    if (i < 0) return;
+    sub.bytes -= sub.queued[i]!.bytes;
+    sub.queued.splice(i, 1);
   }
 
   /** Sends one frame after the subscriber's recheck; a failed recheck ends the subscription with no frame. */

@@ -147,6 +147,8 @@ export class SupervisorState {
   childClaims?: (w: Worker) => NonNullable<Worker['child_reports']>;
   /** The size of each worker's latest row in the journal (the budget and control room scale with it). */
   private readonly rowSize = new Map<string, number>();
+  /** The uncertain commands of each worker's last journaled fence: a row adding one publishes `fence.set`. */
+  private readonly journaledFence = new Map<string, string[]>();
 
   constructor(
     readonly journal: Journal,
@@ -171,8 +173,13 @@ export class SupervisorState {
       this.journaledStatus.set(persisted.worker.worker_id, persisted.worker.status);
       this.workers.set(persisted.worker.worker_id, { ...persisted, index: new SessionIndex(persisted.sessionFile), completedMessages: 0 });
       this.rowSize.set(persisted.worker.worker_id, recordBytes(record.value));
+      this.journaledFence.set(persisted.worker.worker_id, uncertainOf(persisted.worker.fence));
     }
     receipts.budget = (operation, request) => this.budget(operation, request);
+    // Every journaled receipt record of a worker's command is a durable `receipt.updated` (P1-19).
+    receipts.onRecord = (receipt, appended) => {
+      if (receipt.worker_id) this.events.publish('receipt.updated', { worker_id: receipt.worker_id, execution_id: receipt.execution_id ?? null, data: { receipt: structuredClone(receipt) }, appended });
+    };
     journal.controlRoom = () => this.controlRoom();
   }
 
@@ -249,6 +256,19 @@ export class SupervisorState {
     if (ENDING_ROW_LABELS.has(label)) this.journal.release(budgetKey(id));
     this.published.set(live.worker.worker_id, JSON.stringify(this.view(live)));
     this.events.publish('worker.updated', { worker_id: live.worker.worker_id, execution_id: live.worker.execution?.execution_id ?? null, data: { worker: structuredClone(record.worker) }, appended });
+    // An uncertain command that joined the fence in this row: `fence.set`, durable with the row (P1-19).
+    const before = this.journaledFence.get(id) ?? [];
+    const now = uncertainOf(w.fence);
+    this.journaledFence.set(id, now);
+    const joined = now.find(c => !before.includes(c));
+    if (w.fence && joined) {
+      this.events.publish('fence.set', {
+        worker_id: id,
+        execution_id: w.execution?.command_id === joined ? w.execution.execution_id : null,
+        data: { command_id: joined, fence_generation: w.fence.fence_generation, fence: structuredClone(w.fence) },
+        appended,
+      });
+    }
     return appended;
   }
 
@@ -289,6 +309,7 @@ export class SupervisorState {
       host: 'sdk',
       status_since: new Date().toISOString(),
       settle_count: 0,
+      recent_settlements: [],
       repo_label: repoLabel(cwd),
       model: { provider: create.provider, id: create.model },
       thinking: create.thinking,
@@ -379,6 +400,7 @@ export class SupervisorState {
     row.lineage = row.parent_worker_id ? 'child' : 'root';
     row.repo_label ??= repoLabel(row.cwd);
     row.settle_count ??= 0;
+    row.recent_settlements ??= [];
     row.title = row.title ?? live.summary?.title ?? null;
     row.preview = live.summary?.preview ?? null;
     row.last_activity_at = live.summary?.last_activity_at ?? null;
@@ -390,3 +412,8 @@ export class SupervisorState {
 }
 
 export const newId = () => randomUUID();
+
+/** A fence's uncertain commands (none without a fence). */
+function uncertainOf(fence: Worker['fence'] | undefined): string[] {
+  return fence ? (fence.uncertain_command_ids ?? [fence.command_id]) : [];
+}

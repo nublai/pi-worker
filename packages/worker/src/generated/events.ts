@@ -19,6 +19,14 @@ export const eventManifest = {
   "interactions.changed": { schema: "InteractionsChangedEvent", producer: "supervisor", durability: "memory", visibility: "worker", validate: v.event_InteractionsChangedEvent },
   "history.appended": { schema: "HistoryAppendedEvent", producer: "supervisor", durability: "memory", visibility: "worker", validate: v.event_HistoryAppendedEvent },
   "child.reported": { schema: "ChildReportedEvent", producer: "supervisor", durability: "journal", visibility: "worker", validate: v.event_ChildReportedEvent },
+  "execution.admitted": { schema: "ExecutionAdmittedEvent", producer: "supervisor", durability: "journal", visibility: "worker", validate: v.event_ExecutionAdmittedEvent },
+  "execution.started": { schema: "ExecutionStartedEvent", producer: "supervisor", durability: "journal", visibility: "worker", validate: v.event_ExecutionStartedEvent },
+  "assistant.delta": { schema: "AssistantDeltaEvent", producer: "pi", durability: "memory", visibility: "worker", validate: v.event_AssistantDeltaEvent },
+  "tool.started": { schema: "ToolStartedEvent", producer: "pi", durability: "memory", visibility: "worker", validate: v.event_ToolStartedEvent },
+  "tool.finished": { schema: "ToolFinishedEvent", producer: "pi", durability: "memory", visibility: "worker", validate: v.event_ToolFinishedEvent },
+  "receipt.updated": { schema: "ReceiptUpdatedEvent", producer: "supervisor", durability: "journal", visibility: "worker", validate: v.event_ReceiptUpdatedEvent },
+  "fence.set": { schema: "FenceSetEvent", producer: "supervisor", durability: "journal", visibility: "worker", validate: v.event_FenceSetEvent },
+  "attachment.updated": { schema: "AttachmentUpdatedEvent", producer: "supervisor", durability: "journal", visibility: "worker", validate: v.event_AttachmentUpdatedEvent },
 } as const;
 
 export const validateEventFrame = v.event_frame;
@@ -30,7 +38,7 @@ export interface JournalAppended {
 }
 
 /** Worker-visible events; the hub alone sends supervisor frames (snapshot, overflow). */
-export type WorkerEventType = "worker.updated" | "session.rebound" | "execution.settled" | "fence.resolved" | "interactions.changed" | "history.appended" | "child.reported";
+export type WorkerEventType = "worker.updated" | "session.rebound" | "execution.settled" | "fence.resolved" | "interactions.changed" | "history.appended" | "child.reported" | "execution.admitted" | "execution.started" | "assistant.delta" | "tool.started" | "tool.finished" | "receipt.updated" | "fence.set" | "attachment.updated";
 
 type Appended<T extends WorkerEventType> = (typeof eventManifest)[T]['durability'] extends 'journal'
   ? { appended: JournalAppended }
@@ -152,6 +160,110 @@ export function createPublishers(port: EventPort): { readonly [T in WorkerEventT
         data: input.data,
       };
       if (!v.event_ChildReportedEvent(frame)) throw new EventSchemaError("child.reported", v.event_ChildReportedEvent.errors ?? []);
+      port.deliver(frame);
+    },
+    "execution.admitted": input => {
+      const frame: EventOf<"execution.admitted"> = {
+        type: "execution.admitted",
+        ...port.stamp(),
+        producer: "supervisor",
+        execution_id: input.execution_id,
+        evidence: 'supervisor_journal_fsynced' as const,
+        worker_id: input.worker_id,
+        data: input.data,
+      };
+      if (!v.event_ExecutionAdmittedEvent(frame)) throw new EventSchemaError("execution.admitted", v.event_ExecutionAdmittedEvent.errors ?? []);
+      port.deliver(frame);
+    },
+    "execution.started": input => {
+      const frame: EventOf<"execution.started"> = {
+        type: "execution.started",
+        ...port.stamp(),
+        producer: "supervisor",
+        execution_id: input.execution_id,
+        evidence: 'supervisor_journal_fsynced' as const,
+        worker_id: input.worker_id,
+        data: input.data,
+      };
+      if (!v.event_ExecutionStartedEvent(frame)) throw new EventSchemaError("execution.started", v.event_ExecutionStartedEvent.errors ?? []);
+      port.deliver(frame);
+    },
+    "assistant.delta": input => {
+      const frame: EventOf<"assistant.delta"> = {
+        type: "assistant.delta",
+        ...port.stamp(),
+        producer: "pi",
+        execution_id: input.execution_id,
+        evidence: 'observed_memory' as const,
+        worker_id: input.worker_id,
+        data: input.data,
+      };
+      if (!v.event_AssistantDeltaEvent(frame)) throw new EventSchemaError("assistant.delta", v.event_AssistantDeltaEvent.errors ?? []);
+      port.deliver(frame);
+    },
+    "tool.started": input => {
+      const frame: EventOf<"tool.started"> = {
+        type: "tool.started",
+        ...port.stamp(),
+        producer: "pi",
+        execution_id: input.execution_id,
+        evidence: 'observed_memory' as const,
+        worker_id: input.worker_id,
+        data: input.data,
+      };
+      if (!v.event_ToolStartedEvent(frame)) throw new EventSchemaError("tool.started", v.event_ToolStartedEvent.errors ?? []);
+      port.deliver(frame);
+    },
+    "tool.finished": input => {
+      const frame: EventOf<"tool.finished"> = {
+        type: "tool.finished",
+        ...port.stamp(),
+        producer: "pi",
+        execution_id: input.execution_id,
+        evidence: 'observed_memory' as const,
+        worker_id: input.worker_id,
+        data: input.data,
+      };
+      if (!v.event_ToolFinishedEvent(frame)) throw new EventSchemaError("tool.finished", v.event_ToolFinishedEvent.errors ?? []);
+      port.deliver(frame);
+    },
+    "receipt.updated": input => {
+      const frame: EventOf<"receipt.updated"> = {
+        type: "receipt.updated",
+        ...port.stamp(),
+        producer: "supervisor",
+        execution_id: input.execution_id,
+        evidence: 'supervisor_journal_fsynced' as const,
+        worker_id: input.worker_id,
+        data: input.data,
+      };
+      if (!v.event_ReceiptUpdatedEvent(frame)) throw new EventSchemaError("receipt.updated", v.event_ReceiptUpdatedEvent.errors ?? []);
+      port.deliver(frame);
+    },
+    "fence.set": input => {
+      const frame: EventOf<"fence.set"> = {
+        type: "fence.set",
+        ...port.stamp(),
+        producer: "supervisor",
+        execution_id: input.execution_id,
+        evidence: 'supervisor_journal_fsynced' as const,
+        worker_id: input.worker_id,
+        data: input.data,
+      };
+      if (!v.event_FenceSetEvent(frame)) throw new EventSchemaError("fence.set", v.event_FenceSetEvent.errors ?? []);
+      port.deliver(frame);
+    },
+    "attachment.updated": input => {
+      const frame: EventOf<"attachment.updated"> = {
+        type: "attachment.updated",
+        ...port.stamp(),
+        producer: "supervisor",
+        execution_id: input.execution_id,
+        evidence: 'supervisor_journal_fsynced' as const,
+        worker_id: input.worker_id,
+        data: input.data,
+      };
+      if (!v.event_AttachmentUpdatedEvent(frame)) throw new EventSchemaError("attachment.updated", v.event_AttachmentUpdatedEvent.errors ?? []);
       port.deliver(frame);
     },
   };

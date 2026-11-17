@@ -120,6 +120,14 @@ var EventTypes = []string{
 	"interactions.changed",
 	"history.appended",
 	"child.reported",
+	"execution.admitted",
+	"execution.started",
+	"assistant.delta",
+	"tool.started",
+	"tool.finished",
+	"receipt.updated",
+	"fence.set",
+	"attachment.updated",
 }
 
 // GrantProfiles maps each grant profile in the spec (info.x-piw-grant-profiles) to its exact method list. A grant

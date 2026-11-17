@@ -82,6 +82,8 @@ export class ReceiptStore {
   readonly limits: RetentionLimits;
   /** The clock for `created_at` and the retention age; tests move it. */
   now: () => number = Date.now;
+  /** Called after each receipt record is fsynced (the supervisor publishes `receipt.updated`); never throws into the flow. */
+  onRecord: (receipt: Receipt, appended: JournalAppended) => void = () => {};
   /** The budget an ordinary command reserves for its other records (set by the supervisor; none without one). */
   budget: (operation: Operation, request: Record<string, unknown>) => Budget | null = () => null;
   /** The journal size right after the last compaction, and the last attempt (to not rewrite for nothing). */
@@ -181,6 +183,7 @@ export class ReceiptStore {
     this.appended.set(receipt.command_id, appended);
     if (final) this.journal.release(receipt.command_id);
     this.all.set(receipt.command_id, receipt);
+    this.onRecord(receipt, appended);
     return receipt;
   }
 
