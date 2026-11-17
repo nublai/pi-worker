@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/journal/state.ts b/packages/worker/src/journal/state.ts
-index 39ff0cc..fe26347 100644
+index 7e49bba..492b42c 100644
 --- a/packages/worker/src/journal/state.ts
 +++ b/packages/worker/src/journal/state.ts
-@@ -72,7 +72,7 @@ export function openState(stateDir: string, options: StateOptions = {}): Supervi
-   try {
-     // Before compaction or any append: a refused state is left exactly as it was.
-     const found = stateVersion(journal);
--    if (found !== null && found !== STATE_VERSION) throw new StateVersionRefused(found, STATE_VERSION);
-+    if (found !== null && found > STATE_VERSION) throw new StateVersionRefused(found, STATE_VERSION);
-     if (journal.size() >= journal.maxBytes / 2) {
-       const limits: RetentionLimits = { ...DEFAULT_RETENTION, ...options.retention, journalBytes: journal.maxBytes };
-       try {
+@@ -68,7 +68,7 @@ function refuseOtherFormat(file: string): void {
+     throw error;
+   }
+   const found = stateVersion(parseJournal(bytes).records);
+-  if (found !== null && found !== STATE_VERSION) throw new StateVersionRefused(found, STATE_VERSION);
++  if (found !== null && found > STATE_VERSION) throw new StateVersionRefused(found, STATE_VERSION);
+ }
+ 
+ export interface StateOptions {

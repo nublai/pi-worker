@@ -347,7 +347,8 @@
     "state-version": {
       "command": "npm test -- state-version",
       "diffs": [
-        "p2-1-older-state-opens.diff"
+        "p2-1-older-state-opens.diff",
+        "p2-1-state-refused-after-repair.diff"
       ]
     }
   }
