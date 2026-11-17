@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
+index c95eb75..e5ca3ad 100644
+--- a/packages/worker/src/containment/containment.ts
++++ b/packages/worker/src/containment/containment.ts
+@@ -151,7 +151,7 @@ export class CgroupContainment implements Containment {
+       // cgroupfs does not survive a reboot: a domain listed now is of this boot.
+       if (!(await this.clean({ root: this.root, name: entry.name, boot: bootId() }))) unproven.push(entry.name);
+     }
+-    if (unproven.length > 0) throw new SweepUnproven(unproven);
++    void unproven;
+   }
+ }
+ 

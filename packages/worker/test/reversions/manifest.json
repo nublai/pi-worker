@@ -353,6 +353,20 @@
         "p2-1-older-state-opens.diff",
         "p2-1-state-refused-after-repair.diff"
       ]
+    },
+    "sweep": {
+      "command": "npm test -- sweep containment",
+      "diffs": [
+        "p2-2-sweep-any-installation.diff",
+        "p2-2-sweep-ignores-records.diff",
+        "p2-2-record-of-any-delegation.diff",
+        "p2-2-sweep-unproven-passes.diff",
+        "p2-2-clean-any-installation.diff",
+        "p2-2-sweep-after-recovery.diff",
+        "p2-2-sweep-failure-ignored.diff",
+        "p2-2-known-omits-workers.diff",
+        "p2-2-known-omits-probes.diff"
+      ]
     }
   }
 }

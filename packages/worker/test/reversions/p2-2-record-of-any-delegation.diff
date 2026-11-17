@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
+index c95eb75..19bc8d2 100644
+--- a/packages/worker/src/containment/containment.ts
++++ b/packages/worker/src/containment/containment.ts
+@@ -143,7 +143,7 @@ export class CgroupContainment implements Containment {
+   }
+ 
+   async sweep(known: readonly Domain[]): Promise<void> {
+-    const recorded = new Set(known.filter(domain => domain.root === this.root).map(domain => domain.name));
++    const recorded = new Set(known.map(domain => domain.name));
+     const unproven: string[] = [];
+     for (const entry of readdirSync(this.root, { withFileTypes: true })) {
+       // Only this installation's domains: never another installation's, the keeper's or an operator's cgroups.
