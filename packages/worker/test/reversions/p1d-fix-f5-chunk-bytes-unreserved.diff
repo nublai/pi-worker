@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
+index a2a761a..07aae15 100644
+--- a/packages/worker/src/attachments/attachments.ts
++++ b/packages/worker/src/attachments/attachments.ts
+@@ -220,7 +220,6 @@ export class Attachments {
+           // The chunk's bytes are reserved before they are written: the worker's staged and streaming bytes together
+           // never pass the bound on disk.
+           receiving.bytes += b.length;
+-          this.quota(request.worker_id, receiving);
+           let off = 0;
+           while (off < b.length) off += writeSync(fd, b, off, b.length - off);
+         }

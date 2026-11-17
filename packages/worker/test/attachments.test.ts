@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { join } from 'node:path';
 import { createApp } from '../src/b2/app.js';
@@ -259,6 +259,141 @@ test('attachments: a journal compaction keeps staged attachments; after a restar
     assert.deepEqual([status.state, status.bytes, status.sha256], ['staged', photo.length, sha256(photo)], JSON.stringify(status));
     assert.equal(((await after.request('GET', '/b2/attachments/released-photo')).body as { state: string }).state, 'released', 'a released record whose receipt is retained stays');
     assert.equal(files().length, 1, 'the staged bytes survive the startup sweep');
+  } finally {
+    f.cleanup();
+  }
+});
+
+/** A stage request for `w` as the supervisor gets it from the route. */
+const stageRequest = (w: Worker, id: string, body: Buffer) => ({
+  attachment_id: id,
+  command_id: `stage-${id}`,
+  worker_id: w.worker_id,
+  worker_epoch: w.worker_epoch,
+  session_id: w.session_id!,
+  binding_revision: w.binding_revision,
+  sha256: sha256(body),
+  content_type: 'image/jpeg' as const,
+});
+
+/** The bytes of the worker's staged and partial files on disk. */
+const onDisk = (f: Fixture) => {
+  const dir = join(f.dir, 'attachments');
+  return existsSync(dir) ? readdirSync(dir).reduce((n, name) => n + statSync(join(dir, name)).size, 0) : 0;
+};
+
+test('attachments: two concurrent uploads at the default boundary (15 of 2 MiB staged) stage one; the other is attachment_capacity, no_effect, no file', { timeout: 60_000 }, async () => {
+  const f = fixture();
+  try {
+    const { stage, files } = world(f);
+    const w = await f.create();
+    for (let i = 0; i < 15; i++) assert.equal((await stage(w, `full-${i}`, jpegBytes(LIMIT, i))).status, 200, `photo ${i}`);
+    const [a, b] = await Promise.all([stage(w, 'race-a', jpegBytes(LIMIT, 0x61)), stage(w, 'race-b', jpegBytes(LIMIT, 0x62))]);
+    const outcomes = [a, b].map(r => [r.status, (r.body as { error?: string }).error ?? (r.body as { state: string }).state, (r.body as { effect: string }).effect]);
+    assert.deepEqual(
+      outcomes.sort((x, y) => Number(x[0]) - Number(y[0])),
+      [
+        [200, 'delivered', 'observed'],
+        [409, 'attachment_capacity', 'no_effect'],
+      ],
+      'exactly one of two concurrent uploads fits',
+    );
+    const staged = [...f.supervisor.attachments.records.values()].filter(r => r.worker_id === w.worker_id && r.state === 'staged');
+    assert.equal(staged.length, 16);
+    assert.ok(staged.reduce((n, r) => n + r.bytes, 0) <= 32 * MiB, 'the staged bytes stay within 32 MiB');
+    assert.equal(files().length, 16, 'the refused upload left no file');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('attachments: a wave of twenty uploads still streaming holds the bound: sixteen in flight at most, the rest attachment_capacity before any byte', { timeout: 60_000 }, async () => {
+  const f = fixture();
+  try {
+    const w = await f.create();
+    let release!: () => void;
+    const gate = new Promise<void>(r => (release = r));
+    let started = 0;
+    const photo = (i: number) => jpegBytes(64 * 1024, i);
+    // Each body yields its first half, then holds until every upload has written what it could.
+    const held = (bytes: Buffer) =>
+      (async function* () {
+        started++;
+        yield bytes.subarray(0, bytes.length / 2);
+        await gate;
+        yield bytes.subarray(bytes.length / 2);
+      })();
+    const uploads = Array.from({ length: 20 }, (_, i) => f.supervisor.stageAttachment(stageRequest(w, `wave-${i}`, photo(i)), held(photo(i))));
+    const settled = Promise.allSettled(uploads);
+    await new Promise(r => setTimeout(r, 100));
+    assert.equal(started, 16, 'only sixteen uploads read a byte');
+    const partial = readdirSync(join(f.dir, 'attachments')).filter(n => n.endsWith('.part'));
+    assert.equal(partial.length, 16, 'sixteen partial files at most');
+    release();
+    const results = await settled;
+    const refused = results.filter(r => r.status === 'rejected');
+    assert.equal(refused.length, 4, JSON.stringify(refused.map(r => (r as PromiseRejectedResult).reason.message)));
+    for (const r of refused) assert.deepEqual([(r as PromiseRejectedResult).reason.message, (r as PromiseRejectedResult).reason.effect], ['attachment_capacity', 'no_effect']);
+    assert.equal(results.filter(r => r.status === 'fulfilled' && r.value.state === 'delivered').length, 16);
+    assert.equal(readdirSync(join(f.dir, 'attachments')).length, 16, 'sixteen staged files, nothing partial');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('attachments: concurrent streams reserve their bytes as they arrive; staged and streaming bytes never pass 32 MiB on disk', { timeout: 60_000 }, async () => {
+  const f = fixture();
+  try {
+    const w = await f.create();
+    const big = (fill: number) => jpegBytes(12 * MiB, fill);
+    let peak = 0;
+    // Three 12 MiB streams (36 MiB together) interleave one MiB at a time.
+    const stream = (bytes: Buffer) =>
+      (async function* () {
+        for (let off = 0; off < bytes.length; off += MiB) {
+          yield bytes.subarray(off, off + MiB);
+          await new Promise(r => setImmediate(r));
+          peak = Math.max(peak, onDisk(f));
+        }
+      })();
+    const results = await Promise.allSettled([0x31, 0x32, 0x33].map(fill => f.supervisor.stageAttachment(stageRequest(w, `big-${fill}`, big(fill)), stream(big(fill)))));
+    const refused = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    assert.ok(refused.length >= 1, 'at least one stream is refused');
+    for (const r of refused) assert.deepEqual([r.reason.message, r.reason.effect], ['attachment_capacity', 'no_effect']);
+    assert.ok(peak <= 32 * MiB, `the bytes on disk never passed 32 MiB (peak ${peak})`);
+    assert.ok(onDisk(f) <= 32 * MiB);
+    assert.equal(readdirSync(join(f.dir, 'attachments')).filter(n => n.endsWith('.part')).length, 0, 'a refused stream removed its file');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('attachments: staging an id another worker holds is grant_scope_denied outside its scope (no conflict, no duplicate) and a conflict inside it, never its command id', async () => {
+  const f = fixture();
+  try {
+    const { owner, handle, stage } = world(f);
+    const a = await f.create();
+    const b = await f.create();
+    const photo = jpegBytes(2000);
+    assert.equal((await stage(a, 'shared-id', photo, { 'piw-command-id': 'stage-a' })).status, 200);
+    // A grant scoped to worker B only.
+    const scoped = owner.grants.register({ caller: 'scoped-b', scope: { worker_ids: [b.worker_id], cwd_roots: [] }, methods: ['*'] });
+    const asB = createMemoryTransport(handle, { authorization: `Bearer ${scoped.token}` });
+    const stageAs = (body: Buffer, cmd: string) =>
+      asB.request('PUT', '/b2/attachments/shared-id', {
+        raw: body,
+        headers: { 'content-type': 'image/jpeg', 'piw-command-id': cmd, 'piw-worker-id': b.worker_id, 'piw-worker-epoch': b.worker_epoch, 'piw-session-id': b.session_id!, 'piw-binding-revision': String(b.binding_revision), 'piw-content-sha256': sha256(body) },
+      });
+    for (const [label, body] of [['same hash', photo], ['another hash', jpegBytes(500, 0x44)]] as const) {
+      const r = await stageAs(body, `stage-b-${label}`);
+      assert.deepEqual([r.status, r.body], [409, { error: 'grant_scope_denied', effect: 'no_effect' }], label);
+      assert.equal(JSON.stringify(r.body).includes('stage-a'), false, `${label}: never A's command id`);
+      assert.equal(f.supervisor.receipts.all.has(`stage-b-${label}`), false);
+    }
+    // A caller that sees both workers: the same image under A's id for B is a conflict, not A's duplicate.
+    const both = await stage(b, 'shared-id', photo, { 'piw-command-id': 'stage-b-owner' });
+    assert.deepEqual([both.status, both.body], [409, { error: 'attachment_id_conflict', effect: 'no_effect' }]);
+    assert.equal(f.supervisor.attachments.status('shared-id').worker_id, a.worker_id, 'the attachment stays A’s');
   } finally {
     f.cleanup();
   }

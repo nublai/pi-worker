@@ -7,8 +7,12 @@
  * - Then the receipt flow: intent, the dispatch record, the file fsynced and renamed to its final name, the directory
  *   fsynced, and one `attachment` journal record makes it `staged`. A crash after the dispatch record is
  *   `outcome_unknown`; `attachments.status` reads the record to reconcile, never a re-upload.
- * - Idempotent by `attachment_id` plus SHA-256: the same id and hash again stores nothing twice; another hash is
- *   refused `attachment_id_conflict`.
+ * - Idempotent by `attachment_id` plus SHA-256: the same id and hash again stores nothing twice; another hash, or an id
+ *   another worker staged, is refused `attachment_id_conflict`.
+ * - The per-worker bound (16 attachments, 32 MiB) counts uploads still streaming: one reserves its slot before its first
+ *   byte and each chunk's bytes before writing them, each check in the same synchronous turn as its reservation, so a
+ *   wave of concurrent uploads holds the bound on disk too and the record never takes more than was reserved. A refused
+ *   or failed upload releases its reservation and removes its file.
  * - Release: the `released` record is durable before the bytes are removed. A delivered prompt releases its own.
  * - At startup, temporary files and files without a `staged` record are removed: no record, no attachment.
  *
@@ -136,11 +140,25 @@ export class Attachments {
     return this.records.get(id)?.worker_id ?? this.receiving.get(id)?.request.worker_id;
   }
 
-  /** Staged attachments of a worker: count and bytes, against the per-worker bound. */
-  private quota(workerId: string, adding: number): void {
-    const staged = [...this.records.values()].filter(r => r.worker_id === workerId && r.state === 'staged');
-    const bytes = staged.reduce((n, r) => n + r.bytes, 0);
-    if (staged.length >= STAGED_PER_WORKER || bytes + adding > STAGED_BYTES_PER_WORKER) throw new Refusal('attachment_capacity');
+  /**
+   * A worker's staged attachments plus its uploads still streaming (each with the bytes it has so far), against the
+   * per-worker bound. Without `self` it asks for one more upload, not yet streaming.
+   */
+  private quota(workerId: string, self?: Receiving): void {
+    let count = self ? 0 : 1;
+    let bytes = 0;
+    for (const r of this.records.values()) {
+      if (r.worker_id !== workerId || r.state !== 'staged') continue;
+      count++;
+      bytes += r.bytes;
+    }
+    for (const r of this.receiving.values()) {
+      // An upload whose record is written counts once, as staged.
+      if (r.request.worker_id !== workerId || this.records.has(r.request.attachment_id)) continue;
+      count++;
+      bytes += r.bytes;
+    }
+    if (count > STAGED_PER_WORKER || bytes > STAGED_BYTES_PER_WORKER) throw new Refusal('attachment_capacity');
   }
 
   private record(value: AttachmentStatus, label: 'attachment.stage' | 'attachment.release'): void {
@@ -167,7 +185,8 @@ export class Attachments {
       return this.receipts.run(request.command_id, 'attachments.stage', { ...request }, async () => ({}));
     }
     checks();
-    if (prior && prior.sha256 !== request.sha256) throw new Refusal('attachment_id_conflict');
+    // An id another worker staged is never this worker's duplicate: its command id stays with that worker.
+    if (prior && (prior.worker_id !== request.worker_id || prior.sha256 !== request.sha256)) throw new Refusal('attachment_id_conflict');
     if (prior && prior.state === 'released') throw new Refusal('attachment_released');
     if (prior) {
       // The same image again: nothing is stored twice; a receipt for this command names the staged attachment.
@@ -181,7 +200,8 @@ export class Attachments {
       );
     }
     if (this.receiving.has(id)) throw new Refusal('attachment_upload_in_progress');
-    this.quota(request.worker_id, 0);
+    // Reserves this upload's slot: synchronous with the set below, so concurrent arrivals each see the others.
+    this.quota(request.worker_id);
     this.ensureDir();
     const temp = join(this.dir, `${sha256(id)}.${randomUUID()}.part`);
     const receiving: Receiving = { request, bytes: 0 };
@@ -197,14 +217,16 @@ export class Attachments {
           const b = Buffer.from(chunk);
           hash.update(b);
           if (head.length < 16) head = Buffer.concat([head, b.subarray(0, 16 - head.length)]);
+          // The chunk's bytes are reserved before they are written: the worker's staged and streaming bytes together
+          // never pass the bound on disk.
+          receiving.bytes += b.length;
+          this.quota(request.worker_id, receiving);
           let off = 0;
           while (off < b.length) off += writeSync(fd, b, off, b.length - off);
-          receiving.bytes += b.length;
         }
         if (receiving.bytes === 0) throw new Refusal('attachment_empty', 'no_effect', undefined, {}, 400);
         if (hash.digest('hex') !== request.sha256) throw new Refusal('attachment_sha256_mismatch', 'no_effect', undefined, {}, 400);
         if (sniff(head) !== request.content_type) throw new Refusal('attachment_type_mismatch', 'no_effect', undefined, {}, 400);
-        this.quota(request.worker_id, receiving.bytes);
         // The staged bytes are durable before the record that makes them usable.
         durable(fd, 'attachment.file');
       } finally {

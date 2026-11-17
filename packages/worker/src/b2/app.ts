@@ -175,6 +175,10 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     'attachments.stage': ({ path, header, body, mediaType, caller }) => {
       const s = supervisor();
       inScope(caller, header['piw-worker-id']);
+      // An id another worker already holds is in scope only when that worker is: no conflict or duplicate (and its
+      // command id) for a caller that may not read it, the same refusal attachments.status gives.
+      const owner = s.attachments.owner(path.attachment_id);
+      if (owner !== undefined && !visible(caller, owner)) throw new Refusal('grant_scope_denied');
       return s.stageAttachment(
         {
           attachment_id: path.attachment_id,
