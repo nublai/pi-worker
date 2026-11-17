@@ -216,3 +216,30 @@ func TestAnswerReadbackAndAnswerIDIdempotencyMatchTheWorker(t *testing.T) {
 		t.Fatalf("card across a restart %+v %v", st, err)
 	}
 }
+
+// A compaction, like a reload, cancels every live dialog before pi compacts (PR #16 GPT 6).
+func TestCompactionInterruptsLiveInteractions(t *testing.T) {
+	fake, err := workerfake.Start(workerfake.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fake.Close()
+	ctx := context.Background()
+	c := fake.Client()
+	w := newWorker(t, ctx, c, "create-1")
+	in := open(t, fake, w, b2.Interaction{Kind: "confirm", Title: ptr("Sure?")})
+	if _, err := c.SessionsCompact(ctx, w.WorkerId, b2.Compact{CommandId: "compact-1", WorkerEpoch: w.WorkerEpoch, SessionId: *w.SessionId, BindingRevision: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if list, err := c.InteractionsList(ctx, w.WorkerId); err != nil || len(list) != 0 {
+		t.Fatalf("live cards after compact %+v %v", list, err)
+	}
+	if st, err := c.InteractionsStatus(ctx, w.WorkerId, b2.InteractionsStatusParams{InteractionId: in.InteractionId}); err != nil || st.Status != "interrupted" {
+		t.Fatalf("card after compact %+v %v", st, err)
+	}
+	a := answerFor(w, in, "after-compact", "ans-after-compact")
+	a.Value = raw(true)
+	if _, err := c.InteractionsAnswerIfCurrent(ctx, w.WorkerId, a); !isRefusal(err, http.StatusConflict, "interaction_not_pending") {
+		t.Fatalf("answer after compact: %v", err)
+	}
+}
