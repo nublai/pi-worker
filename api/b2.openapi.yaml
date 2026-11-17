@@ -1071,7 +1071,7 @@ components:
         - event_frame_bytes
         - journal_max_bytes
         - journal_control_reserve_bytes
-        - receipts_max
+        - ordinary_receipts_max
         - receipt_retention_min_seconds
         - receipt_expired_ids_max
       properties:
@@ -1117,19 +1117,23 @@ components:
             this reserve or the room every worker that may still be stopped
             needs for its own stop and exit records. An ordinary record never
             uses either.
-        receipts_max:
+        ordinary_receipts_max:
           type: integer
           minimum: 1
           description: |
-            The most receipts retained. At the bound the oldest evictable
-            receipts are evicted: final, older than
+            The most receipts of ordinary commands retained. Receipts of
+            quota-exempt commands (`workers.stop`, `executions.cancel`,
+            `executions.interrupt`, `sessions.resolve_unknown`,
+            `children.report`) neither count toward this bound nor are refused
+            at it: they are retained beside it, bounded by
+            `journal_max_bytes`, and evicted like any other receipt. At the
+            bound the oldest evictable receipts are evicted: final, older than
             `receipt_retention_min_seconds`, and not part of any pending
             decision. Never evicted: an unresolved `outcome_unknown`, an
             unfinished command, the command that created a worker, and a
             command a worker's unsettled execution, fence, queue or child
             lineage names. When nothing is evictable an ordinary command is
-            refused `receipt_capacity` (`no_effect`); quota-exempt commands are
-            never refused for count.
+            refused `receipt_capacity` (`no_effect`).
         receipt_retention_min_seconds:
           type: integer
           minimum: 0

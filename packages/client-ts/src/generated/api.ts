@@ -566,17 +566,21 @@ export interface components {
              */
             journal_control_reserve_bytes: number;
             /**
-             * @description The most receipts retained. At the bound the oldest evictable
-             *     receipts are evicted: final, older than
+             * @description The most receipts of ordinary commands retained. Receipts of
+             *     quota-exempt commands (`workers.stop`, `executions.cancel`,
+             *     `executions.interrupt`, `sessions.resolve_unknown`,
+             *     `children.report`) neither count toward this bound nor are refused
+             *     at it: they are retained beside it, bounded by
+             *     `journal_max_bytes`, and evicted like any other receipt. At the
+             *     bound the oldest evictable receipts are evicted: final, older than
              *     `receipt_retention_min_seconds`, and not part of any pending
              *     decision. Never evicted: an unresolved `outcome_unknown`, an
              *     unfinished command, the command that created a worker, and a
              *     command a worker's unsettled execution, fence, queue or child
              *     lineage names. When nothing is evictable an ordinary command is
-             *     refused `receipt_capacity` (`no_effect`); quota-exempt commands are
-             *     never refused for count.
+             *     refused `receipt_capacity` (`no_effect`).
              */
-            receipts_max: number;
+            ordinary_receipts_max: number;
             /**
              * @description A final receipt is retained at least this long after its command
              *     was created.

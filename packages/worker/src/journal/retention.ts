@@ -23,7 +23,10 @@ export interface RetentionLimits {
   readonly journalBytes: number;
   /** Room only quota-exempt commands may use. */
   readonly controlReserveBytes: number;
-  /** The most receipts retained; ordinary commands are refused at the bound when nothing is evictable. */
+  /**
+   * The most receipts of ordinary commands retained (`ordinary_receipts_max`); ordinary commands are refused at the bound
+   * when nothing is evictable. Quota-exempt receipts neither count toward it nor are refused at it.
+   */
   readonly receipts: number;
   /** A final receipt is retained at least this long after its command was created. */
   readonly minAgeMs: number;

@@ -1,6 +1,6 @@
 /**
  * Retention bound (P1-12): 10,000 receipts on a test journal with the default limits, read from `hello` over B2, never
- * take the journal past `journal_max_bytes` or the store past `receipts_max`; no command is refused for capacity;
+ * take the journal past `journal_max_bytes` or the store past `ordinary_receipts_max`; no command is refused for capacity;
  * every unresolved `outcome_unknown` is retained; every evicted command id reads `receipt_expired` (unknown) and its
  * reuse never runs again; a restart reads back the same retained receipts and expired ids. Real fsyncs throughout.
  */
@@ -15,7 +15,7 @@ import { ReceiptStore, type Operation, type Receipt } from '../../src/receipts/r
 import { ownerGrant } from '../helpers.js';
 import { tempRoot } from './harness.js';
 
-type Limits = { journal_max_bytes: number; receipts_max: number; receipt_retention_min_seconds: number; receipt_expired_ids_max: number };
+type Limits = { journal_max_bytes: number; ordinary_receipts_max: number; receipt_retention_min_seconds: number; receipt_expired_ids_max: number };
 
 const TOTAL = 10_000;
 /** Control and recovery operations (the contract's list of what a count quota never blocks). */
@@ -71,7 +71,7 @@ test('retention: 10,000 receipts stay within the journal and receipt bounds hell
       peakBytes = Math.max(peakBytes, statSync(journalPath(root)).size);
       peakCount = Math.max(peakCount, receipts.all.size);
       assert.ok(peakBytes <= limits.journal_max_bytes, `journal ${peakBytes} B within journal_max_bytes after ${i + 1} commands`);
-      assert.ok(peakCount <= limits.receipts_max, `${peakCount} receipts within receipts_max after ${i + 1} commands`);
+      assert.ok(peakCount <= limits.ordinary_receipts_max, `${peakCount} receipts within ordinary_receipts_max after ${i + 1} commands`);
       assert.equal(state.journal.failed, false);
     }
     console.log(JSON.stringify({ receipts: TOTAL, peak_journal_bytes: peakBytes, peak_retained: peakCount, retained: receipts.all.size, expired: receipts.expired.size, limits }));

@@ -1,7 +1,8 @@
 /**
  * The compaction crash scenario (P1-12): a supervisor under tight retention (`world.json`: 12 receipts, a 256 KiB
  * journal, no minimum age) runs enough commands that count- and byte-triggered compactions evict delivered receipts
- * while a fenced `outcome_unknown`, a resolved one, quota-exempt controls and an untyped child with no report stay
+ * while a fenced `outcome_unknown`, a resolved one, an uncertain stop no fence names, quota-exempt controls and an
+ * untyped child with no report stay
  * where retention must keep them. A reuse of an evicted command id is refused `receipt_expired`. Then a restart.
  */
 import assert from 'node:assert/strict';
@@ -45,6 +46,11 @@ export async function compactionScenario(root: string): Promise<void> {
   await settle(world, 2);
   const fenced = world.supervisor.get(c.worker_id);
   await world.call('resolve', { ...bind(fenced, 'c-resolve'), uncertain_command_id: 'c-lost', fence_generation: fenced.fence!.fence_generation, disposition: 'keep' }, c.worker_id);
+  // An uncertain stop (the process group was not observed gone) is an unresolved outcome_unknown that no fence, queue or
+  // lineage names: only the unresolved-unknown rule keeps it through the compactions below (review F6).
+  const d: Worker = (await createIn(world, 'worker-d')).worker!;
+  world.hosts[3]!.stopOk = false;
+  assert.equal((await world.call('stop', bind(d, 'd-stop'), d.worker_id)).state, 'outcome_unknown');
   // An untyped child launched under a's running execution never reports: its launch receipt is the parent's pending
   // decision after a restart (invariant 4a), so it is never evicted.
   await world.call('prompt', { ...bind(world.supervisor.get(a.worker_id), 'a-parent'), message: 'a-parent' }, a.worker_id);
@@ -62,6 +68,7 @@ export async function compactionScenario(root: string): Promise<void> {
     (e: unknown) => e instanceof Refusal && e.message === 'receipt_expired' && e.effect === 'unknown',
   );
   assert.ok(world.supervisor.receipts.all.has('b-lost'), 'an unresolved outcome_unknown is never evicted');
+  assert.equal(world.supervisor.receipts.all.get('d-stop')?.state, 'outcome_unknown', 'an unresolved outcome_unknown no fence names is never evicted');
   world.state.close();
   world = openWorld(root, false);
   await world.supervisor.recover();

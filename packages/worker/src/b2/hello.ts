@@ -32,7 +32,7 @@ export function retentionLimits(r: RetentionLimits) {
   return {
     journal_max_bytes: r.journalBytes,
     journal_control_reserve_bytes: r.controlReserveBytes,
-    receipts_max: r.receipts,
+    ordinary_receipts_max: r.receipts,
     receipt_retention_min_seconds: Math.ceil(r.minAgeMs / 1000),
     receipt_expired_ids_max: r.expiredIds,
   };

@@ -5,6 +5,8 @@
  * - F3: the report that discharges a child's launch (its task, its channel) is kept with the launch it discharges, so
  *   recovery from a compacted journal reaches the same fence decision as from the journal it replaced.
  * - F4: the resume catalog (every session a worker ever bound, with its file and owner) survives compaction.
+ * - F5: `ordinary_receipts_max` is the true bound it advertises: ordinary receipts never pass it; quota-exempt ones are
+ *   retained beside it.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -174,3 +176,34 @@ for (const compacted of [false, true]) {
     }
   });
 }
+
+test('retention: hello advertises ordinary_receipts_max, the true bound on ordinary receipts; quota-exempt receipts are retained beside it (review F5)', async () => {
+  const f = fixture({ receiptCap: 4 });
+  try {
+    const owner = ownerGrant(f.dir);
+    const b2 = createMemoryTransport(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle, owner.headers);
+    const limits = ((await b2.request('GET', '/b2/hello')).body as { limits: Record<string, number> }).limits;
+    assert.equal(limits.ordinary_receipts_max, 4);
+    assert.equal('receipts_max' in limits, false, 'no limit claims to bound every receipt');
+    const w = await f.create();
+    for (let i = 0; i < 8; i++) assert.equal((await f.supervisor.report(w.worker_id, { ...bind(w, `report-${i}`), task_id: 'task', result_digest: 'sha256:claim' })).state, 'delivered');
+    let refused = false;
+    for (let i = 0; i < 8 && !refused; i++) {
+      try {
+        await f.supervisor.prompt(w.worker_id, { ...bind(f.supervisor.get(w.worker_id), `run-${i}`), message: 'x' });
+        f.hosts[0]!.emit('event', { type: 'agent_settled' });
+        await tick();
+      } catch (error) {
+        assert.ok(error instanceof Refusal && error.message === 'receipt_capacity', String(error));
+        refused = true;
+      }
+    }
+    const all = [...f.supervisor.receipts.all.values()];
+    const ordinary = all.filter(r => r.operation !== 'children.report').length;
+    assert.ok(refused, 'an ordinary command is refused at the advertised bound');
+    assert.equal(ordinary, limits.ordinary_receipts_max, 'ordinary receipts reach the advertised bound and never pass it');
+    assert.ok(all.length > limits.ordinary_receipts_max!, 'quota-exempt reports are retained beside it, never refused');
+  } finally {
+    f.cleanup();
+  }
+});

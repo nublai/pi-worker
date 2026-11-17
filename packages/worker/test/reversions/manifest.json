@@ -169,7 +169,8 @@
         "p1c-fix-f2-no-worker-budget.diff",
         "p1c-fix-f2-no-control-room.diff",
         "p1c-fix-f3-pin-any-child-report.diff",
-        "p1c-fix-f4-catalog-dropped.diff"
+        "p1c-fix-f4-catalog-dropped.diff",
+        "p1c-fix-f5-ordinary-past-advertised-max.diff"
       ]
     },
     "compaction": {

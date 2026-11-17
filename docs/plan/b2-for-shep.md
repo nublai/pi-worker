@@ -97,7 +97,7 @@ a mutation.
 
 **Contract rule "no replay past retention" (P1-12, review F1 of PR #12).** A `command_id` the worker may have
 admitted is never executed again, however long ago. The worker keeps each receipt within `hello.limits`
-(`receipts_max`, `receipt_retention_min_seconds`), then its id (`receipt_expired`, `unknown`, for the newest
+(`ordinary_receipts_max`, `receipt_retention_min_seconds`), then its id (`receipt_expired`, `unknown`, for the newest
 `receipt_expired_ids_max` evicted ids), and after that a durable horizon: the newest issue time of a forgotten
 UUIDv7 id and whether any id that is not a UUIDv7 was forgotten. A command whose id the worker remembers neither as a
 receipt nor as an expired id is refused `409 command_id_beyond_retention`, `no_effect`, before any record, when it

@@ -229,7 +229,7 @@ test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE
     // Retention (P1-12): the journal bound, the control reserve, the receipt bound, the minimum age, expired ids.
     journal_max_bytes: 32 * MiB,
     journal_control_reserve_bytes: MiB,
-    receipts_max: 4096,
+    ordinary_receipts_max: 4096,
     receipt_retention_min_seconds: 3600,
     receipt_expired_ids_max: 16384,
   });
