@@ -46,6 +46,7 @@
         "repo_label": "project",
         "title": null,
         "preview": "Done: the login form now validates the email.",
+        "first_user_line": "Add email validation to the login form",
         "last_activity_at": "2026-11-16T04:30:00Z"
       }
     ]

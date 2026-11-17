@@ -125,10 +125,11 @@ func (s *state) view(w *worker) b2.Worker {
 	row := clone(w.row)
 	// The phone's chat row from the session file, as state.ts view() does: the newest user or assistant text
 	// (marker stripped) and the newest entry's time; null before pi wrote any.
-	row.Preview, row.LastActivityAt = nil, nil
+	row.Preview, row.LastActivityAt, row.FirstUserLine = nil, nil, nil
 	if sf := s.sessions[derefString(w.row.SessionId)]; sf != nil {
 		_, _, row.Preview = summarize(sf.data[:sf.watermark()])
 		row.LastActivityAt = lastEntryTime(sf.data[:sf.watermark()])
+		row.FirstUserLine = firstUserLine(sf.data[:sf.watermark()])
 	}
 	if row.RecentSettlements == nil {
 		row.RecentSettlements = &[]b2.RecentSettlement{}

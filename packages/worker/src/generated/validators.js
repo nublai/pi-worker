@@ -1217,7 +1217,7 @@ validate74.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
 export const response_workers_list_200 = validate75;
 const schema31 = {"$id":"urn:piw:validator:response_workers_list_200","type":"array","items":{"$ref":"urn:piw:schema:Worker"}};
-const schema32 = {"$id":"urn:piw:schema:Worker","type":"object","additionalProperties":false,"required":["worker_id","worker_epoch","supervisor_epoch","session_id","session_identity_evidence","binding_revision","leaf_id","cwd","status","foreground","execution","fence","history","cleanup","pending_interactions"],"properties":{"worker_id":{"$ref":"urn:piw:schema:Id"},"worker_epoch":{"$ref":"urn:piw:schema:Id"},"supervisor_epoch":{"$ref":"urn:piw:schema:Id"},"session_id":{"type":["string","null"],"minLength":1,"maxLength":128},"session_identity_evidence":{"type":"string","enum":["pi_sdk_session_id","pi_session_file"]},"binding_revision":{"type":"integer","minimum":0},"leaf_id":{"type":["string","null"],"minLength":1,"maxLength":128},"cwd":{"$ref":"urn:piw:schema:AbsolutePath"},"status":{"type":"string","enum":["starting","ready","stopped","cleanup_pending","failed"]},"foreground":{"type":"string","enum":["idle","running","unknown"]},"execution":{"anyOf":[{"$ref":"urn:piw:schema:Execution"},{"type":"null"}]},"fence":{"anyOf":[{"$ref":"urn:piw:schema:Fence"},{"type":"null"}]},"history":{"$ref":"urn:piw:schema:HistoryMarker"},"cleanup":{"type":"string","minLength":1,"maxLength":64},"failure":{"$ref":"urn:piw:schema:WorkerFailure"},"pending_interactions":{"type":"array","items":{"anyOf":[{"$ref":"urn:piw:schema:Interaction"},{"$ref":"urn:piw:schema:InteractionSummary"}],"x-go-type":"json.RawMessage"}},"queued":{"type":"array","items":{"$ref":"urn:piw:schema:QueuedInput"}},"fence_generation":{"type":"integer","minimum":0},"resolutions":{"type":"array","items":{"$ref":"urn:piw:schema:Resolution"}},"git_pin":{"anyOf":[{"$ref":"urn:piw:schema:GitPin"},{"type":"null"}]},"parent":{"$ref":"urn:piw:schema:Parent"},"launch_spec":{"$ref":"urn:piw:schema:LaunchSpec"},"grant_source_id":{"$ref":"urn:piw:schema:Id"},"child_reports":{"type":"array","items":{"$ref":"urn:piw:schema:ChildClaim"}},"parent_worker_id":{"$ref":"urn:piw:schema:Id"},"parent_launch_command_id":{"$ref":"urn:piw:schema:Id"},"host":{"$ref":"urn:piw:schema:Host"},"resources":{"type":"object","additionalProperties":true},"status_since":{"type":"string","minLength":1,"maxLength":64,"description":"RFC 3339 time the status last changed."},"settle_count":{"type":"integer","minimum":0,"description":"Executions pi reported settled on this worker (finished-unseen on the phone)."},"recent_settlements":{"type":"array","maxItems":8,"items":{"$ref":"urn:piw:schema:RecentSettlement"},"description":"The worker's last settled executions, newest first, at most 8. Journaled with the row, so a subscriber that missed `execution.settled` (a disconnect, an overflow, a supervisor restart) recovers each settlement from the next snapshot. An execution appears once. The cap covers a reconnect gap of eight turns and keeps the row small in every snapshot, `worker.updated` and journal record; a `settle_count` gap larger than the list means some settlements are only in the session history."},"lineage":{"$ref":"urn:piw:schema:Lineage"},"repo_label":{"type":["string","null"],"maxLength":256,"description":"The name of the Git work tree holding the cwd, else the cwd's base name."},"title":{"type":["string","null"],"maxLength":512,"description":"The session's display name (pi's session_info), set by `session.configure` or natively."},"preview":{"$ref":"urn:piw:schema:Preview"},"last_activity_at":{"type":["string","null"],"maxLength":64,"description":"RFC 3339 time of the newest entry in the session file."},"model":{"anyOf":[{"$ref":"urn:piw:schema:ModelRef"},{"type":"null"}]},"thinking":{"anyOf":[{"$ref":"urn:piw:schema:Thinking"},{"type":"null"}]}}};
+const schema32 = {"$id":"urn:piw:schema:Worker","type":"object","additionalProperties":false,"required":["worker_id","worker_epoch","supervisor_epoch","session_id","session_identity_evidence","binding_revision","leaf_id","cwd","status","foreground","execution","fence","history","cleanup","pending_interactions"],"properties":{"worker_id":{"$ref":"urn:piw:schema:Id"},"worker_epoch":{"$ref":"urn:piw:schema:Id"},"supervisor_epoch":{"$ref":"urn:piw:schema:Id"},"session_id":{"type":["string","null"],"minLength":1,"maxLength":128},"session_identity_evidence":{"type":"string","enum":["pi_sdk_session_id","pi_session_file"]},"binding_revision":{"type":"integer","minimum":0},"leaf_id":{"type":["string","null"],"minLength":1,"maxLength":128},"cwd":{"$ref":"urn:piw:schema:AbsolutePath"},"status":{"type":"string","enum":["starting","ready","stopped","cleanup_pending","failed"]},"foreground":{"type":"string","enum":["idle","running","unknown"]},"execution":{"anyOf":[{"$ref":"urn:piw:schema:Execution"},{"type":"null"}]},"fence":{"anyOf":[{"$ref":"urn:piw:schema:Fence"},{"type":"null"}]},"history":{"$ref":"urn:piw:schema:HistoryMarker"},"cleanup":{"type":"string","minLength":1,"maxLength":64},"failure":{"$ref":"urn:piw:schema:WorkerFailure"},"pending_interactions":{"type":"array","items":{"anyOf":[{"$ref":"urn:piw:schema:Interaction"},{"$ref":"urn:piw:schema:InteractionSummary"}],"x-go-type":"json.RawMessage"}},"queued":{"type":"array","items":{"$ref":"urn:piw:schema:QueuedInput"}},"fence_generation":{"type":"integer","minimum":0},"resolutions":{"type":"array","items":{"$ref":"urn:piw:schema:Resolution"}},"git_pin":{"anyOf":[{"$ref":"urn:piw:schema:GitPin"},{"type":"null"}]},"parent":{"$ref":"urn:piw:schema:Parent"},"launch_spec":{"$ref":"urn:piw:schema:LaunchSpec"},"grant_source_id":{"$ref":"urn:piw:schema:Id"},"child_reports":{"type":"array","items":{"$ref":"urn:piw:schema:ChildClaim"}},"parent_worker_id":{"$ref":"urn:piw:schema:Id"},"parent_launch_command_id":{"$ref":"urn:piw:schema:Id"},"host":{"$ref":"urn:piw:schema:Host"},"resources":{"type":"object","additionalProperties":true},"status_since":{"type":"string","minLength":1,"maxLength":64,"description":"RFC 3339 time the status last changed."},"settle_count":{"type":"integer","minimum":0,"description":"Executions pi reported settled on this worker (finished-unseen on the phone)."},"recent_settlements":{"type":"array","maxItems":8,"items":{"$ref":"urn:piw:schema:RecentSettlement"},"description":"The worker's last settled executions, newest first, at most 8. Journaled with the row, so a subscriber that missed `execution.settled` (a disconnect, an overflow, a supervisor restart) recovers each settlement from the next snapshot. An execution appears once. The cap covers a reconnect gap of eight turns and keeps the row small in every snapshot, `worker.updated` and journal record; a `settle_count` gap larger than the list means some settlements are only in the session history."},"lineage":{"$ref":"urn:piw:schema:Lineage"},"repo_label":{"type":["string","null"],"maxLength":256,"description":"The name of the Git work tree holding the cwd, else the cwd's base name."},"title":{"type":["string","null"],"maxLength":512,"description":"The session's display name (pi's session_info), set by `session.configure` or natively."},"preview":{"$ref":"urn:piw:schema:Preview"},"first_user_line":{"type":["string","null"],"maxLength":512,"description":"The first line of the session's first user text, without the worker's interrupt marker and trimmed, at most 280 characters, read from the session file as `preview` is (a title fallback). Null before pi wrote a user message with text."},"last_activity_at":{"type":["string","null"],"maxLength":64,"description":"RFC 3339 time of the newest entry in the session file."},"model":{"anyOf":[{"$ref":"urn:piw:schema:ModelRef"},{"type":"null"}]},"thinking":{"anyOf":[{"$ref":"urn:piw:schema:Thinking"},{"type":"null"}]}}};
 const schema33 = {"$id":"urn:piw:schema:AbsolutePath","type":"string","minLength":1,"maxLength":4096,"pattern":"^/"};
 const pattern3 = new RegExp("^/", "u");
 
@@ -4788,17 +4788,17 @@ else {
 var valid0 = true;
 }
 if(valid0){
-if(data.last_activity_at !== undefined){
-let data40 = data.last_activity_at;
+if(data.first_user_line !== undefined){
+let data40 = data.first_user_line;
 const _errs77 = errors;
 if((typeof data40 !== "string") && (data40 !== null)){
-validate76.errors = [{instancePath:instancePath+"/last_activity_at",schemaPath:"#/properties/last_activity_at/type",keyword:"type",params:{type: schema32.properties.last_activity_at.type},message:"must be string,null"}];
+validate76.errors = [{instancePath:instancePath+"/first_user_line",schemaPath:"#/properties/first_user_line/type",keyword:"type",params:{type: schema32.properties.first_user_line.type},message:"must be string,null"}];
 return false;
 }
 if(errors === _errs77){
 if(typeof data40 === "string"){
-if(func1(data40) > 64){
-validate76.errors = [{instancePath:instancePath+"/last_activity_at",schemaPath:"#/properties/last_activity_at/maxLength",keyword:"maxLength",params:{limit: 64},message:"must NOT have more than 64 characters"}];
+if(func1(data40) > 512){
+validate76.errors = [{instancePath:instancePath+"/first_user_line",schemaPath:"#/properties/first_user_line/maxLength",keyword:"maxLength",params:{limit: 512},message:"must NOT have more than 512 characters"}];
 return false;
 }
 }
@@ -4809,20 +4809,41 @@ else {
 var valid0 = true;
 }
 if(valid0){
-if(data.model !== undefined){
-let data41 = data.model;
+if(data.last_activity_at !== undefined){
+let data41 = data.last_activity_at;
 const _errs79 = errors;
-const _errs80 = errors;
-let valid10 = false;
+if((typeof data41 !== "string") && (data41 !== null)){
+validate76.errors = [{instancePath:instancePath+"/last_activity_at",schemaPath:"#/properties/last_activity_at/type",keyword:"type",params:{type: schema32.properties.last_activity_at.type},message:"must be string,null"}];
+return false;
+}
+if(errors === _errs79){
+if(typeof data41 === "string"){
+if(func1(data41) > 64){
+validate76.errors = [{instancePath:instancePath+"/last_activity_at",schemaPath:"#/properties/last_activity_at/maxLength",keyword:"maxLength",params:{limit: 64},message:"must NOT have more than 64 characters"}];
+return false;
+}
+}
+}
+var valid0 = _errs79 === errors;
+}
+else {
+var valid0 = true;
+}
+if(valid0){
+if(data.model !== undefined){
+let data42 = data.model;
 const _errs81 = errors;
-if(!(validate153(data41, {instancePath:instancePath+"/model",parentData:data,parentDataProperty:"model",rootData,dynamicAnchors}))){
+const _errs82 = errors;
+let valid10 = false;
+const _errs83 = errors;
+if(!(validate153(data42, {instancePath:instancePath+"/model",parentData:data,parentDataProperty:"model",rootData,dynamicAnchors}))){
 vErrors = vErrors === null ? validate153.errors : vErrors.concat(validate153.errors);
 errors = vErrors.length;
 }
-var _valid4 = _errs81 === errors;
+var _valid4 = _errs83 === errors;
 valid10 = valid10 || _valid4;
-const _errs82 = errors;
-if(data41 !== null){
+const _errs84 = errors;
+if(data42 !== null){
 const err7 = {instancePath:instancePath+"/model",schemaPath:"#/properties/model/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
 if(vErrors === null){
 vErrors = [err7];
@@ -4832,7 +4853,7 @@ vErrors.push(err7);
 }
 errors++;
 }
-var _valid4 = _errs82 === errors;
+var _valid4 = _errs84 === errors;
 valid10 = valid10 || _valid4;
 if(!valid10){
 const err8 = {instancePath:instancePath+"/model",schemaPath:"#/properties/model/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
@@ -4847,36 +4868,36 @@ validate76.errors = vErrors;
 return false;
 }
 else {
-errors = _errs80;
+errors = _errs82;
 if(vErrors !== null){
-if(_errs80){
-vErrors.length = _errs80;
+if(_errs82){
+vErrors.length = _errs82;
 }
 else {
 vErrors = null;
 }
 }
 }
-var valid0 = _errs79 === errors;
+var valid0 = _errs81 === errors;
 }
 else {
 var valid0 = true;
 }
 if(valid0){
 if(data.thinking !== undefined){
-let data42 = data.thinking;
-const _errs84 = errors;
-const _errs85 = errors;
-let valid11 = false;
+let data43 = data.thinking;
 const _errs86 = errors;
-if(!(validate155(data42, {instancePath:instancePath+"/thinking",parentData:data,parentDataProperty:"thinking",rootData,dynamicAnchors}))){
+const _errs87 = errors;
+let valid11 = false;
+const _errs88 = errors;
+if(!(validate155(data43, {instancePath:instancePath+"/thinking",parentData:data,parentDataProperty:"thinking",rootData,dynamicAnchors}))){
 vErrors = vErrors === null ? validate155.errors : vErrors.concat(validate155.errors);
 errors = vErrors.length;
 }
-var _valid5 = _errs86 === errors;
+var _valid5 = _errs88 === errors;
 valid11 = valid11 || _valid5;
-const _errs87 = errors;
-if(data42 !== null){
+const _errs89 = errors;
+if(data43 !== null){
 const err9 = {instancePath:instancePath+"/thinking",schemaPath:"#/properties/thinking/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
 if(vErrors === null){
 vErrors = [err9];
@@ -4886,7 +4907,7 @@ vErrors.push(err9);
 }
 errors++;
 }
-var _valid5 = _errs87 === errors;
+var _valid5 = _errs89 === errors;
 valid11 = valid11 || _valid5;
 if(!valid11){
 const err10 = {instancePath:instancePath+"/thinking",schemaPath:"#/properties/thinking/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
@@ -4901,20 +4922,21 @@ validate76.errors = vErrors;
 return false;
 }
 else {
-errors = _errs85;
+errors = _errs87;
 if(vErrors !== null){
-if(_errs85){
-vErrors.length = _errs85;
+if(_errs87){
+vErrors.length = _errs87;
 }
 else {
 vErrors = null;
 }
 }
 }
-var valid0 = _errs84 === errors;
+var valid0 = _errs86 === errors;
 }
 else {
 var valid0 = true;
+}
 }
 }
 }

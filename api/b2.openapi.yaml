@@ -2590,6 +2590,14 @@ components:
           description: The session's display name (pi's session_info), set by `session.configure` or natively.
         preview:
           $ref: '#/components/schemas/Preview'
+        first_user_line:
+          type: [string, 'null']
+          maxLength: 512
+          description: >-
+            The first line of the session's first user text, without the
+            worker's interrupt marker and trimmed, at most 280 characters,
+            read from the session file as `preview` is (a title fallback).
+            Null before pi wrote a user message with text.
         last_activity_at:
           type: [string, 'null']
           maxLength: 64
