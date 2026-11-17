@@ -185,9 +185,10 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `p1-19-first-prompt-create-grant-unchecked.diff` | `workers.create` with `first_prompt` needs a grant that may also call `sessions.prompt` | `first_prompt: a grant that may create workers but not prompt them sends none` (group `first-prompt`) |
 | `p1-19-first-prompt-child-grant-unchecked.diff` | `children.launch` whose create has `first_prompt` needs a grant that may also call `sessions.prompt` | `first_prompt: a grant that may create workers but not prompt them sends none` (the child launch) (group `first-prompt`) |
 | `p1-19-first-user-line-unbounded.diff` | a worker row's `first_user_line` holds at most 280 characters | `first_user_line: the first line of the first user text, marker stripped, trimmed, at most 280 characters…` (group `first-user-line`) |
+| `pr20-fake-first-prompt-ungranted.diff` | the Go fake refuses a create or child launch with `first_prompt` `grant_method_denied` unless the grant may call `sessions.prompt` (PR #20 GPT 2) | `TestFirstPromptNeedsTheSessionsPromptGrant` (group `go-workerfake`) |
 
 The `go-b2-auth` group runs `go test ./b2/` in `clients/go` and turns each `--- FAIL: <name>` line into the `✖ <name>`
 line the runner counts, so a Go build error stays `failed_without_assertion`. The darwin `LOCAL_PEERCRED` layout
 check lives in the platform-neutral `peercred_xucred.go` (`xucredUID`), which `peercred_darwin.go` calls after the
 syscall, so its boundary tests and reversion run on Linux; CI only vets the darwin syscall wrapper itself
-(`GOOS=darwin go vet`).
+(`GOOS=darwin go vet`). The `go-workerfake` group does the same with `go test ./workerfake/`, for the Go fake's parity guards.

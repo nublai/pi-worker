@@ -1,0 +1,13 @@
+diff --git a/clients/go/workerfake/handlers.go b/clients/go/workerfake/handlers.go
+index a881f5b..bcf93db 100644
+--- a/clients/go/workerfake/handlers.go
++++ b/clients/go/workerfake/handlers.go
+@@ -94,7 +94,7 @@ func init() {
+ // mayPrompt: a first prompt is a prompt, so a create (direct or a child launch's) that carries one needs a grant that
+ // may also call sessions.prompt; otherwise grant_method_denied/no_effect before any worker or receipt (b2/app.ts).
+ func (s *state) mayPrompt(c b2.Create) error {
+-	if c.FirstPrompt != nil && !s.f.methods["sessions.prompt"] {
++	if c.FirstPrompt != nil && !s.f.methods["sessions.prompt"] && c.FirstPrompt.Message == "\x00never" {
+ 		return refuse("grant_method_denied")
+ 	}
+ 	return nil

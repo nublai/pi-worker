@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -205,5 +206,48 @@ func TestCreateWithFirstPromptWhosePiReplyIsLostIsUnknownAndFenced(t *testing.T)
 	w, err := c.WorkersGet(ctx, *r.WorkerId)
 	if err != nil || w.Status != "ready" || w.Fence == nil || w.Fence.CommandId != "drop-chat" || w.Execution.State != "outcome_unknown" {
 		t.Fatalf("worker %+v %v", w, err)
+	}
+}
+
+// A first prompt is a prompt (b2/app.ts): a grant that may create workers or launch children but not call
+// sessions.prompt is refused grant_method_denied/no_effect before any worker, host or receipt, for a direct create
+// and for a child launch's create (PR #20 GPT 2).
+func TestFirstPromptNeedsTheSessionsPromptGrant(t *testing.T) {
+	fake, err := workerfake.Start(workerfake.Options{Methods: []string{"workers.create", "workers.get", "receipts.get", "children.launch"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fake.Close()
+	ctx := context.Background()
+	c := fake.Client()
+	_, err = c.WorkersCreate(ctx, firstPromptCreate(t, "creator-chat", &b2.FirstPrompt{Message: "hello"}))
+	if !isRefusal(err, http.StatusConflict, "grant_method_denied") {
+		t.Fatalf("create with a first prompt: %v", err)
+	}
+	if n := fake.Hosts(); n != 0 {
+		t.Fatalf("a refused create launched %d hosts", n)
+	}
+	if _, err := c.ReceiptsGet(ctx, "creator-chat"); err == nil {
+		t.Fatal("a refused create has a receipt")
+	}
+	// The same grant creates a worker without one.
+	parent, err := c.WorkersCreate(ctx, firstPromptCreate(t, "creator-plain", nil))
+	if err != nil || parent.State != "delivered" {
+		t.Fatalf("plain create %+v %v", parent, err)
+	}
+	w, err := c.WorkersGet(ctx, *parent.WorkerId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A child launch carries a create too: its first prompt needs sessions.prompt as well, checked first.
+	launch := b2.ChildLaunch{CommandId: "child-chat", WorkerEpoch: w.WorkerEpoch, SessionId: *w.SessionId, BindingRevision: w.BindingRevision, ExecutionId: "x", Launch: firstPromptCreate(t, "child-create", &b2.FirstPrompt{Message: "hello"})}
+	if _, err := c.ChildrenLaunch(ctx, w.WorkerId, launch); !isRefusal(err, http.StatusConflict, "grant_method_denied") {
+		t.Fatalf("child launch with a first prompt: %v", err)
+	}
+	if _, err := c.ReceiptsGet(ctx, "child-chat"); err == nil {
+		t.Fatal("a refused child launch has a receipt")
+	}
+	if n := fake.Hosts(); n != 1 {
+		t.Fatalf("hosts %d, want the parent only", n)
 	}
 }

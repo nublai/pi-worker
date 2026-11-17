@@ -306,6 +306,12 @@
       "diffs": [
         "p1-19-first-user-line-unbounded.diff"
       ]
+    },
+    "go-workerfake": {
+      "command": "cd clients/go && { go test -count=1 ./workerfake/ 2>&1; echo \"go-test-exit $?\"; } | awk '/^go-test-exit /{exit $2} {print} $1 == \"---\" && $2 == \"FAIL:\" {print \"✖ \" $3}'",
+      "diffs": [
+        "pr20-fake-first-prompt-ungranted.diff"
+      ]
     }
   }
 }
