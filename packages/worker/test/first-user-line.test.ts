@@ -12,7 +12,7 @@ import type { Worker as Row } from '../src/supervisor/state.js';
 
 /** The row with the field this test is about (declared here so that this file also builds on the revision before it). */
 type Worker = Row & { first_user_line?: string | null };
-import { fixture } from './supervisor-fixture.js';
+import { bind, fixture } from './supervisor-fixture.js';
 
 const user = (id: string, content: unknown) => `${JSON.stringify({ type: 'message', id, parentId: null, timestamp: '2026-11-17T08:00:00.000Z', message: { role: 'user', content } })}\n`;
 
@@ -56,6 +56,43 @@ test('first_user_line: the first line of the first user text, marker stripped, t
       if (frame.type === 'snapshot') snapshot = frame.workers as Worker[];
     }).close();
     assert.equal(snapshot.find(r => r.worker_id === id)?.first_user_line, long.slice(0, 280));
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('first_user_line: a durable worker.updated carries the row workers.get returns, display fields included (PR #20 GPT 1)', async () => {
+  const f = fixture();
+  try {
+    const w = await f.create();
+    const id = w.worker_id;
+    const file = f.supervisor.state.require(id).sessionFile!;
+    const frames: EventFrame[] = [];
+    const sub = f.supervisor.subscribe(
+      frame => {
+        assert.equal(validateEventFrame(frame), true, `${frame.type}: ${JSON.stringify(validateEventFrame.errors)}`);
+        frames.push(frame);
+      },
+      { workerIds: [id] },
+    );
+    await f.supervisor.prompt(id, { ...bind(w, 'turn'), message: 'fix the login form' });
+    // pi writes the user message while the execution runs, then settles it.
+    appendFileSync(file, user('u1', 'fix the login form'));
+    f.hosts[0]!.emit('event', { type: 'agent_settled' });
+    const settled = frames.findIndex(x => x.type === 'execution.settled');
+    assert.ok(settled > 0, `types: ${frames.map(x => x.type)}`);
+    const durable = frames.slice(0, settled).flatMap(x => (x.type === 'worker.updated' && x.evidence === 'supervisor_journal_fsynced' ? [x.data.worker as Worker] : []));
+    const row = durable.at(-1);
+    assert.ok(row, 'a durable worker.updated before execution.settled');
+    assert.deepEqual(
+      [row.first_user_line, row.preview, row.last_activity_at],
+      ['fix the login form', 'fix the login form', '2026-11-17T08:00:00.000Z'],
+      'the settlement row carries the display fields',
+    );
+    const before = frames.length;
+    assert.deepEqual(row, f.supervisor.get(id), 'the durable frame is the row workers.get returns');
+    assert.equal(frames.length, before, 'no repairing worker.updated follows the read');
+    sub.close();
   } finally {
     f.cleanup();
   }

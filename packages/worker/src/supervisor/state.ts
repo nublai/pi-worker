@@ -256,8 +256,11 @@ export class SupervisorState {
     for (const key of fenced) this.journal.release(key);
     this.rowSize.set(id, recordBytes(value));
     if (ENDING_ROW_LABELS.has(label)) this.journal.release(budgetKey(id));
-    this.published.set(live.worker.worker_id, JSON.stringify(this.view(live)));
-    this.events.publish('worker.updated', { worker_id: live.worker.worker_id, execution_id: live.worker.execution?.execution_id ?? null, data: { worker: structuredClone(record.worker) }, appended });
+    // The frame carries the reader's row (view: display fields from the session file, live interaction cards), the
+    // same row workers.get returns; the journal record above keeps only the durable row (no prompt-derived text).
+    const row = this.view(live);
+    this.published.set(live.worker.worker_id, JSON.stringify(row));
+    this.events.publish('worker.updated', { worker_id: live.worker.worker_id, execution_id: live.worker.execution?.execution_id ?? null, data: { worker: row }, appended });
     // An uncertain command that joined the fence in this row: `fence.set`, durable with the row (P1-19).
     const before = this.journaledFence.get(id) ?? [];
     const now = uncertainOf(w.fence);
