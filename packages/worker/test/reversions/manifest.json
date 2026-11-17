@@ -279,6 +279,16 @@
         "pr19-grant-blocking-open.diff",
         "pr19-peer-xucred-any-layout.diff"
       ]
+    },
+    "events-set": {
+      "command": "npm test -- events-set",
+      "diffs": [
+        "p1-19-delta-not-superseded.diff",
+        "p1-19-delta-tail-unbounded.diff",
+        "p1-19-tool-memory-unbounded.diff",
+        "p1-19-settlements-uncapped.diff",
+        "p1-19-settlements-not-journaled.diff"
+      ]
     }
   }
 }

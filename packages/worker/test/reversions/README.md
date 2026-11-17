@@ -173,6 +173,11 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `pr19-peer-any-uid.diff` | the socket peer's UID is checked before the first write (PR #19) | `TestPeerNotOwnerRefusedBeforeWrite` (group `go-b2-auth`) |
 | `pr19-grant-blocking-open.diff` | the grant opens with `O_NONBLOCK`, so a writerless FIFO is refused by the mode check instead of blocking the open (PR #19 GPT 1) | `TestGrantFileRefusals/fifo` (its one-second deadline) (group `go-b2-auth`) |
 | `pr19-peer-xucred-any-layout.diff` | darwin `LOCAL_PEERCRED` accepts the UID only from a `struct xucred` of the expected size and version 0 (PR #19 GPT 1) | `TestXucredLayout/size-*`, `/version-*`, `/both-wrong` (group `go-b2-auth`) |
+| `p1-19-delta-not-superseded.diff` | a backpressured subscriber holds at most one undelivered `assistant.delta` per worker (the hub supersedes a queued one), so a delta storm cannot overflow it | `events: a delta storm to a backpressured subscriber keeps one delta per worker, never overflows…` (group `events-set`) |
+| `p1-19-delta-tail-unbounded.diff` | `assistant.delta` carries at most the last 2,048 characters of the text | `events: assistant.delta carries pi text tail (at most 2048 characters)…` (group `events-set`) |
+| `p1-19-tool-memory-unbounded.diff` | the worker remembers at most 64 unfinished tool calls (their summaries for `tool.finished`) | `events: the worker remembers at most 64 unfinished tool calls…` (group `events-set`) |
+| `p1-19-settlements-uncapped.diff` | a worker row's `recent_settlements` holds at most 8 entries | `recent_settlements: at most 8, newest first, one entry per execution` (group `events-set`) |
+| `p1-19-settlements-not-journaled.diff` | `recent_settlements` is journaled with the worker row | `recent_settlements: two executions settled while a subscriber is away are both in the next snapshot, and after a restart` (group `events-set`) |
 
 The `go-b2-auth` group runs `go test ./b2/` in `clients/go` and turns each `--- FAIL: <name>` line into the `✖ <name>`
 line the runner counts, so a Go build error stays `failed_without_assertion`. The darwin `LOCAL_PEERCRED` layout
