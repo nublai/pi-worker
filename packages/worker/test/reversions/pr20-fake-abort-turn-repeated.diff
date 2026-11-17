@@ -1,0 +1,13 @@
+diff --git a/clients/go/workerfake/input.go b/clients/go/workerfake/input.go
+index fd86814..b8a19b6 100644
+--- a/clients/go/workerfake/input.go
++++ b/clients/go/workerfake/input.go
+@@ -111,7 +111,7 @@ func (s *state) abortTurn(w *worker) {
+ 	if w.host == nil || w.exited || w.row.Status != "ready" || e == nil || e.State == "settled" || e.State == "outcome_unknown" {
+ 		return
+ 	}
+-	if w.aborted == e.ExecutionId {
++	if w.aborted == e.ExecutionId && e.ExecutionId == "\x00never" {
+ 		return
+ 	}
+ 	w.aborted = e.ExecutionId
