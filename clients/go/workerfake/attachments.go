@@ -199,7 +199,7 @@ func stage(f *Fake, c *call) (any, error) {
 		}
 		return nil
 	}, func(r *b2.Receipt) error {
-		dispatch(r)
+		s.dispatch(r)
 		st := recv.status
 		st.State, st.Bytes, st.StagedAt, st.Evidence = "staged", data.Len(), ptr(now()), "supervisor_journal_fsynced"
 		s.attachments[id] = &attachment{status: st, data: data.Bytes()}
@@ -275,7 +275,7 @@ func (s *state) release(id string, rel b2.Release) (*b2.Receipt, error) {
 		}
 		return nil
 	}, func(r *b2.Receipt) error {
-		dispatch(r)
+		s.dispatch(r)
 		s.releaseNow(id, rel.CommandId)
 		deliver(r, "forwarded", map[string]any{"attachment_id": id, "state": "released"})
 		return nil

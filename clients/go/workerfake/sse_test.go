@@ -107,12 +107,23 @@ func TestSSEReconnectAlwaysStartsWithASnapshotAndNeverReplays(t *testing.T) {
 	if _, err := c.SessionConfigure(ctx, w.WorkerId, b2.Configure{CommandId: "cfg-1", WorkerEpoch: w.WorkerEpoch, SessionId: *w.SessionId, BindingRevision: 1, Name: ptr("renamed")}); err != nil {
 		t.Fatal(err)
 	}
+	// Each journaled receipt record is a receipt.updated: the intent and the dispatch record come first, each with
+	// the next cursor.
+	seq := snap.Cursor.Seq
+	for _, state := range []b2.ReceiptState{"intent", "accepted"} {
+		ev := first.next(t)
+		r, ok := ev.Event.(*b2.ReceiptUpdatedEvent)
+		if !ok || r.Data.Receipt.CommandId != "cfg-1" || r.Data.Receipt.State != state || r.Cursor.Seq != seq+1 {
+			t.Fatalf("event %s %+v, want the %s record", ev.Type, ev.Event, state)
+		}
+		seq = r.Cursor.Seq
+	}
 	ev := first.next(t)
 	updated, ok := ev.Event.(*b2.WorkerUpdatedEvent)
-	if !ok || updated.Data.Worker.Title == nil || *updated.Data.Worker.Title != "renamed" || updated.Cursor.Seq != snap.Cursor.Seq+1 {
+	if !ok || updated.Data.Worker.Title == nil || *updated.Data.Worker.Title != "renamed" || updated.Cursor.Seq != seq+1 {
 		t.Fatalf("event %s %+v", ev.Type, ev.Event)
 	}
-	// The command's receipt record follows its row (receipt.updated); its cursor is the newest.
+	// The command's result record follows its row (receipt.updated); its cursor is the newest.
 	ev = first.next(t)
 	receipt, ok := ev.Event.(*b2.ReceiptUpdatedEvent)
 	if !ok || receipt.Data.Receipt.CommandId != "cfg-1" || receipt.Cursor.Seq != updated.Cursor.Seq+1 {
