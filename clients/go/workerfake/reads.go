@@ -150,13 +150,7 @@ func (s *state) sessionRow(sf *sessionFile) b2.SessionRow {
 			holder = ptr(id)
 		}
 	}
-	messages := 0
-	for _, line := range bytes.Split(sf.data[:sf.watermark()], []byte("\n")) {
-		var e struct{ Type string }
-		if json.Unmarshal(line, &e) == nil && e.Type == "message" {
-			messages++
-		}
-	}
+	messages, stats, preview := summarize(sf.data[:sf.watermark()])
 	lineage := b2.Lineage("root")
 	if owner.row.ParentWorkerId != nil {
 		lineage = "child"
@@ -167,9 +161,176 @@ func (s *state) sessionRow(sf *sessionFile) b2.SessionRow {
 	}
 	return b2.SessionRow{
 		SessionId: sf.id, Cwd: sf.cwd, Title: title, CreatedAt: &sf.created, LastActivityAt: &sf.lastActive,
-		MessageCount: messages, HolderWorkerId: holder, LastWorkerId: sf.owner, Fenced: owner.row.Fence != nil,
+		MessageCount: messages, Preview: preview, Stats: stats, HolderWorkerId: holder, LastWorkerId: sf.owner, Fenced: owner.row.Fence != nil,
 		Lineage: lineage, Evidence: "pi_session_file",
 	}
+}
+
+// interruptMarker is the worker's interrupt marker line (history/session-file.ts INTERRUPT_MARKER).
+const interruptMarker = "[The previous request was interrupted by the user before it finished.]"
+
+// previewChars is the longest preview, in UTF-16 code units as the worker slices it.
+const previewChars = 280
+
+// summarize folds a session file's complete lines as the worker's summary does (history/session-file.ts fold): the
+// message count, the stats (models always an array, never null) and the newest user or assistant text as the preview.
+func summarize(data []byte) (int, b2.SessionStats, *string) {
+	type model struct {
+		provider, model string
+		messages        int
+		tokens, cost    float64
+	}
+	var (
+		count, users, assistants, tools int
+		in, out, cacheRead, cacheWrite  float64
+		total, cost                     float64
+		models                          []*model
+		preview                         *string
+	)
+	setPreview := func(text string) {
+		if text = strings.TrimSpace(text); text != "" {
+			preview = ptr(utf16Prefix(text, previewChars))
+		}
+	}
+	for _, line := range bytes.Split(data, []byte("\n")) {
+		var e struct {
+			Type    string
+			Message struct {
+				Role     string
+				Content  any
+				Provider any
+				Model    any
+				Usage    struct {
+					Input, Output, CacheRead, CacheWrite, TotalTokens any
+					Cost                                              struct{ Total any }
+				}
+			}
+		}
+		if json.Unmarshal(line, &e) != nil || (e.Type != "message" && e.Type != "custom_message") {
+			continue
+		}
+		count++
+		if e.Type != "message" {
+			continue
+		}
+		m := e.Message
+		switch m.Role {
+		case "user":
+			users++
+			setPreview(stripMarker(textOf(m.Content)))
+		case "assistant":
+			assistants++
+			content, _ := m.Content.([]any)
+			for _, c := range content {
+				if part, ok := c.(map[string]any); ok && part["type"] == "toolCall" {
+					tools++
+				}
+			}
+			setPreview(textOf(content))
+			u := m.Usage
+			t := num(u.TotalTokens)
+			if t == 0 {
+				t = num(u.Input) + num(u.Output) + num(u.CacheRead) + num(u.CacheWrite)
+			}
+			c := num(u.Cost.Total)
+			in, out, cacheRead, cacheWrite = in+num(u.Input), out+num(u.Output), cacheRead+num(u.CacheRead), cacheWrite+num(u.CacheWrite)
+			total, cost = total+t, cost+c
+			provider, name := "unknown", "unknown"
+			if m.Provider != nil {
+				provider = utf16Prefix(jsString(m.Provider), 128)
+			}
+			if m.Model != nil {
+				name = utf16Prefix(jsString(m.Model), 256)
+			}
+			i := slices.IndexFunc(models, func(r *model) bool { return r.provider == provider && r.model == name })
+			if i < 0 && len(models) < 64 {
+				models, i = append(models, &model{provider: provider, model: name}), len(models)
+			}
+			if i >= 0 {
+				models[i].messages++
+				models[i].tokens += t
+				models[i].cost += c
+			}
+		}
+	}
+	stats := b2.SessionStats{
+		UserMessages: users, AssistantMessages: assistants, ToolCalls: tools, CostTotal: float32(cost),
+		Tokens: b2.SessionTokens{Input: int(in), Output: int(out), CacheRead: int(cacheRead), CacheWrite: int(cacheWrite), Total: int(total)},
+	}
+	stats.Models = make([]struct {
+		AssistantMessages int     `json:"assistant_messages"`
+		CostTotal         float32 `json:"cost_total"`
+		Model             string  `json:"model"`
+		Provider          string  `json:"provider"`
+		TokensTotal       int     `json:"tokens_total"`
+	}, len(models))
+	for i, r := range models {
+		stats.Models[i].Provider, stats.Models[i].Model, stats.Models[i].AssistantMessages = r.provider, r.model, r.messages
+		stats.Models[i].TokensTotal, stats.Models[i].CostTotal = int(r.tokens), float32(r.cost)
+	}
+	return count, stats, preview
+}
+
+// textOf is a message's text: a string content, or its text parts joined by line feeds.
+func textOf(content any) string {
+	if s, ok := content.(string); ok {
+		return s
+	}
+	parts, _ := content.([]any)
+	var texts []string
+	for _, c := range parts {
+		if part, ok := c.(map[string]any); ok && part["type"] == "text" {
+			if s, ok := part["text"].(string); ok {
+				texts = append(texts, s)
+			}
+		}
+	}
+	return strings.Join(texts, "\n")
+}
+
+// stripMarker is a user's text without the worker's interrupt marker line.
+func stripMarker(text string) string {
+	rest, ok := strings.CutPrefix(text, interruptMarker)
+	if !ok {
+		return text
+	}
+	if r, ok := strings.CutPrefix(rest, "\r\n"); ok {
+		return r
+	}
+	return strings.TrimPrefix(rest, "\n")
+}
+
+// num is a finite, non-negative JSON number, else 0.
+func num(v any) float64 {
+	if n, ok := v.(float64); ok && n >= 0 {
+		return n
+	}
+	return 0
+}
+
+// jsString is String(v) for a provider or model name (a string; other JSON values as their JSON text).
+func jsString(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+// utf16Prefix is s cut to at most n UTF-16 code units (JavaScript's slice), never inside a character.
+func utf16Prefix(s string, n int) string {
+	units := 0
+	for i, r := range s {
+		w := 1
+		if r >= 0x10000 {
+			w = 2
+		}
+		if units+w > n {
+			return s[:i]
+		}
+		units += w
+	}
+	return s
 }
 
 func (s *state) catalog(id string) (*sessionFile, error) {
