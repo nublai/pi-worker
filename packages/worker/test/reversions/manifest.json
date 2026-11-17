@@ -300,6 +300,12 @@
         "p1-19-first-prompt-create-grant-unchecked.diff",
         "p1-19-first-prompt-child-grant-unchecked.diff"
       ]
+    },
+    "first-user-line": {
+      "command": "npm test -- first-user-line",
+      "diffs": [
+        "p1-19-first-user-line-unbounded.diff"
+      ]
     }
   }
 }

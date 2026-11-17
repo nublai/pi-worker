@@ -184,6 +184,7 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `p1-19-first-prompt-unknown-not-recovered.diff` | after a restart an unresolved `outcome_unknown` create whose receipt names an execution fences its session again, even if pi settled it | `first_prompt: a crash after pi settled the first prompt but before its reply: recovery fences…` (group `first-prompt`) |
 | `p1-19-first-prompt-create-grant-unchecked.diff` | `workers.create` with `first_prompt` needs a grant that may also call `sessions.prompt` | `first_prompt: a grant that may create workers but not prompt them sends none` (group `first-prompt`) |
 | `p1-19-first-prompt-child-grant-unchecked.diff` | `children.launch` whose create has `first_prompt` needs a grant that may also call `sessions.prompt` | `first_prompt: a grant that may create workers but not prompt them sends none` (the child launch) (group `first-prompt`) |
+| `p1-19-first-user-line-unbounded.diff` | a worker row's `first_user_line` holds at most 280 characters | `first_user_line: the first line of the first user text, marker stripped, trimmed, at most 280 characters…` (group `first-user-line`) |
 
 The `go-b2-auth` group runs `go test ./b2/` in `clients/go` and turns each `--- FAIL: <name>` line into the `✖ <name>`
 line the runner counts, so a Go build error stays `failed_without_assertion`. The darwin `LOCAL_PEERCRED` layout
