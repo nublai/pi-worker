@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/daemon.ts b/packages/worker/src/daemon.ts
+index 805d3ea..1ea4db7 100644
+--- a/packages/worker/src/daemon.ts
++++ b/packages/worker/src/daemon.ts
+@@ -132,6 +132,8 @@ export async function runDaemon(containment: (installation: string) => Containme
+     console.error(JSON.stringify({ event: 'refused', reason: error.code, domains: error.domains, detail: error.message }));
+     process.exit(1);
+   }
++  // The sweep is done: the installation is released before the daemon listens.
++  installation.release();
+   const app = createApp({
+     supervisorId: state.supervisorId,
+     supervisorEpoch: state.supervisorEpoch,

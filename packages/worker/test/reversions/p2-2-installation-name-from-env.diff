@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
+index 8812790..6da7f11 100644
+--- a/packages/worker/src/containment/containment.ts
++++ b/packages/worker/src/containment/containment.ts
+@@ -102,7 +102,7 @@ export interface InstallationHold {
+  */
+ export function installationName(installation: string, prefix = ''): string {
+   if (!INSTALLATION_ID.test(installation)) throw new Error('invalid installation id');
+-  return `\0${prefix}pi-worker-installation/${installation}`;
++  return `\0${prefix}pi-worker-installation/${(process.env.XDG_RUNTIME_DIR ?? '').split('/').pop()}/${installation}`;
+ }
+ 
+ /**

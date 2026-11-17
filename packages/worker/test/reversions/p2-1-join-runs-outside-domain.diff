@@ -1,10 +1,10 @@
 diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
-index 19caa0b..263a9fe 100644
+index 8812790..9232465 100644
 --- a/packages/worker/src/containment/containment.ts
 +++ b/packages/worker/src/containment/containment.ts
-@@ -116,7 +116,7 @@ export function holdInstallation(installation: string, env: NodeJS.ProcessEnv =
-   }
+@@ -148,7 +148,7 @@ export async function holdInstallation(installation: string, prefix = ''): Promi
  }
+ 
  /** The fixed program that runs before any payload: it moves itself into the domain, then executes the payload. */
 -const JOIN = 'printf "%s\\n" "$$" > "$1/cgroup.procs" || exit 125; shift; exec "$@"';
 +const JOIN = 'printf "%s\\n" "$$" > "$1/cgroup.procs"; shift; exec "$@"';

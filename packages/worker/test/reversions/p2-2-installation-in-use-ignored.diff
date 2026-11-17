@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
+index 8812790..b883dbc 100644
+--- a/packages/worker/src/containment/containment.ts
++++ b/packages/worker/src/containment/containment.ts
+@@ -133,7 +133,7 @@ export async function holdInstallation(installation: string, prefix = ''): Promi
+       });
+     });
+   } catch (error) {
+-    if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') throw new InstallationRefused('installation_in_use', `another daemon runs installation ${installation} (a copy of this state directory)`);
++    if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') return { name, release() {} };
+     throw new InstallationRefused('installation_lock_unavailable', error instanceof Error ? error.message : String(error));
+   }
+   let held = true;
