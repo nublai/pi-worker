@@ -375,9 +375,7 @@ export class SupervisorState {
   /** A snapshot of the worker row for readers, with its live interaction cards (payload included, memory only). */
   view(live: Live): Worker {
     const row: Worker = { ...structuredClone(live.worker), pending_interactions: this.interactions?.list(live.worker.worker_id) ?? [] };
-    // The phone's chat row (contract 8.1, S-3, S-8): identity, lineage, label, title, preview and activity.
-    row.chat_id = row.worker_id;
-    row.runtime = 'worker';
+    // The phone's chat row (contract 8.1, S-8): lineage, label, title, preview and activity.
     row.lineage = row.parent_worker_id ? 'child' : 'root';
     row.repo_label ??= repoLabel(row.cwd);
     row.settle_count ??= 0;

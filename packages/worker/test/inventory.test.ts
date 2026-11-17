@@ -1,5 +1,5 @@
 /**
- * Phone inventory (P1-14, contract 8.1, Shep's answers S-1, S-3, S-6, S-8): worker row fields, `sessions.list` and
+ * Phone inventory (P1-14, contract 8.1, Shep's answers S-1, S-6, S-8): worker row fields, `sessions.list` and
  * `sessions.get` over the resume catalog, `sessions.history` (complete session-file lines by byte range, with or
  * without a worker, reset and typed offset errors, the watermark `history.appended` carries), the router's checks on
  * an ndjson reply, and configurable socket group access.
@@ -44,14 +44,12 @@ function api(f: Fixture, grants?: GrantStore, headers?: Record<string, string>) 
 const history = (memory: ReturnType<typeof api>['memory'], session: string, q: Record<string, string | number> = {}) =>
   memory.request('GET', `/b2/sessions/${session}/history?${new URLSearchParams(Object.entries(q).map(([k, v]) => [k, String(v)]))}`);
 
-test('inventory: worker rows carry the phone fields (chat id, runtime, status_since, settle count, lineage, repo label, title, preview without the marker, activity)', async () => {
+test('inventory: worker rows carry the phone fields (status_since, settle count, lineage, repo label, title, preview without the marker, activity)', async () => {
   const f = fixture();
   try {
     mkdirSync(join(f.dir, '.git'));
     const w = await f.create();
     const live = f.supervisor.state.require(w.worker_id);
-    assert.equal(w.chat_id, w.worker_id, 'S-3: the chat id of a worker chat is its worker id');
-    assert.equal(w.runtime, 'worker');
     assert.equal(w.lineage, 'root');
     assert.equal(w.repo_label, f.dir.split('/').at(-1), 'the Git work tree holding the cwd names the row');
     assert.equal(w.settle_count, 0);
@@ -119,7 +117,6 @@ test('inventory: sessions.list and sessions.get list the catalog per cwd, newest
     const one = await memory.request('GET', `/b2/sessions/${a.session_id}`);
     assert.equal(one.status, 200);
     const row = one.body as Record<string, unknown> & { stats: { models: { model: string; cost_total: number }[]; cost_total: number; tool_calls: number; tokens: { total: number } } };
-    assert.equal(row.chat_id, a.session_id, 'S-3: an archived chat is its session id');
     assert.equal(row.preview, 'second answer');
     assert.equal(row.message_count, 3);
     assert.equal(row.last_worker_id, a.worker_id);

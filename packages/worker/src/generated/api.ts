@@ -1197,10 +1197,6 @@ export interface components {
             resources?: {
                 [key: string]: unknown;
             };
-            /** @description The phone's chat identity for this worker (its `worker_id`), passed through unchanged (S-3). */
-            chat_id?: components["schemas"]["Id"];
-            /** @constant */
-            runtime?: "worker";
             /** @description RFC 3339 time the status last changed. */
             status_since?: string;
             /** @description Executions pi reported settled on this worker (finished-unseen on the phone). */
@@ -1301,10 +1297,6 @@ export interface components {
         };
         SessionRow: {
             session_id: components["schemas"]["Id"];
-            /** @description The phone's chat identity for an archived chat (its `session_id`), passed through (S-3). */
-            chat_id: components["schemas"]["Id"];
-            /** @constant */
-            runtime: "worker";
             cwd: components["schemas"]["AbsolutePath"];
             title: string | null;
             preview: components["schemas"]["Preview"];
