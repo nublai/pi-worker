@@ -51,7 +51,7 @@ func TestStageRefusesAStaleEpochAndAWorkerNotReady(t *testing.T) {
 	_, err = c.AttachmentsStage(ctx, "photo-stopped", stageParams(w, "stage-stopped", photo), "image/jpeg", int64(len(photo)), bytes.NewReader(photo))
 	refusedNotStaged(t, fake, c, "photo-stopped", err, "worker_not_ready")
 
-	// A worker whose host is gone after a restart (cleanup_pending) refuses too.
+	// A worker whose host is gone after a restart (stopped, its cleanup confirmed) refuses too.
 	other := newWorker(t, ctx, c, "create-2")
 	fake.Restart()
 	_, err = c.AttachmentsStage(ctx, "photo-restart", stageParams(other, "stage-restart", photo), "image/jpeg", int64(len(photo)), bytes.NewReader(photo))

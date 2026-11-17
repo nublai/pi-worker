@@ -21,7 +21,13 @@
       "effect": "observed",
       "evidence": "supervisor_journal_fsynced",
       "created_at": "2026-11-16T04:30:00Z",
-      "worker_id": "worker-1"
+      "worker_id": "worker-1",
+      "result": {
+        "worker_id": "worker-1",
+        "worker_epoch": "epoch-2",
+        "session_id": "session-1",
+        "binding_revision": 1
+      }
     }
   }
 }

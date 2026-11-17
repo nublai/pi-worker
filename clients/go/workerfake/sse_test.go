@@ -174,7 +174,7 @@ func TestSSEReconnectAlwaysStartsWithASnapshotAndNeverReplays(t *testing.T) {
 	}
 	epoch := startWatch(t, c, b2.WatchOptions{Since: &last})
 	s := snapshotOf(t, epoch.next(t))
-	if s.ResyncReason != "epoch" || s.Cursor.TransportEpoch == last.TransportEpoch || s.Workers[0].Status != "cleanup_pending" {
+	if s.ResyncReason != "epoch" || s.Cursor.TransportEpoch == last.TransportEpoch || s.Workers[0].Status != "stopped" {
 		t.Fatalf("epoch snapshot %+v", s)
 	}
 }

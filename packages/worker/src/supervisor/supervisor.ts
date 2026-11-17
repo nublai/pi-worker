@@ -199,6 +199,10 @@ export class Supervisor {
     return this.lifecycle.stop(id, b);
   }
 
+  relaunch(id: string, b: Binding): Promise<Receipt> {
+    return this.lifecycle.relaunch(id, b);
+  }
+
   prompt(id: string, p: Prompt): Promise<Receipt> {
     return this.input.prompt(id, p);
   }

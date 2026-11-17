@@ -37,6 +37,10 @@ export const DURABLE_LABELS = [
   'worker.fault',
   'worker.recover',
   'worker.cleaned',
+  // Relaunch (supervisor/lifecycle.ts, P2-3): the new epoch's starting row (its domain, and the binding each recovered
+  // prompt intent was admitted with), durable before the relaunch's dispatch record and before anything is spawned.
+  // Its process identity, readiness and a failed launch reuse worker.spawned, worker.ready and worker.failed.
+  'worker.relaunch',
   // Input and executions (supervisor/input.ts): the admitted execution before its dispatch record, pi's start, the
   // admission reply, settlement (the worker row and the separate settlement evidence record), an execution whose
   // outcome became unknown, a follow-up queued and flushed, and a control request's result.

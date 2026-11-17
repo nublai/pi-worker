@@ -461,7 +461,7 @@ export const routes = {
     path: "/b2/workers/{worker_id}/relaunch",
     segments: ["b2","workers","{worker_id}","relaunch"],
     mutation: true,
-    supported: false,
+    supported: true,
     grantMethod: "workers.relaunch",
     stream: false,
     raw: false,

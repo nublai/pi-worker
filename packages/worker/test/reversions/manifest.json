@@ -374,6 +374,26 @@
         "p2-2-installation-in-use-ignored.diff",
         "p2-2-unaccepted-record-skipped.diff"
       ]
+    },
+    "relaunch": {
+      "command": "npm test -- relaunch stop",
+      "diffs": [
+        "p2-3-relaunch-without-confirmed-cleanup.diff",
+        "p2-3-relaunch-under-fence.diff",
+        "p2-3-relaunch-ignores-session-holder.diff",
+        "p2-3-relaunch-ignores-cwd-holder.diff",
+        "p2-3-relaunch-child.diff",
+        "p2-3-relaunch-any-session-file.diff",
+        "p2-3-relaunch-domain-after-spawn.diff",
+        "p2-3-kept-intent-any-relaunch.diff",
+        "p2-3-kept-intent-after-move.diff",
+        "p2-3-kept-intent-bound-before-launch.diff",
+        "p2-3-superseded-stop-confirms.diff",
+        "p2-3-late-exit-confirms-new-domain.diff",
+        "p2-3-relaunch-shares-old-cleanup.diff",
+        "p2-3-stop-not-fenced.diff",
+        "p2-3-unproven-exit-not-journaled.diff"
+      ]
     }
   }
 }

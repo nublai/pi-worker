@@ -56,6 +56,20 @@ export interface Persisted {
   resume?: { session_id: string; file: string };
   /** The worker's cleanup domain, durable in its starting row before anything is spawned (P2-1). */
   domain?: Domain;
+  /**
+   * `sessions.prompt` intents a restart recovered, by command id: the binding each was admitted with, recorded by the
+   * relaunch that followed (P2-3), and the epoch of the first relaunch that brought pi up on that binding's session and
+   * revision. Only an owner-kept intent's exact retry may use it, once, on that epoch.
+   */
+  kept?: Record<string, KeptBinding>;
+}
+
+/** The binding a recovered prompt intent was admitted with, and the one epoch it may dispatch on after a relaunch. */
+export interface KeptBinding {
+  readonly worker_epoch: string;
+  readonly session_id: string;
+  readonly binding_revision: number;
+  relaunch_epoch?: string;
 }
 
 export interface Live extends Persisted {
@@ -88,6 +102,8 @@ export interface Live extends Persisted {
 
 export interface HostLaunch {
   readonly workerId: string;
+  /** The command that launches this host: the worker's create, or a relaunch (P2-3). */
+  readonly commandId: string;
   readonly create: Create;
   /** The real path of the worker's cwd. */
   readonly cwd: string;
@@ -216,7 +232,9 @@ export class SupervisorState {
     if (!live) return null;
     const row = this.rowBytes(live);
     const fence = SESSION_DIRECTED.has(operation) ? row + FENCE_ROW_EXTRA_BYTES : 0;
-    return { key: budgetKey(live.worker.worker_id), bytes: BUDGET_ROWS * row + BUDGET_RECORD_BYTES, control: 0, fence };
+    // A relaunch brings a stopped worker back: like a create, it leaves free the control room its live worker needs.
+    const control = operation === 'workers.relaunch' ? CONTROL_ROWS * row : 0;
+    return { key: budgetKey(live.worker.worker_id), bytes: BUDGET_ROWS * row + BUDGET_RECORD_BYTES, control, fence };
   }
 
   /** The room every worker that may still be stopped needs for its own control rows; ordinary records leave it free. */
@@ -239,6 +257,7 @@ export class SupervisorState {
       ...(live.create ? { create: live.create } : {}),
       ...(live.resume ? { resume: live.resume } : {}),
       ...(live.domain ? { domain: live.domain } : {}),
+      ...(live.kept && Object.keys(live.kept).length ? { kept: live.kept } : {}),
     };
   }
 

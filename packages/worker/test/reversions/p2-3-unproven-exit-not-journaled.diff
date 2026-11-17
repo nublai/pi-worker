@@ -1,0 +1,17 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index e45097d..8e9665e 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -119,12 +119,6 @@ export class Lifecycle {
+     if (live.faulted || w.status !== 'cleanup_pending' || w.cleanup !== 'leader_exit_only') return;
+     if (gone && this.confirm(live, 'stopped', 'worker.cleaned')) return;
+     w.cleanup = gone ? UNRECORDED : 'unresolved';
+-    // The durable row says what is known: the leader is gone and its domain is not proven gone (A0 review 5).
+-    try {
+-      this.s.persist(live, 'worker.exit');
+-    } catch {
+-      /* the journal may have failed; the row still says cleanup_pending */
+-    }
+   }
+ 
+   sessionDir(live: Live): string {

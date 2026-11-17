@@ -104,3 +104,30 @@ under (A0's tests used `ProcessGroupContainment` unless they passed a `CgroupCon
 | `fix-round.test.ts` › "failed create preserves the same group-only cleanup and cwd reservation as stop (m-1)" | `packages/worker/test/lifecycle.test.ts` › "failed create preserves the same domain cleanup and cwd reservation as stop (m-1), cleanup confirmed / unproven" | P2-1: runs for both cleanup outcomes. Unproven: A0's assertions (pending, cwd refused). Confirmed: the failed create is `failed` with `cgroup_empty_removed` and the cwd takes a replacement, as a stop with confirmed cleanup does |
 | `supervisor.test.ts` › "public HTTP/CLI client: …, stop" | `packages/worker/test/history.test.ts` › "history: public HTTP/CLI client: …" | P2-1: after the stop confirms cleanup the replacement in the same cwd is delivered (A0 refused it because its process-group stop never proved descendants gone); the unproven refusal is the first containment case above |
 | `fix-round.test.ts` › "journal failure in a Pi event faults only that worker and keeps inventory readable" | `packages/worker/test/input.test.ts` › same name | P2-1: with a failed journal the faulted worker stays `cleanup_pending` instead of `failed` (A0's containment case: no durable proof, no lease release); every other assertion unchanged, and the header variant still ends `failed` |
+
+**P2-3** ports A0's `relaunch`, `slice5-followups`, `review5-fixes`, `issue1-stop` and `stop-superseded` tests onto the
+fixture supervisor and the test domains (`domains.ts`). One design difference shapes the adaptations: production
+shares one cleanup per worker (PR #21), and a relaunch needs the recorded confirmation that only follows it, so a
+cleanup of a superseded generation can no longer complete after a relaunch through B2. A0 ran one cleanup per caller.
+The cases that hold two cleanups of one domain recreate that with one named seam, `independentCleanup`
+(`held-domains.ts`: it drops the shared cleanup handle so the next caller starts its own); `heldDomains` is A0's
+controllable `jail.clean`. A0's `Containment` stand-in with `reserve`/`clean` is the test domains; a restart is the
+fixture's restart with its own factory (`f.restart(f.factory)`) over shared domains.
+
+| A0 test | New test | Status |
+| `relaunch.test.ts` › "relaunch refuses a replacement checkout writer; fresh epoch rejects ordinary stale writes and ignores retired callbacks" | `packages/worker/test/relaunch.test.ts` › same name | Ported, all assertions. Adds: "relaunch: a stop whose domain is observed empty before pi exits still fences the running execution, so no relaunch skips it" (the host's exit never arrives during the cleanup; A0's stop fenced in its cleanup, this one before the kill), and "relaunch: refusals are no_effect and record nothing (live worker, stale binding, child, session held by another worker)" |
+| `slice5-followups.test.ts` › "late {exit,stop,fault} cleanup cannot retire a relaunched generation (gone=…)" (six) | `relaunch.test.ts` › same names | Ported, all assertions; the second stop starts its own cleanup through `independentCleanup`. A0 finished the trigger's cleanup first except for a fault; here the stop's finishes first for an exit too, because an exit's cleanup defers its confirmation to a stop that took over (P2-1), so the exit's continuation is the late one. Adds: "relaunch: a late exit cleanup of the old domain never confirms the cleanup of the relaunched generation" (the new pi exits too, and the old exit's completion must not confirm the new domain) |
+| `slice5-followups.test.ts` › "owner-kept prompt binds to the successful retry after {spawn,get_state} failure (restart=…)" (four) | `relaunch.test.ts` › same names | Ported, all assertions. The prompt the host received is compared by type and text: the worker stamps its command and execution ids into it (P1-14). A0's `badState` flag and failing factory are the fixture's `initHost` and `launch` hooks |
+| `slice5-followups.test.ts` › "a second successful relaunch does not rebind an undispatched owner-kept prompt" | `relaunch.test.ts` › same name | Ported, all assertions |
+| `review5-fixes.test.ts` › "owner-kept intent is session-bound and once only (move=…)" (four) | `relaunch.test.ts` › same names | Ported, all assertions |
+| `review5-fixes.test.ts` › "relaunch requires recorded confirmed cleanup (restart=…)" (two) | `relaunch.test.ts` › same names | Ported, all assertions |
+| `review5-fixes.test.ts` › "process-group fallback never authorizes fresh-process relaunch" | — | Dropped (plan decision D3): there is no process-group fallback |
+| `review5-fixes.test.ts` › "relaunch verifies the returned session file, not just successful switch" | `relaunch.test.ts` › same name | Ported, all assertions |
+| `review5-fixes.test.ts` › "spontaneous leader exit immediately cleans domain (confirmed=…)" (two) | `relaunch.test.ts` › same names | Ported, all assertions. For an unproven cleanup the worker now journals the `unresolved` row (the latest durable row named `leader_exit_only` before) |
+| `issue1-stop.test.ts` (four cases) | `packages/worker/test/stop.test.ts` › same names | Ported, all assertions; the second stop starts its own cleanup through `independentCleanup`. Adds: "stop: a relaunched generation cleans its own domain, never sharing a superseded cleanup still in flight" |
+| `stop-superseded.test.ts` (five cases) | `stop.test.ts` › same names | Ported, all assertions. As in A0 the two superseded cases change the worker's generation (epoch and domain) directly while the stop's cleanup waits (`supersede`) |
+
+P2-3 also adds the crash scenario `relaunch` (`crash/relaunch.test.ts`: every fsync and native effect of two relaunches,
+with the recorded domain always the recorded epoch's) and the kernel case `security/relaunch.test.ts` (after a stop, a
+leader crash or a supervisor crash, the new epoch's factory runs only once the old epoch's setsid grandchild is dead
+and its domain removed and recorded).

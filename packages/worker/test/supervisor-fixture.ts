@@ -118,6 +118,8 @@ export const tick = () => new Promise<void>(r => setImmediate(r));
 export interface Fixture {
   readonly dir: string;
   readonly hosts: Host[];
+  /** The fixture's host factory (config.launch, then a Host with its own session file): pass it to a restart that relaunches. */
+  readonly factory: HostFactory;
   supervisor: Supervisor;
   state: OpenState;
   readonly journalFile: string;
@@ -195,6 +197,7 @@ export function fixture(
   const f: Fixture = {
     dir,
     hosts,
+    factory,
     supervisor: first.supervisor,
     state: first.state,
     domains: first.domains,

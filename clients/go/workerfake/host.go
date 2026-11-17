@@ -32,7 +32,17 @@ func (f *Fake) Host(workerID string) *Host {
 	return f.st.firstHost[workerID]
 }
 
-// Hosts counts native host launches (workers.create and child launches), independently of receipts.
+// CurrentHost returns the worker's current host (a relaunch launches a new one), or nil when it has none.
+func (f *Fake) CurrentHost(workerID string) *Host {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if w := f.st.workers[workerID]; w != nil {
+		return w.host
+	}
+	return nil
+}
+
+// Hosts counts native host launches (workers.create, child launches and relaunches), independently of receipts.
 func (f *Fake) Hosts() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()

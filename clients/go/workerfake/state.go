@@ -60,6 +60,15 @@ type worker struct {
 	closed       map[string]b2.Interaction // closed interactions' durable records, by id
 	timers       map[string]*time.Timer    // pending cards' deadlines
 	aborted      string                    // the execution whose aborted turn is recorded: pi aborts a turn once
+	kept         map[string]keptBinding    // recovered prompt intents' admitted bindings (lifecycle.ts relaunch, P2-3)
+}
+
+// keptBinding is the binding a recovered sessions.prompt intent was admitted with, and the one epoch (the first
+// relaunch after it) its exact owner-kept retry may dispatch on (state.ts KeptBinding).
+type keptBinding struct {
+	workerEpoch, sessionID string
+	revision               int
+	relaunchEpoch          string
 }
 
 type storedReceipt struct {
@@ -435,6 +444,13 @@ func (s *state) event(w *worker, kind string) {
 		s.setStatus(w, "cleanup_pending")
 		w.row.Cleanup = "leader_exit_only"
 		s.persist(w)
+		// The leader's exit cleans its domain at once (lifecycle.ts cleanAfterExit); only a confirmable identity
+		// proves it, so it stays pending in the unconfirmed profile.
+		if s.f.opts.Profile != ProfileUnconfirmedNativeIdentity {
+			s.setStatus(w, "stopped")
+			w.row.Cleanup = cleaned
+			s.persist(w)
+		}
 	}
 }
 
@@ -644,7 +660,13 @@ func (s *state) prompt(id string, p b2.Prompt, op string, request any) (*b2.Rece
 		if w, err = s.require(id); err != nil {
 			return err
 		}
-		if err := all(func() error { return binding(w, p.WorkerEpoch, p.SessionId, p.BindingRevision) }, func() error { return writable(w) }, func() error { return ready(w) }); err != nil {
+		bound := func() error {
+			if op == "sessions.prompt" && s.keptAcrossRelaunch(w, p) {
+				return nil
+			}
+			return binding(w, p.WorkerEpoch, p.SessionId, p.BindingRevision)
+		}
+		if err := all(bound, func() error { return writable(w) }, func() error { return ready(w) }); err != nil {
 			return err
 		}
 		if strings.HasPrefix(strings.TrimLeft(p.Message, " \t\n"), "/") {
@@ -1133,11 +1155,110 @@ func (s *state) stop(id string, b b2.Binding) (*b2.Receipt, error) {
 			return nil
 		}
 		s.setStatus(w, "stopped")
-		w.row.Cleanup = "process_group_observed_gone; escaped_descendants_unproven"
+		w.row.Cleanup = cleaned
 		s.persist(w)
 		deliver(r, "termination_observed", result("observed_stopped"))
 		return nil
 	})
+}
+
+// cleaned is a cleanup the worker proved and recorded: its domain observed empty and removed (lifecycle.ts CLEANED).
+const cleaned = "cgroup_empty_removed"
+
+// --- relaunch ---
+
+// relaunch is workers.relaunch (lifecycle.ts relaunch): a stopped or failed worker whose cleanup is confirmed, not
+// fenced, whose session and cwd no other worker holds, gets a fresh host at a new epoch on its own session, without
+// a prompt. Every recovered prompt intent keeps the binding it was admitted with; this epoch becomes its one epoch.
+func (s *state) relaunch(id string, b b2.Binding) (*b2.Receipt, error) {
+	var w *worker
+	return s.run(id, b.CommandId, "workers.relaunch", map[string]any{"body": b, "worker_id": id}, func() error {
+		var err error
+		if w, err = s.require(id); err != nil {
+			return err
+		}
+		if err := binding(w, b.WorkerEpoch, b.SessionId, b.BindingRevision); err != nil {
+			return err
+		}
+		if w.row.ParentWorkerId != nil {
+			return refuse("child_relaunch_unsupported")
+		}
+		if (w.row.Status != "stopped" && w.row.Status != "failed") || w.row.Cleanup != cleaned {
+			return refuse("cleanup_pending_or_cleanup_unproven")
+		}
+		if err := writable(w); err != nil {
+			return err
+		}
+		if w.row.SessionId == nil {
+			return refuse("relaunch_session_unavailable")
+		}
+		for _, oid := range s.order {
+			o := s.workers[oid]
+			if oid == id || !holding(o.row.Status) {
+				continue
+			}
+			name := ""
+			switch {
+			case derefString(o.row.SessionId) == *w.row.SessionId:
+				name = "session_already_bound"
+			case o.row.Cwd == w.row.Cwd:
+				name = "exclusive_environment_already_bound"
+			default:
+				continue
+			}
+			r := refuse(name)
+			r.body.HolderWorkerId = ptr(oid)
+			return r
+		}
+		return nil
+	}, func(r *b2.Receipt) error {
+		old := keptBinding{workerEpoch: w.row.WorkerEpoch, sessionID: *w.row.SessionId, revision: w.row.BindingRevision}
+		kept := map[string]keptBinding{}
+		for _, cmd := range s.receiptOrder {
+			rec := s.receipts[cmd]
+			if derefString(rec.WorkerId) != id || rec.Operation != "sessions.prompt" || (rec.State != stIntentRecovered && rec.State != stIntentReady) {
+				continue
+			}
+			if k, ok := w.kept[cmd]; ok {
+				kept[cmd] = k
+			} else {
+				kept[cmd] = old
+			}
+		}
+		w.kept = kept
+		s.dispatch(r)
+		w.row.WorkerEpoch = s.id("epoch")
+		w.row.SupervisorEpoch = s.supervisorEpoch
+		w.row.Execution = nil
+		w.row.Foreground = "idle"
+		w.row.Failure = nil
+		w.row.Cleanup = "live_cgroup"
+		s.setStatus(w, "ready")
+		w.host = &Host{f: s.f, w: w}
+		w.exited = false
+		w.observedIdle = true
+		s.hostsLaunched++
+		for cmd, k := range w.kept {
+			if k.relaunchEpoch == "" && k.sessionID == *w.row.SessionId && k.revision == w.row.BindingRevision {
+				k.relaunchEpoch = w.row.WorkerEpoch
+				w.kept[cmd] = k
+			}
+		}
+		s.persist(w)
+		r.HistoryLag = ptr(false)
+		deliver(r, "forwarded", map[string]any{"worker_id": id, "worker_epoch": w.row.WorkerEpoch, "session_id": *w.row.SessionId, "binding_revision": w.row.BindingRevision})
+		return nil
+	})
+}
+
+// keptAcrossRelaunch: the exact retry of an owner-kept recovered prompt intent, naming the binding it was admitted
+// with, on the epoch the first relaunch after it brought up (input.ts keptAcrossRelaunch).
+func (s *state) keptAcrossRelaunch(w *worker, p b2.Prompt) bool {
+	k, ok := w.kept[p.CommandId]
+	r := s.receipts[p.CommandId]
+	return ok && r != nil && r.State == stIntentReady && k.relaunchEpoch == w.row.WorkerEpoch &&
+		k.workerEpoch == p.WorkerEpoch && k.sessionID == p.SessionId && k.revision == p.BindingRevision &&
+		derefString(w.row.SessionId) == k.sessionID && w.row.BindingRevision == k.revision
 }
 
 // --- session writes: configure, compact, reload, commands.invoke ---
@@ -1218,7 +1339,7 @@ func (s *state) restart() {
 			in.Status = "interrupted"
 			old.closed[in.InteractionId] = durableRecord(in)
 		}
-		w := &worker{row: clone(s.disk[id]), closed: old.closed, timers: map[string]*time.Timer{}}
+		w := &worker{row: clone(s.disk[id]), closed: old.closed, timers: map[string]*time.Timer{}, kept: old.kept}
 		s.workers[id] = w
 		w.row.SupervisorEpoch = s.supervisorEpoch
 		w.row.PendingInteractions = []json.RawMessage{}
@@ -1246,12 +1367,14 @@ func (s *state) restart() {
 				s.uncertain(w, e.CommandId)
 			}
 		}
+		// Every worker that held a session is cleanup_pending, then its domain is killed and removed (lifecycle.ts
+		// recover); only a confirmable identity proves that, so it stays pending in the unconfirmed profile.
 		if holding(w.row.Status) {
 			s.setStatus(w, "cleanup_pending")
-			if s.f.opts.Profile == ProfileUnconfirmedNativeIdentity {
-				w.row.Cleanup = "unresolved"
-			} else {
-				w.row.Cleanup = "process_group_killed_at_restart; escaped_descendants_unproven"
+			w.row.Cleanup = "unresolved"
+			if s.f.opts.Profile != ProfileUnconfirmedNativeIdentity {
+				s.setStatus(w, "stopped")
+				w.row.Cleanup = cleaned
 			}
 		}
 		s.persist(w)

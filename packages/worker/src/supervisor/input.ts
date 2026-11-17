@@ -123,6 +123,26 @@ export class Input {
     }
   }
 
+  /**
+   * The one exception to the binding check (P2-3): the exact retry of a prompt intent a restart recovered and the owner
+   * kept, which names the binding it was admitted with, on the epoch the first relaunch after it brought up, while the
+   * session and revision are still the ones it was admitted on. Every other stale binding is refused.
+   */
+  private keptAcrossRelaunch(live: Live, p: Prompt): boolean {
+    const kept = live.kept?.[p.command_id];
+    const w = live.worker;
+    return (
+      kept !== undefined &&
+      this.s.receipts.all.get(p.command_id)?.state === 'intent_ready' &&
+      kept.relaunch_epoch === w.worker_epoch &&
+      kept.worker_epoch === p.worker_epoch &&
+      kept.session_id === p.session_id &&
+      kept.binding_revision === p.binding_revision &&
+      w.session_id === kept.session_id &&
+      w.binding_revision === kept.binding_revision
+    );
+  }
+
   /** Writes allowed: not fenced and no binding change in flight. P1-6 adds the fence latch here. */
   writable(live: Live): void {
     if (live.worker.fence) throw new Refusal('session_fenced', 'no_effect', live.worker.fence.command_id);
@@ -137,7 +157,7 @@ export class Input {
    * An execution whose outcome can no longer be observed: its row says `outcome_unknown`, durably, before any reply
    * or refusal that depends on it. The fence latch (P1-6) extends this.
    */
-  uncertain(live: Live, commandId: string, label: 'execution.unknown' | 'worker.exit' | 'worker.fault' | 'worker.recover' = 'execution.unknown'): void {
+  uncertain(live: Live, commandId: string, label: 'execution.unknown' | 'worker.exit' | 'worker.fault' | 'worker.recover' | 'worker.stop' = 'execution.unknown'): void {
     const w = live.worker;
     // A dispatched command whose reply can no longer come is outcome_unknown (a no-op for any other state).
     if (this.s.receipts.all.get(commandId)?.state === 'accepted') this.s.receipts.unknown(commandId);
@@ -196,7 +216,7 @@ export class Input {
       },
       () => {
         live = this.s.require(id);
-        this.s.binding(live, p);
+        if (operation !== 'sessions.prompt' || !this.keptAcrossRelaunch(live, p)) this.s.binding(live, p);
         this.writable(live);
         this.ready(live);
         this.s.refresh(live);

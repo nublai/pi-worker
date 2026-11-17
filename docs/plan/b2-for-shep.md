@@ -139,11 +139,12 @@ under a fence" means `no_effect` naming the uncertain command. After its dispatc
 | `interactions.answer_if_current` | P1-10 | mutation; needs `answers_for_person` and the interaction's current revision; grant rechecked at release; `answer_id_conflict` is refused before any record (no effect), but an earlier answer under that `answer_id` may have been recorded and applied: resolve with `interactions.status` and `receipts.get` of the earlier command, never by re-answering | yes | refused |
 | `executions.interrupt` | P1-5 | control | yes | allowed (row 11) |
 | `workers.stop` | P1-4 | control | yes | allowed |
+| `workers.relaunch` | P2-3 | lifecycle; only after the previous epoch's cleanup is confirmed and recorded, the session and cwd free; a new `worker_epoch`, the session reopened without prompting | yes (the last generation's) | refused |
 | `sessions.resolve_unknown` | P1-6 | the fence's own resolution; needs the current `fence_generation` | yes | the only write that clears it |
 | `attachments.stage`, `attachments.release` | P1-16 | mutation on bridge-owned staged bytes; no session effect | worker id only | allowed (the prompt that uses them is refused) |
 
 **Not in the `bridge` profile:** `children.launch` and `children.report` (agent-side; parent and child grants
-only), `workers.relaunch` (owner CLI until Shep asks for it), `sessions.steer`, `sessions.follow_up` and
+only), `sessions.steer`, `sessions.follow_up` and
 `executions.cancel` (the bridge uses `if_busy` and interrupt), and grant management (local files only, never
 HTTP). Adding one is a profile change in the spec, reviewed like any other.
 

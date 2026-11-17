@@ -295,7 +295,7 @@ test('containment: every pi process the production daemon starts, a worker or an
     const worker = join(tmp.dir, 'worker.argv');
     const probe = join(tmp.dir, 'probe.argv');
     const started = [
-      hosts.factory({ workerId: 'w', create: { command_id: 'c', cwd: tmp.dir, provider: 'p', model: 'm', thinking: 'off' }, cwd: tmp.dir, sessionDir: tmp.dir, domain, prefix: prefix(worker) }),
+      hosts.factory({ workerId: 'w', commandId: 'c', create: { command_id: 'c', cwd: tmp.dir, provider: 'p', model: 'm', thinking: 'off' }, cwd: tmp.dir, sessionDir: tmp.dir, domain, prefix: prefix(worker) }),
       hosts.inventory({ cwd: tmp.dir, projectTrusted: false, domain, prefix: prefix(probe) }),
     ];
     try {

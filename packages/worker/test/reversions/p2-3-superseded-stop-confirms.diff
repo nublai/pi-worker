@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index e45097d..54483da 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -467,7 +467,7 @@ export class Lifecycle {
+         const cleaned = await this.terminate(live);
+         // A relaunch brought up a new generation meanwhile: this stop's outcome is about the old domain only. It is
+         // reported as that, and the live generation's row, process and domain stay untouched (A0 issue #1).
+-        if (live.domain !== domain) {
++        if (live.domain !== domain && live.worker.worker_id === '') {
+           return cleaned
+             ? { state: 'delivered', stage: 'termination_observed', effect: 'observed', result: result('superseded_generation_stopped') }
+             : { state: 'outcome_unknown', stage: 'unknown', effect: 'unknown', result: result('superseded_generation_unknown') };

@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/input.ts b/packages/worker/src/supervisor/input.ts
+index 804a9ef..812f4cd 100644
+--- a/packages/worker/src/supervisor/input.ts
++++ b/packages/worker/src/supervisor/input.ts
+@@ -134,7 +134,6 @@ export class Input {
+     return (
+       kept !== undefined &&
+       this.s.receipts.all.get(p.command_id)?.state === 'intent_ready' &&
+-      kept.relaunch_epoch === w.worker_epoch &&
+       kept.worker_epoch === p.worker_epoch &&
+       kept.session_id === p.session_id &&
+       kept.binding_revision === p.binding_revision &&
