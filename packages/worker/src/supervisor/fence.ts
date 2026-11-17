@@ -93,7 +93,7 @@ export class Fence {
       if (this.s.receipts.all.get(resolution.command_id)?.state === 'intent_recovered') this.s.receipts.resolveIntent(resolution.command_id, resolution.disposition);
     }
     for (const r of this.s.receipts.all.values()) {
-      if (r.worker_id === w.worker_id && r.state === 'outcome_unknown' && fencesWhenUnknown(r, live) && !this.resolved(w, r.command_id)) this.latch(live, r.command_id);
+      if (r.worker_id === w.worker_id && r.state === 'outcome_unknown' && (fencesWhenUnknown(r, live) || firstPromptDispatched(r, live)) && !this.resolved(w, r.command_id)) this.latch(live, r.command_id);
     }
   }
 
@@ -166,4 +166,9 @@ export class Fence {
       },
     );
   }
+}
+
+/** A create whose first prompt reached its dispatch record (the receipt names the execution) wrote its new session. */
+export function firstPromptDispatched(r: Receipt, live: Live): boolean {
+  return r.operation === 'workers.create' && live.create?.command_id === r.command_id && Boolean(r.execution_id);
 }

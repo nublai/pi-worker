@@ -58,6 +58,22 @@ func (h *Host) HoldNextPromptReply() {
 	h.held = make(chan struct{})
 }
 
+// DropFirstPromptReply: the next workers.create with a first_prompt starts it (agent_start) and its reply is lost.
+// Its host does not exist before the create, so the fake arms it here.
+func (f *Fake) DropFirstPromptReply() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.st.firstReply = "drop"
+}
+
+// HoldFirstPromptReply: the next workers.create with a first_prompt starts it, and its reply waits until the new
+// worker's Host(id).ReleaseHeldReply, which loses it. The create's request stays in flight meanwhile.
+func (f *Fake) HoldFirstPromptReply() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.st.firstReply = "hold"
+}
+
 // ReleaseHeldReply loses the held reply.
 func (h *Host) ReleaseHeldReply() {
 	h.f.mu.Lock()

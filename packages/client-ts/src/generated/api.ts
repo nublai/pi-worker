@@ -31,7 +31,17 @@ export interface paths {
         /** List the workers this grant may see */
         get: operations["workers.list"];
         put?: never;
-        /** Create a worker (reserve ids, then launch pi) */
+        /**
+         * Create a worker (launch pi), optionally with its first prompt
+         * @description With `first_prompt`, one command and one receipt start a chat: once the
+         *     worker is ready the supervisor admits the prompt as the worker's first
+         *     execution, under the create's own `command_id`. The receipt names the
+         *     worker, and either the execution (`admission: accepted`, `execution_id`,
+         *     `disposition`) or the prompt's typed refusal (`admission: rejected`,
+         *     `error`) with the worker created and idle. See `FirstPrompt`. A grant
+         *     sends a first prompt only if it may also call `sessions.prompt`
+         *     (`grant_method_denied` otherwise), here and in `children.launch`.
+         */
         post: operations["workers.create"];
         delete?: never;
         options?: never;
@@ -1020,8 +1030,41 @@ export interface components {
             thinking: components["schemas"]["Thinking"];
             host?: components["schemas"]["Host"];
             project_trusted?: boolean;
+            first_prompt?: components["schemas"]["FirstPrompt"];
             /** @description Reattach a session this worker catalog knows. Refused `session_already_bound`, naming the holder, while another worker holds or is opening it; `target_cleanup_unproven` while its last owner's cleanup is unproven; `target_session_fenced`, naming the uncertain command, while its fence is unresolved. */
             resume_session_id?: components["schemas"]["Id"];
+        };
+        /**
+         * @description A new worker's first input (`workers.create`). It has no command of its
+         *     own: the first execution's `command_id` is the create's, and the
+         *     create's receipt reports it.
+         *
+         *     - Admitted: the receipt is `delivered` with the worker (`worker_id`,
+         *       `result`) and the execution (`admission: accepted`, `execution_id`,
+         *       `disposition` as `sessions.prompt` reports it).
+         *     - Refused at admission by a check of `sessions.prompt` (a slash
+         *       command, an unknown or released attachment, too many or too large
+         *       images): the receipt is still `delivered` with the worker, which is
+         *       created, ready and idle, plus `admission: rejected` and the refusal
+         *       code in `error`. No execution exists and nothing reached pi; the
+         *       caller keeps the draft and may send it with `sessions.prompt`.
+         *     - Uncertain: the execution id is in the create's receipt, durably,
+         *       before any byte of the prompt reaches pi. A caller whose create reply
+         *       was lost reads the receipt with `receipts.get` and never sends the
+         *       create again; a duplicate `command_id` returns that receipt and never
+         *       prompts twice. If pi's reply is lost the receipt is `outcome_unknown`
+         *       with the worker, its `result` and the `execution_id`, and the new
+         *       session is fenced on the create's `command_id` until
+         *       `sessions.resolve_unknown`, also after a supervisor restart.
+         *
+         *     The text is never journaled (the receipt keeps only the request hash).
+         */
+        FirstPrompt: {
+            message: components["schemas"]["Text"];
+            /** @description Staged images, checked as `sessions.prompt` checks them. An attachment is staged for a live worker (`attachments.stage` names it), so one staged before the create names another worker and is refused `unknown_attachment` here; send images with `sessions.prompt` once the worker exists. */
+            attachments?: {
+                attachment_id: components["schemas"]["Id"];
+            }[];
         };
         ChildLaunch: {
             command_id: components["schemas"]["Id"];

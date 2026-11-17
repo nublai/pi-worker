@@ -2023,6 +2023,87 @@
    }
   },
   "workers.create": {
+   "first-prompt-refused": {
+    "request": {
+     "body": {
+      "command_id": "cmd-chat-2",
+      "cwd": "/home/u/photos",
+      "provider": "anthropic",
+      "model": "claude",
+      "thinking": "medium",
+      "first_prompt": {
+       "message": "What is in this photo?",
+       "attachments": [
+        {
+         "attachment_id": "photo-expired"
+        }
+       ]
+      }
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-chat-2",
+      "operation": "workers.create",
+      "request_hash": "sha256-4d5e6f",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-17T08:31:00Z",
+      "worker_id": "worker-8",
+      "admission": "rejected",
+      "error": "unknown_attachment",
+      "history_lag": false,
+      "result": {
+       "worker_id": "worker-8",
+       "worker_epoch": "epoch-8",
+       "session_id": "session-8",
+       "binding_revision": 1
+      }
+     }
+    }
+   },
+   "first-prompt": {
+    "request": {
+     "body": {
+      "command_id": "cmd-chat-1",
+      "cwd": "/home/u/chat",
+      "provider": "anthropic",
+      "model": "claude",
+      "thinking": "medium",
+      "first_prompt": {
+       "message": "Add email validation to the login form."
+      }
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "command_id": "cmd-chat-1",
+      "operation": "workers.create",
+      "request_hash": "sha256-1a2b3c",
+      "state": "delivered",
+      "stage": "forwarded",
+      "effect": "observed",
+      "evidence": "supervisor_journal_fsynced",
+      "created_at": "2026-11-17T08:30:00Z",
+      "worker_id": "worker-7",
+      "execution_id": "exec-7",
+      "admission": "accepted",
+      "disposition": "started",
+      "history_lag": true,
+      "result": {
+       "worker_id": "worker-7",
+       "worker_epoch": "epoch-7",
+       "session_id": "session-7",
+       "binding_revision": 1,
+       "interrupt_marker": false
+      }
+     }
+    }
+   },
    "held": {
     "request": {
      "body": {
