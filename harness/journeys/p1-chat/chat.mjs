@@ -239,7 +239,8 @@ check('resolve_unknown_typed', resolve.code === 1 && resolve.error?.error === 'u
 const files = pw('files.read', ['files.read', W, '--path', join(work, 'dialog.txt'), '--root', work]);
 check('files_read_typed', files.code === 1 && files.error?.status === 501 && files.error?.effect === 'no_effect');
 const relaunch = pw('workers.relaunch', ['workers.relaunch', W]);
-check('relaunch_typed', relaunch.code === 1 && relaunch.error?.status === 501 && relaunch.error?.effect === 'no_effect');
+// P2-3 serves workers.relaunch; a live worker has no proven cleanup yet, so it is refused with no effect.
+check('relaunch_typed', relaunch.code === 1 && relaunch.error?.error === 'cleanup_pending_or_cleanup_unproven' && relaunch.error?.effect === 'no_effect');
 
 // 10. Stop, then revoke the grant: the next call is refused.
 const stopped = pw('workers.stop', ['workers.stop', W]);
