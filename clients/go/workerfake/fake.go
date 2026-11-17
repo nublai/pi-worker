@@ -152,6 +152,11 @@ func (f *Fake) Close() error {
 		close(f.closed)
 		f.mu.Lock()
 		f.st.endStreams()
+		for _, w := range f.st.workers {
+			for _, t := range w.timers {
+				t.Stop()
+			}
+		}
 		f.mu.Unlock()
 		err = f.server.Close()
 		f.cleanup()

@@ -55,8 +55,9 @@ type worker struct {
 	exited       bool
 	observedIdle bool
 	pending      []queuedItem
-	interactions []b2.Interaction
-	answered     map[string]b2.Interaction
+	interactions []b2.Interaction          // live: pending cards and consumed approvals that still own a gate
+	closed       map[string]b2.Interaction // closed interactions' durable records, by id
+	timers       map[string]*time.Timer    // pending cards' deadlines
 }
 
 type storedReceipt struct {
@@ -83,13 +84,14 @@ type state struct {
 	receiving       map[string]*attachment
 	dropStageReply  bool
 	subs            map[*subscriber]bool
+	answerSigs      map[string]answerSig // answer_id → its recorded value (memory only)
 }
 
 func newState(f *Fake) *state {
 	s := &state{
 		f: f, workers: map[string]*worker{}, disk: map[string]b2.Worker{}, receipts: map[string]*storedReceipt{},
 		firstHost: map[string]*Host{}, attachments: map[string]*attachment{}, receiving: map[string]*attachment{},
-		subs: map[*subscriber]bool{},
+		subs: map[*subscriber]bool{}, answerSigs: map[string]answerSig{},
 	}
 	s.supervisorEpoch = s.id("sup")
 	return s
@@ -118,7 +120,7 @@ func clone[T any](v T) T {
 func (s *state) view(w *worker) b2.Worker {
 	row := clone(w.row)
 	row.PendingInteractions = []json.RawMessage{}
-	for _, in := range w.interactions {
+	for _, in := range pending(w) {
 		data, _ := json.Marshal(in)
 		row.PendingInteractions = append(row.PendingInteractions, data)
 	}
@@ -398,19 +400,6 @@ func (s *state) setStatus(w *worker, status b2.WorkerStatus) {
 	}
 }
 
-// interrupt ends every live interaction of the worker (its resolvers are gone).
-func (s *state) interrupt(w *worker) {
-	if len(w.interactions) == 0 {
-		return
-	}
-	for _, in := range w.interactions {
-		in.Status = "interrupted"
-		w.answered[in.InteractionId] = in
-	}
-	w.interactions = nil
-	s.publishInteractions(w)
-}
-
 // --- workers.create and children ---
 
 type createOpts struct {
@@ -446,7 +435,7 @@ func (s *state) create(c b2.Create, parent *createOpts) (*b2.Receipt, error) {
 			session = *c.ResumeSessionId
 		}
 		lineage := b2.Lineage("root")
-		w := &worker{answered: map[string]b2.Interaction{}, observedIdle: true, row: b2.Worker{
+		w := &worker{closed: map[string]b2.Interaction{}, timers: map[string]*time.Timer{}, observedIdle: true, row: b2.Worker{
 			WorkerId: id, WorkerEpoch: s.id("epoch"), SupervisorEpoch: s.supervisorEpoch, SessionId: &session,
 			SessionIdentityEvidence: "pi_sdk_session_id", BindingRevision: 1, Cwd: c.Cwd, Status: "ready",
 			Foreground: "idle", Cleanup: "none", History: b2.HistoryMarker{Evidence: "pi_session_file"},
@@ -597,7 +586,6 @@ func (s *state) prompt(id string, p b2.Prompt, op string, request any) (*b2.Rece
 	}
 	return receipt, nil
 }
-
 
 func (s *state) followUp(id string, fu b2.FollowUp) (*b2.Receipt, error) {
 	var w *worker
@@ -1059,9 +1047,18 @@ func (s *state) restart() {
 		}
 	}
 	s.receiving = map[string]*attachment{}
+	s.answerSigs = map[string]answerSig{}
 	for _, id := range s.order {
 		old := s.workers[id]
-		w := &worker{row: clone(s.disk[id]), answered: old.answered}
+		// No resolver survives a restart: every live interaction is interrupted, never re-opened.
+		for _, in := range old.interactions {
+			if t := old.timers[in.InteractionId]; t != nil {
+				t.Stop()
+			}
+			in.Status = "interrupted"
+			old.closed[in.InteractionId] = durableRecord(in)
+		}
+		w := &worker{row: clone(s.disk[id]), closed: old.closed, timers: map[string]*time.Timer{}}
 		s.workers[id] = w
 		w.row.SupervisorEpoch = s.supervisorEpoch
 		w.row.PendingInteractions = []json.RawMessage{}

@@ -19,25 +19,14 @@
       "revision": 1,
       "kind": "select",
       "deadline": 1794817800000,
-      "status": "answered",
+      "status": "consumed",
       "source": "pi.extension_ui",
       "evidence": "supervisor_journal_fsynced",
-      "payload_evidence": "observed_memory",
-      "title": "Pick one",
-      "options": [
-        {
-          "option_id": "opt-a",
-          "label": "A"
-        },
-        {
-          "option_id": "opt-b",
-          "label": "B"
-        }
-      ],
       "answer_id": "ans-1",
       "answer_command_id": "cmd-1",
       "answer_stage": 3,
-      "outcome": "answer"
+      "outcome": "answered",
+      "actor": "device-1"
     }
   }
 }

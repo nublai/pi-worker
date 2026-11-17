@@ -675,7 +675,7 @@
       "revision": 1,
       "kind": "select",
       "outcome": "answer",
-      "option_id": "opt-a",
+      "option_id": "0",
       "actor": "device-1"
      }
     },
@@ -691,7 +691,13 @@
       "evidence": "supervisor_journal_fsynced",
       "created_at": "2026-11-16T04:30:00Z",
       "worker_id": "worker-1",
-      "answer_stage": 3
+      "answer_stage": 3,
+      "result": {
+       "interaction_id": "int-1",
+       "answer_id": "ans-1",
+       "outcome": "answered",
+       "resolver_consumed": true
+      }
      }
     }
    }
@@ -723,11 +729,11 @@
        "title": "Pick one",
        "options": [
         {
-         "option_id": "opt-a",
+         "option_id": "0",
          "label": "A"
         },
         {
-         "option_id": "opt-b",
+         "option_id": "1",
          "label": "B"
         }
        ]
@@ -758,25 +764,14 @@
       "revision": 1,
       "kind": "select",
       "deadline": 1794817800000,
-      "status": "answered",
+      "status": "consumed",
       "source": "pi.extension_ui",
       "evidence": "supervisor_journal_fsynced",
-      "payload_evidence": "observed_memory",
-      "title": "Pick one",
-      "options": [
-       {
-        "option_id": "opt-a",
-        "label": "A"
-       },
-       {
-        "option_id": "opt-b",
-        "label": "B"
-       }
-      ],
       "answer_id": "ans-1",
       "answer_command_id": "cmd-1",
       "answer_stage": 3,
-      "outcome": "answer"
+      "outcome": "answered",
+      "actor": "device-1"
      }
     }
    }
