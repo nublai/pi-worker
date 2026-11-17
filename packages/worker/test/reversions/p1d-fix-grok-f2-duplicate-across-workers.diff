@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
+index a2a761a..6976075 100644
+--- a/packages/worker/src/attachments/attachments.ts
++++ b/packages/worker/src/attachments/attachments.ts
+@@ -186,7 +186,7 @@ export class Attachments {
+     }
+     checks();
+     // An id another worker staged is never this worker's duplicate: its command id stays with that worker.
+-    if (prior && (prior.worker_id !== request.worker_id || prior.sha256 !== request.sha256)) throw new Refusal('attachment_id_conflict');
++    if (prior && prior.sha256 !== request.sha256) throw new Refusal('attachment_id_conflict');
+     if (prior && prior.state === 'released') throw new Refusal('attachment_released');
+     if (prior) {
+       // The same image again: nothing is stored twice; a receipt for this command names the staged attachment.

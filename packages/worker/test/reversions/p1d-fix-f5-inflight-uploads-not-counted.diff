@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
+index a2a761a..f0fa76e 100644
+--- a/packages/worker/src/attachments/attachments.ts
++++ b/packages/worker/src/attachments/attachments.ts
+@@ -154,7 +154,7 @@ export class Attachments {
+     }
+     for (const r of this.receiving.values()) {
+       // An upload whose record is written counts once, as staged.
+-      if (r.request.worker_id !== workerId || this.records.has(r.request.attachment_id)) continue;
++      if (r.request.worker_id !== workerId || this.records.has(r.request.attachment_id) || r !== self) continue;
+       count++;
+       bytes += r.bytes;
+     }

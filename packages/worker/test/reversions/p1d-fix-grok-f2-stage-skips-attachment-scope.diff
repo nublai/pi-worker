@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index 0bccadc..ed8f0ce 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -178,7 +178,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+       // An id another worker already holds is in scope only when that worker is: no conflict or duplicate (and its
+       // command id) for a caller that may not read it, the same refusal attachments.status gives.
+       const owner = s.attachments.owner(path.attachment_id);
+-      if (owner !== undefined && !visible(caller, owner)) throw new Refusal('grant_scope_denied');
++      void owner;
+       return s.stageAttachment(
+         {
+           attachment_id: path.attachment_id,

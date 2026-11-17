@@ -251,7 +251,11 @@
         "p1-16-blob-any-type.diff",
         "p1-16-blob-skips-magic.diff",
         "p1-16-child-skips-hash.diff",
-        "p1-16-compaction-drops-attachments.diff"
+        "p1-16-compaction-drops-attachments.diff",
+        "p1d-fix-f5-inflight-uploads-not-counted.diff",
+        "p1d-fix-f5-chunk-bytes-unreserved.diff",
+        "p1d-fix-grok-f2-stage-skips-attachment-scope.diff",
+        "p1d-fix-grok-f2-duplicate-across-workers.diff"
       ]
     }
   }
