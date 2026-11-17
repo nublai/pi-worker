@@ -29,15 +29,87 @@ func socketPath(t *testing.T) string {
 	return filepath.Join(dir, "b2.sock")
 }
 
+// serveHTTP serves handler on path. Like the worker before any handler-level reply (its router reads and validates a
+// request's whole JSON body first), it reads the whole request body before handler runs: the client writes the
+// headers and the body separately, and a reply sent before the body arrived would race the client's body write
+// against the server's close, so the client would fail after_write unknown instead of reading the reply (the CI flake
+// of TestHTTPRefusalKeepsWorkerEffect).
 func serveHTTP(t *testing.T, path string, handler http.HandlerFunc) {
+	serveHTTPConns(t, path, handler, nil)
+}
+
+// serveHTTPConns is serveHTTP that reports each server connection's state changes to connState.
+func serveHTTPConns(t *testing.T, path string, handler http.HandlerFunc, connState func(net.Conn, http.ConnState)) {
 	t.Helper()
 	l, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &http.Server{Handler: handler}
+	srv := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				return
+			}
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			handler(w, r)
+		}),
+		ConnState: connState,
+	}
 	go srv.Serve(l)
 	t.Cleanup(func() { srv.Close() })
+}
+
+// closeOrder pairs the n-th client connection with the n-th server connection (the requests it serves run one at a
+// time) and reports when the server has closed each.
+type closeOrder struct {
+	mu     sync.Mutex
+	index  map[net.Conn]int
+	closed []chan struct{}
+	dials  int
+}
+
+func (o *closeOrder) done(i int) chan struct{} {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for len(o.closed) <= i {
+		o.closed = append(o.closed, make(chan struct{}))
+	}
+	return o.closed[i]
+}
+
+func (o *closeOrder) connState(c net.Conn, state http.ConnState) {
+	o.mu.Lock()
+	if o.index == nil {
+		o.index = map[net.Conn]int{}
+	}
+	if state == http.StateNew {
+		o.index[c] = len(o.index)
+	}
+	i := o.index[c]
+	o.mu.Unlock()
+	if state == http.StateClosed {
+		close(o.done(i))
+	}
+}
+
+// lateBodyConn writes the request head at once and every later write (the body) only after the server has closed
+// this connection, or after a bound when it does not: the order in which a server that replies before reading the
+// body makes the client's body write fail.
+type lateBodyConn struct {
+	net.Conn
+	serverClosed chan struct{}
+	writes       int
+}
+
+func (c *lateBodyConn) Write(p []byte) (int, error) {
+	if c.writes++; c.writes > 1 {
+		select {
+		case <-c.serverClosed:
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	return c.Conn.Write(p)
 }
 
 func prompt(id string) Prompt {
@@ -205,9 +277,13 @@ func TestClassificationBoundaryIsConnectionHandoff(t *testing.T) {
 	}
 }
 
+// A refusal keeps the worker's effect. Each request body reaches the worker only after a server that replied without
+// reading it would already have closed the connection, so the reply is read deterministically only because the
+// worker (like serveHTTP) reads the whole body before it replies.
 func TestHTTPRefusalKeepsWorkerEffect(t *testing.T) {
 	path := socketPath(t)
-	serveHTTP(t, path, func(w http.ResponseWriter, r *http.Request) {
+	var order closeOrder
+	serveHTTPConns(t, path, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/b2/workers/w1/prompt":
 			w.WriteHeader(409)
@@ -222,8 +298,21 @@ func TestHTTPRefusalKeepsWorkerEffect(t *testing.T) {
 			w.WriteHeader(501)
 			w.Write([]byte(`{"error":"operation_not_implemented","effect":"no_effect"}`))
 		}
-	})
+	}, order.connState)
 	c := New(path)
+	transport := c.http.Transport.(*http.Transport)
+	dial := transport.DialContext
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		conn, err := dial(ctx, network, addr)
+		if err != nil {
+			return nil, err
+		}
+		order.mu.Lock()
+		i := order.dials
+		order.dials++
+		order.mu.Unlock()
+		return &lateBodyConn{Conn: conn, serverClosed: order.done(i)}, nil
+	}
 	ctx := context.Background()
 	_, err := c.SessionsPrompt(ctx, "w1", prompt("c1"))
 	f := asFailure(t, err)
