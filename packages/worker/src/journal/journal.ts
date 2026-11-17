@@ -11,10 +11,11 @@
  * which the next open removes; after the rename the compacted journal is the journal.
  *
  * Budget (PR #12 review F2): a record is ordinary unless its label is a control label (labels.ts: stop, exit, fault,
- * fence, recovery, ...) or its writer marks it `control` (a quota-exempt command's receipts). An ordinary record consumes the reservations it names first and may never leave
- * less than `floor()` free beside every reservation: the control reserve plus the room each worker's own control
- * records need (supervisor/state.ts). One that would is refused `JournalCapacity` before any byte is written, and the
- * journal stays usable; its writer refuses or faults only its own work. A control record may use the reserve.
+ * fence, recovery, ...) or its writer marks it `control` (a quota-exempt command's receipts). Every record consumes
+ * the reservations it names first. An ordinary record may never leave less than `floor()` free beside every
+ * reservation: the control reserve plus the room each worker's own control records need (supervisor/state.ts). One
+ * that would is refused `JournalCapacity` before any byte is written, and the journal stays usable; its writer refuses
+ * or faults only its own work. A control record may use the reserve.
  */
 import { closeSync, fstatSync, ftruncateSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -48,7 +49,7 @@ export class JournalCorruption extends Error {}
 export class JournalCapacity extends Error {}
 
 /** Bytes a record line adds around its value: seq, kind, checksum and framing (an upper bound). */
-export const RECORD_OVERHEAD = 160;
+const RECORD_OVERHEAD = 160;
 
 /** The bytes a record with this value takes in the journal, at most. */
 export const recordBytes = (value: unknown): number => Buffer.byteLength(JSON.stringify(value)) + RECORD_OVERHEAD;
@@ -59,7 +60,10 @@ export const budgetKey = (workerId: string) => `worker:${workerId}`;
 export interface AppendOptions {
   /** Reservations this record consumes, in order, before it needs free room. */
   readonly budget?: readonly string[];
-  /** A control or recovery record: it may use the control reserve and the workers' control room (by default, when its label is one of CONTROL_LABELS). */
+  /**
+   * A control or recovery record: it may use the control reserve and the workers' control room. By default, whether
+   * its label is one of CONTROL_LABELS.
+   */
   readonly control?: boolean;
 }
 

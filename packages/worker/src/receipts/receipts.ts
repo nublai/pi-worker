@@ -272,7 +272,7 @@ export class ReceiptStore {
         const ordinary = [...this.all.values()].filter(r => !QUOTA_EXEMPT.has(r.operation)).length;
         if (!prior && !exempt && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');
         const wants = [{ key: commandId, bytes: receiptBytes }, ...(extra ? [{ key: extra.key, bytes: extra.bytes }] : [])];
-        if (!this.journal.reserveAll(wants, exempt ? 0 : this.journal.floor() + (extra?.control ?? 0))) throw new Refusal('journal_result_capacity');
+        if (!this.journal.reserveAll(wants, headroom)) throw new Refusal('journal_result_capacity');
         let intent: Receipt;
         try {
           intent = this.put(

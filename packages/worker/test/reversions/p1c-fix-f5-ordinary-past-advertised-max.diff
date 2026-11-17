@@ -8,5 +8,5 @@ diff --git a/packages/worker/src/receipts/receipts.ts b/packages/worker/src/rece
 -        if (!prior && !exempt && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');
 +        if (!prior && !exempt && ordinary > this.maxCount) throw new Refusal('receipt_capacity');
          const wants = [{ key: commandId, bytes: receiptBytes }, ...(extra ? [{ key: extra.key, bytes: extra.bytes }] : [])];
-         if (!this.journal.reserveAll(wants, exempt ? 0 : this.journal.floor() + (extra?.control ?? 0))) throw new Refusal('journal_result_capacity');
+         if (!this.journal.reserveAll(wants, headroom)) throw new Refusal('journal_result_capacity');
          let intent: Receipt;

@@ -81,11 +81,13 @@ export type HostFactory = (launch: HostLaunch) => SessionHost;
 /** Statuses that hold a session and an environment. */
 export const HOLDING = new Set<Worker['status']>(['starting', 'ready', 'cleanup_pending']);
 
-/**
+/*
  * The journal budget (PR #12 review F2). Worker rows written by stop, exit, fault, a failed launch, recovery, an
  * unknown outcome, a control request or a fence are control records (labels.ts): they may use the control reserve.
- * Every row consumes its worker's budget first, which each ordinary admission tops up before dispatch.
+ * Every row consumes its worker's budget first, which each ordinary admission tops up before dispatch, and ordinary
+ * records leave free the control room every worker that may still be stopped needs.
  */
+
 /** After these rows the worker's process is gone: it writes no more ordinary records and its budget is released. */
 const ENDING_ROW_LABELS = new Set<DurableLabel>(['worker.failed', 'worker.stopped', 'worker.exit', 'worker.fault']);
 /** Ordinary rows a worker may write between two admissions (admit, reply, start, settle; create, spawned, identity, ready). */
@@ -96,7 +98,6 @@ const BUDGET_RECORD_BYTES = 4096;
 const CONTROL_ROWS = 3;
 /** What a new worker's row adds to its create request: the worker fields and pi's resource inventory. */
 const ROW_BASE_BYTES = 8192;
-
 
 export class SupervisorState {
   readonly workers = new Map<string, Live>();
