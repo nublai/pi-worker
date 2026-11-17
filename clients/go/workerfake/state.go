@@ -77,6 +77,7 @@ type state struct {
 	order           []string
 	disk            map[string]b2.Worker
 	receipts        map[string]*storedReceipt
+	receiptOrder    []string // command ids in the order their receipts were first recorded
 	settlements     []settlement
 	hostsLaunched   int
 	firstHost       map[string]*Host
@@ -192,6 +193,9 @@ func (s *state) run(workerID, commandID, op string, request any, validate func()
 	}}
 	if workerID != "" {
 		rec.WorkerId = ptr(workerID)
+	}
+	if prior == nil {
+		s.receiptOrder = append(s.receiptOrder, commandID)
 	}
 	s.receipts[commandID] = rec
 	gen := s.gen
@@ -788,9 +792,12 @@ func (s *state) resolve(id string, rv b2.Resolve) (*b2.Receipt, error) {
 		if rv.UncertainCommandId != nil {
 			uncertain = *rv.UncertainCommandId
 		} else {
-			for _, r := range s.receipts {
-				if derefString(r.WorkerId) == id && derefString(r.ExecutionId) == *rv.ExecutionId {
-					uncertain = r.CommandId
+			// The first receipt of this worker naming the execution, in recording order: the command that admitted it,
+			// never a steer that joined it later (fence.ts).
+			for _, cmd := range s.receiptOrder {
+				if r := s.receipts[cmd]; derefString(r.WorkerId) == id && derefString(r.ExecutionId) == *rv.ExecutionId {
+					uncertain = cmd
+					break
 				}
 			}
 			if uncertain == "" && w.row.Execution != nil && w.row.Execution.ExecutionId == *rv.ExecutionId {
