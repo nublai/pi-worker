@@ -1,12 +1,13 @@
 diff --git a/packages/worker/src/daemon.ts b/packages/worker/src/daemon.ts
-index b3f8968..91373b1 100644
+index eb6d312..5e755a1 100644
 --- a/packages/worker/src/daemon.ts
 +++ b/packages/worker/src/daemon.ts
-@@ -99,7 +99,7 @@ export async function runDaemon(containment: (installation: string) => Containme
-   // state shares its installation id and so its domain names, and is refused here, before its sweep could remove a
-   // domain this daemon's journal records (P2-2).
+@@ -103,7 +103,8 @@ export async function runDaemon(containment: (installation: string) => Containme
+   // references it, and a lock nothing references is closed by garbage collection while the daemon still runs.
+   let installation: FileLock;
    try {
--    holdInstallation(state.installation);
+-    installation = holdInstallation(state.installation, options.installationLocks);
++    installation = { release() {} };
 +    void holdInstallation;
    } catch (error) {
      if (!(error instanceof InstallationRefused)) throw error;

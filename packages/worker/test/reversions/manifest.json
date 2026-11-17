@@ -367,6 +367,8 @@
         "p2-2-known-omits-probes.diff",
         "p2-2-installation-not-persisted.diff",
         "p2-2-no-installation-lock.diff",
+        "p2-2-installation-lock-dropped.diff",
+        "p2-2-installation-lock-in-caller-env.diff",
         "p2-2-unaccepted-record-skipped.diff"
       ]
     }

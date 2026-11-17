@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/daemon.ts b/packages/worker/src/daemon.ts
+index eb6d312..b5d4a54 100644
+--- a/packages/worker/src/daemon.ts
++++ b/packages/worker/src/daemon.ts
+@@ -103,7 +103,8 @@ export async function runDaemon(containment: (installation: string) => Containme
+   // references it, and a lock nothing references is closed by garbage collection while the daemon still runs.
+   let installation: FileLock;
+   try {
+-    installation = holdInstallation(state.installation, options.installationLocks);
++    holdInstallation(state.installation, options.installationLocks);
++    installation = { release() {} };
+   } catch (error) {
+     if (!(error instanceof InstallationRefused)) throw error;
+     console.error(JSON.stringify({ event: 'refused', reason: error.code, installation: state.installation, detail: error.message }));

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
+index cac1dca..8083dfd 100644
+--- a/packages/worker/src/containment/containment.ts
++++ b/packages/worker/src/containment/containment.ts
+@@ -94,7 +94,7 @@ export class InstallationRefused extends Error {
+  * container, a script) would lock in different places and both run one installation (PR #23 Grok delta 2).
+  */
+ export function installationLocks(): string {
+-  return `/run/user/${process.geteuid!()}/pi-worker-installations`;
++  return `${process.env.XDG_RUNTIME_DIR || `/run/user/${process.geteuid!()}`}/pi-worker-installations`;
+ }
+ 
+ const owned0700 = (path: string): boolean => {
