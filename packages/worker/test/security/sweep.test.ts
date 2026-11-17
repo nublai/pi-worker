@@ -15,14 +15,14 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { CgroupContainment, checkDelegation, installationId, keeperUnit, openContainment, SweepUnproven, type Domain } from '../../src/containment/containment.js';
+import { CgroupContainment, checkDelegation, keeperUnit, openContainment, RecordedDomainRefused, SweepUnproven, type Domain } from '../../src/containment/containment.js';
 import { bootId, procInfo } from '../../src/host/process.js';
 import { parseJournal } from '../../src/journal/journal.js';
 import { openState } from '../../src/journal/state.js';
 import { ReceiptStore } from '../../src/receipts/receipts.js';
 import type { Worker } from '../../src/supervisor/state.js';
 import { Supervisor } from '../../src/supervisor/supervisor.js';
-import { privateTmp } from '../helpers.js';
+import { privateTmp, testInstallation } from '../helpers.js';
 import { TestDomains } from '../domains.js';
 import { fixture, Host, retire } from '../supervisor-fixture.js';
 
@@ -38,7 +38,7 @@ test('sweep: startup sweeps only the unknown domains of its own installation in 
     const elsewhere = join(tmp.dir, 'elsewhere');
     mkdirSync(own);
     mkdirSync(elsewhere);
-    const installation = installationId(tmp.dir);
+    const installation = testInstallation(tmp.dir);
     const ours = (n: string) => `w-${installation}-${n}`;
     const otherInstallation = `w-${'0'.repeat(20)}-orphan`;
     for (const dir of [ours('known'), ours('orphan'), ours('known-elsewhere'), 'not-a-worker', 'w-operator', otherInstallation]) mkdirSync(join(own, dir));
@@ -53,12 +53,24 @@ test('sweep: startup sweeps only the unknown domains of its own installation in 
       rmSync(join(domain.root, domain.name), { recursive: true });
       return true;
     };
-    const known: Domain[] = [
-      { root: own, name: ours('known'), boot: bootId() },
-      // A record of the same name in another delegation does not account for this one.
+    const known: Domain[] = [{ root: own, name: ours('known'), boot: bootId() }];
+    // A recorded domain of this boot that clean would refuse (another delegation, another installation's name) fails
+    // the sweep before anything is swept: recovery could never kill it, so the daemon must not listen with it running.
+    for (const refused of [
       { root: elsewhere, name: ours('known-elsewhere'), boot: bootId() },
-    ];
-    await jail.sweep(known);
+      { root: own, name: otherInstallation, boot: bootId() },
+    ]) {
+      await assert.rejects(jail.sweep([...known, refused]), (error: unknown) => {
+        assert.ok(error instanceof RecordedDomainRefused);
+        assert.equal(error.code, 'recorded_domain_not_cleanable');
+        assert.deepEqual(error.domains, [join(refused.root, refused.name)]);
+        return true;
+      });
+      assert.deepEqual(cleaned, [], 'nothing was swept');
+    }
+    // One of a previous boot is gone with that boot's cgroupfs: it refuses nothing. A record in another delegation
+    // never accounts for a same-named domain in this one.
+    await jail.sweep([...known, { root: elsewhere, name: ours('known-elsewhere'), boot: 'a-previous-boot' }]);
     assert.deepEqual(cleaned.sort(), [ours('known-elsewhere'), ours('orphan')], "only this installation's unrecorded domains are swept");
     assert.deepEqual(
       readdirSync(own).sort(),
@@ -126,8 +138,8 @@ test('sweep: a recorded domain recovery cannot prove gone leaves its worker clea
   const delegation = join(tmp.dir, 'delegation');
   mkdirSync(delegation);
   // A plain directory stands in for the delegation: no domain in it is ever observed gone (no cgroup.events).
-  const jail = () => new CgroupContainment(delegation, installationId(tmp.dir), 100);
   let state = openState(tmp.dir);
+  const jail = () => new CgroupContainment(delegation, state.installation, 100);
   const open = () =>
     new Supervisor({
       journal: state.journal,
@@ -149,7 +161,7 @@ test('sweep: a recorded domain recovery cannot prove gone leaves its worker clea
     assert.equal(made.state, 'delivered');
     const recorded = s.state.require(made.worker_id!).domain!;
     assert.ok(existsSync(join(delegation, recorded.name)));
-    const orphan = `w-${installationId(tmp.dir)}-orphan`;
+    const orphan = `w-${state.installation}-orphan`;
     mkdirSync(join(delegation, orphan));
     const restart = async () => {
       retire(s);
@@ -225,12 +237,13 @@ test('kernel: real startup sweeps orphaned domains, with a setsid grandchild, bu
   const b = join(tmp.dir, 'b');
   mkdirSync(a, { mode: 0o700 });
   mkdirSync(b, { mode: 0o700 });
-  const units = [keeperUnit(a), keeperUnit(b)];
-  const owned: { jail: CgroupContainment; domain: Domain }[] = [];
   const state = openState(a);
+  const installations = [state.installation, testInstallation(b)] as const;
+  const units = installations.map(keeperUnit);
+  const owned: { jail: CgroupContainment; domain: Domain }[] = [];
   try {
-    const jailA = openContainment(a, env);
-    const jailB = openContainment(b, env);
+    const jailA = openContainment(installations[0], env);
+    const jailB = openContainment(installations[1], env);
     assert.notEqual(jailA.root, jailB.root, 'each installation keeps its own delegated service');
     const orphan = await detachedIn(jailA, tmp.dir);
     owned.push({ jail: jailA, domain: orphan.domain });
@@ -272,11 +285,14 @@ test('kernel: real startup sweeps orphaned domains, with a setsid grandchild, bu
 
 const daemonMain = fileURLToPath(new URL('../../src/main.js', import.meta.url));
 
-/** Starts the production daemon on `stateDir` in the kernel tier's delegation; resolves when it listens or exits. */
+/**
+ * Starts the production daemon on `stateDir` in the kernel tier's delegation; resolves when it listens or exits. Its
+ * installation lock is in `dir` (its XDG_RUNTIME_DIR).
+ */
 async function startDaemon(dir: string, stateDir: string): Promise<{ child: ChildProcess; outcome: number | null | 'listening' | 'timeout'; stderr: () => string; socket: string }> {
   const socket = join(dir, 'run', 'b2.sock');
   const child = spawn(process.execPath, [daemonMain], {
-    env: { PATH: process.env.PATH, HOME: dir, PIW_SOCKET: socket, PIW_STATE_DIR: stateDir, PIW_CGROUP_ROOT: root },
+    env: { PATH: process.env.PATH, HOME: dir, XDG_RUNTIME_DIR: dir, PIW_SOCKET: socket, PIW_STATE_DIR: stateDir, PIW_CGROUP_ROOT: root },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   let stderr = '';
@@ -310,8 +326,12 @@ test("kernel: in an operator-shared delegation the daemon sweeps its own install
   mkdirSync(stateA, { mode: 0o700 });
   mkdirSync(stateB, { mode: 0o700 });
   const env = { ...process.env, PIW_CGROUP_ROOT: root };
-  const jailA = openContainment(stateA, env);
-  const jailB = openContainment(stateB, env);
+  // The daemon's installation: the one its state records (a first start creates it).
+  const opened = openState(stateA);
+  const installation = opened.installation;
+  opened.close();
+  const jailA = openContainment(installation, env);
+  const jailB = openContainment(testInstallation(stateB), env);
   assert.equal(jailA.root, jailB.root, 'both installations share the operator delegation');
   const operator = [join(jailA.root, `op-sweep-${process.pid}`), join(jailA.root, `w-operator-${process.pid}`)];
   const owned: { jail: CgroupContainment; domain: Domain }[] = [];
@@ -346,7 +366,10 @@ test('kernel: a sweep that cannot prove an unrecorded domain gone fails startup:
   const tmp = privateTmp();
   const stateDir = join(tmp.dir, 'state');
   mkdirSync(stateDir, { mode: 0o700 });
-  const stuck = join(checkDelegation(root), `w-${installationId(stateDir)}-stuck`);
+  const opened = openState(stateDir);
+  const installation = opened.installation;
+  opened.close();
+  const stuck = join(checkDelegation(root), `w-${installation}-stuck`);
   let daemon: ChildProcess | undefined;
   try {
     // An empty domain whose nested cgroup cannot be removed (its parent is not writable): never observed gone.
@@ -356,7 +379,7 @@ test('kernel: a sweep that cannot prove an unrecorded domain gone fails startup:
     daemon = started.child;
     assert.equal(started.outcome, 1, `the daemon must exit 1: ${started.stderr()}`);
     const refused = started.stderr().split('\n').filter(Boolean).map(l => JSON.parse(l) as { event: string; reason?: string; domains?: string[] }).find(e => e.event === 'refused');
-    assert.deepEqual([refused?.reason, refused?.domains], ['orphan_cleanup_unproven', [`w-${installationId(stateDir)}-stuck`]]);
+    assert.deepEqual([refused?.reason, refused?.domains], ['orphan_cleanup_unproven', [`w-${installation}-stuck`]]);
     assert.equal(started.stderr().includes('"listening"'), false);
     assert.equal(existsSync(started.socket), false, 'no socket');
     assert.ok(existsSync(stuck), 'the unproven domain is left in place, not reported gone');

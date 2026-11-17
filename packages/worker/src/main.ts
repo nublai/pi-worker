@@ -6,4 +6,4 @@
 import { openContainment } from './containment/containment.js';
 import { runDaemon } from './daemon.js';
 
-await runDaemon(stateDir => openContainment(stateDir));
+await runDaemon(installation => openContainment(installation));
