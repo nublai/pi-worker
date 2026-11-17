@@ -70,7 +70,7 @@ func TestBridgeJourneyAgainstTheStatefulFake(t *testing.T) {
 	}
 
 	// A dialog is answered once, at its current revision.
-	in, err := fake.OpenInteraction(w.WorkerId, b2.Interaction{Kind: "select", Title: ptr("Pick one"), Options: &[]b2.InteractionOption{{OptionId: "a", Label: "A"}}})
+	in, err := fake.OpenInteraction(w.WorkerId, b2.Interaction{Kind: "select", Title: ptr("Pick one"), Options: &[]b2.InteractionOption{{Label: "A"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,10 +78,10 @@ func TestBridgeJourneyAgainstTheStatefulFake(t *testing.T) {
 	if err != nil || len(list) != 1 || list[0].InteractionId != in.InteractionId {
 		t.Fatalf("list %+v %v", list, err)
 	}
-	answer := b2.Answer{CommandId: "ans-cmd-1", AnswerId: "ans-1", InteractionId: in.InteractionId, Revision: in.Revision, Kind: "select", Outcome: "answer", OptionId: ptr("a"), WorkerEpoch: w.WorkerEpoch, SessionId: *w.SessionId, BindingRevision: 1, Actor: ptr("device-1")}
+	answer := b2.Answer{CommandId: "ans-cmd-1", AnswerId: "ans-1", InteractionId: in.InteractionId, Revision: in.Revision, Kind: "select", Outcome: "answer", OptionId: ptr("0"), WorkerEpoch: w.WorkerEpoch, SessionId: *w.SessionId, BindingRevision: 1, Actor: ptr("device-1")}
 	stale := answer
 	stale.CommandId, stale.Revision = "ans-cmd-0", in.Revision+1
-	if _, err := c.InteractionsAnswerIfCurrent(ctx, w.WorkerId, stale); !isRefusal(err, http.StatusConflict, "interaction_revision_not_current") {
+	if _, err := c.InteractionsAnswerIfCurrent(ctx, w.WorkerId, stale); !isRefusal(err, http.StatusConflict, "stale_interaction") {
 		t.Fatalf("stale revision: %v", err)
 	}
 	ar, err := c.InteractionsAnswerIfCurrent(ctx, w.WorkerId, answer)
@@ -89,7 +89,7 @@ func TestBridgeJourneyAgainstTheStatefulFake(t *testing.T) {
 		t.Fatalf("answer %+v %v", ar, err)
 	}
 	st, err := c.InteractionsStatus(ctx, w.WorkerId, b2.InteractionsStatusParams{InteractionId: in.InteractionId})
-	if err != nil || st.Status != "answered" || *st.AnswerCommandId != "ans-cmd-1" {
+	if err != nil || st.Status != "consumed" || *st.AnswerCommandId != "ans-cmd-1" {
 		t.Fatalf("status %+v %v", st, err)
 	}
 

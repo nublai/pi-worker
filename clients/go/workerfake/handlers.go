@@ -2,7 +2,6 @@ package workerfake
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/nublai/pi-worker/clients/go/b2"
 )
@@ -175,107 +174,4 @@ func receiptsGet(s *state, c *call) (any, error) {
 		return nil, refuse("unknown_command_id_is_not_proof_of_no_effect").unknown()
 	}
 	return r.Receipt, nil
-}
-
-// --- interactions ---
-
-// OpenInteraction opens a dialog on a worker as pi would (fixture control): it fills the worker, binding and
-// bookkeeping fields, adds the interaction to the row and publishes interactions.changed. Kind, title, options and
-// prefill come from in; InteractionId and Revision default to a new id and 1.
-func (f *Fake) OpenInteraction(workerID string, in b2.Interaction) (b2.Interaction, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	s := f.st
-	w, err := s.require(workerID)
-	if err != nil {
-		return b2.Interaction{}, err
-	}
-	if in.InteractionId == "" {
-		in.InteractionId = s.id("int")
-	}
-	if in.Revision == 0 {
-		in.Revision = 1
-	}
-	if in.NativeId == "" {
-		in.NativeId = s.id("native")
-	}
-	if in.Deadline == 0 {
-		in.Deadline = int(time.Now().Add(10 * time.Minute).UnixMilli())
-	}
-	if in.Source == "" {
-		in.Source = "pi.extension_ui"
-	}
-	in.WorkerId, in.WorkerEpoch, in.SessionId, in.BindingRevision = workerID, w.row.WorkerEpoch, w.row.SessionId, w.row.BindingRevision
-	in.Status, in.Evidence, in.PayloadEvidence = "pending", "supervisor_journal_fsynced", ptr(b2.InteractionPayloadEvidence("observed_memory"))
-	w.interactions = append(w.interactions, in)
-	s.persist(w)
-	s.publishInteractions(w)
-	return in, nil
-}
-
-func interactionsList(s *state, c *call) (any, error) {
-	w, err := s.require(c.path["worker_id"])
-	if err != nil {
-		return nil, err
-	}
-	out := b2.Interactions{}
-	return append(out, w.interactions...), nil
-}
-
-func interactionsStatus(s *state, c *call) (any, error) {
-	w, err := s.require(c.path["worker_id"])
-	if err != nil {
-		return nil, err
-	}
-	id := c.query.Get("interaction_id")
-	for _, in := range w.interactions {
-		if in.InteractionId == id {
-			return in, nil
-		}
-	}
-	if in, ok := w.answered[id]; ok {
-		return in, nil
-	}
-	return nil, refuse("unknown_interaction")
-}
-
-func answer(s *state, c *call, a b2.Answer) (any, error) {
-	id := c.path["worker_id"]
-	var w *worker
-	index := -1
-	return s.run(id, a.CommandId, "interactions.answer_if_current", map[string]any{"body": a, "worker_id": id}, func() error {
-		var err error
-		if w, err = s.require(id); err != nil {
-			return err
-		}
-		if err := all(func() error { return binding(w, a.WorkerEpoch, a.SessionId, a.BindingRevision) }, func() error { return writable(w) }); err != nil {
-			return err
-		}
-		for i, in := range w.interactions {
-			if in.InteractionId == a.InteractionId {
-				index = i
-			}
-		}
-		switch {
-		case index < 0:
-			return refuse("interaction_not_current")
-		case w.interactions[index].Revision != a.Revision:
-			return refuse("interaction_revision_not_current")
-		case w.interactions[index].Kind != a.Kind:
-			return refuse("interaction_kind_mismatch")
-		}
-		return nil
-	}, func(r *b2.Receipt) error {
-		dispatch(r)
-		in := w.interactions[index]
-		w.interactions = append(w.interactions[:index:index], w.interactions[index+1:]...)
-		in.Status, in.AnswerId, in.AnswerCommandId, in.AnswerStage = "answered", &a.AnswerId, &a.CommandId, ptr(3)
-		in.Outcome, in.Actor = ptr(string(a.Outcome)), a.Actor
-		w.answered[in.InteractionId] = in
-		s.persist(w)
-		s.publishInteractions(w)
-		deliver(r, "resolver_consumed", nil)
-		r.AnswerStage = ptr(3)
-		return nil
-	})
 }

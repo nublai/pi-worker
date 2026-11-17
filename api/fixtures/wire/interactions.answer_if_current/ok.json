@@ -13,7 +13,7 @@
       "revision": 1,
       "kind": "select",
       "outcome": "answer",
-      "option_id": "opt-a",
+      "option_id": "0",
       "actor": "device-1"
     }
   },
@@ -29,7 +29,13 @@
       "evidence": "supervisor_journal_fsynced",
       "created_at": "2026-11-16T04:30:00Z",
       "worker_id": "worker-1",
-      "answer_stage": 3
+      "answer_stage": 3,
+      "result": {
+        "interaction_id": "int-1",
+        "answer_id": "ans-1",
+        "outcome": "answered",
+        "resolver_consumed": true
+      }
     }
   }
 }

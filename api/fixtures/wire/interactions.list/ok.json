@@ -24,11 +24,11 @@
         "title": "Pick one",
         "options": [
           {
-            "option_id": "opt-a",
+            "option_id": "0",
             "label": "A"
           },
           {
-            "option_id": "opt-b",
+            "option_id": "1",
             "label": "B"
           }
         ]

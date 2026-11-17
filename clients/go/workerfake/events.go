@@ -59,10 +59,7 @@ func (s *state) publish(eventType, workerID string, executionID *string, evidenc
 }
 
 func (s *state) publishInteractions(w *worker) {
-	list := w.interactions
-	if list == nil {
-		list = []b2.Interaction{}
-	}
+	list := pending(w)
 	s.publish("interactions.changed", w.row.WorkerId, executionOf(w), "observed_memory", map[string]any{"interactions": list})
 }
 
