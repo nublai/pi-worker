@@ -1863,11 +1863,16 @@ type Limits struct {
 	// EventFrameBytes The most bytes one `events.subscribe` SSE record may carry.
 	EventFrameBytes int `json:"event_frame_bytes"`
 
-	// JournalControlReserveBytes Journal room only quota-exempt commands may use (`workers.stop`,
-	// `executions.cancel`, `executions.interrupt`,
-	// `sessions.resolve_unknown`, `children.report`): an ordinary command
-	// is refused `journal_result_capacity` (`no_effect`) before it reaches
-	// this reserve.
+	// JournalControlReserveBytes Journal room only control records may use: quota-exempt commands
+	// (`workers.stop`, `executions.cancel`, `executions.interrupt`,
+	// `sessions.resolve_unknown`, `children.report`) and stop, exit,
+	// fault, fence and recovery records. Before dispatch, an ordinary
+	// command reserves room for every record it can emit (its receipts,
+	// and its worker's rows, settlements and interactions); it is refused
+	// `journal_result_capacity` (`no_effect`) when that room would reach
+	// this reserve or the room every worker that may still be stopped
+	// needs for its own stop and exit records. An ordinary record never
+	// uses either.
 	JournalControlReserveBytes int `json:"journal_control_reserve_bytes"`
 
 	// JournalMaxBytes The supervisor journal never grows past this many bytes. Compaction

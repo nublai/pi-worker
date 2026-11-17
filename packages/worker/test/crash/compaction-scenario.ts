@@ -1,5 +1,5 @@
 /**
- * The compaction crash scenario (P1-12): a supervisor under tight retention (`world.json`: 12 receipts, a 64 KiB
+ * The compaction crash scenario (P1-12): a supervisor under tight retention (`world.json`: 12 receipts, a 256 KiB
  * journal, no minimum age) runs enough commands that count- and byte-triggered compactions evict delivered receipts
  * while a fenced `outcome_unknown`, a resolved one, quota-exempt controls and an untyped child with no report stay
  * where retention must keep them. A reuse of an evicted command id is refused `receipt_expired`. Then a restart.
@@ -13,7 +13,7 @@ import { bind, tick } from '../supervisor-fixture.js';
 import { createIn } from './lifecycle-scenario.js';
 import { openWorld, type World, type WorldLimits } from './world.js';
 
-export const COMPACTION_LIMITS: WorldLimits = { journalBytes: 64 * 1024, controlReserveBytes: 8 * 1024, receipts: 12, minAgeMs: 0, expiredIds: 256 };
+export const COMPACTION_LIMITS: WorldLimits = { journalBytes: 256 * 1024, controlReserveBytes: 8 * 1024, receipts: 12, minAgeMs: 0, expiredIds: 256 };
 
 async function settle(world: World, host: number): Promise<void> {
   world.hosts[host]!.emit('event', { type: 'agent_settled' });

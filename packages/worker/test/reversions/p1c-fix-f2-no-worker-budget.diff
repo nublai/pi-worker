@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
+--- a/packages/worker/src/supervisor/state.ts
++++ b/packages/worker/src/supervisor/state.ts
+@@ -137,7 +137,7 @@
+       this.workers.set(persisted.worker.worker_id, { ...persisted, index: new SessionIndex(persisted.sessionFile), completedMessages: 0 });
+       this.rowSize.set(persisted.worker.worker_id, recordBytes(record.value));
+     }
+-    receipts.budget = (operation, request) => this.budget(operation, request);
++    receipts.budget = () => null;
+     journal.controlRoom = () => this.controlRoom();
+   }
+ 

@@ -164,7 +164,10 @@
         "p1-12-young-receipt-evicted.diff",
         "p1-12-stray-copy-kept.diff",
         "p1c-fix-f1-forgotten-id-runs-again.diff",
-        "p1c-fix-f1-rollover-forgets.diff"
+        "p1c-fix-f1-rollover-forgets.diff",
+        "p1c-fix-f2-ordinary-record-spends-reserve.diff",
+        "p1c-fix-f2-no-worker-budget.diff",
+        "p1c-fix-f2-no-control-room.diff"
       ]
     },
     "compaction": {

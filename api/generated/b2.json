@@ -1650,7 +1650,7 @@
           "journal_control_reserve_bytes": {
             "type": "integer",
             "minimum": 0,
-            "description": "Journal room only quota-exempt commands may use (`workers.stop`,\n`executions.cancel`, `executions.interrupt`,\n`sessions.resolve_unknown`, `children.report`): an ordinary command\nis refused `journal_result_capacity` (`no_effect`) before it reaches\nthis reserve.\n"
+            "description": "Journal room only control records may use: quota-exempt commands\n(`workers.stop`, `executions.cancel`, `executions.interrupt`,\n`sessions.resolve_unknown`, `children.report`) and stop, exit,\nfault, fence and recovery records. Before dispatch, an ordinary\ncommand reserves room for every record it can emit (its receipts,\nand its worker's rows, settlements and interactions); it is refused\n`journal_result_capacity` (`no_effect`) when that room would reach\nthis reserve or the room every worker that may still be stopped\nneeds for its own stop and exit records. An ordinary record never\nuses either.\n"
           },
           "receipts_max": {
             "type": "integer",
