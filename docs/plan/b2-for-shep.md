@@ -148,7 +148,10 @@ only), `workers.relaunch` (owner CLI until Shep asks for it), `sessions.steer`, 
 HTTP). Adding one is a profile change in the spec, reviewed like any other.
 
 **Check.** A closure test (P1-17) fails if a method in this table has no route or wire fixture, if the `bridge`
-profile misses a method in this table, or if the profile names a method outside it.
+profile misses a method in this table, or if the profile names a method outside it. The profile is
+`info.x-piw-grant-profiles.bridge` in the spec (`b2.GrantProfiles["bridge"]` in Go); `tools/codegen/check-profiles.mjs`
+(in `npm run api:lint`) compares it with this table, and `clients/go/workerfake/closure_test.go` proves each method is
+routed, has wire fixtures that round-trip through its typed Go call, and is answered by the Go fake.
 
 ## 3. Events, reconnect and snapshot
 
