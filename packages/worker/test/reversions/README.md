@@ -171,8 +171,11 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `pr19-grant-any-owner.diff` | the grant is owned by the client's effective UID (PR #19) | `TestGrantOwnerPolicy` (group `go-b2-auth`) |
 | `pr19-grant-uncapped.diff` | the grant read is capped at 64 KiB (PR #19) | `TestGrantFileRefusals/oversize`, `TestGrantFileLimitAndHardLinks` (group `go-b2-auth`) |
 | `pr19-peer-any-uid.diff` | the socket peer's UID is checked before the first write (PR #19) | `TestPeerNotOwnerRefusedBeforeWrite` (group `go-b2-auth`) |
+| `pr19-grant-blocking-open.diff` | the grant opens with `O_NONBLOCK`, so a writerless FIFO is refused by the mode check instead of blocking the open (PR #19 GPT 1) | `TestGrantFileRefusals/fifo` (its one-second deadline) (group `go-b2-auth`) |
+| `pr19-peer-xucred-any-layout.diff` | darwin `LOCAL_PEERCRED` accepts the UID only from a `struct xucred` of the expected size and version 0 (PR #19 GPT 1) | `TestXucredLayout/size-*`, `/version-*`, `/both-wrong` (group `go-b2-auth`) |
 
 The `go-b2-auth` group runs `go test ./b2/` in `clients/go` and turns each `--- FAIL: <name>` line into the `✖ <name>`
 line the runner counts, so a Go build error stays `failed_without_assertion`. The darwin `LOCAL_PEERCRED` layout
-check in `peercred_darwin.go` has no reversion: that file builds only for darwin, so no Linux test can run it, and CI
-only vets it (`GOOS=darwin go vet`).
+check lives in the platform-neutral `peercred_xucred.go` (`xucredUID`), which `peercred_darwin.go` calls after the
+syscall, so its boundary tests and reversion run on Linux; CI only vets the darwin syscall wrapper itself
+(`GOOS=darwin go vet`).
