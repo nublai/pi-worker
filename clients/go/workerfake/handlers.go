@@ -153,8 +153,12 @@ func configure(s *state, c *call, b b2.Configure) (any, error) {
 	})
 }
 
+// compact, like reload, cancels every live dialog at its resolver before pi compacts (session-commands.ts).
 func compact(s *state, c *call, b b2.Compact) (any, error) {
-	return s.sessionWrite(c.path["worker_id"], "sessions.compact", b.CommandId, b.WorkerEpoch, b.SessionId, b.BindingRevision, b, func(*worker) map[string]any { return okResult("sessions.compact") })
+	return s.sessionWrite(c.path["worker_id"], "sessions.compact", b.CommandId, b.WorkerEpoch, b.SessionId, b.BindingRevision, b, func(w *worker) map[string]any {
+		s.interrupt(w)
+		return okResult("sessions.compact")
+	})
 }
 
 func reload(s *state, c *call, b b2.Binding) (any, error) {
