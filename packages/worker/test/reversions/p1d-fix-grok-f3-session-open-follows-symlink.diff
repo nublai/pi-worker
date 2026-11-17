@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
+index 0af7abe..a93c81b 100644
+--- a/packages/worker/src/history/session-file.ts
++++ b/packages/worker/src/history/session-file.ts
+@@ -35,7 +35,7 @@ const sha256 = (data: Buffer | string) => createHash('sha256').update(data).dige
+  * to a root for sandboxed workers.
+  */
+ export function openSessionFile(file: string): number {
+-  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
++  const fd = openSync(file, constants.O_RDONLY | constants.O_NONBLOCK);
+   if (!fstatSync(fd).isFile()) {
+     closeSync(fd);
+     throw Object.assign(new Error('session file is not a regular file'), { code: 'ENOTREG' });

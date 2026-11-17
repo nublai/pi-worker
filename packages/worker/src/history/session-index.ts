@@ -6,8 +6,9 @@
  * Pi appends entries and its leaf is the newest entry; the visible path is the parentId chain
  * from a pinned watermark back to the root, which later appends never change.
  */
-import { closeSync, fstatSync, openSync, readSync } from "node:fs";
+import { closeSync, fstatSync, readSync } from "node:fs";
 import type { components } from "../generated/api.js";
+import { openSessionFile } from "./session-file.js";
 
 export type HistoryCursor = components["schemas"]["HistoryCursor"];
 export type HistoryPage = components["schemas"]["HistoryPage"];
@@ -59,8 +60,9 @@ export class SessionIndex {
     this.rawLimit = rawLimit;
   }
 
+  /** Never through a symlink at the path, and only a regular file (see `openSessionFile`). */
   private openFile(): number {
-    return openSync(this.file!, 'r');
+    return openSessionFile(this.file!);
   }
 
   /** pi's selected leaf (memory): it may run ahead of the file, which pi writes only once there is a conversation. */

@@ -6,7 +6,9 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync, chmodSync, mkdirSync, readFileSync, renameSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { jpegBytes } from './images.js';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { Client, ClientFailure } from '@nublai/pi-worker-client';
@@ -343,6 +345,42 @@ test('inventory: a user message with four photos over the summary line limit sti
     assert.equal(row.last_activity_at, '2026-11-16T01:00:09.000Z');
     const worker = f.supervisor.get(w.worker_id);
     assert.deepEqual([worker.preview, worker.last_activity_at], ['four photos of the bug', '2026-11-16T01:00:09.000Z'], 'the worker row too');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('inventory: a symlink at the catalog path is never followed: sessions.history is 409 session_file_not_regular, the summary and blobs.read see nothing of its target', async () => {
+  const f = fixture();
+  try {
+    const { memory } = api(f);
+    const w = await f.create();
+    const file = f.supervisor.state.require(w.worker_id).sessionFile!;
+    appendFileSync(file, user('u1', null, 'own text', '2026-11-16T01:00:00.000Z'));
+    // Another session file, with an image entry, that a writer in the supervisor's uid links in place of the catalog path.
+    const other = join(f.dir, 'other.jsonl');
+    const image = jpegBytes(64);
+    writeFileSync(
+      other,
+      `${JSON.stringify({ type: 'session', id: w.session_id, version: 3 })}\n` +
+        at('2026-11-16T02:00:00.000Z', { type: 'message', id: 'o1', parentId: null, message: { role: 'user', content: [{ type: 'text', text: 'OTHER-SESSION-SECRET' }, { type: 'image', data: image.toString('base64'), mimeType: 'image/jpeg' }] } }),
+    );
+    rmSync(file);
+    symlinkSync(other, file);
+    const r = await history(memory, w.session_id!);
+    assert.deepEqual([r.status, r.body], [409, { error: 'session_file_not_regular', effect: 'no_effect' }], 'a symlink at the catalog path is refused, not followed');
+    const row = await memory.request('GET', `/b2/sessions/${w.session_id}`);
+    assert.equal(row.status, 200, JSON.stringify(row.body));
+    assert.equal(JSON.stringify(row.body).includes('OTHER-SESSION-SECRET'), false, 'the summary never reads the target');
+    assert.equal((row.body as { preview: string | null }).preview, null);
+    const blob = await memory.request('GET', `/b2/sessions/${w.session_id}/entries/o1/blobs/0`);
+    assert.notEqual(blob.status, 200, 'blobs.read never serves the target');
+    assert.equal(Buffer.isBuffer(blob.body) && (blob.body as Buffer).equals(image), false);
+    // A FIFO there is refused too, without blocking the supervisor.
+    rmSync(file);
+    execFileSync('mkfifo', [file]);
+    const fifo = await history(memory, w.session_id!);
+    assert.deepEqual([fifo.status, fifo.body], [409, { error: 'session_file_not_regular', effect: 'no_effect' }], 'a FIFO at the catalog path is refused');
   } finally {
     f.cleanup();
   }
