@@ -8,7 +8,14 @@
 # (Ubuntu 24.04: kernel.apparmor_restrict_unprivileged_userns=0 or a bwrap AppArmor profile), and `npm run build`.
 # Fails, naming the reason, on a missing prerequisite, any failing, skipped or todo test, zero tests, or a piw-*
 # unit left behind. Prints the platform (kernel, bwrap, systemd, controllers) first.
+#
+# Usage: harness/ci/kernel.sh [-- <word>...]. Each word selects the security test files whose stem it names (as
+# tools/node-test.mjs does), e.g. `harness/ci/kernel.sh -- containment`; without words every security test runs.
 set -euo pipefail
+
+[ "${1:-}" = -- ] && shift
+filter="$*"
+case "$filter" in *[!A-Za-z0-9_.\ -]*) echo "kernel: filter words may use only letters, digits, '.', '_' and '-'" >&2; exit 2 ;; esac
 
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$repo"
@@ -39,15 +46,15 @@ say "platform: kernel.apparmor_restrict_unprivileged_userns=$(sysctl -n kernel.a
 unit="piw-kernel-$(date +%s)-$$"
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
-say "unit: $unit (Delegate=yes)"
+say "unit: $unit (Delegate=yes)${filter:+; files: $filter}"
 set +e
 systemd-run --user --pipe --wait --collect --quiet --unit="$unit" -p Delegate=yes \
   --working-directory="$repo" --setenv=PATH="$PATH" --setenv=HOME="$HOME" --setenv=TMPDIR="${TMPDIR:-/tmp}" \
-  --setenv=PIW_TEST_KERNEL=1 \
+  --setenv=PIW_TEST_KERNEL=1 --setenv=PIW_KERNEL_FILTER="$filter" \
   /bin/sh -c 'cg=/sys/fs/cgroup$(sed -n "s/^0:://p" /proc/self/cgroup)
     mkdir "$cg/runner" && echo 0 > "$cg/runner/cgroup.procs" || { echo "kernel: cannot enter $cg/runner" >&2; exit 125; }
     export PIW_CGROUP_ROOT="$cg"
-    exec node tools/node-test.mjs "packages/worker/dist/test/security/**/*.test.js"' 2>&1 | tee "$log"
+    exec node tools/node-test.mjs "packages/worker/dist/test/security/**/*.test.js" $PIW_KERNEL_FILTER' 2>&1 | tee "$log"
 status=${PIPESTATUS[0]}
 set -e
 
