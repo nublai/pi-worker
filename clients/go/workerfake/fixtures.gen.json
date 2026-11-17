@@ -689,6 +689,7 @@
         "fence": {
          "command_id": "cmd-2",
          "fence_generation": 1,
+         "fenced_at": "2026-11-17T09:00:00.000Z",
          "uncertain_command_ids": [
           "cmd-2"
          ]

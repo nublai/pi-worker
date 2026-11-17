@@ -266,6 +266,35 @@ test('events: fence.set names each uncertain command once it is durable; a row w
   }
 });
 
+test('fence: fenced_at is the latch time on the receipts clock, in the row and fence.set, set once and kept through a restart', async () => {
+  const f = fixture();
+  try {
+    const w = await f.create();
+    const events = watch(f, w);
+    const latchedAt = Date.parse('2026-11-17T09:00:00.000Z');
+    f.supervisor.state.receipts.now = () => latchedAt;
+    f.hosts[0]!.failure = true;
+    const lost = await f.supervisor.prompt(w.worker_id, { ...bind(w, 'lost'), message: 'run' });
+    assert.equal(lost.state, 'outcome_unknown');
+    // Later rows (a refused write, a cancel) are written at a later time and never move it.
+    f.supervisor.state.receipts.now = () => latchedAt + 60_000;
+    const fenced = f.supervisor.get(w.worker_id);
+    await f.supervisor.control(w.worker_id, { ...bind(fenced, 'cancel') }, false);
+    events.close();
+    const expected = '2026-11-17T09:00:00.000Z';
+    assert.equal(f.supervisor.get(w.worker_id).fence?.fenced_at, expected);
+    const sets = events.of('fence.set');
+    assert.equal(sets.length, 1);
+    assert.equal(sets[0]!.data.fence.fenced_at, expected);
+    const rows = f.state.journal.records.filter(r => r.kind === 'worker').map(r => (r.value as { worker: Worker }).worker);
+    assert.ok(rows.some(x => x.fence?.fenced_at === expected), 'the fence row is journaled with fenced_at');
+    await f.restart();
+    assert.equal(f.supervisor.get(w.worker_id).fence?.fenced_at, expected, 'a restart keeps fenced_at');
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('events: attachment.updated follows the attachment record from staged to released, durable', async () => {
   const f = fixture();
   try {

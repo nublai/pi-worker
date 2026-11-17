@@ -1396,7 +1396,7 @@ return errors === 0;
 }
 validate82.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
-const schema35 = {"$id":"urn:piw:schema:Fence","type":"object","additionalProperties":false,"required":["command_id","fence_generation"],"properties":{"command_id":{"$ref":"urn:piw:schema:Id"},"fence_generation":{"type":"integer","minimum":1},"uncertain_command_ids":{"type":"array","items":{"$ref":"urn:piw:schema:Id"}}}};
+const schema35 = {"$id":"urn:piw:schema:Fence","type":"object","additionalProperties":false,"required":["command_id","fence_generation","fenced_at"],"properties":{"command_id":{"$ref":"urn:piw:schema:Id"},"fence_generation":{"type":"integer","minimum":1},"fenced_at":{"type":"string","minLength":1,"maxLength":64,"description":"RFC 3339 time the worker latched this fence in its journal: the fence record's own timestamp, on the clock of receipt `created_at`. Set once; a later uncertainty or a partial resolution never changes it, and a restart keeps it."},"uncertain_command_ids":{"type":"array","items":{"$ref":"urn:piw:schema:Id"}}}};
 
 function validate86(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="urn:piw:schema:Fence" */;
@@ -1412,14 +1412,14 @@ evaluated0.items = undefined;
 if(errors === 0){
 if(data && typeof data == "object" && !Array.isArray(data)){
 let missing0;
-if(((data.command_id === undefined) && (missing0 = "command_id")) || ((data.fence_generation === undefined) && (missing0 = "fence_generation"))){
+if((((data.command_id === undefined) && (missing0 = "command_id")) || ((data.fence_generation === undefined) && (missing0 = "fence_generation"))) || ((data.fenced_at === undefined) && (missing0 = "fenced_at"))){
 validate86.errors = [{instancePath,schemaPath:"#/required",keyword:"required",params:{missingProperty: missing0},message:"must have required property '"+missing0+"'"}];
 return false;
 }
 else {
 const _errs1 = errors;
 for(const key0 in data){
-if(!(((key0 === "command_id") || (key0 === "fence_generation")) || (key0 === "uncertain_command_ids"))){
+if(!((((key0 === "command_id") || (key0 === "fence_generation")) || (key0 === "fenced_at")) || (key0 === "uncertain_command_ids"))){
 validate86.errors = [{instancePath,schemaPath:"#/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
 return false;
 break;
@@ -1459,20 +1459,47 @@ else {
 var valid0 = true;
 }
 if(valid0){
-if(data.uncertain_command_ids !== undefined){
-let data2 = data.uncertain_command_ids;
+if(data.fenced_at !== undefined){
+let data2 = data.fenced_at;
 const _errs5 = errors;
 if(errors === _errs5){
-if(Array.isArray(data2)){
-var valid1 = true;
-const len0 = data2.length;
-for(let i0=0; i0<len0; i0++){
+if(typeof data2 === "string"){
+if(func1(data2) > 64){
+validate86.errors = [{instancePath:instancePath+"/fenced_at",schemaPath:"#/properties/fenced_at/maxLength",keyword:"maxLength",params:{limit: 64},message:"must NOT have more than 64 characters"}];
+return false;
+}
+else {
+if(func1(data2) < 1){
+validate86.errors = [{instancePath:instancePath+"/fenced_at",schemaPath:"#/properties/fenced_at/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"}];
+return false;
+}
+}
+}
+else {
+validate86.errors = [{instancePath:instancePath+"/fenced_at",schemaPath:"#/properties/fenced_at/type",keyword:"type",params:{type: "string"},message:"must be string"}];
+return false;
+}
+}
+var valid0 = _errs5 === errors;
+}
+else {
+var valid0 = true;
+}
+if(valid0){
+if(data.uncertain_command_ids !== undefined){
+let data3 = data.uncertain_command_ids;
 const _errs7 = errors;
-if(!(validate57(data2[i0], {instancePath:instancePath+"/uncertain_command_ids/" + i0,parentData:data2,parentDataProperty:i0,rootData,dynamicAnchors}))){
+if(errors === _errs7){
+if(Array.isArray(data3)){
+var valid1 = true;
+const len0 = data3.length;
+for(let i0=0; i0<len0; i0++){
+const _errs9 = errors;
+if(!(validate57(data3[i0], {instancePath:instancePath+"/uncertain_command_ids/" + i0,parentData:data3,parentDataProperty:i0,rootData,dynamicAnchors}))){
 vErrors = vErrors === null ? validate57.errors : vErrors.concat(validate57.errors);
 errors = vErrors.length;
 }
-var valid1 = _errs7 === errors;
+var valid1 = _errs9 === errors;
 if(!valid1){
 break;
 }
@@ -1483,10 +1510,11 @@ validate86.errors = [{instancePath:instancePath+"/uncertain_command_ids",schemaP
 return false;
 }
 }
-var valid0 = _errs5 === errors;
+var valid0 = _errs7 === errors;
 }
 else {
 var valid0 = true;
+}
 }
 }
 }
@@ -24943,7 +24971,7 @@ validate958.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false}
 
 export const event_FenceSetEvent = validate966;
 const schema390 = {"$id":"urn:piw:validator:event_FenceSetEvent","$ref":"urn:piw:schema:FenceSetEvent"};
-const schema391 = {"$id":"urn:piw:schema:FenceSetEvent","type":"object","additionalProperties":false,"description":"An uncertain command joined the worker's fence (the fence latched or its generation rose), after the fenced row was journaled. Session writes are refused until `sessions.resolve_unknown`.","x-piw-event":{"type":"fence.set","producer":"supervisor","durability":"journal","visibility":"worker"},"required":["type","cursor","event_id","producer","execution_id","evidence","worker_id","data"],"properties":{"type":{"type":"string","const":"fence.set"},"cursor":{"$ref":"urn:piw:schema:Cursor"},"event_id":{"$ref":"urn:piw:schema:Id"},"producer":{"$ref":"urn:piw:schema:Producer"},"execution_id":{"type":["string","null"],"minLength":1,"maxLength":128,"description":"The uncertain execution, when the uncertain command is the worker's execution."},"evidence":{"type":"string","const":"supervisor_journal_fsynced"},"worker_id":{"$ref":"urn:piw:schema:Id"},"data":{"type":"object","additionalProperties":false,"required":["command_id","fence_generation","fence"],"properties":{"command_id":{"$ref":"urn:piw:schema:Id","description":"The uncertain command that joined the fence."},"fence_generation":{"type":"integer","minimum":1},"fence":{"$ref":"urn:piw:schema:Fence"}}}}};
+const schema391 = {"$id":"urn:piw:schema:FenceSetEvent","type":"object","additionalProperties":false,"description":"An uncertain command joined the worker's fence (the fence latched or its generation rose), after the fenced row was journaled. Session writes are refused until `sessions.resolve_unknown`. `fence.fenced_at` is when the fence first latched, not when this command joined it.","x-piw-event":{"type":"fence.set","producer":"supervisor","durability":"journal","visibility":"worker"},"required":["type","cursor","event_id","producer","execution_id","evidence","worker_id","data"],"properties":{"type":{"type":"string","const":"fence.set"},"cursor":{"$ref":"urn:piw:schema:Cursor"},"event_id":{"$ref":"urn:piw:schema:Id"},"producer":{"$ref":"urn:piw:schema:Producer"},"execution_id":{"type":["string","null"],"minLength":1,"maxLength":128,"description":"The uncertain execution, when the uncertain command is the worker's execution."},"evidence":{"type":"string","const":"supervisor_journal_fsynced"},"worker_id":{"$ref":"urn:piw:schema:Id"},"data":{"type":"object","additionalProperties":false,"required":["command_id","fence_generation","fence"],"properties":{"command_id":{"$ref":"urn:piw:schema:Id","description":"The uncertain command that joined the fence."},"fence_generation":{"type":"integer","minimum":1},"fence":{"$ref":"urn:piw:schema:Fence"}}}}};
 
 function validate967(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="urn:piw:schema:FenceSetEvent" */;
