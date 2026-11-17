@@ -1,0 +1,25 @@
+{
+  "name": "@nublai/pi-worker-cli",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "pi-worker operator CLI: one command per B2 operation over @nublai/pi-worker-client, plus local grant registration",
+  "engines": {
+    "node": ">=26.12.1"
+  },
+  "bin": {
+    "pi-worker": "dist/src/main.js"
+  },
+  "files": [
+    "dist/src"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json && chmod +x dist/src/main.js",
+    "test": "npm run build && node ../../tools/node-test.mjs 'dist/test/**/*.test.js'"
+  },
+  "dependencies": {
+    "@nublai/pi-worker": "0.0.0",
+    "@nublai/pi-worker-client": "0.0.0"
+  }
+}
