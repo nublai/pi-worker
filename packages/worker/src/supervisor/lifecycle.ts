@@ -16,7 +16,8 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { Refusal } from '../b2/errors.js';
+import { ProvenNoEffect, Refusal } from '../b2/errors.js';
+import { bootId, procInfo } from '../host/process.js';
 import { SessionIndex } from '../history/session-index.js';
 import type { ChildReport, PiRecord, SessionHost } from '../host/host.js';
 import type { Containment, Domain } from '../containment/containment.js';
@@ -77,8 +78,9 @@ export class Lifecycle {
   private terminate(live: Live): Promise<boolean> {
     if (!live.cleaning) {
       const domain = live.domain;
+      const leader = { host: live.host, pid: live.pid, token: live.token };
       const cleaning = Promise.resolve()
-        .then(() => (domain ? this.containment.clean(domain) : false))
+        .then(async () => (domain ? (await this.containment.clean(domain)) && this.leaderGone(leader) : false))
         .catch(() => false)
         .finally(() => {
           if (live.cleaning === cleaning) live.cleaning = undefined;
@@ -86,6 +88,38 @@ export class Lifecycle {
       live.cleaning = cleaning;
     }
     return live.cleaning;
+  }
+
+  /** Hosts whose process exit was observed (Node reaped the leader). */
+  private readonly exitedHosts = new WeakSet<SessionHost>();
+
+  /**
+   * The domain's removal proves only what was still in it. The generation's pi leader is proven gone too, or the
+   * cleanup is not confirmed (Grok PR #27): its exit was observed, or its recorded pid no longer names that live
+   * process (gone, a zombie, a recycled pid or another boot). A leader that left the domain and still runs keeps the
+   * worker pending, so no relaunch or resume starts a second writer beside it.
+   */
+  private leaderGone(leader: { host: SessionHost | undefined; pid: number | null; token: string | null }): boolean {
+    if (leader.host && this.exitedHosts.has(leader.host)) return true;
+    if (leader.pid === null) return true;
+    const info = procInfo(leader.pid);
+    if (!info || info.state === 'Z') return true;
+    if (!leader.token) return false;
+    return !leader.token.startsWith(`${bootId()}:`) || leader.token !== `${bootId()}:${info.start}`;
+  }
+
+  /**
+   * A relaunch still initializing when its process ends (a stop, an exit, a fault) has an unknown outcome: pi may
+   * have opened the session. It joins the fence in the row that records the end, before any cleanup can confirm and
+   * admit another relaunch (GPT PR #27 finding 3).
+   */
+  private endLaunch(live: Live): void {
+    if (live.launching) this.uncertainLaunch(live, live.launching);
+  }
+
+  /** A relaunch's unknown outcome joins the fence, unless the owner already resolved it: a resolution is final. */
+  private uncertainLaunch(live: Live, commandId: string): void {
+    if (!(live.worker.resolutions ?? []).some(r => r.command_id === commandId)) this.latch(live, commandId);
   }
 
   /**
@@ -144,6 +178,7 @@ export class Lifecycle {
   }
 
   wireHost(live: Live, host: SessionHost): void {
+    host.on('exit', () => this.exitedHosts.add(host));
     // A retired generation's callbacks must not fault or rebind the current one.
     host.on('event', event => {
       if (live.host === host) this.guarded(live, () => this.onEvent(live, event));
@@ -205,6 +240,7 @@ export class Lifecycle {
       live.moveTimer = undefined;
     }
     if (w.execution && w.execution.state !== 'settled') this.onUncertain(live, w.execution.command_id, 'worker.exit');
+    this.endLaunch(live);
     // A leader exit is not proof that its process group has terminated.
     w.status = 'cleanup_pending';
     w.cleanup = 'leader_exit_only';
@@ -228,6 +264,7 @@ export class Lifecycle {
     w.cleanup = 'worker_fault; cleanup_unproven';
     w.foreground = 'unknown';
     w.failure = { command_id: w.execution?.command_id ?? live.create?.command_id ?? 'unknown', reason: this.s.journal.failed ? 'journal_failure' : reasonOf(error) };
+    this.endLaunch(live);
     if (w.execution && w.execution.state !== 'settled' && !memoryOnly) {
       try {
         this.onUncertain(live, w.execution.command_id, 'worker.fault');
@@ -459,6 +496,8 @@ export class Lifecycle {
         // reports it), and a confirmed stop must never leave a relaunchable worker with an unfenced execution.
         const running = w.execution;
         if (running && running.state !== 'settled' && this.s.receipts.all.get(running.command_id)?.effect !== 'no_effect') this.onUncertain(live, running.command_id, 'worker.stop');
+        // So is a relaunch still initializing: it fences in the same row, durably before the kill.
+        this.endLaunch(live);
         // cleanup_pending is durable before the kill: a crash between them leaves a pending row recovery cleans.
         w.status = 'cleanup_pending';
         w.cleanup = 'stop_requested';
@@ -495,7 +534,9 @@ export class Lifecycle {
    * epoch's domain was observed removed and that is recorded, the session is not fenced, and no other worker holds the
    * session or the cwd. The new epoch's starting row (its domain, and the binding every recovered prompt intent was
    * admitted with) is durable before the dispatch record and before anything is spawned. A launch that fails after the
-   * dispatch record is `outcome_unknown` and cleans its domain like a failed create; it does not fence the session.
+   * dispatch record cleans its domain like a failed create. Once a host exists it is `outcome_unknown` and fences the
+   * session (invariant 3: pi may have run its switch hooks or opened the session), in the failure row before the reply;
+   * only a spawn refused before any host existed, with its domain observed removed, is proven `no_effect`.
    */
   async relaunch(id: string, b: Binding): Promise<Receipt> {
     let live!: Live;
@@ -515,7 +556,9 @@ export class Lifecycle {
         }
         this.writable(live);
         if (!live.create || !w.session_id || !live.sessionFile || !existsSync(live.sessionFile)) throw new Refusal('relaunch_session_unavailable');
-        this.s.noOtherWriter(w.session_id, id);
+        // The session's gates, not only this worker's (GPT PR #27 finding 1): the resume gate refuses a session another
+        // worker bound since and left fenced (`target_session_fenced`) or with its cleanup unproven, as for a resume.
+        this.s.resumable(w.session_id, id);
         this.s.exclusiveCwd(w.cwd, live);
       },
     );
@@ -563,14 +606,31 @@ export class Lifecycle {
       throw error;
     }
     this.s.receipts.dispatch(commandId, { worker_id: w.worker_id });
+    live.launching = commandId;
+    try {
+      return await this.initialize(live, commandId, sessionId, file);
+    } finally {
+      if (live.launching === commandId) live.launching = undefined;
+    }
+  }
+
+  /** A dispatched relaunch: spawn, reopen and verify the session, readiness. */
+  private async initialize(live: Live, commandId: string, sessionId: string, file: string): Promise<ReceiptPatch> {
+    const w = live.worker;
     // The model and thinking level the worker has now (session.configure may have changed them since the create).
     const create: Create = { ...live.create!, ...(w.model ? { provider: w.model.provider, model: w.model.id } : {}), ...(w.thinking ? { thinking: w.thinking } : {}) };
     let host: SessionHost;
     try {
-      const domain = live.domain;
+      const domain = live.domain!;
       host = this.s.factory({ workerId: w.worker_id, commandId, create, cwd: w.cwd, sessionDir: this.sessionDir(live), domain, prefix: this.containment.enter(domain) });
     } catch (error) {
+      live.launching = undefined;
       await this.launchFailed(live, commandId, error);
+      // No host was constructed, so no switch was ever sent, and the domain is observed removed and recorded: nothing
+      // of this relaunch ran. Otherwise its outcome is unknown and fences the session like any other.
+      if (w.status === 'failed' && w.cleanup === CLEANED) throw new ProvenNoEffect(`relaunch_spawn_refused: ${reasonOf(error)}`, 'no_host_constructed_no_session_opened_domain_removed');
+      this.uncertainLaunch(live, commandId);
+      this.s.persist(live, 'worker.failed');
       throw error;
     }
     live.host = host;
@@ -596,6 +656,7 @@ export class Lifecycle {
       live.completedMessages = 0;
       this.s.refresh(live);
       const inventory = await host.request({ type: 'inventory' });
+      if (live.host !== host) throw new Error('relaunch_superseded');
       if (!inventory.success || ((inventory.data?.extension_errors as unknown[] | undefined)?.length ?? 1) > 0) throw new Error('resource_inventory_failed');
       if (live.faulted) throw new Error('worker fault during initialization');
       w.resources = inventory.data!;
@@ -603,7 +664,7 @@ export class Lifecycle {
       w.cleanup = 'live_cgroup';
       live.observedIdle = true;
       // A failed attempt binds no kept intent: only this verified launch does, and only one that has no epoch yet.
-      for (const k of Object.values(live.kept)) {
+      for (const k of Object.values(live.kept ?? {})) {
         if (!k.relaunch_epoch && k.session_id === w.session_id && k.binding_revision === w.binding_revision) k.relaunch_epoch = w.worker_epoch;
       }
       this.s.persist(live, 'worker.ready');
@@ -616,7 +677,14 @@ export class Lifecycle {
         history_lag: w.history.lag,
       };
     } catch (error) {
+      // A retired attempt (its process ended and a newer relaunch brought up another generation since) reports its own
+      // unknown outcome only: whatever ended it already fenced it, and the newer generation's state, process and domain
+      // stay untouched (GPT PR #27 finding 3).
+      if (live.host !== host) throw error;
       live.rebinding = false;
+      live.launching = undefined;
+      // pi may have run the session's switch hooks or opened it: the unknown fences the session in the failure row.
+      this.uncertainLaunch(live, commandId);
       await this.launchFailed(live, commandId, error);
       throw error;
     }

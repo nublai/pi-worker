@@ -21,9 +21,10 @@ import type { Worker } from '../../src/supervisor/state.js';
 import { Supervisor } from '../../src/supervisor/supervisor.js';
 import { GrantStore } from '../../src/grants/store.js';
 import { Host } from '../supervisor-fixture.js';
-import { domained } from '../domains.js';
+import { TestDomains, domained } from '../domains.js';
 
-export type Effect = { kind: string; command_id: string; session_file?: string; session_id?: string; entry_id?: string; native_file?: string; operation?: string };
+/** A spawn (`create`) also names its worker and the cleanup domain it runs in: the generation recovery must clean. */
+export type Effect = { kind: string; command_id: string; session_file?: string; session_id?: string; entry_id?: string; native_file?: string; operation?: string; worker_id?: string; domain?: string };
 export type Logged = { op: string; id?: string; body: Record<string, unknown> };
 export type Reply = { command_id: string; state?: string; effect?: string; error?: string };
 export type Summary = {
@@ -33,6 +34,8 @@ export type Summary = {
   expired: string[];
   /** Inventory probes whose cleanup domain is recorded and not confirmed removed (P2-1). */
   probes: string[];
+  /** The domain names recovery cleaned, in order (P2-3). */
+  cleaned: string[];
 };
 /** The limits a retention scenario runs under (`world.json`). */
 export type WorldLimits = Partial<Omit<RetentionLimits, 'receipts'>> & { receipts?: number };
@@ -136,6 +139,7 @@ export interface World {
   readonly hosts: EffectHost[];
   readonly supervisor: Supervisor;
   readonly state: OpenState;
+  readonly domains: TestDomains;
   call(op: string, body: Record<string, unknown>, id?: string): Promise<Receipt>;
 }
 
@@ -145,6 +149,7 @@ export function openWorld(root: string, scenario: boolean): World {
   const state = openState(root, { ...(journalBytes ? { maxBytes: journalBytes } : {}), retention: { ...retention, ...(count ? { receipts: count } : {}) } });
   const hosts: EffectHost[] = [];
   // Each world has its own domains: a recovering world cannot prove a dead world's domains clean (they stay pending).
+  const domains = new TestDomains();
   const supervisor = new Supervisor(domained({
     journal: state.journal,
     receipts: new ReceiptStore(state.journal, count, undefined, retention),
@@ -160,7 +165,7 @@ export function openWorld(root: string, scenario: boolean): World {
       const file = join(root, `${id}.jsonl`);
       writeFileSync(file, `${JSON.stringify({ type: 'session', id })}\n`);
       // A relaunch (P2-3) spawns under its own command and reopens the worker's session: both are its native effects.
-      effect(root, { kind: 'create', command_id: launch.commandId, session_file: file, session_id: id });
+      effect(root, { kind: 'create', command_id: launch.commandId, session_file: file, session_id: id, worker_id: launch.workerId, domain: launch.domain.name });
       const host = new EffectHost(root, id, file);
       if (launch.create.resume_session_id || launch.commandId !== launch.create.command_id) host.openCommand = launch.commandId;
       if (launch.create.provider === 'cancel-open') {
@@ -172,7 +177,8 @@ export function openWorld(root: string, scenario: boolean): World {
           return c.type === 'switch_session' ? { ...reply, data: { ...reply.data, cancelled: true } } : reply;
         };
       }
-      if (launch.create.provider === 'fail') {
+      // A relaunch whose command ends `-fails` reopens the session, then its resources fail to load (P2-3).
+      if (launch.create.provider === 'fail' || (launch.commandId !== launch.create.command_id && launch.commandId.endsWith('-fails'))) {
         const native = host.request.bind(host);
         host.request = async c => (c.type === 'inventory' ? { type: 'response', id: 'x', success: true, data: { extension_errors: ['/broken.ts'] } } : native(c));
       }
@@ -184,7 +190,7 @@ export function openWorld(root: string, scenario: boolean): World {
       assert.ok(scenario, 'recovery must never launch an inventory probe');
       return new EffectHost(root, 'inventory', join(root, 'inventory.jsonl'));
     },
-  }));
+  }, domains));
   const call = async (op: string, body: Record<string, unknown>, id?: string): Promise<Receipt> => {
     if (!scenario) return dispatch(op, body, id);
     appendFileSync(join(root, 'requests.jsonl'), `${JSON.stringify({ op, body, id })}\n`);
@@ -260,7 +266,7 @@ export function openWorld(root: string, scenario: boolean): World {
         throw new Error(`unsupported crash world op ${op}`);
     }
   };
-  return { root, hosts, supervisor, state, call };
+  return { root, hosts, supervisor, state, domains, call };
 }
 
 /** Recovery mode: recover, retry every logged request exactly once (each must return its stored receipt), report. */
@@ -291,6 +297,7 @@ export async function recoverWorld(root: string): Promise<Summary> {
     workers: world.supervisor.list(),
     expired: [...world.supervisor.receipts.expired.keys()],
     probes: world.supervisor.features.pendingProbes(),
+    cleaned: world.domains.cleaned.map(d => d.name),
   };
   world.state.close();
   return summary;

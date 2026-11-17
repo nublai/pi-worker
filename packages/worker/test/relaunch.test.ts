@@ -14,8 +14,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { processToken } from '../src/host/process.js';
 import { parseJournal } from '../src/journal/journal.js';
 import { requestHash } from '../src/receipts/receipts.js';
+import type { PiResponse } from '../src/host/host.js';
 import type { Prompt, Worker } from '../src/supervisor/state.js';
 import type { Supervisor } from '../src/supervisor/supervisor.js';
 import { TestDomains } from './domains.js';
@@ -44,6 +46,10 @@ function intent(s: Supervisor, w: Worker, p: Prompt): void {
     'receipt.intent',
   );
 }
+
+/** The owner keeps an uncertain command: the only write that lifts its fence. */
+const resolve = (s: Supervisor, w: Worker, command: string, uncertain: string) =>
+  s.resolveUnknown(w.worker_id, { ...bind(w, command), uncertain_command_id: uncertain, fence_generation: w.fence?.fence_generation ?? w.fence_generation ?? 0, disposition: 'keep' });
 
 // A0 relaunch.test.ts
 
@@ -298,12 +304,22 @@ for (const failure of ['spawn', 'get_state'] as const) {
         let recovered = await f.restart(f.factory);
         await recovered.resolveUnknown(old.worker_id, { ...bind(recovered.get(old.worker_id), 'keep'), uncertain_command_id: p.command_id, fence_generation: 0, disposition: 'keep' });
         const failed = await recovered.relaunch(old.worker_id, bind(recovered.get(old.worker_id), 'failed-relaunch'));
-        assert.equal(failed.state, 'outcome_unknown');
+        // The frozen contract, not A0 (PR #27): a spawn refused before any host existed is proven no_effect; a failure
+        // once pi runs is outcome_unknown and fences the session until the owner resolves it.
+        assert.equal(failed.state, failure === 'spawn' ? 'rejected' : 'outcome_unknown');
+        assert.equal(failed.effect, failure === 'spawn' ? 'no_effect' : 'unknown');
         assert.match(failed.error!, failure === 'spawn' ? /test_spawn_failure/ : /initialization_failed/);
         assert.equal(recovered.get(old.worker_id).cleanup, 'cgroup_empty_removed');
+        assert.equal(recovered.get(old.worker_id).fence?.command_id, failure === 'spawn' ? undefined : 'failed-relaunch');
         assert.equal(recovered.receipts.all.get(p.command_id)!.state, 'intent_ready');
         fail = false;
         if (restart) recovered = await f.restart(f.factory);
+        if (failure === 'get_state') {
+          const fenced = recovered.get(old.worker_id);
+          assert.equal(fenced.fence?.command_id, 'failed-relaunch');
+          await assert.rejects(recovered.relaunch(old.worker_id, bind(fenced, 'unresolved-retry')), /session_fenced/);
+          await resolve(recovered, fenced, 'resolve-relaunch', 'failed-relaunch');
+        }
         const retry = await recovered.relaunch(old.worker_id, bind(recovered.get(old.worker_id), 'retry-relaunch'));
         assert.equal(retry.state, 'delivered');
         const fresh = recovered.get(old.worker_id);
@@ -449,6 +465,255 @@ for (const confirmed of [false, true]) {
       assert.equal(w.status, confirmed ? 'stopped' : 'cleanup_pending');
       assert.equal(w.cleanup, confirmed ? 'cgroup_empty_removed' : 'unresolved');
       assert.equal(latestRow(f, made.worker_id).cleanup, w.cleanup);
+    } finally {
+      f.cleanup();
+    }
+  });
+}
+
+// PR #27 review fixes (GPT 1 to 3, Grok 1): the frozen contract's fence, not A0's retryable unknown relaunch.
+
+test('relaunch: a former owner never relaunches around the unresolved fence of the session it later owned', async () => {
+  const f = fixture({ domains: new TestDomains() });
+  try {
+    const a = await f.create();
+    await f.supervisor.stop(a.worker_id, bind(a, 'stop-a'));
+    // B resumes A's session in another cwd, its prompt's outcome becomes unknown, and B stops with confirmed cleanup.
+    const cwd = join(f.dir, 'b');
+    mkdirSync(cwd);
+    const created = await f.supervisor.create({ command_id: 'b', cwd, provider: 'p', model: 'm', thinking: 'off', resume_session_id: a.session_id! });
+    assert.equal(created.state, 'delivered');
+    const b = f.supervisor.get(created.worker_id!);
+    f.hosts[1]!.failure = true;
+    assert.equal((await f.supervisor.prompt(b.worker_id, { ...bind(b, 'lost'), message: 'lost' })).state, 'outcome_unknown');
+    await f.supervisor.stop(b.worker_id, bind(f.supervisor.get(b.worker_id), 'stop-b'));
+    const fenced = f.supervisor.get(b.worker_id);
+    assert.equal(fenced.cleanup, 'cgroup_empty_removed');
+    assert.equal(fenced.fence?.command_id, 'lost');
+    const records = parseJournal(readFileSync(f.journalFile)).records.length;
+    await assert.rejects(
+      f.supervisor.relaunch(a.worker_id, bind(a, 'around')),
+      (e: Error & { effect?: string; uncertain_command_id?: string }) => e.message === 'target_session_fenced' && e.effect === 'no_effect' && e.uncertain_command_id === 'lost',
+    );
+    assert.equal(f.supervisor.receipts.all.get('around'), undefined);
+    assert.equal(parseJournal(readFileSync(f.journalFile)).records.length, records, 'the refusal records nothing');
+    assert.equal(f.hosts.length, 2, 'no host on the fenced session');
+    // The owner resolves B's uncertainty: the session is writable again, and A may relaunch on it.
+    await resolve(f.supervisor, fenced, 'resolve-b', 'lost');
+    assert.equal((await f.supervisor.relaunch(a.worker_id, bind(a, 'after'))).state, 'delivered');
+  } finally {
+    await f.supervisor.shutdown();
+    f.cleanup();
+  }
+});
+
+for (const restart of [false, true]) {
+  test(`relaunch: an unknown outcome after pi was spawned fences the session; no relaunch until it is resolved (restart=${restart})`, async () => {
+    let fail = true;
+    const f = fixture({
+      domains: new TestDomains(),
+      initHost: h => {
+        const request = h.request.bind(h);
+        // pi opened the worker's session (its switch hooks ran), then its inventory is lost.
+        h.request = async c => (fail && f.hosts.length > 1 && c.type === 'inventory' ? Promise.reject(new Error('lost_inventory_reply')) : request(c));
+      },
+    });
+    try {
+      const w = await f.create();
+      await f.supervisor.stop(w.worker_id, bind(w, 'stop'));
+      const r = await f.supervisor.relaunch(w.worker_id, bind(w, 'unknown'));
+      assert.equal(r.state, 'outcome_unknown');
+      assert.ok(f.hosts[1]!.commands.some(c => c.type === 'switch_session'), 'the session was opened');
+      const failed = f.supervisor.get(w.worker_id);
+      assert.equal(failed.cleanup, 'cgroup_empty_removed');
+      assert.equal(failed.fence?.command_id, 'unknown', 'the unknown relaunch fences the session');
+      assert.equal(latestRow(f, w.worker_id).fence?.command_id, 'unknown', 'the fence is durable before the reply');
+      const s = restart ? await f.restart(f.factory) : f.supervisor;
+      const now = s.get(w.worker_id);
+      assert.equal(now.fence?.command_id, 'unknown', 'recovery keeps the fence of a dispatched unknown relaunch');
+      fail = false;
+      await assert.rejects(s.relaunch(w.worker_id, bind(now, 'retry')), (e: Error & { uncertain_command_id?: string }) => e.message === 'session_fenced' && e.uncertain_command_id === 'unknown');
+      assert.equal(f.hosts.length, 2);
+      await resolve(s, now, 'resolve', 'unknown');
+      assert.equal((await s.relaunch(w.worker_id, bind(s.get(w.worker_id), 'retry'))).state, 'delivered');
+    } finally {
+      await f.supervisor.shutdown();
+      f.cleanup();
+    }
+  });
+}
+
+test('relaunch: a spawn refused before any host existed is proven no_effect, not fenced, and may be retried', async () => {
+  let fail = false;
+  const f = fixture({
+    domains: new TestDomains(),
+    launch: () => {
+      if (fail) throw new Error('test_spawn_refused');
+      return undefined;
+    },
+  });
+  try {
+    const w = await f.create();
+    await f.supervisor.stop(w.worker_id, bind(w, 'stop'));
+    fail = true;
+    const r = await f.supervisor.relaunch(w.worker_id, bind(w, 'refused'));
+    assert.equal(r.state, 'rejected');
+    assert.equal(r.effect, 'no_effect');
+    assert.match(r.error!, /test_spawn_refused/);
+    const failed = f.supervisor.get(w.worker_id);
+    assert.equal(failed.fence, null);
+    assert.equal(failed.cleanup, 'cgroup_empty_removed');
+    fail = false;
+    assert.equal((await f.supervisor.relaunch(w.worker_id, bind(failed, 'retry'))).state, 'delivered');
+  } finally {
+    await f.supervisor.shutdown();
+    f.cleanup();
+  }
+});
+
+test('relaunch: a refused spawn whose domain is not proven removed is unknown and fences the session', async () => {
+  const domains = new TestDomains();
+  let fail = false;
+  const f = fixture({
+    domains,
+    launch: () => {
+      if (fail) throw new Error('test_spawn_refused');
+      return undefined;
+    },
+  });
+  try {
+    const w = await f.create();
+    await f.supervisor.stop(w.worker_id, bind(w, 'stop'));
+    fail = true;
+    domains.confirm = false;
+    const r = await f.supervisor.relaunch(w.worker_id, bind(w, 'unproven'));
+    assert.equal(r.state, 'outcome_unknown');
+    const pending = f.supervisor.get(w.worker_id);
+    assert.equal(pending.status, 'cleanup_pending');
+    assert.equal(pending.fence?.command_id, 'unproven');
+    assert.equal(latestRow(f, w.worker_id).fence?.command_id, 'unproven', 'the fence is durable before the reply');
+  } finally {
+    f.cleanup();
+  }
+});
+
+for (const trigger of ['stop', 'exit', 'fault'] as const) {
+  test(`relaunch: a ${trigger} that ends a relaunch while it initializes fences the session before any cleanup confirms; once resolved it never fences again`, async () => {
+    let held: { reject: (e: Error) => void } | undefined;
+    const f = fixture({
+      domains: new TestDomains(),
+      initHost: h => {
+        const request = h.request.bind(h);
+        h.request = async c => (f.hosts.length === 2 && h === f.hosts[1] && c.type === 'inventory' ? new Promise((_r, reject) => (held = { reject })) : request(c));
+      },
+    });
+    try {
+      const w = await f.create();
+      await f.supervisor.stop(w.worker_id, bind(w, 'stop'));
+      const first = f.supervisor.relaunch(w.worker_id, bind(w, 'relaunch-1'));
+      for (let i = 0; i < 6 && !held; i++) await tick();
+      assert.ok(held, 'the relaunch waits on its inventory');
+      const starting = f.supervisor.get(w.worker_id);
+      if (trigger === 'stop') await f.supervisor.stop(w.worker_id, bind(starting, 'stop-starting'));
+      else if (trigger === 'exit') f.hosts[1]!.emit('exit');
+      else f.hosts[1]!.emit('event', { type: 'host_identity', sessionId: 'wrong', sessionFile: '/wrong' });
+      for (let i = 0; i < 6; i++) await tick();
+      const ended = f.supervisor.get(w.worker_id);
+      assert.equal(ended.cleanup, 'cgroup_empty_removed');
+      assert.equal(ended.fence?.command_id, 'relaunch-1');
+      assert.equal(latestRow(f, w.worker_id).fence?.command_id, 'relaunch-1', 'the fence is durable');
+      await assert.rejects(f.supervisor.relaunch(w.worker_id, bind(ended, 'relaunch-2')), /session_fenced/);
+      assert.equal(f.hosts.length, 2);
+      await resolve(f.supervisor, ended, 'resolve', 'relaunch-1');
+      held!.reject(new Error('pi exited'));
+      assert.equal((await first).state, 'outcome_unknown');
+      for (let i = 0; i < 4; i++) await tick();
+      assert.equal(f.supervisor.get(w.worker_id).fence, null, 'a resolved uncertainty never fences again');
+      assert.equal(latestRow(f, w.worker_id).fence, null);
+      assert.equal((await f.supervisor.relaunch(w.worker_id, bind(f.supervisor.get(w.worker_id), 'relaunch-2'))).state, 'delivered');
+    } finally {
+      await f.supervisor.shutdown();
+      f.cleanup();
+    }
+  });
+}
+
+for (const late of ['fails', 'succeeds'] as const) {
+  test(`relaunch: a retired relaunch whose initialization ${late} late never touches the newer epoch`, async () => {
+    let held: { resolve: (r: PiResponse) => void; reject: (e: Error) => void } | undefined;
+    const f = fixture({
+      domains: new TestDomains(),
+      initHost: h => {
+        const request = h.request.bind(h);
+        // The first relaunch's inventory reply is held (its identity is checked, the session is open).
+        h.request = async c => (f.hosts.length === 2 && h === f.hosts[1] && c.type === 'inventory' ? new Promise<PiResponse>((resolve, reject) => (held = { resolve, reject })) : request(c));
+      },
+    });
+    try {
+      const w = await f.create();
+      await f.supervisor.stop(w.worker_id, bind(w, 'stop'));
+      const first = f.supervisor.relaunch(w.worker_id, bind(w, 'relaunch-1'));
+      for (let i = 0; i < 6 && !held; i++) await tick();
+      assert.ok(held, 'the first relaunch waits on its inventory');
+      const starting = f.supervisor.get(w.worker_id);
+      // The starting epoch is stopped; its domain is observed removed while the relaunch still waits.
+      const stop = await f.supervisor.stop(w.worker_id, bind(starting, 'stop-starting'));
+      assert.equal(stop.result?.termination, 'observed_stopped');
+      const stopped = f.supervisor.get(w.worker_id);
+      assert.equal(stopped.fence?.command_id, 'relaunch-1', 'the relaunch the stop ended is uncertain: it fences the session');
+      await resolve(f.supervisor, stopped, 'resolve', 'relaunch-1');
+      assert.equal((await f.supervisor.relaunch(w.worker_id, bind(f.supervisor.get(w.worker_id), 'relaunch-2'))).state, 'delivered');
+      const fresh = f.supervisor.get(w.worker_id);
+      const domain = f.supervisor.state.require(w.worker_id).domain;
+      // The retired host's pending request now fails, as LineHost.fail does when that process is gone, or its reply
+      // arrives late.
+      if (late === 'fails') held!.reject(new Error('pi exited'));
+      else held!.resolve({ type: 'response', id: 'late', success: true, data: { extensions: [], extension_errors: [], skills: [], tools: [], active_tools: [], commands: [] } });
+      assert.equal((await first).state, 'outcome_unknown', 'the retired relaunch is never delivered');
+      for (let i = 0; i < 4; i++) await tick();
+      const now = f.supervisor.get(w.worker_id);
+      assert.equal(now.status, 'ready', 'the newer epoch stays ready');
+      assert.equal(now.worker_epoch, fresh.worker_epoch);
+      assert.equal(now.cleanup, 'live_cgroup');
+      assert.equal(now.failure, undefined);
+      assert.equal(now.fence, null, 'a resolved uncertainty never fences again');
+      assert.equal(f.supervisor.state.require(w.worker_id).domain, domain);
+      assert.equal(f.hosts[2]!.stops, 0, 'the newer host is never stopped');
+      assert.equal(latestRow(f, w.worker_id).status, 'ready');
+      assert.equal(latestRow(f, w.worker_id).worker_epoch, fresh.worker_epoch);
+    } finally {
+      await f.supervisor.shutdown();
+      f.cleanup();
+    }
+  });
+}
+
+for (const restart of [false, true]) {
+  test(`relaunch: a domain observed removed while its pi leader still runs confirms nothing, so no second writer starts (restart=${restart})`, async () => {
+    const f = fixture({
+      domains: new TestDomains(),
+      // The leader left the domain (a same-user process can move itself): the domain is observed empty and removed, and
+      // the leader is still alive. This test's own process stands in for it; nothing signals it.
+      initHost: h => {
+        h.pid = process.pid;
+        h.token = processToken(process.pid);
+        h.stop = async () => {
+          h.stops++;
+          return true;
+        };
+      },
+    });
+    try {
+      const w = await f.create();
+      const stop = await f.supervisor.stop(w.worker_id, bind(w, 'stop'));
+      assert.equal(stop.state, 'outcome_unknown', 'a removed domain alone is not termination');
+      const s = restart ? await f.restart(f.factory) : f.supervisor;
+      const pending = s.get(w.worker_id);
+      assert.equal(pending.status, 'cleanup_pending');
+      assert.notEqual(pending.cleanup, 'cgroup_empty_removed');
+      assert.notEqual(latestRow(f, w.worker_id).cleanup, 'cgroup_empty_removed');
+      await assert.rejects(s.relaunch(w.worker_id, bind(pending, 'second-writer')), /cleanup_pending_or_cleanup_unproven/);
+      assert.equal(f.hosts.length, 1, 'no second pi on the session');
     } finally {
       f.cleanup();
     }

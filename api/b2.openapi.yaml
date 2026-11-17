@@ -578,13 +578,19 @@ paths:
         the previous epoch's domain was observed removed and that is recorded
         (`cleanup: cgroup_empty_removed`), so a live or pending worker is
         refused too; `session_fenced`, naming the uncertain command, until
-        `sessions.resolve_unknown`; `session_already_bound` or
-        `exclusive_environment_already_bound`, naming the holder, while another
-        worker holds the session or the cwd; `relaunch_session_unavailable`
-        without a bound session or its file; `child_relaunch_unsupported` for
-        a child worker. The receipt names the new binding. A launch that fails
-        after the dispatch record is `outcome_unknown` with the new domain
-        cleaned; it does not fence the session, and a later relaunch may retry.
+        `sessions.resolve_unknown`; `target_session_fenced`, naming it, while
+        another worker that bound the session since leaves it fenced;
+        `session_already_bound` or `exclusive_environment_already_bound`,
+        naming the holder, while another worker holds the session or the cwd;
+        `relaunch_session_unavailable` without a bound session or its file;
+        `child_relaunch_unsupported` for a child worker. The receipt names the
+        new binding. A launch that fails after the dispatch record cleans the
+        new domain. A spawn refused before any pi process existed, with that
+        domain observed removed, is `rejected` `no_effect` and may be retried.
+        Any other failure, and a stop, exit or fault that ends the launch while
+        it initializes, is `outcome_unknown` and fences the session (pi may
+        have run its switch hooks or opened it), durably before the reply,
+        until `sessions.resolve_unknown`.
         Every earlier binding is stale afterwards, except the exact retry of a
         `sessions.prompt` intent that a restart recovered and the owner kept
         before this relaunch: it dispatches once on the first epoch a relaunch

@@ -1210,6 +1210,14 @@ func (s *state) relaunch(id string, b b2.Binding) (*b2.Receipt, error) {
 			r.body.HolderWorkerId = ptr(oid)
 			return r
 		}
+		// The session's gates, not only this worker's (PR #27 GPT 1): another worker that bound the session since and
+		// left it fenced refuses it, as for a resume.
+		for _, oid := range s.order {
+			o := s.workers[oid]
+			if oid != id && derefString(o.row.SessionId) == *w.row.SessionId && o.row.Fence != nil {
+				return refuse("target_session_fenced").uncertain(o.row.Fence.CommandId)
+			}
+		}
 		return nil
 	}, func(r *b2.Receipt) error {
 		old := keptBinding{workerEpoch: w.row.WorkerEpoch, sessionID: *w.row.SessionId, revision: w.row.BindingRevision}

@@ -198,3 +198,56 @@ func TestOwnerKeptPromptDispatchesOnceOnTheRelaunchedEpoch(t *testing.T) {
 		}
 	}
 }
+
+// A former owner never relaunches around the unresolved fence another worker left on the session it later owned
+// (PR #27 GPT 1, lifecycle.ts relaunch): refused target_session_fenced naming that command, no_effect, no host; once
+// the owner resolves it, the relaunch runs.
+func TestRelaunchRefusesAroundAnotherOwnersFence(t *testing.T) {
+	fake, err := Start(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fake.Close()
+	ctx := context.Background()
+	c := fake.Client()
+	cr, err := c.WorkersCreate(ctx, b2.Create{CommandId: "a", Cwd: filepath.Join(t.TempDir(), "a"), Provider: "fixture", Model: "fixture", Thinking: "off"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := c.WorkersGet(ctx, *cr.WorkerId)
+	if _, err := c.WorkersStop(ctx, a.WorkerId, bindOf(a, "stop-a")); err != nil {
+		t.Fatal(err)
+	}
+	br, err := c.WorkersCreate(ctx, b2.Create{CommandId: "b", Cwd: filepath.Join(t.TempDir(), "b"), Provider: "fixture", Model: "fixture", Thinking: "off", ResumeSessionId: a.SessionId})
+	if err != nil || br.State != "delivered" {
+		t.Fatalf("resume %+v %v", br, err)
+	}
+	b, _ := c.WorkersGet(ctx, *br.WorkerId)
+	fake.CurrentHost(b.WorkerId).DropNextPromptReply()
+	if p, err := c.SessionsPrompt(ctx, b.WorkerId, b2.Prompt{CommandId: "lost", WorkerEpoch: b.WorkerEpoch, SessionId: *b.SessionId, BindingRevision: b.BindingRevision, Message: "go"}); err != nil || p.State != "outcome_unknown" {
+		t.Fatalf("lost prompt %+v %v", p, err)
+	}
+	if _, err := c.WorkersStop(ctx, b.WorkerId, bindOf(b, "stop-b")); err != nil {
+		t.Fatal(err)
+	}
+	fenced, _ := c.WorkersGet(ctx, b.WorkerId)
+	if fenced.Fence == nil || fenced.Fence.CommandId != "lost" {
+		t.Fatalf("b's fence %+v", fenced.Fence)
+	}
+	hosts := fake.Hosts()
+	_, err = c.WorkersRelaunch(ctx, a.WorkerId, bindOf(a, "around"))
+	var failure *b2.ClientFailure
+	if !refused(err, "target_session_fenced") || !errors.As(err, &failure) || failure.Body.UncertainCommandId == nil || *failure.Body.UncertainCommandId != "lost" {
+		t.Fatalf("relaunch around another owner's fence: %v", err)
+	}
+	if fake.Hosts() != hosts {
+		t.Fatalf("a host started on the fenced session: %d", fake.Hosts())
+	}
+	rb := bindOf(fenced, "resolve-b")
+	if _, err := c.SessionsResolveUnknown(ctx, b.WorkerId, b2.Resolve{CommandId: rb.CommandId, WorkerEpoch: rb.WorkerEpoch, SessionId: rb.SessionId, BindingRevision: rb.BindingRevision, UncertainCommandId: ptr("lost"), FenceGeneration: fenced.Fence.FenceGeneration, Disposition: "keep"}); err != nil {
+		t.Fatal(err)
+	}
+	if r, err := c.WorkersRelaunch(ctx, a.WorkerId, bindOf(a, "after")); err != nil || r.State != "delivered" {
+		t.Fatalf("relaunch after the resolution %+v %v", r, err)
+	}
+}
