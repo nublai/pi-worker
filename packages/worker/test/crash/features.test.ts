@@ -1,14 +1,30 @@
 /**
  * Features crash cuts (P1-14): a real SIGKILL after every fsync of the features scenario and after every native
  * effect. Every `session.configure` pi performed has an effect-bearing receipt; the fence is exactly the
- * uncertainties by the contract's independent table (fence.test.ts, `session.configure` is a session write).
+ * uncertainties by the contract's independent table (fence.test.ts, `session.configure` is a session write). An
+ * inventory probe's cleanup domain (P2-1) is recorded before the probe starts, and recovery never confirms the cleanup
+ * of a probe it did not observe removed.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { parseJournal } from '../../src/journal/journal.js';
+import { journalPath } from '../../src/journal/state.js';
 import { checkRecovery, preCrash } from './oracle.js';
 import { fences } from './fence.test.js';
 import { cutAt, run, tempRoot, type FsyncPoint } from './harness.js';
 import { effectsAt } from './world.js';
+
+/** Inventory probes whose domain the journal records and does not confirm removed. */
+function pendingProbes(root: string): string[] {
+  const pending = new Set<string>();
+  for (const r of parseJournal(readFileSync(journalPath(root))).records) {
+    if (r.kind !== 'inventory') continue;
+    if (r.value.state === 'cleaned') pending.delete(String(r.value.inventory_id));
+    else pending.add(String(r.value.inventory_id));
+  }
+  return [...pending].sort();
+}
 
 test('crash: SIGKILL after every features-scenario fsync: configure receipts keep their bucket, exact fences', { timeout: 600_000 }, async () => {
   const base = tempRoot('features-base');
@@ -24,7 +40,11 @@ test('crash: SIGKILL after every features-scenario fsync: configure receipts kee
     const cut = tempRoot('features-cut');
     try {
       cutAt('features', cut.root, point);
-      await checkRecovery(cut.root, [fences]);
+      const recorded = pendingProbes(cut.root);
+      // The recovering world's domains cannot prove a dead world's domain removed: a probe cut before its removal was
+      // recorded stays recorded, and a confirmed one is never revived.
+      await checkRecovery(cut.root, [fences, (_pre, after) => assert.deepEqual([...after.probes].sort(), recorded, `${point.label}: recovery confirms no probe cleanup it did not observe`)]);
+      if (point.label === 'inventory.start') assert.equal(recorded.length, 1, 'the probe is recorded before it starts');
     } finally {
       cut.cleanup();
     }

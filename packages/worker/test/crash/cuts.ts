@@ -286,6 +286,8 @@ export const CUT_SCENARIOS: readonly CutScenario[] = [
       'session.configure',
       'fence.latch',
       'fence.resolve',
+      'inventory.start',
+      'inventory.cleaned',
     ],
   },
   {

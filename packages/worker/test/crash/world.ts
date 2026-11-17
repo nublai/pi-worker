@@ -26,7 +26,14 @@ import { domained } from '../domains.js';
 export type Effect = { kind: string; command_id: string; session_file?: string; session_id?: string; entry_id?: string; native_file?: string; operation?: string };
 export type Logged = { op: string; id?: string; body: Record<string, unknown> };
 export type Reply = { command_id: string; state?: string; effect?: string; error?: string };
-export type Summary = { receipts: Receipt[]; workers: Worker[]; /** Ids retention evicted (P1-12). */ expired: string[] };
+export type Summary = {
+  receipts: Receipt[];
+  workers: Worker[];
+  /** Ids retention evicted (P1-12). */
+  expired: string[];
+  /** Inventory probes whose cleanup domain is recorded and not confirmed removed (P2-1). */
+  probes: string[];
+};
 /** The limits a retention scenario runs under (`world.json`). */
 export type WorldLimits = Partial<Omit<RetentionLimits, 'receipts'>> & { receipts?: number };
 
@@ -171,6 +178,11 @@ export function openWorld(root: string, scenario: boolean): World {
       hosts.push(host);
       return host;
     },
+    // An inventory probe for a cwd (models.list): a host that opens no session, in its own cleanup domain.
+    inventory: () => {
+      assert.ok(scenario, 'recovery must never launch an inventory probe');
+      return new EffectHost(root, 'inventory', join(root, 'inventory.jsonl'));
+    },
   }));
   const call = async (op: string, body: Record<string, unknown>, id?: string): Promise<Receipt> => {
     if (!scenario) return dispatch(op, body, id);
@@ -269,7 +281,12 @@ export async function recoverWorld(root: string): Promise<Summary> {
     }
     assert.deepEqual(retry, prior, 'a duplicate lookup must not change a receipt or replay');
   }
-  const summary = { receipts: [...world.supervisor.receipts.all.values()], workers: world.supervisor.list(), expired: [...world.supervisor.receipts.expired.keys()] };
+  const summary = {
+    receipts: [...world.supervisor.receipts.all.values()],
+    workers: world.supervisor.list(),
+    expired: [...world.supervisor.receipts.expired.keys()],
+    probes: world.supervisor.features.pendingProbes(),
+  };
   world.state.close();
   return summary;
 }

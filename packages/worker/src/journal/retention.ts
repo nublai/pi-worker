@@ -186,6 +186,7 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
   // The resume catalog as supervisor/state.ts builds it: in record order, each binding of a session to a file.
   const catalog = new Map<string, Value>();
   const attachments = new Map<string, Value>();
+  const probes = new Map<string, Value>();
   for (const r of records) {
     const v = r.value;
     if (r.kind === 'supervisor') supervisors.push(v);
@@ -206,6 +207,7 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
     else if (r.kind === 'interaction_effect') effects.push(v);
     else if (r.kind === 'forgotten_ids') horizon = readForgotten(v);
     else if (r.kind === 'attachment') attachments.set(str(v.attachment_id)!, v);
+    else if (r.kind === 'inventory') probes.set(str(v.inventory_id)!, v);
   }
   // Workers keep their first-appearance order (the worker table and every recovery iterate in it).
   const order: string[] = [];
@@ -306,6 +308,9 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
   // what a staged record names); a released one while the command that staged or released it is retained.
   const keptAttachments = [...attachments.values()].filter(a => a.state === 'staged' || keptIds.has(str(a.command_id) ?? '') || keptIds.has(str(a.released_by) ?? ''));
   for (const a of keptAttachments) bytes += size(a);
+  // An inventory probe whose domain is not confirmed removed (P2-1): recovery cleans it from this record alone.
+  const keptProbes = [...probes.values()].filter(p => p.state !== 'cleaned');
+  for (const p of keptProbes) bytes += size(p);
 
   const entries: CompactionPlan['entries'] = [
     ...fixed.slice(0, 1).map(value => ({ kind: 'supervisor' as const, value })),
@@ -320,6 +325,7 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
     ...[...keptInteractions.values()].map(value => ({ kind: 'interaction' as const, value })),
     ...keptEffects.map(value => ({ kind: 'interaction_effect' as const, value })),
     ...keptAttachments.map(value => ({ kind: 'attachment' as const, value })),
+    ...keptProbes.map(value => ({ kind: 'inventory' as const, value })),
     ...fixed.slice(1).map(value => ({ kind: 'supervisor' as const, value })),
   ];
   return { entries, evicted, bytes };

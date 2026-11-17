@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/journal/retention.ts b/packages/worker/src/journal/retention.ts
+index 5af6ae0..2aeea0f 100644
+--- a/packages/worker/src/journal/retention.ts
++++ b/packages/worker/src/journal/retention.ts
+@@ -309,7 +309,7 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
+   const keptAttachments = [...attachments.values()].filter(a => a.state === 'staged' || keptIds.has(str(a.command_id) ?? '') || keptIds.has(str(a.released_by) ?? ''));
+   for (const a of keptAttachments) bytes += size(a);
+   // An inventory probe whose domain is not confirmed removed (P2-1): recovery cleans it from this record alone.
+-  const keptProbes = [...probes.values()].filter(p => p.state !== 'cleaned');
++  const keptProbes = [...probes.values()].filter(p => p.state !== 'cleaned' && p.never === true);
+   for (const p of keptProbes) bytes += size(p);
+ 
+   const entries: CompactionPlan['entries'] = [

@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/supervisor/features.ts b/packages/worker/src/supervisor/features.ts
+index b80bce7..6f9bb1b 100644
+--- a/packages/worker/src/supervisor/features.ts
++++ b/packages/worker/src/supervisor/features.ts
+@@ -160,8 +160,7 @@ export class Features {
+    * stays recorded) when the removal was not observed or its record could not be made durable. Never throws.
+    */
+   private async retire(id: string, domain: Domain): Promise<boolean> {
+-    const gone = await this.lifecycle.containment.clean(domain).catch(() => false);
+-    if (!gone) return false;
++    await this.lifecycle.containment.clean(domain).catch(() => false);
+     try {
+       this.s.journal.append('inventory', { inventory_id: id, state: 'cleaned', domain }, 'inventory.cleaned');
+     } catch {

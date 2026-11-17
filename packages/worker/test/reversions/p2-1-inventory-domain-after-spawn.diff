@@ -1,0 +1,22 @@
+diff --git a/packages/worker/src/supervisor/features.ts b/packages/worker/src/supervisor/features.ts
+index b80bce7..922f873 100644
+--- a/packages/worker/src/supervisor/features.ts
++++ b/packages/worker/src/supervisor/features.ts
+@@ -320,16 +320,12 @@ export class Features {
+     const id = randomUUID();
+     const domain = containment.reserve(`inventory-${id}`);
+     // The probe's domain is durable before anything is spawned: from here on a crash leaves a record recovery cleans.
+-    try {
+-      this.s.journal.append('inventory', { inventory_id: id, state: 'started', domain }, 'inventory.start');
+-    } catch {
+-      throw new Refusal('inventory_unavailable');
+-    }
+     this.probes.set(id, domain);
+     let answer: { data: Record<string, unknown>; evidence: 'pi_inventory_process' } | undefined;
+     let failure: unknown;
+     try {
+       const host = this.inventory({ cwd, projectTrusted: target.project_trusted === true, domain, prefix: containment.enter(domain) });
++      this.s.journal.append('inventory', { inventory_id: id, state: 'started', domain }, 'inventory.start');
+       const reply = await host.request({ type: 'features' });
+       if (!reply.success || !reply.data) throw new Refusal('pi_features_unavailable');
+       answer = { data: reply.data, evidence: 'pi_inventory_process' };

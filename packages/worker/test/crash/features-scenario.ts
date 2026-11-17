@@ -1,6 +1,7 @@
 /**
  * The features crash scenario (P1-14): `session.configure` delivered, refused by pi before any change, and with a
- * lost reply (outcome_unknown, fenced, kept); then a restart and recovery.
+ * lost reply (outcome_unknown, fenced, kept), and an inventory probe for a cwd in its own cleanup domain (P2-1); then a
+ * restart and recovery.
  */
 import type { Worker } from '../../src/supervisor/state.js';
 import { bind } from '../supervisor-fixture.js';
@@ -13,6 +14,8 @@ export async function featuresScenario(root: string): Promise<void> {
   const id = a.worker_id;
   const host = world.hosts[0]!;
   const now = () => world.supervisor.get(id);
+  // An inventory probe for a cwd: its domain is recorded before it starts and its removal after it answers.
+  await world.supervisor.features.models({ cwd: root });
   await world.call('configure', { ...bind(now(), 'configure-1'), model: { provider: 'p', id: 'm2' }, thinking: 'high', name: 'Chat' }, id);
   // pi refuses before any change: no effect, no fence.
   host.configureRefusal = 'model_not_available';
