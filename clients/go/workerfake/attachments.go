@@ -21,6 +21,9 @@ import (
 const (
 	attachmentsPerMessage = 4
 	attachmentsTotalBytes = 8 << 20
+	// Per worker: staged attachments plus uploads still streaming, and their bytes (attachments.ts).
+	stagedPerWorker      = 16
+	stagedBytesPerWorker = 32 << 20
 )
 
 type attachment struct {
@@ -91,7 +94,10 @@ func stage(f *Fake, c *call) (any, error) {
 			return err
 		}
 		if w.row.WorkerEpoch != params.PiwWorkerEpoch {
-			return refuse("stale_worker_epoch")
+			return refuse("stale_binding")
+		}
+		if (w.row.Status != "starting" && w.row.Status != "ready") || w.exited {
+			return refuse("worker_not_ready")
 		}
 		return nil
 	}
@@ -122,6 +128,11 @@ func stage(f *Fake, c *call) (any, error) {
 		f.mu.Unlock()
 		return nil, refuse("attachment_upload_in_progress")
 	}
+	// This upload's slot, before its first byte.
+	if err := s.quota(params.PiwWorkerId, nil); err != nil {
+		f.mu.Unlock()
+		return nil, err
+	}
 	recv := &attachment{status: b2.AttachmentStatus{
 		AttachmentId: id, WorkerId: params.PiwWorkerId, State: "receiving", ContentType: b2.AttachmentStatusContentType(contentType),
 		Sha256: params.PiwContentSha256, CommandId: params.PiwCommandId, Evidence: "observed_memory",
@@ -140,9 +151,15 @@ func stage(f *Fake, c *call) (any, error) {
 		if n > 0 {
 			hash.Write(buf[:n])
 			data.Write(buf[:n])
+			// The chunk's bytes count against the worker's bound as they arrive.
 			f.mu.Lock()
 			recv.status.Bytes += n
+			quota := s.quota(params.PiwWorkerId, recv)
 			f.mu.Unlock()
+			if quota != nil {
+				readErr = quota
+				break
+			}
 			if int64(data.Len()) > c.op.MaxBodyBytes {
 				readErr = refuse("request_too_large").withStatus(http.StatusRequestEntityTooLarge)
 				break
@@ -202,6 +219,31 @@ func stage(f *Fake, c *call) (any, error) {
 		}
 	}
 	return receipt, nil
+}
+
+// quota checks a worker's staged attachments plus its uploads still streaming (with their bytes so far) against the
+// per-worker bound; without self it asks room for one more upload, not yet streaming.
+func (s *state) quota(workerID string, self *attachment) error {
+	count, bytes := 1, 0
+	if self != nil {
+		count = 0
+	}
+	for _, a := range s.attachments {
+		if a.status.WorkerId == workerID && a.status.State == "staged" {
+			count++
+			bytes += a.status.Bytes
+		}
+	}
+	for id, a := range s.receiving {
+		if a.status.WorkerId == workerID && s.attachments[id] == nil {
+			count++
+			bytes += a.status.Bytes
+		}
+	}
+	if count > stagedPerWorker || bytes > stagedBytesPerWorker {
+		return refuse("attachment_capacity")
+	}
+	return nil
 }
 
 func (s *state) attachmentStatus(id string) (*b2.AttachmentStatus, error) {
