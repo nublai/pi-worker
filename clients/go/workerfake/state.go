@@ -544,6 +544,11 @@ func (s *state) prompt(id string, p b2.Prompt, op string, request any) (*b2.Rece
 			if mode == "steer" && p.Attachments != nil && len(*p.Attachments) > 0 {
 				return refuse("attachments_need_idle_or_follow_up")
 			}
+			if mode == "follow_up" {
+				if err := checkQueue(w); err != nil {
+					return err
+				}
+			}
 			busy = mode
 		}
 		return nil
