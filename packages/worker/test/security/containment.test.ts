@@ -19,7 +19,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createApp } from '../../src/b2/app.js';
 import { createMemoryTransport, type MemoryResponse } from '../../src/b2/memory.js';
 import { createB2Server, listenPrivate } from '../../src/b2/server.js';
-import { CgroupContainment, checkDelegation, installationId, keeperUnit, openContainment, type Domain } from '../../src/containment/containment.js';
+import { CgroupContainment, checkDelegation, keeperUnit, openContainment, type Domain } from '../../src/containment/containment.js';
 import { bootId, procInfo, processToken } from '../../src/host/process.js';
 import { sdkChildEntry } from '../../src/host/host.js';
 import { productionHosts } from '../../src/daemon.js';
@@ -30,7 +30,7 @@ import { openState } from '../../src/journal/state.js';
 import { ReceiptStore } from '../../src/receipts/receipts.js';
 import type { Worker } from '../../src/supervisor/state.js';
 import { Supervisor } from '../../src/supervisor/supervisor.js';
-import { ownerGrant, privateTmp } from '../helpers.js';
+import { ownerGrant, privateTmp, testInstallation } from '../helpers.js';
 import { TestDomains } from '../domains.js';
 import { bind, fixture, Host, tick } from '../supervisor-fixture.js';
 
@@ -318,7 +318,7 @@ function plainRoot(): { dir: string; root: string; jail: CgroupContainment; clea
   const tmp = privateTmp();
   const rootDir = join(tmp.dir, 'delegation');
   mkdirSync(rootDir);
-  return { dir: tmp.dir, root: rootDir, jail: new CgroupContainment(rootDir, installationId(tmp.dir), 200), cleanup: tmp.cleanup };
+  return { dir: tmp.dir, root: rootDir, jail: new CgroupContainment(rootDir, testInstallation(tmp.dir), 200), cleanup: tmp.cleanup };
 }
 
 test('containment: a domain is never reused, and a join that cannot enter its domain runs nothing (exit 125)', () => {
@@ -430,7 +430,7 @@ test('kernel: real leader crash kills a detached grandchild without stop or rest
   const tmp = privateTmp();
   const dir = tmp.dir;
   const state = openState(dir);
-  const jail = new CgroupContainment(checkDelegation(root), installationId(dir));
+  const jail = new CgroupContainment(checkDelegation(root), state.installation);
   const marker = join(dir, 'escaped');
   const pidFile = join(dir, 'grandchild.pid');
   let leader: ChildProcess | undefined;
@@ -478,7 +478,7 @@ test('kernel: real leader crash kills a detached grandchild without stop or rest
 for (const cut of ['stop', 'restart'] as const) {
   test(`kernel: real cgroup ${cut} kills setsid/nohup grandchild and retires the pre-exec join target`, { skip, timeout: 60_000 }, async () => {
     const tmp = privateTmp();
-    const jail = new CgroupContainment(checkDelegation(root), installationId(tmp.dir));
+    const jail = new CgroupContainment(checkDelegation(root), testInstallation(tmp.dir));
     const unit = jail.reserve(randomUUID());
     const marker = join(tmp.dir, 'escaped');
     const pidFile = join(tmp.dir, 'grandchild.pid');
@@ -491,7 +491,7 @@ for (const cut of ['stop', 'restart'] as const) {
       assert.throws(() => jail.enter(unit), /already exists/);
       if (cut === 'restart') {
         // Lose the process handle, recover solely from the journal-safe identity.
-        const reopened = new CgroupContainment(checkDelegation(root), installationId(tmp.dir));
+        const reopened = new CgroupContainment(checkDelegation(root), testInstallation(tmp.dir));
         assert.equal(await reopened.clean(JSON.parse(JSON.stringify(unit)) as Domain), true);
       } else assert.equal(await jail.clean(unit), true);
       assert.equal(existsSync(join(root, unit.name)), false);
@@ -511,7 +511,7 @@ for (const cut of ['stop', 'restart'] as const) {
 test('kernel: a supervisor stop kills the worker domain with its detached grandchild; the domain is removed and recorded', { skip, timeout: 60_000 }, async () => {
   const tmp = privateTmp();
   const state = openState(tmp.dir);
-  const jail = new CgroupContainment(checkDelegation(root), installationId(tmp.dir));
+  const jail = new CgroupContainment(checkDelegation(root), testInstallation(tmp.dir));
   const marker = join(tmp.dir, 'escaped');
   const pidFile = join(tmp.dir, 'grandchild.pid');
   const s = new Supervisor({
@@ -595,7 +595,7 @@ test('kernel: an inventory probe runs in a real domain; its setsid grandchild di
     receipts: new ReceiptStore(state.journal),
     supervisorEpoch: state.supervisorEpoch,
     stateDir: tmp.dir,
-    containment: new CgroupContainment(checkDelegation(root), installationId(tmp.dir)),
+    containment: new CgroupContainment(checkDelegation(root), state.installation),
     factory: noWorker,
     inventory: probe.factory,
   });
@@ -623,7 +623,7 @@ test('kernel: a supervisor crash mid-probe leaves the probe recorded; recovery k
     receipts: new ReceiptStore(opened.journal),
     supervisorEpoch: opened.supervisorEpoch,
     stateDir: tmp.dir,
-    containment: new CgroupContainment(checkDelegation(root), installationId(tmp.dir)),
+    containment: new CgroupContainment(checkDelegation(root), opened.installation),
     factory: noWorker,
   });
   const first = new Supervisor({ ...options(state), inventory: probe.factory });
@@ -646,7 +646,7 @@ test('kernel: a supervisor crash mid-probe leaves the probe recorded; recovery k
     await delay(2200);
     assert.equal(existsSync(probe.marker), false);
   } finally {
-    if (probe.seen.domain) await new CgroupContainment(checkDelegation(root), installationId(tmp.dir)).clean(probe.seen.domain);
+    if (probe.seen.domain) await new CgroupContainment(checkDelegation(root), state.installation).clean(probe.seen.domain);
     await second?.shutdown();
     state.close();
     tmp.cleanup();
@@ -655,14 +655,15 @@ test('kernel: a supervisor crash mid-probe leaves the probe recorded; recovery k
 
 test('kernel: without PIW_CGROUP_ROOT the daemon keeps an installation-scoped delegated user service', { skip, timeout: 60_000 }, async () => {
   const tmp = privateTmp();
-  const unit = keeperUnit(tmp.dir);
+  const installation = testInstallation(tmp.dir);
+  const unit = keeperUnit(installation);
   const env = { ...process.env };
   delete env.PIW_CGROUP_ROOT;
   try {
-    const jail = openContainment(tmp.dir, env);
+    const jail = openContainment(installation, env);
     const group = execFileSync('systemctl', ['--user', 'show', unit, '--property=ControlGroup', '--value'], { encoding: 'utf8' }).trim();
     assert.equal(jail.root, join('/sys/fs/cgroup', group));
-    assert.equal(openContainment(tmp.dir, env).root, jail.root, 'the same installation reuses its service');
+    assert.equal(openContainment(installation, env).root, jail.root, 'the same installation reuses its service');
     const domain = jail.reserve(randomUUID());
     const child = inDomain(jail.enter(domain), 'echo READY; exec sleep 300', []);
     await once(child.stdout!, 'data');

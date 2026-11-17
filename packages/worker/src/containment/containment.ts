@@ -10,21 +10,30 @@
  * supervisor can clean it from the journal alone. A domain is never reused, even when empty: its removal is what
  * retires a delayed join (a wrapper of a killed supervisor that has not joined yet cannot join later).
  *
- * Installation (P2-2): every domain's name carries the installation id, `w-<installation>-<generation>`, a hash of the
- * state directory's real path (one supervisor per state directory, so one per installation). That name is what proves a
- * domain is this installation's: clean and the startup sweep act only on such names in their own delegation, so
- * another installation's domains and any other cgroup (an operator's, the keeper's own) are never killed or removed,
- * also when installations share an operator-supplied delegation (`PIW_CGROUP_ROOT`). Before recovery, the sweep kills
- * and removes every domain of this installation the journal does not account for (left by a lost journal tail, a state
- * directory recreated at the same path, or a supervisor that crashed before its record), so nothing an older run
- * started keeps running unrecorded.
+ * Installation (P2-2): every domain's name carries the installation id, `w-<installation>-<generation>`: a random id
+ * recorded in the state when it is created (journal/state.ts), so it moves with the state directory and a new state at
+ * the same path is another installation. That name is what proves a domain is this installation's: clean and the
+ * startup sweep act only on such names in their own delegation, so another installation's domains and any other cgroup
+ * (an operator's, the keeper's own) are never killed or removed, also when installations share an operator-supplied
+ * delegation (`PIW_CGROUP_ROOT`). Before recovery, the sweep kills and removes every domain of this installation the
+ * journal does not account for (left by a lost journal tail or a supervisor that crashed before its record), so nothing
+ * an older run started keeps running unrecorded. A recorded domain this containment would not clean (another
+ * delegation, another installation's name) fails startup instead of being left running while the daemon listens.
+ *
+ * One daemon per installation: copies of one state carry one id, so the daemon holds the installation lock
+ * (`holdInstallation`) from before recovery until it exits, and a second daemon on a copy is refused before its sweep.
+ *
+ * Domains this state does not record are not this installation's to find: an operator removes them before discarding
+ * a state (stop its keeper unit, or kill and remove its `w-<installation>-…` domains in an operator root), and before
+ * the first start of this version on a host that ran P2-1 (its `w-<epoch>` and `w-inventory-<id>` domains).
  */
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { accessSync, constants, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmdirSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { bootId } from '../host/process.js';
+import { INSTALLATION_ID } from '../journal/state.js';
+import { acquireLock, LockHeld, type FileLock } from '../lock.js';
 
 /** A domain's identity, durable in the worker's rows: its delegation, its name and the boot it belongs to. */
 export type Domain = { root: string; name: string; boot: string };
@@ -44,7 +53,8 @@ export interface Containment {
   /**
    * The startup sweep: kills and removes every domain of this installation in the delegation except `known` (the
    * domains journal records still account for, which recovery cleans and records itself). Throws `SweepUnproven` when
-   * one is not observed gone: the daemon then fails to start.
+   * one is not observed gone, and `RecordedDomainRefused`, before anything is swept, when a known domain of this boot
+   * is one `clean` would refuse: the daemon then fails to start.
    */
   sweep(known: readonly Domain[]): Promise<void>;
 }
@@ -57,12 +67,53 @@ export class SweepUnproven extends Error {
   }
 }
 
-/** An installation id: a hash of the state directory's real path (`installationId`). */
-const INSTALLATION = /^[0-9a-f]{20}$/;
+/**
+ * A recorded domain of this boot that this containment would not clean (another delegation, or a name without this
+ * installation's id): recovery could never kill it, so startup fails instead of listening with it running.
+ */
+export class RecordedDomainRefused extends Error {
+  readonly code = 'recorded_domain_not_cleanable';
+  constructor(readonly domains: readonly string[]) {
+    super(`recorded_domain_not_cleanable: ${domains.length} recorded cleanup domain(s) are not of this installation's delegation and name; restore the delegation, or kill and remove them, before starting`);
+  }
+}
 
-/** This installation's id, from the state directory's real path; it names the keeper service and every domain. */
-export function installationId(stateDir: string): string {
-  return createHash('sha256').update(realpathSync(stateDir)).digest('hex').slice(0, 20);
+/** Another daemon holds this installation (it runs on a copy of this state), or the lock cannot be taken. */
+export class InstallationRefused extends Error {
+  constructor(
+    readonly code: 'installation_in_use' | 'installation_lock_unavailable',
+    detail: string,
+  ) {
+    super(`${code}: ${detail}`);
+  }
+}
+
+/**
+ * Takes this installation's lock for the daemon's lifetime, or throws `InstallationRefused`. It lives in the user's
+ * runtime directory (`$XDG_RUNTIME_DIR`, else `/run/user/<uid>`), `pi-worker-installations/<installation>.lock`: every
+ * daemon of this user on this host sees that directory whatever its state, socket or delegation path, so two daemons
+ * on copies of one state contend there; it is per boot, as cgroupfs and so every domain is. Not in the state directory
+ * (each copy has its own) and not in the delegation (cgroupfs holds no regular file for the record lock, and a keeper
+ * delegation could differ between copies). The kernel drops it when the daemon dies. The runtime directory must exist;
+ * it is never created.
+ */
+export function holdInstallation(installation: string, env: NodeJS.ProcessEnv = process.env): FileLock {
+  if (!INSTALLATION_ID.test(installation)) throw new Error('invalid installation id');
+  const runtime = env.XDG_RUNTIME_DIR || `/run/user/${process.getuid!()}`;
+  const dir = join(runtime, 'pi-worker-installations');
+  try {
+    try {
+      mkdirSync(dir, { mode: 0o700 });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+    const st = lstatSync(dir);
+    if (!st.isDirectory() || st.uid !== process.getuid!() || (st.mode & 0o077) !== 0) throw new Error(`${dir} must be an owned, non-symlink 0700 directory`);
+    return acquireLock(join(dir, `${installation}.lock`));
+  } catch (error) {
+    if (error instanceof LockHeld) throw new InstallationRefused('installation_in_use', `another daemon runs installation ${installation} (a copy of this state directory)`);
+    throw new InstallationRefused('installation_lock_unavailable', error instanceof Error ? error.message : String(error));
+  }
 }
 /** The fixed program that runs before any payload: it moves itself into the domain, then executes the payload. */
 const JOIN = 'printf "%s\\n" "$$" > "$1/cgroup.procs" || exit 125; shift; exec "$@"';
@@ -75,14 +126,14 @@ export class CgroupContainment implements Containment {
 
   /**
    * `root` is a delegated cgroup v2 directory; `checkDelegation` proves it before the daemon uses it. `installation` is
-   * this installation's id (`installationId`).
+   * this installation's id (the state's, journal/state.ts).
    */
   constructor(
     readonly root: string,
     readonly installation: string,
     readonly timeoutMs = 5000,
   ) {
-    if (!INSTALLATION.test(installation)) throw new Error('invalid installation id');
+    if (!INSTALLATION_ID.test(installation)) throw new Error('invalid installation id');
     this.name = new RegExp(`^w-${installation}-[a-zA-Z0-9-]+$`);
   }
 
@@ -91,9 +142,14 @@ export class CgroupContainment implements Containment {
     return { root: this.root, name: `w-${this.installation}-${epoch}`, boot: bootId() };
   }
 
-  /** The domain's directory; only a domain of this delegation, with this installation's domain name. */
+  /** Whether this containment cleans the domain: only a domain of this delegation, with this installation's name. */
+  private accepts(domain: Domain): boolean {
+    return domain.root === this.root && this.name.test(domain.name);
+  }
+
+  /** The domain's directory; only a domain this containment accepts. */
   private path(domain: Domain): string {
-    if (domain.root !== this.root || !this.name.test(domain.name)) throw new Error('cleanup delegation mismatch');
+    if (!this.accepts(domain)) throw new Error('cleanup delegation mismatch');
     return join(this.root, domain.name);
   }
 
@@ -143,6 +199,10 @@ export class CgroupContainment implements Containment {
   }
 
   async sweep(known: readonly Domain[]): Promise<void> {
+    // A recorded domain clean would refuse is never skipped: it would keep running while the daemon listens. One of a
+    // previous boot is gone with that boot's cgroupfs (clean confirms it without a path).
+    const refused = known.filter(domain => domain.boot === bootId() && !this.accepts(domain)).map(domain => join(domain.root, domain.name));
+    if (refused.length > 0) throw new RecordedDomainRefused(refused);
     const recorded = new Set(known.filter(domain => domain.root === this.root).map(domain => domain.name));
     const unproven: string[] = [];
     for (const entry of readdirSync(this.root, { withFileTypes: true })) {
@@ -192,9 +252,10 @@ export function checkDelegation(root: string, procSelfCgroup = '/proc/self/cgrou
   return real;
 }
 
-/** The systemd user service that keeps this installation's delegation, named from the state directory's real path. */
-export function keeperUnit(stateDir: string): string {
-  return `piw-domains-${installationId(stateDir)}.service`;
+/** The systemd user service that keeps this installation's delegation, named with the installation id. */
+export function keeperUnit(installation: string): string {
+  if (!INSTALLATION_ID.test(installation)) throw new Error('invalid installation id');
+  return `piw-domains-${installation}.service`;
 }
 
 /**
@@ -202,9 +263,8 @@ export function keeperUnit(stateDir: string): string {
  * delegated cgroup, which other installations may share (each sweeps only its own domains); otherwise a stable, installation-scoped systemd user service with `Delegate=yes` keeps one, started
  * once and kept across supervisor crashes. No sudo, no fallback.
  */
-export function openContainment(stateDir: string, env: NodeJS.ProcessEnv = process.env): CgroupContainment {
+export function openContainment(installation: string, env: NodeJS.ProcessEnv = process.env): CgroupContainment {
   if (process.platform !== 'linux') throw new Error('cgroup v2 delegation requires Linux');
-  const installation = installationId(stateDir);
   if (env.PIW_CGROUP_ROOT) return new CgroupContainment(checkDelegation(env.PIW_CGROUP_ROOT), installation);
   const uid = process.getuid!();
   const userEnv = {
@@ -219,7 +279,7 @@ export function openContainment(stateDir: string, env: NodeJS.ProcessEnv = proce
       throw new Error(`no cgroup delegation: ${bin} ${args[0] ?? ''} failed (a systemd user manager is required; set PIW_CGROUP_ROOT to a delegated cgroup otherwise): ${String((error as { stderr?: string }).stderr ?? error).trim().slice(0, 256)}`);
     }
   };
-  const unit = keeperUnit(stateDir);
+  const unit = keeperUnit(installation);
   if (run('systemctl', ['--user', 'show', unit, '--property=ActiveState', '--value']) !== 'active') {
     run('systemd-run', ['--user', `--unit=${unit}`, '--property=Delegate=yes', '--property=KillMode=control-group', '--property=TimeoutStopSec=5', '/bin/sleep', 'infinity']);
   }

@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 import { createApp } from './b2/app.js';
 import { createB2Server, listenPrivate } from './b2/server.js';
 import { resolvePaths, resolveSocketAccess, socketModes, type SocketAccess } from './config.js';
-import { SweepUnproven, type Containment } from './containment/containment.js';
+import { holdInstallation, InstallationRefused, RecordedDomainRefused, SweepUnproven, type Containment } from './containment/containment.js';
 import { pinnedPiVersion, SdkHost } from './host/host.js';
 import type { InventoryFactory } from './supervisor/features.js';
 import type { HostFactory } from './supervisor/state.js';
@@ -64,10 +64,11 @@ export function productionHosts(env?: NodeJS.ProcessEnv): { factory: HostFactory
 }
 
 /**
- * Runs the daemon. `containment` opens the cleanup domains for the state directory; it throws when there is no
- * delegation, and the daemon then refuses to start: it never listens, so nothing can run outside a domain (P2-1).
+ * Runs the daemon. `containment` opens the cleanup domains for the state's installation (journal/state.ts); it throws
+ * when there is no delegation, and the daemon then refuses to start: it never listens, so nothing can run outside a
+ * domain (P2-1).
  */
-export async function runDaemon(containment: (stateDir: string) => Containment): Promise<void> {
+export async function runDaemon(containment: (installation: string) => Containment): Promise<void> {
   const paths = resolvePaths();
   const access = resolveSocketAccess();
   // Every file and socket the supervisor creates is private from the moment it exists.
@@ -88,9 +89,20 @@ export async function runDaemon(containment: (stateDir: string) => Containment):
 
   let domains: Containment;
   try {
-    domains = containment(paths.stateDir);
+    domains = containment(state.installation);
   } catch (error) {
     console.error(JSON.stringify({ event: 'refused', reason: 'no_cgroup_delegation', detail: error instanceof Error ? error.message : String(error) }));
+    process.exit(1);
+  }
+
+  // One daemon per installation, held until the daemon exits (the kernel drops it then): a daemon on a copy of this
+  // state shares its installation id and so its domain names, and is refused here, before its sweep could remove a
+  // domain this daemon's journal records (P2-2).
+  try {
+    holdInstallation(state.installation);
+  } catch (error) {
+    if (!(error instanceof InstallationRefused)) throw error;
+    console.error(JSON.stringify({ event: 'refused', reason: error.code, installation: state.installation, detail: error.message }));
     process.exit(1);
   }
 
@@ -108,11 +120,12 @@ export async function runDaemon(containment: (stateDir: string) => Containment):
   // Recovery before the socket listens. It awaits the startup sweep (every domain of this installation the journal does
   // not account for is killed and removed; one not proven gone refuses the start, P2-2); then undispatched intents
   // become intent_recovered, dispatched ones outcome_unknown, and every worker that held a session is recorded
-  // cleanup_pending, then its domain is killed and removed. No replay.
+  // cleanup_pending, then its domain is killed and removed. No replay. A recorded domain this containment would not
+  // clean refuses the start before the sweep (it could never be killed).
   try {
     await supervisor.recover();
   } catch (error) {
-    if (!(error instanceof SweepUnproven)) throw error;
+    if (!(error instanceof SweepUnproven) && !(error instanceof RecordedDomainRefused)) throw error;
     console.error(JSON.stringify({ event: 'refused', reason: error.code, domains: error.domains, detail: error.message }));
     process.exit(1);
   }
@@ -126,7 +139,7 @@ export async function runDaemon(containment: (stateDir: string) => Containment):
   });
   const server = createB2Server(app.handle);
   await listenPrivate(server, paths.socketPath, access);
-  console.error(JSON.stringify({ event: 'listening', socket: paths.socketPath, pid: process.pid }));
+  console.error(JSON.stringify({ event: 'listening', socket: paths.socketPath, pid: process.pid, installation: state.installation }));
 
   let stopping = false;
   function shutdown(): void {

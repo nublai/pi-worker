@@ -1,4 +1,5 @@
 /** Test helpers: repository paths, wire fixtures, a temporary private directory and a raw socket HTTP call. */
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, chmodSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -44,6 +45,14 @@ export function privateTmp(): { dir: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'piw-test-'));
   chmodSync(dir, 0o700);
   return { dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+/**
+ * A fixed installation id for a test directory, for a containment that has no state of its own (a state's id is
+ * `openState(dir).installation`, random and recorded).
+ */
+export function testInstallation(dir: string): string {
+  return createHash('sha256').update(dir).digest('hex').slice(0, 20);
 }
 
 /** One HTTP request over a Unix socket; resolves with status and parsed JSON body. */
