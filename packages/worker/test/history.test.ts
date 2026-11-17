@@ -5,7 +5,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
-import { setTimeout as delay } from 'node:timers/promises';
 import { join } from 'node:path';
 import { Client, ClientFailure } from '@nublai/pi-worker-client';
 import { createApp } from '../src/b2/app.js';
@@ -247,12 +246,32 @@ test('history (real pi): a fresh worker reads as empty history, not a bad cursor
     const snapshot = ((await api.request('GET', '/b2/events')).body as { type: string; workers: Worker[] }[])[0]!;
     assert.equal(snapshot.type, 'snapshot');
     assert.deepEqual(snapshot.workers[0]!.history, w.history);
-    // After one scripted turn pi has written the file: the default page reads it, pinned at the verified leaf.
+    // After one scripted turn pi has written the file: the default page reads it, pinned at the verified leaf. A client
+    // that reads history as soon as it sees `execution.settled` gets the turn: the row already names pi's final leaf
+    // (the settlement stamp) when the event is published, never the setup entry pi selected before the turn.
+    let atSettle: { leaf_id: string | null; history: Worker['history'] } | undefined;
+    let settledNow!: () => void;
+    const settled = new Promise<void>(resolve => (settledNow = resolve));
+    const sub = s.subscribe(
+      frame => {
+        if (frame.type !== 'execution.settled') return;
+        const row = s.state.require(id).worker;
+        atSettle = { leaf_id: row.leaf_id, history: structuredClone(row.history) };
+        settledNow();
+      },
+      { workerIds: [id] },
+    );
     assert.equal((await api.request('POST', `/b2/workers/${id}/prompt`, { json: { command_id: 'p', worker_epoch: w.worker_epoch, session_id: w.session_id, binding_revision: w.binding_revision, message: 'hi' } })).status, 200);
-    for (let i = 0; i < 500 && s.state.require(id).worker.execution?.state !== 'settled'; i++) await delay(20);
+    await settled;
+    sub.close();
     const after = (await api.request('GET', `/b2/workers/${id}`)).body as Worker;
+    assert.equal(after.execution?.state, 'settled');
     assert.equal(after.history.lag, false);
     assert.equal(after.history.last_entry_id, after.leaf_id);
+    const file = readFileSync(s.state.require(id).sessionFile!, 'utf8').trim().split('\n').map(l => JSON.parse(l) as { id: string; customType?: string });
+    assert.equal(file.at(-1)!.customType, 'agent_settled', 'the settlement stamp is the last entry of the turn');
+    assert.deepEqual(atSettle, { leaf_id: file.at(-1)!.id, history: { last_entry_id: file.at(-1)!.id, lag: false, evidence: 'pi_session_file' } }, 'at execution.settled the row names the leaf after the turn');
+    assert.equal(after.leaf_id, file.at(-1)!.id);
     const page = (await api.request('GET', `/b2/workers/${id}/history`)).body as { entries: { id: string; type: string }[]; watermark: string };
     assert.equal(page.watermark, after.leaf_id);
     assert.ok(page.entries.some(e => e.type === 'message'));
