@@ -13,8 +13,9 @@
  * Budget (PR #12 review F2): a record is ordinary unless its label is a control label (labels.ts: stop, exit, fault,
  * fence, recovery, ...) or its writer marks it `control` (a quota-exempt command's receipts). Every record consumes
  * the reservations it names first. An ordinary record may never leave less than `floor()` free beside every
- * reservation: the control reserve plus the room each worker's own control records need (supervisor/state.ts). One
- * that would is refused `JournalCapacity` before any byte is written, and the journal stays usable; its writer refuses
+ * reservation: the control reserve plus the room each worker's own control records need (supervisor/state.ts). A
+ * record that fits inside its own reservations takes no free room and is never refused for the floor. One that would
+ * is refused `JournalCapacity` before any byte is written, and the journal stays usable; its writer refuses
  * or faults only its own work. A control record may use the reserve.
  */
 import { closeSync, fstatSync, ftruncateSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeSync } from 'node:fs';
@@ -56,6 +57,12 @@ export const recordBytes = (value: unknown): number => Buffer.byteLength(JSON.st
 
 /** The reservation a worker's ordinary records consume (its budget; supervisor/state.ts tops it up). */
 export const budgetKey = (workerId: string) => `worker:${workerId}`;
+
+/**
+ * The reservation for the row that fences a session-directed command's session if its outcome becomes unknown: taken
+ * at admission, consumed by the first row that names the command in its fence (PR #12 review F7).
+ */
+export const fenceKey = (commandId: string) => `fence:${commandId}`;
 
 export interface AppendOptions {
   /** Reservations this record consumes, in order, before it needs free room. */
@@ -206,7 +213,9 @@ export class Journal {
       need -= take;
     }
     const after = this.size() + need + this.reserved();
-    if (!control && after + this.floor() > this.maxBytes) throw new JournalCapacity('journal capacity: an ordinary record may not use the control room');
+    // Bytes already reserved are the guarantee: a record that fits inside them takes no free room, so the floor (which
+    // control records may have used since the reservation) never refuses it (PR #12 review F7).
+    if (!control && need > 0 && after + this.floor() > this.maxBytes) throw new JournalCapacity('journal capacity: an ordinary record may not use the control room');
     try {
       if (after > this.maxBytes) throw new Error('journal capacity; no automatic eviction');
       let offset = 0;

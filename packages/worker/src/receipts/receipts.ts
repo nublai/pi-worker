@@ -14,7 +14,7 @@
 import { createHash } from 'node:crypto';
 import type { components } from '../generated/api.js';
 import { ProvenNoEffect, Refusal } from '../b2/errors.js';
-import type { Journal } from '../journal/journal.js';
+import { fenceKey, type Journal } from '../journal/journal.js';
 import type { DurableLabel } from '../journal/labels.js';
 import { DEFAULT_RETENTION, goalFor, mayBeForgotten, planCompaction, readForgotten, type CompactionGoal, type ExpiredId, type ForgottenIds, type RetentionLimits } from '../journal/retention.js';
 import { recheck } from '../grants/authority.js';
@@ -38,13 +38,15 @@ const RECEIPT_STEP_BYTES = 2048;
 
 /**
  * The room an ordinary command's other records need (supervisor/state.ts): the worker rows, settlement and
- * interaction records it can emit, reserved under `key` with its receipt, before dispatch; and `control`, the room a
- * worker it creates needs for its own control records, which it must leave free.
+ * interaction records it can emit, reserved under `key` with its receipt, before dispatch; `control`, the room a
+ * worker it creates needs for its own control records, which it must leave free; and `fence`, the row that fences its
+ * session if its outcome becomes unknown, reserved under `fenceKey(command_id)` until that row is durable.
  */
 export interface Budget {
   readonly key: string;
   readonly bytes: number;
   readonly control: number;
+  readonly fence: number;
 }
 
 function canonical(value: unknown): string {
@@ -268,10 +270,16 @@ export class ReceiptStore {
         extra = exempt ? null : this.budget(operation, request);
         const receiptBytes = this.maxResultBytes + 1024 + RECEIPT_STEP_BYTES;
         const headroom = exempt ? 0 : this.journal.floor() + (extra?.control ?? 0);
-        this.retain(receiptBytes + (extra?.bytes ?? 0), headroom);
+        this.retain(receiptBytes + (extra?.bytes ?? 0) + (extra?.fence ?? 0), headroom);
         const ordinary = [...this.all.values()].filter(r => !QUOTA_EXEMPT.has(r.operation)).length;
         if (!prior && !exempt && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');
-        const wants = [{ key: commandId, bytes: receiptBytes }, ...(extra ? [{ key: extra.key, bytes: extra.bytes }] : [])];
+        // Its own receipts and the row that would fence its session are reserved for it alone: whatever control
+        // traffic does meanwhile, an admitted command can always reach a terminal receipt and, if unknown, its fence.
+        const wants = [
+          { key: commandId, bytes: receiptBytes },
+          ...(extra ? [{ key: extra.key, bytes: extra.bytes }] : []),
+          ...(extra?.fence ? [{ key: fenceKey(commandId), bytes: extra.fence }] : []),
+        ];
         if (!this.journal.reserveAll(wants, headroom)) throw new Refusal('journal_result_capacity');
         let intent: Receipt;
         try {
@@ -325,6 +333,8 @@ export class ReceiptStore {
       })
       .finally(() => {
         this.inFlight.delete(commandId);
+        // The fence row's room stays reserved for an unknown outcome until that row is durable (supervisor/state.ts).
+        if (this.all.get(commandId)?.state !== 'outcome_unknown') this.journal.release(fenceKey(commandId));
         // A budget its command did not hand to a worker (a create that never made one) is released.
         if (extra?.key.startsWith('create:')) this.journal.release(extra.key);
       });

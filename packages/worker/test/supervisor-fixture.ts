@@ -103,6 +103,8 @@ export function fixture(
     receiptCap?: number;
     /** The receipt store's other retention limits (the defaults otherwise). */
     retention?: Partial<Omit<RetentionLimits, 'receipts' | 'journalBytes'>>;
+    /** The journal's byte bound (the default otherwise). */
+    journalBytes?: number;
   } = {},
 ): Fixture {
   const tmp = privateTmp();
@@ -123,7 +125,7 @@ export function fixture(
     return host;
   };
   const open = (f: HostFactory) => {
-    const state = openState(dir);
+    const state = openState(dir, config.journalBytes === undefined ? {} : { maxBytes: config.journalBytes });
     return { state, supervisor: new Supervisor({ journal: state.journal, receipts: new ReceiptStore(state.journal, config.receiptCap, undefined, config.retention), supervisorEpoch: state.supervisorEpoch, stateDir: dir, factory: f, grants: new GrantStore(dir) }) };
   };
   const first = open(factory);
