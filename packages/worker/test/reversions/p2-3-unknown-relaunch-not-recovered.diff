@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/fence.ts b/packages/worker/src/supervisor/fence.ts
+index eec87d2..0b6617d 100644
+--- a/packages/worker/src/supervisor/fence.ts
++++ b/packages/worker/src/supervisor/fence.ts
+@@ -41,7 +41,6 @@ export const SESSION_DIRECTED = new Set<Receipt['operation']>([
+   'resources.reload',
+   'commands.invoke',
+   // A relaunch reopens the worker's existing session in a fresh pi: its switch hooks may have run (GPT and Grok PR #27).
+-  'workers.relaunch',
+ ]);
+ 
+ /**

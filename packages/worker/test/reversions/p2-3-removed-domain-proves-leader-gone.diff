@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 04c9e55..a29ef3f 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -80,7 +80,7 @@ export class Lifecycle {
+       const domain = live.domain;
+       const leader = { host: live.host, pid: live.pid, token: live.token };
+       const cleaning = Promise.resolve()
+-        .then(async () => (domain ? (await this.containment.clean(domain)) && this.leaderGone(leader) : false))
++        .then(async () => (domain ? (await this.containment.clean(domain)) && (this.leaderGone(leader) || typeof leader === 'object') : false))
+         .catch(() => false)
+         .finally(() => {
+           if (live.cleaning === cleaning) live.cleaning = undefined;

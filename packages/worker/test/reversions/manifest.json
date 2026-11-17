@@ -320,7 +320,8 @@
         "pr20-fake-tool-memory-unbounded.diff",
         "pr20-fake-tool-fields-uncut.diff",
         "pr20-fake-tool-approval-untyped.diff",
-        "pr20-fake-abort-turn-repeated.diff"
+        "pr20-fake-abort-turn-repeated.diff",
+        "p2-3-fake-relaunch-skips-other-fence.diff"
       ]
     },
     "containment": {
@@ -392,7 +393,16 @@
         "p2-3-late-exit-confirms-new-domain.diff",
         "p2-3-relaunch-shares-old-cleanup.diff",
         "p2-3-stop-not-fenced.diff",
-        "p2-3-unproven-exit-not-journaled.diff"
+        "p2-3-unproven-exit-not-journaled.diff",
+        "p2-3-relaunch-skips-session-gates.diff",
+        "p2-3-unknown-relaunch-not-fenced.diff",
+        "p2-3-unknown-relaunch-not-recovered.diff",
+        "p2-3-ended-launch-not-fenced.diff",
+        "p2-3-retired-relaunch-fails-newer-epoch.diff",
+        "p2-3-retired-relaunch-readies.diff",
+        "p2-3-resolved-relaunch-fences-again.diff",
+        "p2-3-unproven-spawn-refusal-no-effect.diff",
+        "p2-3-removed-domain-proves-leader-gone.diff"
       ]
     }
   }

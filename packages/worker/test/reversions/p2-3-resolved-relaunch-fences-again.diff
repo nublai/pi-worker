@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 04c9e55..ad7255f 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -119,7 +119,7 @@ export class Lifecycle {
+ 
+   /** A relaunch's unknown outcome joins the fence, unless the owner already resolved it: a resolution is final. */
+   private uncertainLaunch(live: Live, commandId: string): void {
+-    if (!(live.worker.resolutions ?? []).some(r => r.command_id === commandId)) this.latch(live, commandId);
++    this.latch(live, commandId);
+   }
+ 
+   /**

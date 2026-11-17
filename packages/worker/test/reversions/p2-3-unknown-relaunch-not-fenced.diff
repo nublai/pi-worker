@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 04c9e55..3bcc33c 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -683,8 +683,6 @@ export class Lifecycle {
+       if (live.host !== host) throw error;
+       live.rebinding = false;
+       live.launching = undefined;
+-      // pi may have run the session's switch hooks or opened it: the unknown fences the session in the failure row.
+-      this.uncertainLaunch(live, commandId);
+       await this.launchFailed(live, commandId, error);
+       throw error;
+     }
