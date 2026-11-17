@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 0e87846..f7bb96e 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -85,7 +85,6 @@ export function sandboxRoot(c: Create, controls: SandboxControls): string {
+   } catch {
+     throw new Refusal('sandbox_root_must_equal_cwd');
+   }
+-  if (root === '/') throw new Refusal('sandbox_root_is_host_root');
+   const state = real(controls.stateDir);
+   if (inside(root, state) || inside(state, root)) throw new Refusal('sandbox_overlaps_supervisor_state');
+   const userRuntime = [`/run/user/${process.getuid!()}`, ...(process.env.XDG_RUNTIME_DIR ? [process.env.XDG_RUNTIME_DIR] : [])];

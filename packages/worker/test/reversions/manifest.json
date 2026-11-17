@@ -407,6 +407,49 @@
         "p2-3-zombie-leader-gone.diff",
         "p2-3-late-init-outlives-stop.diff"
       ]
+    },
+    "sandbox": {
+      "command": "npm test -- sandbox",
+      "diffs": [
+        "p2-4-no-die-with-parent.diff",
+        "p2-4-no-clearenv.diff",
+        "p2-4-root-bound-by-path.diff",
+        "p2-4-credential-link-followed.diff",
+        "p2-4-root-not-cwd.diff",
+        "p2-4-host-root-allowed.diff",
+        "p2-4-state-overlap-no-ancestor.diff",
+        "p2-4-state-overlap-no-descendant.diff",
+        "p2-4-protected-no-ancestor.diff",
+        "p2-4-protected-no-descendant.diff",
+        "p2-4-protected-no-control-paths.diff",
+        "p2-4-protected-no-user-runtime.diff",
+        "p2-4-resource-outside-root.diff",
+        "p2-4-runtime-overlap.diff",
+        "p2-4-locate-bwrap-unproved.diff",
+        "p2-4-daemon-skips-bwrap.diff",
+        "p2-4-history-follows-links.diff",
+        "p2-4-history-outside-root.diff",
+        "p2-4-session-dir-follows-links.diff",
+        "p2-4-files-read-follows-links.diff",
+        "p2-4-files-read-hidden.diff",
+        "p2-4-files-read-any-root.diff",
+        "p2-4-files-read-unsandboxed.diff",
+        "p2-4-env-merged.diff",
+        "p2-4-mount-fds-kept.diff",
+        "p2-4-mount-fds-not-placed.diff",
+        "p2-4-production-unsandboxed.diff",
+        "p2-4-sandboxed-root-allowed.diff",
+        "p2-4-child-root-unchecked.diff",
+        "p2-4-child-widens.diff",
+        "p2-4-factory-not-told.diff",
+        "p2-4-session-dir-in-state.diff",
+        "p2-4-index-unpinned.diff",
+        "p2-4-catalog-history-unpinned.diff",
+        "p2-4-catalog-blob-unpinned.diff",
+        "p2-4-catalog-root-dropped.diff",
+        "p2-4-compaction-drops-root.diff",
+        "p2-4-session-crosses-confinement.diff"
+      ]
     }
   }
 }

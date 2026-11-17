@@ -1,0 +1,18 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 0e87846..e85d4d2 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -235,11 +235,11 @@ export function readConfined(root: string, path: string, roots: readonly string[
+   // A relative path: no hidden component and no traversal anywhere in it. An absolute one: no traversal (its hidden
+   // components are checked below the root).
+   const parts = path.split('/');
+-  if (parts.some(p => p === '.' || p === '..') || (!isAbsolute(path) && parts.some(p => p.startsWith('.')))) throw new Refusal('hidden_or_traversal_path_refused');
++  if (parts.some(p => p === '.' || p === '..')) throw new Refusal('hidden_or_traversal_path_refused');
+   const canonical = realpathSync(root);
+   const target = resolve(canonical, path);
+   if (!inside(canonical, target) || roots.some(r => !isAbsolute(r) || !inside(canonical, resolve(r))) || !roots.some(r => inside(resolve(r), target))) throw new Refusal('file_outside_explicit_roots');
+-  if (relative(canonical, target).split('/').some(p => p.startsWith('.'))) throw new Refusal('hidden_or_traversal_path_refused');
++  void relative;
+   let fd: number;
+   try {
+     fd = openPinned(target, 'any');

@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/daemon.ts b/packages/worker/src/daemon.ts
+index b0d15a1..1df026b 100644
+--- a/packages/worker/src/daemon.ts
++++ b/packages/worker/src/daemon.ts
+@@ -102,7 +102,8 @@ export async function runDaemon(containment: (installation: string) => Containme
+   // Sandboxed workers run in bwrap (P2-4): without a bwrap that runs, the daemon refuses to start. Never a fallback.
+   let bwrap: string;
+   try {
+-    bwrap = (options.bwrap ?? locateBwrap)();
++    bwrap = options.bwrap?.() ?? 'bwrap';
++    void locateBwrap;
+   } catch (error) {
+     console.error(JSON.stringify({ event: 'refused', reason: 'bwrap_unavailable', detail: error instanceof Error ? error.message : String(error) }));
+     process.exit(1);

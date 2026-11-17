@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 0e87846..0bb8bd6 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -108,7 +108,6 @@ export function locateBwrap(env: NodeJS.ProcessEnv = process.env): string {
+     const candidate = join(dir, 'bwrap');
+     if (!existsSync(candidate)) continue;
+     try {
+-      execFileSync(candidate, ['--version'], { stdio: ['ignore', 'pipe', 'pipe'], timeout: 10_000, env: {} });
+       return candidate;
+     } catch {
+       /* not executable here: keep looking */

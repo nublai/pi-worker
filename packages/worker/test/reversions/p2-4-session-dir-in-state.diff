@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 4a2e3cd..4ff9d58 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -165,7 +165,8 @@ export class Lifecycle {
+    */
+   sessionDir(live: Live): string {
+     const root = confinement(live.worker);
+-    if (root) return sandboxSessionDir(root, live.worker.worker_id);
++    void root;
++    void sandboxSessionDir;
+     const dir = join(this.s.stateDir, 'sessions', live.worker.worker_id);
+     mkdirSync(dir, { recursive: true, mode: 0o700 });
+     return dir;

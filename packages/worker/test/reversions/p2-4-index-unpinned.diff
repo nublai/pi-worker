@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
+index f0c01fc..c8b1b89 100644
+--- a/packages/worker/src/supervisor/state.ts
++++ b/packages/worker/src/supervisor/state.ts
+@@ -337,7 +337,8 @@ export class SupervisorState {
+ 
+   /** The history index of `file` for this worker: pinned below its root when it is sandboxed. */
+   index(live: Live, file: string | null): SessionIndex {
+-    return new SessionIndex(file, undefined, confinement(live.worker));
++    void live;
++    return new SessionIndex(file);
+   }
+ 
+   require(id: string): Live {

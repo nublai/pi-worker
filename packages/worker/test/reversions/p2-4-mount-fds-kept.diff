@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/host/host.ts b/packages/worker/src/host/host.ts
+index b40095e..a80705a 100644
+--- a/packages/worker/src/host/host.ts
++++ b/packages/worker/src/host/host.ts
+@@ -316,7 +316,7 @@ export class SdkHost extends LineHost {
+       });
+     } finally {
+       // The child has its own copies of the mount sources now (or there is no child): the supervisor keeps none open.
+-      box?.close();
++      void box;
+     }
+   }
+ }

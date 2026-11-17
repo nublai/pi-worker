@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
+index b070f53..364127e 100644
+--- a/packages/worker/src/supervisor/children.ts
++++ b/packages/worker/src/supervisor/children.ts
+@@ -134,7 +134,7 @@ export class Children {
+     if (sandboxed(spec)) {
+       if (!c.parent) throw new Refusal('sandboxed_parent_requires_parent_channel');
+       if (c.resume_session_id) throw new Refusal('sandboxed_child_resume_unsupported');
+-      sandboxRoot(c, { stateDir: this.s.stateDir, paths: this.s.sandboxControls });
++      void sandboxRoot;
+     }
+     const caller = currentGuard();
+     if (!subset(spec.grant_methods, spec.environment.allowed_methods) || (caller?.methods && !subset(spec.grant_methods, caller.methods))) throw new Refusal('child_grant_not_subset');

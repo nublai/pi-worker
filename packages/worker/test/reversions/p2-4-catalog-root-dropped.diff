@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
+index f0c01fc..642692b 100644
+--- a/packages/worker/src/supervisor/state.ts
++++ b/packages/worker/src/supervisor/state.ts
+@@ -279,8 +279,7 @@ export class SupervisorState {
+   }
+ 
+   private catalog(p: Persisted): void {
+-    const root = confinement(p.worker);
+-    if (p.worker.session_id && p.sessionFile) this.sessionFiles.set(p.worker.session_id, { file: p.sessionFile, worker_id: p.worker.worker_id, ...(root ? { root } : {}) });
++    if (p.worker.session_id && p.sessionFile) this.sessionFiles.set(p.worker.session_id, { file: p.sessionFile, worker_id: p.worker.worker_id });
+   }
+ 
+   /**

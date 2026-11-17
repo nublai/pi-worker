@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 0e87846..5e36d5b 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -80,8 +80,7 @@ export function sandboxRoot(c: Create, controls: SandboxControls): string {
+   if (process.platform !== 'linux' || (c.host ?? 'sdk') !== 'sdk') throw new Refusal('bwrap_requires_linux_sdk');
+   let root: string;
+   try {
+-    if (!env.root || realpathSync(env.root) !== realpathSync(c.cwd)) throw new Error('mismatch');
+-    root = realpathSync(env.root);
++    root = realpathSync(c.cwd);
+   } catch {
+     throw new Refusal('sandbox_root_must_equal_cwd');
+   }

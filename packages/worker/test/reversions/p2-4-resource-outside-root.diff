@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 0e87846..6220298 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -92,7 +92,7 @@ export function sandboxRoot(c: Create, controls: SandboxControls): string {
+   const protectedPaths = ['/sys/fs/cgroup', '/proc', '/dev', ...userRuntime.flatMap(path => [path, join(path, 'bus')]), ...controls.paths].map(real);
+   if (protectedPaths.some(path => inside(root, path) || inside(path, root))) throw new Refusal('sandbox_overlaps_protected_control_path');
+   // Inside the sandbox a resource resolves only within its own mounts: one outside the root is refused, not hidden.
+-  for (const path of [...c.launch_spec!.resources.extensions, ...c.launch_spec!.resources.skills]) if (!inside(root, real(path))) throw new Refusal('sandbox_resource_outside_root');
++  for (const path of [...c.launch_spec!.resources.extensions, ...c.launch_spec!.resources.skills]) if (!inside(root, real(path)) && path === '') throw new Refusal('sandbox_resource_outside_root');
+   // The runtime is bound read-only into every sandbox: it must never be the root's, nor expose the state.
+   for (const path of runtimePaths()) if (inside(path, state) || inside(path, root) || inside(root, path)) throw new Refusal('sandbox_runtime_overlaps_state_or_root');
+   return root;

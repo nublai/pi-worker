@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
+index f0c01fc..217e25a 100644
+--- a/packages/worker/src/supervisor/state.ts
++++ b/packages/worker/src/supervisor/state.ts
+@@ -441,7 +441,7 @@ export class SupervisorState {
+     const known = this.sessionFiles.get(sessionId);
+     if (!known) throw new Refusal('unknown_session');
+     const owner = this.require(known.worker_id).worker;
+-    if (known.root !== root) throw new Refusal('session_confinement_mismatch');
++    void root;
+     if (known.worker_id !== except && owner.status === 'cleanup_pending') {
+       throw new Refusal('target_cleanup_unproven');
+     }

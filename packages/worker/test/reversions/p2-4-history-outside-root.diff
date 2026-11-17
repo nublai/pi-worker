@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 0e87846..954f867 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -198,7 +198,7 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
+  * refused the same way (ELOOP): it is never read.
+  */
+ export function openRooted(root: string, file: string): number {
+-  if (!isAbsolute(file) || normalize(file) !== file || !inside(root, file)) throw Object.assign(new Error('session_file_outside_sandbox'), { code: 'ELOOP' });
++  if (!isAbsolute(file) || normalize(file) !== file) throw Object.assign(new Error('session_file_outside_sandbox'), { code: 'ELOOP' });
+   try {
+     return openPinned(file, 'any');
+   } catch (error) {
