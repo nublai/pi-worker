@@ -12,9 +12,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { processToken } from '../src/host/process.js';
+import { LineHost } from '../src/host/host.js';
+import { procInfo, processToken } from '../src/host/process.js';
 import { parseJournal } from '../src/journal/journal.js';
 import { requestHash } from '../src/receipts/receipts.js';
 import type { PiResponse } from '../src/host/host.js';
@@ -722,3 +724,180 @@ for (const restart of [false, true]) {
     }
   });
 }
+
+// PR #27 delta review (9a3e93f): a stop wins over the relaunch it retires (GPT D1).
+
+for (const late of ['succeeds', 'fails'] as const) {
+  for (const resolved of [true, false]) {
+    test(`relaunch: a stop wins over the relaunch it ends; that relaunch's initialization ${late} late and changes nothing (resolved=${resolved})`, async () => {
+      let held: { resolve: (r: PiResponse) => void; reject: (e: Error) => void } | undefined;
+      const f = fixture({
+        domains: new TestDomains(),
+        initHost: h => {
+          const request = h.request.bind(h);
+          // The first relaunch's inventory reply is held (its identity is checked, the session is open).
+          h.request = async c => (f.hosts.length === 2 && h === f.hosts[1] && c.type === 'inventory' ? new Promise<PiResponse>((resolve, reject) => (held = { resolve, reject })) : request(c));
+        },
+      });
+      try {
+        const w = await f.create();
+        await f.supervisor.stop(w.worker_id, bind(w, 'stop'));
+        const first = f.supervisor.relaunch(w.worker_id, bind(w, 'relaunch-1'));
+        for (let i = 0; i < 6 && !held; i++) await tick();
+        assert.ok(held, 'the relaunch waits on its inventory');
+        const stop = await f.supervisor.stop(w.worker_id, bind(f.supervisor.get(w.worker_id), 'stop-starting'));
+        assert.equal(stop.result?.termination, 'observed_stopped');
+        assert.equal(f.supervisor.get(w.worker_id).fence?.command_id, 'relaunch-1', 'the relaunch the stop ended fences the session');
+        // No newer epoch is started: the stopped generation is the current one when the late reply arrives.
+        if (resolved) await resolve(f.supervisor, f.supervisor.get(w.worker_id), 'resolve', 'relaunch-1');
+        const settled = structuredClone(f.supervisor.get(w.worker_id));
+        const row = latestRow(f, w.worker_id);
+        if (late === 'succeeds') held!.resolve({ type: 'response', id: 'late', success: true, data: { extensions: [], extension_errors: [], skills: [], tools: [], active_tools: [], commands: [] } });
+        else held!.reject(new Error('pi exited'));
+        assert.equal((await first).state, 'outcome_unknown', 'the relaunch a stop ended is never delivered');
+        for (let i = 0; i < 6; i++) await tick();
+        const now = f.supervisor.get(w.worker_id);
+        assert.equal(now.status, 'stopped', 'the stop wins: the worker is not resurrected');
+        assert.equal(now.cleanup, 'cgroup_empty_removed');
+        assert.equal(now.worker_epoch, settled.worker_epoch);
+        assert.equal(now.failure, undefined);
+        assert.deepEqual(now.fence, settled.fence, resolved ? 'a resolved uncertainty never fences again' : 'the fence stays');
+        assert.equal(f.supervisor.state.require(w.worker_id).pid, null);
+        assert.deepEqual(latestRow(f, w.worker_id), row, 'the stop\'s row stands: no later row rewrites it');
+        assert.equal(f.hosts[1]!.stops, 1, 'only the stop cleaned the domain');
+        if (resolved) assert.equal((await f.supervisor.relaunch(w.worker_id, bind(now, 'relaunch-2'))).state, 'delivered', 'a genuine replacement is not blocked');
+        else await assert.rejects(f.supervisor.relaunch(w.worker_id, bind(now, 'relaunch-2')), named('session_fenced'));
+      } finally {
+        await f.supervisor.shutdown();
+        f.cleanup();
+      }
+    });
+  }
+}
+
+// PR #27 delta review (9a3e93f): only OS evidence about the leader proves it gone (Grok 1 and 2, GPT D2).
+
+/** A real process stays alive: not gone from /proc and not a zombie. */
+const running = (pid: number) => {
+  const info = procInfo(pid);
+  return info !== null && info.state !== 'Z';
+};
+
+async function until(check: () => boolean, what: string): Promise<void> {
+  for (let i = 0; i < 200; i++) {
+    if (check()) return;
+    await new Promise(r => setTimeout(r, 10));
+  }
+  throw new Error(`timed out waiting for ${what}`);
+}
+
+for (const restart of [false, true]) {
+  test(`relaunch: a transport failure (stdin EPIPE) while the pi leader still runs proves nothing, so no second writer starts (restart=${restart})`, { timeout: 30_000 }, async () => {
+    let real: LineHost | undefined;
+    const f = fixture({
+      domains: new TestDomains(),
+      launch: launch => {
+        if (launch.commandId !== 'create-0') return undefined;
+        // A real process that closes its stdin and keeps running: the supervisor's next write fails with EPIPE, and
+        // LineHost emits its `exit` event for that transport failure while the pid is alive.
+        const host = new LineHost(process.execPath, ['-e', "require('node:fs').closeSync(0); setInterval(() => {}, 1000);"], { cwd: launch.cwd, env: process.env, timeoutMs: 5000 });
+        const file = join(launch.sessionDir, 'real.jsonl');
+        writeFileSync(file, `${JSON.stringify({ type: 'session', id: 'real-session' })}\n`);
+        const request = host.request.bind(host);
+        host.request = async c =>
+          c.type === 'get_state'
+            ? { type: 'response', id: 'x', success: true, data: { sessionId: 'real-session', sessionFile: file } }
+            : c.type === 'inventory'
+              ? { type: 'response', id: 'x', success: true, data: { extensions: [], extension_errors: [] } }
+              : request(c);
+        // The leader left the domain: the domain is observed empty and removed, and nothing signals the leader.
+        host.stop = async () => true;
+        real = host;
+        return host;
+      },
+    });
+    try {
+      const w = await f.create();
+      const pid = real!.pid!;
+      await until(() => !existsSync(`/proc/${pid}/fd/0`), 'the leader to close its stdin');
+      const exited = new Promise<void>(r => real!.once('exit', () => r()));
+      // The prompt's write meets the closed pipe: EPIPE, then LineHost's `exit` event.
+      await f.supervisor.prompt(w.worker_id, { ...bind(w, 'epipe'), message: 'x' }).catch(() => undefined);
+      await exited;
+      await until(() => f.supervisor.get(w.worker_id).cleanup !== 'leader_exit_only', 'the exit cleanup to settle');
+      assert.ok(running(pid), 'the leader still runs after the transport failure');
+      assert.equal(f.supervisor.get(w.worker_id).status, 'cleanup_pending', 'a host exit event is not process death');
+      assert.notEqual(f.supervisor.get(w.worker_id).cleanup, 'cgroup_empty_removed');
+      const stop = await f.supervisor.stop(w.worker_id, bind(w, 'stop'));
+      assert.equal(stop.state, 'outcome_unknown', 'a removed domain and a host exit event are not termination');
+      const s = restart ? await f.restart(f.factory) : f.supervisor;
+      const pending = s.get(w.worker_id);
+      assert.equal(pending.status, 'cleanup_pending');
+      assert.notEqual(pending.cleanup, 'cgroup_empty_removed');
+      assert.notEqual(latestRow(f, w.worker_id).cleanup, 'cgroup_empty_removed');
+      await assert.rejects(s.relaunch(w.worker_id, bind(pending, 'second-writer')), named('cleanup_pending_or_cleanup_unproven'));
+      assert.equal(f.hosts.length, 0, 'no second pi on the session');
+      assert.ok(running(pid), 'the leader is the one still running');
+    } finally {
+      const pid = real?.pid;
+      if (pid) {
+        try {
+          process.kill(-pid, 'SIGKILL');
+        } catch {
+          /* already gone */
+        }
+      }
+      await f.supervisor.shutdown();
+      f.cleanup();
+    }
+  });
+}
+
+/** A python3 leader whose main thread exits (the raw exit syscall) while another thread keeps running. */
+const ZOMBIE_LEADER = 'import ctypes, threading, time\ndef run():\n    while True:\n        time.sleep(0.05)\nthreading.Thread(target=run).start()\nctypes.CDLL(None).syscall(60, 0)\n';
+/** A python3 parent that never reaps its exited child: that child is a zombie with no live thread. Prints its pid. */
+const DEAD_ZOMBIE = 'import os, sys, time\npid = os.fork()\nif pid == 0:\n    os._exit(0)\nprint(pid, flush=True)\ntime.sleep(60)\n';
+
+test('relaunch: a zombie pi leader with a live thread is not gone, so no second writer starts; one with no live thread is', { timeout: 30_000 }, async () => {
+  const leader = spawn('/usr/bin/python3', ['-c', ZOMBIE_LEADER], { detached: true, stdio: 'ignore' });
+  const parent = spawn('/usr/bin/python3', ['-c', DEAD_ZOMBIE], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
+  let pid = leader.pid!;
+  const f = fixture({
+    domains: new TestDomains(),
+    initHost: h => {
+      // The domain is observed empty and removed; nothing signals the recorded leader.
+      h.pid = pid;
+      h.token = processToken(pid);
+      h.stop = async () => {
+        h.stops++;
+        return true;
+      };
+    },
+  });
+  try {
+    await until(() => procInfo(pid)?.state === 'Z' && readdirSync(`/proc/${pid}/task`).length > 1, 'a zombie leader with a live thread');
+    const w = await f.create();
+    const stop = await f.supervisor.stop(w.worker_id, bind(w, 'stop'));
+    assert.equal(stop.state, 'outcome_unknown', 'a zombie leader whose thread still runs is not gone');
+    const pending = f.supervisor.get(w.worker_id);
+    assert.equal(pending.status, 'cleanup_pending');
+    assert.notEqual(latestRow(f, w.worker_id).cleanup, 'cgroup_empty_removed');
+    await assert.rejects(f.supervisor.relaunch(w.worker_id, bind(pending, 'second-writer')), named('cleanup_pending_or_cleanup_unproven'));
+    assert.equal(f.hosts.length, 1, 'no second pi on the session');
+    // Control: an unreaped zombie whose every thread has exited is gone (the state a cgroup kill leaves before Node
+    // reaps the leader).
+    pid = Number(await new Promise<string>(r => parent.stdout!.once('data', (b: Buffer) => r(b.toString()))));
+    await until(() => procInfo(pid)?.state === 'Z', 'an unreaped zombie');
+    const other = await f.create();
+    assert.equal((await f.supervisor.stop(other.worker_id, bind(other, 'stop-other'))).result?.termination, 'observed_stopped');
+  } finally {
+    for (const p of [leader, parent]) {
+      try {
+        process.kill(-p.pid!, 'SIGKILL');
+      } catch {
+        /* already gone */
+      }
+    }
+    f.cleanup();
+  }
+});

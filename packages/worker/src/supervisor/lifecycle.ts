@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { ProvenNoEffect, Refusal } from '../b2/errors.js';
-import { bootId, procInfo } from '../host/process.js';
+import { processGone } from '../host/process.js';
 import { SessionIndex } from '../history/session-index.js';
 import type { ChildReport, PiRecord, SessionHost } from '../host/host.js';
 import type { Containment, Domain } from '../containment/containment.js';
@@ -78,7 +78,7 @@ export class Lifecycle {
   private terminate(live: Live): Promise<boolean> {
     if (!live.cleaning) {
       const domain = live.domain;
-      const leader = { host: live.host, pid: live.pid, token: live.token };
+      const leader = { pid: live.pid, token: live.token };
       const cleaning = Promise.resolve()
         .then(async () => (domain ? (await this.containment.clean(domain)) && this.leaderGone(leader) : false))
         .catch(() => false)
@@ -90,31 +90,28 @@ export class Lifecycle {
     return live.cleaning;
   }
 
-  /** Hosts whose process exit was observed (Node reaped the leader). */
-  private readonly exitedHosts = new WeakSet<SessionHost>();
-
   /**
    * The domain's removal proves only what was still in it. The generation's pi leader is proven gone too, or the
-   * cleanup is not confirmed (Grok PR #27): its exit was observed, or its recorded pid no longer names that live
-   * process (gone, a zombie, a recycled pid or another boot). A leader that left the domain and still runs keeps the
-   * worker pending, so no relaunch or resume starts a second writer beside it.
+   * cleanup is not confirmed (Grok PR #27): only OS evidence about the exact process this generation spawned counts
+   * (`processGone`: its pid is absent or recycled, another boot, or a zombie with no live thread). A host `exit` event
+   * is not that evidence: `LineHost` emits it on a transport failure (stdin EPIPE) while the process still runs
+   * (Grok and GPT PR #27 delta). A leader that left the domain and still runs keeps the worker pending, so no relaunch
+   * or resume starts a second writer beside it. A generation that spawned no process has no leader.
    */
-  private leaderGone(leader: { host: SessionHost | undefined; pid: number | null; token: string | null }): boolean {
-    if (leader.host && this.exitedHosts.has(leader.host)) return true;
-    if (leader.pid === null) return true;
-    const info = procInfo(leader.pid);
-    if (!info || info.state === 'Z') return true;
-    if (!leader.token) return false;
-    return !leader.token.startsWith(`${bootId()}:`) || leader.token !== `${bootId()}:${info.start}`;
+  private leaderGone(leader: { pid: number | null; token: string | null }): boolean {
+    return leader.pid === null || processGone(leader.pid, leader.token);
   }
 
   /**
    * A relaunch still initializing when its process ends (a stop, an exit, a fault) has an unknown outcome: pi may
    * have opened the session. It joins the fence in the row that records the end, before any cleanup can confirm and
-   * admit another relaunch (GPT PR #27 finding 3).
+   * admit another relaunch (GPT PR #27 finding 3). A stop also retires the attempt (`retire`): a stop wins, so the
+   * attempt's late continuation, success or failure, never changes the worker again (GPT PR #27 delta D1).
    */
-  private endLaunch(live: Live): void {
-    if (live.launching) this.uncertainLaunch(live, live.launching);
+  private endLaunch(live: Live, retire = false): void {
+    if (!live.launching) return;
+    this.uncertainLaunch(live, live.launching);
+    if (retire) live.launching = undefined;
   }
 
   /** A relaunch's unknown outcome joins the fence, unless the owner already resolved it: a resolution is final. */
@@ -178,7 +175,6 @@ export class Lifecycle {
   }
 
   wireHost(live: Live, host: SessionHost): void {
-    host.on('exit', () => this.exitedHosts.add(host));
     // A retired generation's callbacks must not fault or rebind the current one.
     host.on('event', event => {
       if (live.host === host) this.guarded(live, () => this.onEvent(live, event));
@@ -496,8 +492,8 @@ export class Lifecycle {
         // reports it), and a confirmed stop must never leave a relaunchable worker with an unfenced execution.
         const running = w.execution;
         if (running && running.state !== 'settled' && this.s.receipts.all.get(running.command_id)?.effect !== 'no_effect') this.onUncertain(live, running.command_id, 'worker.stop');
-        // So is a relaunch still initializing: it fences in the same row, durably before the kill.
-        this.endLaunch(live);
+        // So is a relaunch still initializing: it fences in the same row, durably before the kill, and is retired.
+        this.endLaunch(live, true);
         // cleanup_pending is durable before the kill: a crash between them leaves a pending row recovery cleans.
         w.status = 'cleanup_pending';
         w.cleanup = 'stop_requested';
@@ -656,7 +652,9 @@ export class Lifecycle {
       live.completedMessages = 0;
       this.s.refresh(live);
       const inventory = await host.request({ type: 'inventory' });
-      if (live.host !== host) throw new Error('relaunch_superseded');
+      // Only the attempt still in flight publishes readiness: not one a stop retired (with or without a newer epoch
+      // since), nor one whose process ended meanwhile.
+      if (live.host !== host || live.launching !== commandId || w.status !== 'starting') throw new Error('relaunch_superseded');
       if (!inventory.success || ((inventory.data?.extension_errors as unknown[] | undefined)?.length ?? 1) > 0) throw new Error('resource_inventory_failed');
       if (live.faulted) throw new Error('worker fault during initialization');
       w.resources = inventory.data!;
@@ -679,8 +677,8 @@ export class Lifecycle {
     } catch (error) {
       // A retired attempt (its process ended and a newer relaunch brought up another generation since) reports its own
       // unknown outcome only: whatever ended it already fenced it, and the newer generation's state, process and domain
-      // stay untouched (GPT PR #27 finding 3).
-      if (live.host !== host) throw error;
+      // stay untouched (GPT PR #27 finding 3). So does one a stop retired: the stop's row stands (GPT PR #27 delta D1).
+      if (live.host !== host || live.launching !== commandId) throw error;
       live.rebinding = false;
       live.launching = undefined;
       // pi may have run the session's switch hooks or opened it: the unknown fences the session in the failure row.
