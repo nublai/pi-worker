@@ -15,6 +15,7 @@ import { Refusal } from '../b2/errors.js';
 import { SessionIndex } from '../history/session-index.js';
 import type { ChildReport, PiRecord, SessionHost } from '../host/host.js';
 import { killGroup } from '../host/process.js';
+import { budgetKey } from '../journal/journal.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
 import { HOLDING, type Binding, type Create, type Live, type SupervisorState } from './state.js';
 import { currentGuard } from '../grants/authority.js';
@@ -246,7 +247,14 @@ export class Lifecycle {
   /** The dispatched part of create: spawn, identity, optional resume, readiness. */
   private async launch(live: Live, c: Create, cwd: string, resumeFile: string | undefined): Promise<ReceiptPatch> {
     const w = live.worker;
-    this.s.persist(live, 'worker.create');
+    try {
+      this.s.persist(live, 'worker.create');
+    } catch (error) {
+      // No starting row, no dispatch: nothing ran, and the worker never existed beyond memory.
+      this.s.workers.delete(w.worker_id);
+      this.s.journal.release(budgetKey(w.worker_id));
+      throw error;
+    }
     this.s.receipts.dispatch(c.command_id, { worker_id: w.worker_id });
     let host: SessionHost;
     try {

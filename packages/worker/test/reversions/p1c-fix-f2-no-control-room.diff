@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
+--- a/packages/worker/src/supervisor/state.ts
++++ b/packages/worker/src/supervisor/state.ts
+@@ -138,7 +138,7 @@
+       this.rowSize.set(persisted.worker.worker_id, recordBytes(record.value));
+     }
+     receipts.budget = (operation, request) => this.budget(operation, request);
+-    journal.controlRoom = () => this.controlRoom();
++    journal.controlRoom = () => 0;
+   }
+ 
+   /** A worker row's size: its latest, or the row it would write now. */

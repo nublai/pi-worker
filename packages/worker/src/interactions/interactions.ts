@@ -27,7 +27,7 @@ import { ProvenNoEffect, Refusal } from '../b2/errors.js';
 import type { components } from '../generated/api.js';
 import { currentGuard, type Guard } from '../grants/authority.js';
 import type { PiRecord, SessionHost } from '../host/host.js';
-import type { Journal } from '../journal/journal.js';
+import { budgetKey, type Journal } from '../journal/journal.js';
 import type { DurableLabel } from '../journal/labels.js';
 import type { Receipt, ReceiptStore } from '../receipts/receipts.js';
 
@@ -103,7 +103,7 @@ export class Interactions {
 
   private save(r: Interaction, label: DurableLabel): void {
     // SAFETY: an Interaction is a plain JSON object (no methods, no cycles); the journal stores it as a record value.
-    this.journal.append('interaction', r as unknown as Record<string, unknown>, label);
+    this.journal.append('interaction', r as unknown as Record<string, unknown>, label, { budget: [budgetKey(r.worker_id)] });
     this.records.set(r.interaction_id, structuredClone(r));
   }
 
@@ -195,7 +195,7 @@ export class Interactions {
     this.hooks.changed(l.record.worker_id);
     if (!cancel) return;
     // Write-ahead cancellation marker; a cancel claims nothing about consumption.
-    this.journal.append('interaction_effect', { interaction_id: l.record.interaction_id, worker_id: l.record.worker_id, operation: 'cancel', reason }, 'interaction.cancel');
+    this.journal.append('interaction_effect', { interaction_id: l.record.interaction_id, worker_id: l.record.worker_id, operation: 'cancel', reason }, 'interaction.cancel', { budget: [budgetKey(l.record.worker_id)] });
     void this.cancelNative(l.host, l.record.native_id).catch(() => {
       try {
         this.hooks.fence(l.record.worker_id, `interaction-cancel-${l.record.interaction_id}`);

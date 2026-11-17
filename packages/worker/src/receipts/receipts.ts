@@ -33,6 +33,20 @@ export const QUOTA_EXEMPT = new Set<Operation>(['workers.stop', 'executions.canc
 
 export const isFinal = (receipt: Receipt | undefined): boolean => receipt !== undefined && FINAL.has(receipt.state);
 
+/** Room for a command's records before its final one (intent, dispatch marker, queue steps). */
+const RECEIPT_STEP_BYTES = 2048;
+
+/**
+ * The room an ordinary command's other records need (supervisor/state.ts): the worker rows, settlement and
+ * interaction records it can emit, reserved under `key` with its receipt, before dispatch; and `control`, the room a
+ * worker it creates needs for its own control records, which it must leave free.
+ */
+export interface Budget {
+  readonly key: string;
+  readonly bytes: number;
+  readonly control: number;
+}
+
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if (value !== null && typeof value === 'object') {
@@ -66,6 +80,8 @@ export class ReceiptStore {
   readonly limits: RetentionLimits;
   /** The clock for `created_at` and the retention age; tests move it. */
   now: () => number = Date.now;
+  /** The budget an ordinary command reserves for its other records (set by the supervisor; none without one). */
+  budget: (operation: Operation, request: Record<string, unknown>) => Budget | null = () => null;
   /** The journal size right after the last compaction, and the last attempt (to not rewrite for nothing). */
   private compactedBytes = 0;
   private attempted: { records: number; at: number } | null = null;
@@ -77,6 +93,7 @@ export class ReceiptStore {
     retention: Partial<Omit<RetentionLimits, 'receipts' | 'journalBytes'>> = {},
   ) {
     this.limits = { ...DEFAULT_RETENTION, ...retention, receipts: maxCount, journalBytes: journal.maxBytes };
+    journal.controlReserveBytes = this.limits.controlReserveBytes;
     this.load();
     this.compactedBytes = journal.isClosed ? 0 : journal.size();
     journal.onCompacted(() => this.load());
@@ -106,12 +123,12 @@ export class ReceiptStore {
    * retained records. Skipped when nothing could change since the last attempt. A compaction that fails before its
    * rename leaves the journal as it was; the admission checks that follow then refuse if there is still no room.
    */
-  private retain(): void {
+  private retain(need: number, headroom: number): void {
     const j = this.journal;
     if (j.isClosed) return; // The reservation that follows refuses.
     const size = j.size();
     const countDue = this.all.size >= this.maxCount;
-    const roomDue = size + j.reservedBytes + this.maxResultBytes + 1024 + this.limits.controlReserveBytes > j.maxBytes;
+    const roomDue = size + j.reservedBytes + need + headroom > j.maxBytes;
     const bytesDue = roomDue || size >= Math.max(j.maxBytes / 2, this.compactedBytes + j.maxBytes / 4);
     if (!countDue && !bytesDue) return;
     const now = this.now();
@@ -156,7 +173,9 @@ export class ReceiptStore {
     if (isFinal(prior)) throw new Error('receipt is final');
     if (Buffer.byteLength(JSON.stringify(receipt)) > this.maxResultBytes) throw new Error('receipt exceeds reserved bound');
     const final = FINAL.has(receipt.state);
-    const { appended } = this.journal.append('receipt', receipt, label, final ? receipt.command_id : undefined);
+    // Every record of a command consumes its own reservation; a quota-exempt command's are control records, and so are
+    // uncertainty, recovery and owner dispositions (their labels; labels.ts).
+    const { appended } = this.journal.append('receipt', receipt, label, { budget: [receipt.command_id], ...(QUOTA_EXEMPT.has(receipt.operation) ? { control: true } : {}) });
     this.appended.set(receipt.command_id, appended);
     if (final) this.journal.release(receipt.command_id);
     this.all.set(receipt.command_id, receipt);
@@ -236,16 +255,24 @@ export class ReceiptStore {
     // An id whose expired record rolled over is not proof of a fresh command (contract rule "no replay past
     // retention"): an id that may be one the worker forgot is refused before anything is written.
     if (!pending && !prior && mayBeForgotten(this.forgotten, commandId)) throw new Refusal('command_id_beyond_retention', 'no_effect', undefined, {}, 409);
+    let extra: Budget | null = null;
     const result = Promise.resolve()
       .then(async () => {
         // Validation and reservation run atomically with the synchronous pre-dispatch part of effect().
         validate();
         if (this.journal.failed) throw new Refusal('journal_failed', 'no_effect');
         const exempt = QUOTA_EXEMPT.has(operation);
-        this.retain();
+        // An ordinary command reserves room for every record it can emit (its receipts, and its worker's rows,
+        // settlements and interactions) and leaves the journal's floor free: the control reserve and the room each
+        // worker's own control records need, its new worker's included. A control command may use that room.
+        extra = exempt ? null : this.budget(operation, request);
+        const receiptBytes = this.maxResultBytes + 1024 + RECEIPT_STEP_BYTES;
+        const headroom = exempt ? 0 : this.journal.floor() + (extra?.control ?? 0);
+        this.retain(receiptBytes + (extra?.bytes ?? 0), headroom);
         const ordinary = [...this.all.values()].filter(r => !QUOTA_EXEMPT.has(r.operation)).length;
         if (!prior && !exempt && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');
-        if (!this.journal.reserve(commandId, this.maxResultBytes + 1024, exempt ? 0 : this.limits.controlReserveBytes)) throw new Refusal('journal_result_capacity');
+        const wants = [{ key: commandId, bytes: receiptBytes }, ...(extra ? [{ key: extra.key, bytes: extra.bytes }] : [])];
+        if (!this.journal.reserveAll(wants, exempt ? 0 : this.journal.floor() + (extra?.control ?? 0))) throw new Refusal('journal_result_capacity');
         let intent: Receipt;
         try {
           intent = this.put(
@@ -298,6 +325,8 @@ export class ReceiptStore {
       })
       .finally(() => {
         this.inFlight.delete(commandId);
+        // A budget its command did not hand to a worker (a create that never made one) is released.
+        if (extra?.key.startsWith('create:')) this.journal.release(extra.key);
       });
     this.inFlight.set(commandId, { hash, operation, promise: result });
     return result;

@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/journal/journal.ts b/packages/worker/src/journal/journal.ts
+--- a/packages/worker/src/journal/journal.ts
++++ b/packages/worker/src/journal/journal.ts
+@@ -200,7 +200,7 @@
+       need -= take;
+     }
+     const after = this.size() + need + this.reserved();
+-    if (!control && after + this.floor() > this.maxBytes) throw new JournalCapacity('journal capacity: an ordinary record may not use the control room');
++    if (!control && after > this.maxBytes) throw new JournalCapacity('journal capacity: an ordinary record may not use the control room');
+     try {
+       if (after > this.maxBytes) throw new Error('journal capacity; no automatic eviction');
+       let offset = 0;

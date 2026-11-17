@@ -14,6 +14,7 @@ import { ProvenNoEffect, Refusal } from '../b2/errors.js';
 import type { PiRecord } from '../host/host.js';
 import { authority, currentGuard } from '../grants/authority.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
+import { budgetKey } from '../journal/journal.js';
 import type { Lifecycle } from './lifecycle.js';
 import type { ChildLaunch, Control, FollowUp, Live, Prompt, Queued, Steer, SupervisorState } from './state.js';
 
@@ -98,6 +99,7 @@ export class Input {
           'settlement',
           { worker_id: w.worker_id, session_id: w.session_id, execution_id: w.execution.execution_id, command_id: w.execution.command_id, source: 'pi.agent_settled' },
           'settlement.record',
+          { budget: [budgetKey(w.worker_id)] },
         );
       }
       this.s.refresh(live);

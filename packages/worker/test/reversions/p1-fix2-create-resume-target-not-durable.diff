@@ -1,12 +1,11 @@
 diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
-index eada9a1..f95f3ba 100644
 --- a/packages/worker/src/supervisor/state.ts
 +++ b/packages/worker/src/supervisor/state.ts
-@@ -118,7 +118,6 @@ export class SupervisorState {
+@@ -179,7 +179,6 @@
        pid: live.pid,
        token: live.token,
        ...(live.create ? { create: live.create } : {}),
 -      ...(live.resume ? { resume: live.resume } : {}),
      };
-     // SAFETY: Persisted is a plain JSON object (no methods, no cycles); the journal stores it as a record value.
-     const { appended } = this.journal.append('worker', record as unknown as Record<string, unknown>, label);
+   }
+ 

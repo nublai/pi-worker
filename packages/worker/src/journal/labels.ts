@@ -80,6 +80,33 @@ export const DURABLE_LABELS = [
 
 export type DurableLabel = (typeof DURABLE_LABELS)[number];
 
+/**
+ * Control records (PR #12 review F2): the start record, uncertainty, recovery and owner dispositions, stop, exit, fault,
+ * a failed launch, a control request's result, fences, and a dialog ending without an answer. They may use the
+ * journal's control reserve; every other record is ordinary and may not (journal.ts). A quota-exempt command's
+ * receipts are control records too (its writer says so).
+ */
+export const CONTROL_LABELS: ReadonlySet<DurableLabel> = new Set<DurableLabel>([
+  'supervisor.start',
+  'receipt.unknown',
+  'receipt.recover',
+  'receipt.resolve_intent',
+  'worker.failed',
+  'worker.stop',
+  'worker.stopped',
+  'worker.exit',
+  'worker.fault',
+  'worker.recover',
+  'execution.unknown',
+  'control.done',
+  'fence.resolve',
+  'fence.latch',
+  'interaction.close',
+  'interaction.gate_close',
+  'interaction.cancel',
+  'interaction.recover',
+]);
+
 const known: ReadonlySet<string> = new Set(DURABLE_LABELS);
 
 export function isDurableLabel(label: string): label is DurableLabel {

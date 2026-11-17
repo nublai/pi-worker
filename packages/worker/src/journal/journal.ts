@@ -9,12 +9,18 @@
  * file is written beside the journal, fsynced (`journal.compact_file`), renamed over it, and the directory fsynced
  * (`journal.compact_directory`). A SIGKILL before the rename leaves the old journal whole and a stray `.compact` file,
  * which the next open removes; after the rename the compacted journal is the journal.
+ *
+ * Budget (PR #12 review F2): a record is ordinary unless its label is a control label (labels.ts: stop, exit, fault,
+ * fence, recovery, ...) or its writer marks it `control` (a quota-exempt command's receipts). An ordinary record consumes the reservations it names first and may never leave
+ * less than `floor()` free beside every reservation: the control reserve plus the room each worker's own control
+ * records need (supervisor/state.ts). One that would is refused `JournalCapacity` before any byte is written, and the
+ * journal stays usable; its writer refuses or faults only its own work. A control record may use the reserve.
  */
 import { closeSync, fstatSync, ftruncateSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
 import { durable } from './fsync.js';
-import type { DurableLabel } from './labels.js';
+import { CONTROL_LABELS, type DurableLabel } from './labels.js';
 import { DEFAULT_RETENTION } from './retention.js';
 import type { JournalAppended } from '../generated/events.js';
 
@@ -35,6 +41,25 @@ const digest = (text: string) => createHash('sha256').update(text).digest('hex')
 const kinds: ReadonlySet<string> = new Set(JOURNAL_KINDS);
 
 export class JournalCorruption extends Error {}
+
+/** An ordinary record that did not fit beside the reservations and the floor: nothing was written. */
+export class JournalCapacity extends Error {}
+
+/** Bytes a record line adds around its value: seq, kind, checksum and framing (an upper bound). */
+export const RECORD_OVERHEAD = 160;
+
+/** The bytes a record with this value takes in the journal, at most. */
+export const recordBytes = (value: unknown): number => Buffer.byteLength(JSON.stringify(value)) + RECORD_OVERHEAD;
+
+/** The reservation a worker's ordinary records consume (its budget; supervisor/state.ts tops it up). */
+export const budgetKey = (workerId: string) => `worker:${workerId}`;
+
+export interface AppendOptions {
+  /** Reservations this record consumes, in order, before it needs free room. */
+  readonly budget?: readonly string[];
+  /** A control or recovery record: it may use the control reserve and the workers' control room (by default, when its label is one of CONTROL_LABELS). */
+  readonly control?: boolean;
+}
 
 export function parseJournal(bytes: Buffer): { records: JournalRecord[]; validBytes: number } {
   const records: JournalRecord[] = [];
@@ -71,6 +96,10 @@ export class Journal {
   private closed = false;
   private reservations = new Map<string, number>();
   private readonly compacted = new Set<() => void>();
+  /** Room only control records may use (the receipt store sets it from its retention limits). */
+  controlReserveBytes = 0;
+  /** The room the workers' own control records still need (the supervisor sets it; supervisor/state.ts). */
+  controlRoom: () => number = () => 0;
 
   constructor(
     readonly file: string,
@@ -113,38 +142,72 @@ export class Journal {
     return this.reserved();
   }
 
+  /** What ordinary records and reservations must leave free: the control reserve and the workers' control room. */
+  floor(): number {
+    return this.controlReserveBytes + this.controlRoom();
+  }
+
   /**
    * Reserves room for a command's later records; false when the journal could not hold them while leaving `headroom`
    * bytes free (the control reserve an ordinary command may not use).
    */
   reserve(key: string, bytes: number, headroom = 0): boolean {
-    if (this.closed || this.failed || fstatSync(this.fd).size + this.reserved() + bytes + headroom > this.maxBytes) return false;
-    this.reservations.set(key, bytes);
+    return this.reserveAll([{ key, bytes }], headroom);
+  }
+
+  /**
+   * Tops each reservation up to its bytes, all or none; false when the journal could not hold the extra room while
+   * leaving `headroom` bytes free.
+   */
+  reserveAll(wants: readonly { key: string; bytes: number }[], headroom = 0): boolean {
+    let extra = 0;
+    for (const w of wants) extra += Math.max(0, w.bytes - (this.reservations.get(w.key) ?? 0));
+    if (this.closed || this.failed || fstatSync(this.fd).size + this.reserved() + extra + headroom > this.maxBytes) return false;
+    for (const w of wants) this.reservations.set(w.key, Math.max(w.bytes, this.reservations.get(w.key) ?? 0));
     return true;
   }
 
-  /** Releases a reservation once its command's final record is durable. */
+  /** Moves what is left of a reservation to another key (a new worker takes its create's budget). */
+  move(from: string, to: string): void {
+    const bytes = this.reservations.get(from);
+    if (bytes === undefined) return;
+    this.reservations.delete(from);
+    this.reservations.set(to, (this.reservations.get(to) ?? 0) + bytes);
+  }
+
+  /** Releases a reservation once its command's final record is durable (or its worker writes no more records). */
   release(key: string): void {
     this.reservations.delete(key);
   }
 
   /**
-   * Appends one record and fsyncs it under `label`. `reservation` names the reservation this append may consume (the
-   * command's own final record); other appends must fit beside every reservation. Any failure marks the journal
-   * failed. A closed journal refuses, so a late callback of a discarded supervisor never writes.
+   * Appends one record and fsyncs it under `label`. The record consumes the reservations its options name (a string
+   * names one), in order; the rest must fit beside every reservation and, for an ordinary record, the floor. An
+   * ordinary record that does not fit is refused `JournalCapacity` and the journal stays usable; any other failure
+   * marks the journal failed. A closed journal refuses, so a late callback of a discarded supervisor never writes.
    */
-  append(kind: JournalKind, value: Record<string, unknown>, label: DurableLabel, reservation?: string): JournalRecord & { appended: JournalAppended } {
+  append(kind: JournalKind, value: Record<string, unknown>, label: DurableLabel, options: string | AppendOptions = {}): JournalRecord & { appended: JournalAppended } {
     if (this.closed) throw new Error('journal closed; late callback has no write authority');
     if (this.failed) throw new Error('journal failed; supervisor fenced globally');
+    const { budget = [], control = CONTROL_LABELS.has(label) } = typeof options === 'string' ? { budget: [options] } : options;
     const record = structuredClone({ seq: this.records.length + 1, kind, value }) as JournalRecord;
     const data = line(record);
+    const takes: [string, number][] = [];
+    let need = data.length;
+    for (const key of new Set(budget)) {
+      const take = Math.min(this.reservations.get(key) ?? 0, need);
+      if (take > 0) takes.push([key, take]);
+      need -= take;
+    }
+    const after = this.size() + need + this.reserved();
+    if (!control && after + this.floor() > this.maxBytes) throw new JournalCapacity('journal capacity: an ordinary record may not use the control room');
     try {
-      const own = reservation ? (this.reservations.get(reservation) ?? 0) : 0;
-      if (fstatSync(this.fd).size + data.length + this.reserved() - own > this.maxBytes) throw new Error('journal capacity; no automatic eviction');
+      if (after > this.maxBytes) throw new Error('journal capacity; no automatic eviction');
       let offset = 0;
       while (offset < data.length) offset += writeSync(this.fd, data, offset, data.length - offset);
       durable(this.fd, label);
       this.records.push(record);
+      for (const [key, take] of takes) this.reservations.set(key, this.reservations.get(key)! - take);
       // The proof a durable event needs (generated/events.ts): only a fsynced append creates one.
       return { ...record, appended: { fsynced: true, label } };
     } catch (error) {

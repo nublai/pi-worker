@@ -9,14 +9,14 @@ import { randomUUID } from 'node:crypto';
 import type { components } from '../generated/api.js';
 import { Refusal } from '../b2/errors.js';
 import type { SessionHost } from '../host/host.js';
-import type { Journal } from '../journal/journal.js';
+import { budgetKey, recordBytes, type Journal } from '../journal/journal.js';
 import type { DurableLabel } from '../journal/labels.js';
 import { SessionIndex } from '../history/session-index.js';
 import { EventHub } from '../events/hub.js';
 import type { JournalAppended } from '../generated/events.js';
 import type { Interactions } from '../interactions/interactions.js';
 import type { GrantStore } from '../grants/store.js';
-import type { ReceiptStore } from '../receipts/receipts.js';
+import type { Budget, Operation, ReceiptStore } from '../receipts/receipts.js';
 import type { Guard } from '../grants/authority.js';
 
 export type Worker = components['schemas']['Worker'];
@@ -81,6 +81,23 @@ export type HostFactory = (launch: HostLaunch) => SessionHost;
 /** Statuses that hold a session and an environment. */
 export const HOLDING = new Set<Worker['status']>(['starting', 'ready', 'cleanup_pending']);
 
+/**
+ * The journal budget (PR #12 review F2). Worker rows written by stop, exit, fault, a failed launch, recovery, an
+ * unknown outcome, a control request or a fence are control records (labels.ts): they may use the control reserve.
+ * Every row consumes its worker's budget first, which each ordinary admission tops up before dispatch.
+ */
+/** After these rows the worker's process is gone: it writes no more ordinary records and its budget is released. */
+const ENDING_ROW_LABELS = new Set<DurableLabel>(['worker.failed', 'worker.stopped', 'worker.exit', 'worker.fault']);
+/** Ordinary rows a worker may write between two admissions (admit, reply, start, settle; create, spawned, identity, ready). */
+const BUDGET_ROWS = 4;
+/** Room for its settlement and interaction records between two admissions. */
+const BUDGET_RECORD_BYTES = 4096;
+/** Control rows a worker that may still be stopped needs (an exit or fault, then stop and stopped). */
+const CONTROL_ROWS = 3;
+/** What a new worker's row adds to its create request: the worker fields and pi's resource inventory. */
+const ROW_BASE_BYTES = 8192;
+
+
 export class SupervisorState {
   readonly workers = new Map<string, Live>();
   /** session id → the file and the worker that last bound it (the resume catalog). */
@@ -100,6 +117,8 @@ export class SupervisorState {
   readonly childEnding = new Map<string, number>();
   /** A child's delivered report claims, for its row (children module). */
   childClaims?: (w: Worker) => NonNullable<Worker['child_reports']>;
+  /** The size of each worker's latest row in the journal (the budget and control room scale with it). */
+  private readonly rowSize = new Map<string, number>();
 
   constructor(
     readonly journal: Journal,
@@ -116,7 +135,52 @@ export class SupervisorState {
       const persisted = structuredClone(record.value) as unknown as Persisted;
       this.catalog(persisted);
       this.workers.set(persisted.worker.worker_id, { ...persisted, index: new SessionIndex(persisted.sessionFile), completedMessages: 0 });
+      this.rowSize.set(persisted.worker.worker_id, recordBytes(record.value));
     }
+    receipts.budget = (operation, request) => this.budget(operation, request);
+    journal.controlRoom = () => this.controlRoom();
+  }
+
+  /** A worker row's size: its latest, or the row it would write now. */
+  private rowBytes(live: Live): number {
+    return this.rowSize.get(live.worker.worker_id) ?? recordBytes(this.record(live));
+  }
+
+  /**
+   * The room an ordinary command's worker records need, reserved before dispatch with its receipt: a create budgets
+   * its new worker's rows (estimated from the request) and leaves its control room free; a worker-directed command
+   * tops its worker's budget up. Other commands have none.
+   */
+  budget(operation: Operation, request: Record<string, unknown>): Budget | null {
+    if (operation === 'workers.create') {
+      const row = 2 * recordBytes(request) + ROW_BASE_BYTES;
+      return { key: `create:${String(request.command_id)}`, bytes: BUDGET_ROWS * row + BUDGET_RECORD_BYTES, control: CONTROL_ROWS * row };
+    }
+    const live = typeof request.worker_id === 'string' ? this.workers.get(request.worker_id) : undefined;
+    if (!live) return null;
+    return { key: budgetKey(live.worker.worker_id), bytes: BUDGET_ROWS * this.rowBytes(live) + BUDGET_RECORD_BYTES, control: 0 };
+  }
+
+  /** The room every worker that may still be stopped needs for its own control rows; ordinary records leave it free. */
+  controlRoom(): number {
+    let room = 0;
+    for (const live of this.workers.values()) {
+      const done = (live.worker.status === 'stopped' || live.worker.status === 'failed') && live.pid === null;
+      if (!done) room += CONTROL_ROWS * this.rowBytes(live);
+    }
+    return room;
+  }
+
+  private record(live: Live): Persisted {
+    // Only interaction metadata is durable; payloads (title, prefill, options) stay in memory.
+    return {
+      worker: { ...live.worker, pending_interactions: this.interactions?.summaries(live.worker.worker_id) ?? [] },
+      sessionFile: live.sessionFile,
+      pid: live.pid,
+      token: live.token,
+      ...(live.create ? { create: live.create } : {}),
+      ...(live.resume ? { resume: live.resume } : {}),
+    };
   }
 
   private catalog(p: Persisted): void {
@@ -129,17 +193,13 @@ export class SupervisorState {
    */
   persist(live: Live, label: DurableLabel): JournalAppended {
     this.catalog(live);
-    // Only interaction metadata is durable; payloads (title, prefill, options) stay in memory.
-    const record: Persisted = {
-      worker: { ...live.worker, pending_interactions: this.interactions?.summaries(live.worker.worker_id) ?? [] },
-      sessionFile: live.sessionFile,
-      pid: live.pid,
-      token: live.token,
-      ...(live.create ? { create: live.create } : {}),
-      ...(live.resume ? { resume: live.resume } : {}),
-    };
+    const record = this.record(live);
+    const id = live.worker.worker_id;
     // SAFETY: Persisted is a plain JSON object (no methods, no cycles); the journal stores it as a record value.
-    const { appended } = this.journal.append('worker', record as unknown as Record<string, unknown>, label);
+    const value = record as unknown as Record<string, unknown>;
+    const { appended } = this.journal.append('worker', value, label, { budget: [budgetKey(id)] });
+    this.rowSize.set(id, recordBytes(value));
+    if (ENDING_ROW_LABELS.has(label)) this.journal.release(budgetKey(id));
     this.published.set(live.worker.worker_id, JSON.stringify(this.view(live)));
     this.events.publish('worker.updated', { worker_id: live.worker.worker_id, execution_id: live.worker.execution?.execution_id ?? null, data: { worker: structuredClone(record.worker) }, appended });
     return appended;
@@ -183,6 +243,8 @@ export class SupervisorState {
     };
     const live: Live = { worker, sessionFile: null, pid: null, token: null, create: { ...create, cwd }, index: new SessionIndex(null), completedMessages: 0 };
     this.workers.set(worker.worker_id, live);
+    // The create's budget becomes the worker's.
+    this.journal.move(`create:${create.command_id}`, budgetKey(worker.worker_id));
     return live;
   }
 
