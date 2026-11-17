@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"path/filepath"
 	"slices"
@@ -84,6 +85,7 @@ type state struct {
 	attachments     map[string]*attachment
 	receiving       map[string]*attachment
 	dropStageReply  bool
+	firstReply      string // "", "drop" or "hold": the next create's first prompt reply (DropFirstPromptReply)
 	subs            map[*subscriber]bool
 	answerSigs      map[string]answerSig    // answer_id → its recorded value (memory only)
 	sessions        map[string]*sessionFile // the session catalog: every session a worker bound, with its file
@@ -509,15 +511,85 @@ func (s *state) create(c b2.Create, parent *createOpts) (*b2.Receipt, error) {
 		}
 		w.row.Lineage = &lineage
 		w.host = &Host{f: s.f, w: w}
+		if mode := s.firstReply; mode != "" && c.FirstPrompt != nil {
+			s.firstReply = ""
+			w.host.mode = mode
+			if mode == "hold" {
+				w.host.held = make(chan struct{})
+			}
+		}
 		s.hostsLaunched++
 		s.firstHost[id] = w.host
 		s.workers[id] = w
 		s.order = append(s.order, id)
 		s.bindSession(w, session)
 		s.persist(w)
-		deliver(r, "forwarded", nil)
+		// The receipt names the binding the new worker starts at, as lifecycle.ts launch reports it.
+		created := map[string]any{"worker_id": id, "worker_epoch": w.row.WorkerEpoch, "session_id": session, "binding_revision": w.row.BindingRevision}
+		r.HistoryLag = ptr(false)
+		if c.FirstPrompt != nil {
+			return s.firstPrompt(w, r, *c.FirstPrompt, created)
+		}
+		deliver(r, "forwarded", created)
 		return nil
 	})
+}
+
+// firstPrompt is a create's first prompt on its ready worker (input.ts first): a refusal at admission (the checks of
+// sessions.prompt) delivers the created worker with admission rejected and the typed error, and nothing reaches the
+// host; otherwise the execution joins the create's receipt before the prompt is written, and a lost reply fences the
+// new session on the create before the receipt is outcome_unknown.
+func (s *state) firstPrompt(w *worker, r *b2.Receipt, fp b2.FirstPrompt, created map[string]any) error {
+	id := w.row.WorkerId
+	err := all(func() error { return writable(w) }, func() error { return ready(w) }, func() error {
+		if strings.HasPrefix(strings.TrimLeft(fp.Message, " \t\n"), "/") {
+			return refuse("slash_commands_use_typed_methods")
+		}
+		if fp.Attachments != nil && len(*fp.Attachments) > 0 {
+			return s.forPrompt(id, *fp.Attachments)
+		}
+		return nil
+	})
+	var ref *refusal
+	if errors.As(err, &ref) {
+		deliver(r, "forwarded", created)
+		r.Admission, r.Error = ptr(b2.ReceiptAdmission("rejected")), ptr(ref.body.Error)
+		return nil
+	}
+	execution := &b2.Execution{ExecutionId: s.id("x"), CommandId: r.CommandId, State: "admitted"}
+	w.row.Execution = execution
+	w.row.Foreground = "running"
+	w.observedIdle = false
+	s.persist(w)
+	s.publish("execution.admitted", id, &execution.ExecutionId, "supervisor_journal_fsynced", map[string]any{"command_id": r.CommandId})
+	// The first prompt's dispatch record: the create's receipt names the execution before the host sees the prompt.
+	r.ExecutionId = &execution.ExecutionId
+	r.Result = &created
+	s.receiptUpdated(*r)
+	images := 0
+	if fp.Attachments != nil {
+		images = len(*fp.Attachments)
+	}
+	accepted, err := w.host.prompt(images)
+	if err != nil {
+		latch(w, r.CommandId)
+		s.persist(w)
+		return err
+	}
+	execution.Disposition = ptr("started")
+	s.persist(w)
+	result := maps.Clone(created)
+	result["interrupt_marker"] = false
+	if images > 0 {
+		result["accepted_images"] = accepted
+		for _, a := range *fp.Attachments {
+			s.releaseNow(a.AttachmentId, r.CommandId)
+		}
+	}
+	deliver(r, "forwarded", result)
+	r.Admission, r.Disposition = ptr(b2.ReceiptAdmission("accepted")), ptr("started")
+	r.HistoryLag = ptr(false)
+	return nil
 }
 
 // resumable: a catalog session no other worker holds, whose last owner's cleanup is proven and fence resolved.
@@ -1151,7 +1223,9 @@ func (s *state) restart() {
 		// Fence recovery: the owner's resolutions stand; every unresolved unknown session write fences again.
 		for _, cmd := range sorted(s.receipts) {
 			r := s.receipts[cmd]
-			if derefString(r.WorkerId) == id && r.State == stOutcomeUnknown && sessionDirected[string(r.Operation)] && !resolved(w, cmd) {
+			// A create whose first prompt was dispatched (its receipt names the execution) wrote the session too.
+			firstPrompt := r.Operation == "workers.create" && r.ExecutionId != nil
+			if derefString(r.WorkerId) == id && r.State == stOutcomeUnknown && (sessionDirected[string(r.Operation)] || firstPrompt) && !resolved(w, cmd) {
 				latch(w, cmd)
 			}
 		}

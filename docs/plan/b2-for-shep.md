@@ -67,7 +67,7 @@ saw. "A0" means the method exists in A0's spec and has crash evidence; "new" mea
 | Chats list (live) | `shep.conversations` | `workers.list` (fields: `status`, `status_since`, `settle_count`, `foreground`, `interactions_pending`, `cwd`, `repo_label`, `lineage`, `parent_worker_id`, `title`, `binding`) | `GET /b2/workers` | P1-4; fields P1-14 | A0 + new fields |
 | One chat | — | `workers.get` | `GET /b2/workers/{worker_id}` | P1-4 | A0 |
 | Archived sessions, Resume list | `shep.sessions`, `shep.session_info` | `sessions.list` (per cwd, up to 100, title, preview, last activity, stats, per-model cost), `sessions.get` | `GET /b2/sessions`, `GET /b2/sessions/{session_id}` | P1-14 | new |
-| New chat | `shep.conversation.create` | `workers.create` (`cwd`, `model`, `thinking`, `name`, optional `first_prompt`, `command_id`); idempotent by `command_id` | `POST /b2/workers` | P1-4 | A0 + new fields |
+| New chat | `shep.conversation.create` | `workers.create` (`cwd`, `model`, `thinking`, `name`, optional `first_prompt`, `command_id`); idempotent by `command_id`. One command, one receipt: the create's receipt names the worker and the first execution (`admission: accepted`, `execution_id`, `disposition`) or the prompt's typed refusal (`admission: rejected`, `error`) with the worker created and idle (section 3, "First prompt") | `POST /b2/workers` | P1-4; `first_prompt` P1-19 | A0 + new fields |
 | Resume a saved session | `shep.conversation.create {resume_session}` | "view archived": `history.page` by `session_id`, no worker; "reattach live": `workers.create {resume_session_id}`, refused with the holder when another worker holds it | as above | P1-4; view archived P1-14 (moved from P1-8, 2026-11-16) | A0 refusal, new split |
 | Send | `shep.send` | `sessions.prompt` with `if_busy` (`steer`, `follow_up` or `reject`) and `attachments[]` | `POST /b2/workers/{worker_id}/prompt` | P1-5; `attachments[]` P1-16 | A0 + `if_busy` |
 | Stop | Escape via `agent.send_keys` | `executions.interrupt` (cancel dialogs, clear queued input, abort; reports `settled`, `forced_termination` or `unknown`) | `POST /b2/workers/{worker_id}/interrupt` | P1-5 | A0 |
@@ -131,7 +131,7 @@ under a fence" means `no_effect` naming the uncertain command. After its dispatc
 | `receipts.get` | P1-2 | read; only receipts of workers in scope | — | allowed |
 | `attachments.status` | P1-16 | read | — | allowed |
 | `files.read` | P2-4 | read, sandboxed roots only | — | allowed |
-| `workers.create` | P1-4 | mutation | — (new worker); resume of a held session refused naming the holder | n/a for a new session; with `resume_session_id`, a fenced target is refused (`target_session_fenced`) and an `outcome_unknown` fences the target, held by the new worker, until `sessions.resolve_unknown` |
+| `workers.create` | P1-4 (`first_prompt` P1-19) | mutation; with `first_prompt` the grant needs `sessions.prompt` too | — (new worker); resume of a held session refused naming the holder | n/a for a new session; with `resume_session_id`, a fenced target is refused (`target_session_fenced`) and an `outcome_unknown` fences the target, held by the new worker, until `sessions.resolve_unknown`; a first prompt whose pi reply was lost fences the new session on the create the same way |
 | `sessions.prompt` | P1-5 (attachments P1-16) | session mutation | yes | refused |
 | `session.configure` | P1-14 | session mutation | yes | refused |
 | `sessions.new`, `sessions.rebind` | P1-7 | session mutation | yes | refused |
@@ -188,6 +188,21 @@ overflows its queue. `tool.started` and `tool.finished` come from pi's `tool_exe
 worker row carries `recent_settlements`, newest first, at most 8 (`execution_id`, `command_id`, `disposition`,
 `settled_at`), journaled with the row, so a reconnect snapshot, also after a supervisor restart, shows the
 settlements a subscriber missed; a `settle_count` gap larger than the list means the rest are only in history.
+
+**First prompt (P1-19, Shep P5-3).** `workers.create {first_prompt: {message, attachments?}}` starts a chat in one
+command. Once the worker is ready the supervisor admits the prompt as its first execution under the create's own
+`command_id` (so `execution.admitted`, `recent_settlements` and the receipt all name the create). The create's
+receipt is the only receipt: `delivered` with the worker (`worker_id`, `result` with its epoch, session and binding)
+and either `admission: accepted`, `execution_id`, `disposition`, or `admission: rejected` and the refusal code in
+`error` (the checks of `sessions.prompt`: a slash command, an unknown or released attachment, image limits). On a
+refusal the worker is created, ready and idle, nothing reached pi, and the bridge keeps the draft and may send it with
+`sessions.prompt`. The execution id is in the receipt, durably, before any byte of the prompt reaches pi, so a create
+whose reply was lost reconciles through `receipts.get` and is never sent again (a duplicate `command_id` returns the
+receipt and never prompts twice). A lost pi reply makes the create `outcome_unknown`, still naming the worker and the
+execution, and fences the new session on the create until `sessions.resolve_unknown`, also after a restart. The text
+is never journaled. Attachments are staged for a live worker, so one staged before the create is refused
+`unknown_attachment` here: a New Chat with a photo creates the worker, stages the photo on it, then sends
+`sessions.prompt` (or the bridge keeps the photo and sends text first).
 
 **Reconnect.** The bridge reconnects with `Last-Event-ID`. The worker never replays: it answers with a fresh
 `snapshot` whose `resync_reason` is `current`, `gap`, `epoch` (supervisor restarted) or `overflow`. Controls stay

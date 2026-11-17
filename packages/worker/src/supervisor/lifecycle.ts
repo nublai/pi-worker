@@ -46,6 +46,11 @@ export class Lifecycle {
   writable: (live: Live) => void = () => {
     throw new Error('input_not_wired');
   };
+  /**
+   * A create's first prompt, once its worker is ready (input module): the create's receipt patch with the execution or
+   * the prompt's typed refusal.
+   */
+  firstPrompt: (live: Live, c: Create, created: ReceiptPatch) => Promise<ReceiptPatch> = async (_live, _c, created) => created;
   /** Joins an uncertain command to the worker's fence in memory (the fence module); the caller persists. */
   latch: (live: Live, commandId: string) => boolean = () => {
     throw new Error('fence_not_wired');
@@ -244,8 +249,17 @@ export class Lifecycle {
     return receipt;
   }
 
-  /** The dispatched part of create: spawn, identity, optional resume, readiness. */
+  /**
+   * The dispatched part of create: the host's start, then the first prompt, if any. The prompt runs outside the start's
+   * failure path: whatever becomes of it, the worker is created.
+   */
   private async launch(live: Live, c: Create, cwd: string, resumeFile: string | undefined): Promise<ReceiptPatch> {
+    const created = await this.start(live, c, cwd, resumeFile);
+    return c.first_prompt ? this.firstPrompt(live, c, created) : created;
+  }
+
+  /** The host's start: spawn, identity, optional resume, readiness. */
+  private async start(live: Live, c: Create, cwd: string, resumeFile: string | undefined): Promise<ReceiptPatch> {
     const w = live.worker;
     try {
       this.s.persist(live, 'worker.create');

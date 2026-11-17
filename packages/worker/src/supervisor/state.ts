@@ -198,8 +198,10 @@ export class SupervisorState {
   budget(operation: Operation, request: Record<string, unknown>): Budget | null {
     if (operation === 'workers.create') {
       const row = 2 * recordBytes(request) + ROW_BASE_BYTES;
-      const fence = request.resume_session_id ? row + FENCE_ROW_EXTRA_BYTES : 0;
-      return { key: `create:${String(request.command_id)}`, bytes: BUDGET_ROWS * row + BUDGET_RECORD_BYTES, control: CONTROL_ROWS * row, fence };
+      // A first prompt is an admission too (its rows and records), and its unknown outcome fences the new session.
+      const rows = request.first_prompt ? 2 * BUDGET_ROWS : BUDGET_ROWS;
+      const fence = request.resume_session_id || request.first_prompt ? row + FENCE_ROW_EXTRA_BYTES : 0;
+      return { key: `create:${String(request.command_id)}`, bytes: rows * row + BUDGET_RECORD_BYTES, control: CONTROL_ROWS * row, fence };
     }
     const live = typeof request.worker_id === 'string' ? this.workers.get(request.worker_id) : undefined;
     if (!live) return null;
@@ -314,7 +316,9 @@ export class SupervisorState {
       model: { provider: create.provider, id: create.model },
       thinking: create.thinking,
     };
-    const live: Live = { worker, sessionFile: null, pid: null, token: null, create: { ...create, cwd }, index: new SessionIndex(null), completedMessages: 0 };
+    // The worker record keeps the create without its first prompt: prompt text is never journaled.
+    const { first_prompt: _firstPrompt, ...kept } = create;
+    const live: Live = { worker, sessionFile: null, pid: null, token: null, create: { ...kept, cwd }, index: new SessionIndex(null), completedMessages: 0 };
     this.workers.set(worker.worker_id, live);
     // The create's budget becomes the worker's.
     this.journal.move(`create:${create.command_id}`, budgetKey(worker.worker_id));

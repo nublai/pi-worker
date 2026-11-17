@@ -11,16 +11,19 @@
  */
 import { randomUUID } from 'node:crypto';
 import { ProvenNoEffect, Refusal } from '../b2/errors.js';
-import type { PiRecord } from '../host/host.js';
+import type { PiRecord, PiResponse } from '../host/host.js';
 import { authority, currentGuard } from '../grants/authority.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
 import { budgetKey } from '../journal/journal.js';
 import type { Lifecycle } from './lifecycle.js';
-import type { ChildLaunch, Control, FollowUp, Live, Prompt, Queued, Steer, SupervisorState } from './state.js';
+import type { ChildLaunch, Control, Create, FollowUp, Live, Prompt, Queued, Steer, SupervisorState } from './state.js';
 import type { Attachments } from '../attachments/attachments.js';
 import { ATTACHMENTS_PER_MESSAGE, ATTACHMENTS_TOTAL_BYTES } from '../b2/hello.js';
 
 export const QUEUE_CAP = 32;
+
+/** A prompt's staged images, checked (attachments.ts forPrompt). */
+type Images = ReturnType<Attachments['forPrompt']>;
 
 /**
  * A worker row's `recent_settlements` cap (P1-19). Every snapshot, `worker.updated` and journal row carries the list,
@@ -58,6 +61,49 @@ export class Input {
     lifecycle.writable = live => this.writable(live);
     lifecycle.onUncertain = (live, commandId, label) => this.uncertain(live, commandId, label);
     lifecycle.recoverers.push(live => this.recover(live));
+    lifecycle.firstPrompt = (live, c, created) => this.first(live, c, created);
+  }
+
+  /**
+   * `workers.create` with `first_prompt` (FirstPrompt in the spec), once the new worker is ready: its first execution,
+   * under the create's command id and receipt. A refusal at admission (the checks of `sessions.prompt`) records and
+   * sends nothing: the receipt is the created worker plus `admission: rejected` and the typed refusal. Otherwise the
+   * execution id joins the create's receipt, durably, before any byte of the prompt reaches pi. After that record a
+   * failure fences the new session on the create, durably, then throws: the create ends `outcome_unknown`.
+   */
+  async first(live: Live, c: Create, created: ReceiptPatch): Promise<ReceiptPatch> {
+    const first = c.first_prompt!;
+    const id = live.worker.worker_id;
+    const rejected = (error: Refusal): ReceiptPatch => ({ ...created, admission: 'rejected', error: error.message.slice(0, 256) });
+    let images: Images = [];
+    try {
+      this.writable(live);
+      this.ready(live);
+      if (first.message.trimStart().startsWith('/')) throw new Refusal('slash_commands_use_typed_methods');
+      if (first.attachments?.length) {
+        if (!this.attachments) throw new Refusal('attachments_unavailable');
+        images = this.attachments.forPrompt(id, first.attachments.map(a => a.attachment_id), { count: ATTACHMENTS_PER_MESSAGE, bytes: ATTACHMENTS_TOTAL_BYTES });
+      }
+      if (live.command || live.worker.foreground !== 'idle') throw new Refusal('worker_busy');
+    } catch (error) {
+      if (error instanceof Refusal && error.effect === 'no_effect') return rejected(error);
+      throw error;
+    }
+    try {
+      const patch = await this.execute(live, c.command_id, first.message, images, (executionId, write) => {
+        // The first prompt's dispatch record: the create's receipt names the execution (and the worker it made).
+        this.s.receipts.update(c.command_id, { execution_id: executionId, ...(created.result ? { result: created.result } : {}) }, 'receipt.dispatch');
+        return write();
+      });
+      if (images.length) this.attachments?.releaseNow(images.map(i => i.id), c.command_id);
+      return { ...created, ...patch, result: { ...created.result, ...patch.result } };
+    } catch (error) {
+      // pi's explicit refusal before any input hook: nothing ran, the worker stays created and idle.
+      if (error instanceof ProvenNoEffect) return rejected(error);
+      // The prompt may have reached pi: its session is fenced before the receipt says so (invariant 3).
+      if (this.s.receipts.all.get(c.command_id)?.execution_id && this.latch(live, c.command_id)) this.s.persist(live, 'execution.unknown');
+      throw error;
+    }
   }
 
   /**
@@ -142,7 +188,7 @@ export class Input {
   async prompt(id: string, p: Prompt, operation: 'sessions.prompt' | 'sessions.follow_up' = 'sessions.prompt'): Promise<Receipt> {
     let live!: Live;
     let busy: 'steer' | 'follow_up' | undefined;
-    let images: ReturnType<Attachments['forPrompt']> = [];
+    let images: Images = [];
     const receipt = await this.s.receipts.run(
       p.command_id,
       operation,
@@ -150,61 +196,7 @@ export class Input {
       async () => {
         if (busy === 'follow_up') return this.enqueued(live, operation, p);
         if (busy === 'steer') return this.dispatchSteer(live, p.command_id, p.message);
-        const w = live.worker;
-        w.execution = { execution_id: randomUUID(), command_id: p.command_id, state: 'admitted' };
-        w.foreground = 'running';
-        live.observedIdle = false;
-        const admitted = this.s.persist(live, 'execution.admit');
-        this.s.events.publish('execution.admitted', { worker_id: id, execution_id: w.execution.execution_id, data: { command_id: p.command_id }, appended: admitted });
-        const response = await this.s.receipts.dispatchThen(p.command_id, { worker_id: id, execution_id: w.execution.execution_id }, () =>
-          // The command and execution ids go with the input: the child stamps them into pi's session file.
-          live.host!.request({
-            type: 'prompt',
-            message: p.message,
-            command_id: p.command_id,
-            execution_id: w.execution!.execution_id,
-            // Staged images by path and hash; the child reads and checks them and sends real image blocks.
-            ...(images.length ? { images: images.map(i => ({ path: i.path, sha256: i.sha256, mime_type: i.mime_type, bytes: i.bytes })) } : {}),
-          }),
-        );
-        if (live.faulted) throw new Error('worker fault during prompt');
-        if (!response.success) {
-          // pi runs input hooks before its own refusals, so a negative reply is no proof that nothing happened: only
-          // the child's explicit refusal before any input hook is (D2). Anything else stays outcome_unknown.
-          if (response.refused !== 'before_input') throw new Error(`pi_prompt_failed_after_dispatch: ${String(response.error ?? 'negative_reply').slice(0, 64)}`);
-          w.execution = null;
-          w.foreground = 'idle';
-          live.observedIdle = true;
-          this.s.persist(live, 'execution.reply');
-          throw new ProvenNoEffect(`pi_refused_prompt: ${String(response.error).slice(0, 64)}`, 'host_refused_before_input_hooks');
-        }
-        const disposition = String(response.data?.disposition);
-        if (disposition !== 'started' && disposition !== 'handled') throw new Error('unexpected prompt disposition');
-        w.execution!.disposition = disposition;
-        if (disposition === 'handled' && w.execution!.state === 'admitted') {
-          w.execution!.state = 'settled';
-          recordSettlement(w, disposition);
-          w.foreground = w.fence ? 'unknown' : 'idle';
-          live.observedIdle = true;
-        }
-        this.s.refresh(live);
-        this.s.persist(live, 'execution.reply');
-        if (disposition === 'handled') this.s.events.publish('execution.settled', { worker_id: id, execution_id: w.execution!.execution_id, data: { command_id: p.command_id, disposition } });
-        const patch: ReceiptPatch = {
-          state: 'delivered',
-          stage: 'forwarded',
-          effect: 'observed',
-          admission: 'accepted',
-          disposition,
-          history_lag: w.history.lag,
-          // The worker's interrupt marker (S-5): whether pi got it in front of this input; with attachments, the
-          // number of images pi put in the message (pi may drop one it cannot convert).
-          result: {
-            interrupt_marker: response.data?.interrupt_marker === true,
-            ...(images.length ? { accepted_images: typeof response.data?.accepted_images === 'number' ? response.data.accepted_images : null } : {}),
-          },
-        };
-        return patch;
+        return this.execute(live, p.command_id, p.message, images, (executionId, write) => this.s.receipts.dispatchThen(p.command_id, { worker_id: id, execution_id: executionId }, write));
       },
       () => {
         live = this.s.require(id);
@@ -235,6 +227,76 @@ export class Input {
       this.attachments?.releaseNow(p.attachments.map(a => a.attachment_id), p.command_id);
     }
     return receipt;
+  }
+
+  /**
+   * One execution on an idle worker: the admitted row, the dispatch record (`dispatch` makes it durable, then `write`
+   * sends the input to pi), and pi's reply. A reply proving nothing ran throws ProvenNoEffect; any other failure after
+   * the dispatch record throws, and the command is `outcome_unknown`.
+   */
+  private async execute(
+    live: Live,
+    commandId: string,
+    message: string,
+    images: Images,
+    dispatch: (executionId: string, write: () => Promise<PiResponse>) => Promise<PiResponse>,
+  ): Promise<ReceiptPatch> {
+    const w = live.worker;
+    const id = w.worker_id;
+    w.execution = { execution_id: randomUUID(), command_id: commandId, state: 'admitted' };
+    w.foreground = 'running';
+    live.observedIdle = false;
+    const admitted = this.s.persist(live, 'execution.admit');
+    this.s.events.publish('execution.admitted', { worker_id: id, execution_id: w.execution.execution_id, data: { command_id: commandId }, appended: admitted });
+    const response = await dispatch(w.execution.execution_id, () =>
+      // The command and execution ids go with the input: the child stamps them into pi's session file.
+      live.host!.request({
+        type: 'prompt',
+        message,
+        command_id: commandId,
+        execution_id: w.execution!.execution_id,
+        // Staged images by path and hash; the child reads and checks them and sends real image blocks.
+        ...(images.length ? { images: images.map(i => ({ path: i.path, sha256: i.sha256, mime_type: i.mime_type, bytes: i.bytes })) } : {}),
+      }),
+    );
+    if (live.faulted) throw new Error('worker fault during prompt');
+    if (!response.success) {
+      // pi runs input hooks before its own refusals, so a negative reply is no proof that nothing happened: only
+      // the child's explicit refusal before any input hook is (D2). Anything else stays outcome_unknown.
+      if (response.refused !== 'before_input') throw new Error(`pi_prompt_failed_after_dispatch: ${String(response.error ?? 'negative_reply').slice(0, 64)}`);
+      w.execution = null;
+      w.foreground = 'idle';
+      live.observedIdle = true;
+      this.s.persist(live, 'execution.reply');
+      throw new ProvenNoEffect(`pi_refused_prompt: ${String(response.error).slice(0, 64)}`, 'host_refused_before_input_hooks');
+    }
+    const disposition = String(response.data?.disposition);
+    if (disposition !== 'started' && disposition !== 'handled') throw new Error('unexpected prompt disposition');
+    w.execution!.disposition = disposition;
+    if (disposition === 'handled' && w.execution!.state === 'admitted') {
+      w.execution!.state = 'settled';
+      recordSettlement(w, disposition);
+      w.foreground = w.fence ? 'unknown' : 'idle';
+      live.observedIdle = true;
+    }
+    this.s.refresh(live);
+    this.s.persist(live, 'execution.reply');
+    if (disposition === 'handled') this.s.events.publish('execution.settled', { worker_id: id, execution_id: w.execution!.execution_id, data: { command_id: commandId, disposition } });
+    const patch: ReceiptPatch = {
+      state: 'delivered',
+      stage: 'forwarded',
+      effect: 'observed',
+      admission: 'accepted',
+      disposition,
+      history_lag: w.history.lag,
+      // The worker's interrupt marker (S-5): whether pi got it in front of this input; with attachments, the
+      // number of images pi put in the message (pi may drop one it cannot convert).
+      result: {
+        interrupt_marker: response.data?.interrupt_marker === true,
+        ...(images.length ? { accepted_images: typeof response.data?.accepted_images === 'number' ? response.data.accepted_images : null } : {}),
+      },
+    };
+    return patch;
   }
 
   /** Steers the named running execution; delivered to pi's steering queue, after its current turn. */

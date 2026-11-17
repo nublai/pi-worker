@@ -2150,6 +2150,31 @@ type Create struct {
 	CommandId Id           `json:"command_id"`
 	Cwd       AbsolutePath `json:"cwd"`
 
+	// FirstPrompt A new worker's first input (`workers.create`). It has no command of its
+	// own: the first execution's `command_id` is the create's, and the
+	// create's receipt reports it.
+	//
+	// - Admitted: the receipt is `delivered` with the worker (`worker_id`,
+	//   `result`) and the execution (`admission: accepted`, `execution_id`,
+	//   `disposition` as `sessions.prompt` reports it).
+	// - Refused at admission by a check of `sessions.prompt` (a slash
+	//   command, an unknown or released attachment, too many or too large
+	//   images): the receipt is still `delivered` with the worker, which is
+	//   created, ready and idle, plus `admission: rejected` and the refusal
+	//   code in `error`. No execution exists and nothing reached pi; the
+	//   caller keeps the draft and may send it with `sessions.prompt`.
+	// - Uncertain: the execution id is in the create's receipt, durably,
+	//   before any byte of the prompt reaches pi. A caller whose create reply
+	//   was lost reads the receipt with `receipts.get` and never sends the
+	//   create again; a duplicate `command_id` returns that receipt and never
+	//   prompts twice. If pi's reply is lost the receipt is `outcome_unknown`
+	//   with the worker, its `result` and the `execution_id`, and the new
+	//   session is fenced on the create's `command_id` until
+	//   `sessions.resolve_unknown`, also after a supervisor restart.
+	//
+	// The text is never journaled (the receipt keeps only the request hash).
+	FirstPrompt *FirstPrompt `json:"first_prompt,omitempty"`
+
 	// Host The SDK subprocess is the production host (plan section 1); RPC and ACP are not served.
 	Host           *Host       `json:"host,omitempty"`
 	LaunchSpec     *LaunchSpec `json:"launch_spec,omitempty"`
@@ -2351,6 +2376,37 @@ type FileIdentity = string
 type FileRead struct {
 	Path  AbsolutePath   `json:"path"`
 	Roots []AbsolutePath `json:"roots"`
+}
+
+// FirstPrompt A new worker's first input (`workers.create`). It has no command of its
+// own: the first execution's `command_id` is the create's, and the
+// create's receipt reports it.
+//
+//   - Admitted: the receipt is `delivered` with the worker (`worker_id`,
+//     `result`) and the execution (`admission: accepted`, `execution_id`,
+//     `disposition` as `sessions.prompt` reports it).
+//   - Refused at admission by a check of `sessions.prompt` (a slash
+//     command, an unknown or released attachment, too many or too large
+//     images): the receipt is still `delivered` with the worker, which is
+//     created, ready and idle, plus `admission: rejected` and the refusal
+//     code in `error`. No execution exists and nothing reached pi; the
+//     caller keeps the draft and may send it with `sessions.prompt`.
+//   - Uncertain: the execution id is in the create's receipt, durably,
+//     before any byte of the prompt reaches pi. A caller whose create reply
+//     was lost reads the receipt with `receipts.get` and never sends the
+//     create again; a duplicate `command_id` returns that receipt and never
+//     prompts twice. If pi's reply is lost the receipt is `outcome_unknown`
+//     with the worker, its `result` and the `execution_id`, and the new
+//     session is fenced on the create's `command_id` until
+//     `sessions.resolve_unknown`, also after a supervisor restart.
+//
+// The text is never journaled (the receipt keeps only the request hash).
+type FirstPrompt struct {
+	// Attachments Staged images, checked as `sessions.prompt` checks them. An attachment is staged for a live worker (`attachments.stage` names it), so one staged before the create names another worker and is refused `unknown_attachment` here; send images with `sessions.prompt` once the worker exists.
+	Attachments *[]struct {
+		AttachmentId Id `json:"attachment_id"`
+	} `json:"attachments,omitempty"`
+	Message Text `json:"message"`
 }
 
 // FollowUp defines model for FollowUp.

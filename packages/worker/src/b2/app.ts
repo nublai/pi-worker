@@ -142,6 +142,8 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
       // Reattaching a session needs its last owner in scope too.
       const owner = body.resume_session_id ? s.state.sessionFiles.get(body.resume_session_id)?.worker_id : undefined;
       if (owner && !visible(caller, owner)) throw new Refusal('grant_scope_denied');
+      // A first prompt is a prompt: a grant that may create workers but not prompt them sends none.
+      if (body.first_prompt && !allowsMethod(caller, 'sessions.prompt')) throw new Refusal('grant_method_denied');
       return s.create(body);
     },
     'workers.stop': ({ path, body }) => supervisor().stop(path.worker_id, body),
@@ -157,6 +159,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     'children.launch': ({ path, body, caller }) => {
       // The child's environment must be in the caller's scope too.
       if (!caller || !allowsCwd(caller, body.launch.cwd)) throw new Refusal('grant_scope_denied');
+      if (body.launch.first_prompt && !allowsMethod(caller, 'sessions.prompt')) throw new Refusal('grant_method_denied');
       return supervisor().launchChild(path.worker_id, body);
     },
     'children.report': ({ path, body }) => supervisor().report(path.worker_id, body),
