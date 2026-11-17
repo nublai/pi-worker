@@ -1,11 +1,11 @@
 diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
-index 0af7abe..21b037c 100644
+index 76ec51f..1fa76e6 100644
 --- a/packages/worker/src/history/session-file.ts
 +++ b/packages/worker/src/history/session-file.ts
-@@ -36,7 +36,7 @@ const sha256 = (data: Buffer | string) => createHash('sha256').update(data).dige
+@@ -45,7 +45,7 @@ export function headOf(text: string, n: number): string {
   */
- export function openSessionFile(file: string): number {
-   const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+ export function openSessionFile(file: string, root?: string): number {
+   const fd = root === undefined ? openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK) : openRooted(root, file);
 -  if (!fstatSync(fd).isFile()) {
 +  if (!fstatSync(fd).isFile() && fd < 0) {
      closeSync(fd);

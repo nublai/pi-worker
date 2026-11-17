@@ -1,11 +1,11 @@
 diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
-index adf0fe8..1cdb9ae 100644
+index f0c01fc..7323fbb 100644
 --- a/packages/worker/src/supervisor/state.ts
 +++ b/packages/worker/src/supervisor/state.ts
-@@ -412,7 +412,7 @@ export class SupervisorState {
-    * invariant 2) and its fence resolved (invariant 3). Returns the session file.
+@@ -437,7 +437,7 @@ export class SupervisorState {
+    * sandbox never gets a session outside its root.
     */
-   resumable(sessionId: string, except: string): string {
+   resumable(sessionId: string, except: string, root?: string): string {
 -    this.noOtherWriter(sessionId, except);
 +    if (except === '') this.noOtherWriter(sessionId, except);
      const known = this.sessionFiles.get(sessionId);

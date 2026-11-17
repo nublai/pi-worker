@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
-index 0af7abe..a93c81b 100644
+index 76ec51f..1e2a8f5 100644
 --- a/packages/worker/src/history/session-file.ts
 +++ b/packages/worker/src/history/session-file.ts
-@@ -35,7 +35,7 @@ const sha256 = (data: Buffer | string) => createHash('sha256').update(data).dige
-  * to a root for sandboxed workers.
+@@ -44,7 +44,7 @@ export function headOf(text: string, n: number): string {
+  * component (sandbox.ts `openRooted`; `ELOOP` otherwise): the sandbox can write every directory below its root.
   */
- export function openSessionFile(file: string): number {
--  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-+  const fd = openSync(file, constants.O_RDONLY | constants.O_NONBLOCK);
+ export function openSessionFile(file: string, root?: string): number {
+-  const fd = root === undefined ? openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK) : openRooted(root, file);
++  const fd = root === undefined ? openSync(file, constants.O_RDONLY | constants.O_NONBLOCK) : openRooted(root, file);
    if (!fstatSync(fd).isFile()) {
      closeSync(fd);
      throw Object.assign(new Error('session file is not a regular file'), { code: 'ENOTREG' });

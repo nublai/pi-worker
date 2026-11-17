@@ -1,10 +1,11 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 4a2e3cd..0633337 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -283,7 +283,6 @@
+@@ -478,7 +478,6 @@ export class Lifecycle {
      w.leaf_id = null;
      live.sessionFile = resumeFile;
-     live.index = new SessionIndex(resumeFile);
+     live.index = this.s.index(live, resumeFile);
 -    this.latch(live, c.command_id);
    }
  
