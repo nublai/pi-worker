@@ -228,6 +228,54 @@ func TestSSESlowSubscriberOverflows(t *testing.T) {
 	}
 }
 
+// The subscriber queue is bounded by bytes as well as by count: fewer than 64 large frames that a stalled reader
+// does not take overflow it once they pass 256 KiB beyond what the socket holds (PR #16 Grok 6).
+func TestSSEStalledSubscriberOverflowsOnQueuedBytes(t *testing.T) {
+	fake, err := workerfake.Start(workerfake.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fake.Close()
+	ctx := context.Background()
+	c := fake.Client()
+	w := newWorker(t, ctx, c, "create-1")
+	attached, block := make(chan struct{}), make(chan struct{})
+	done := make(chan error, 1)
+	var frames []b2.Frame
+	go func() {
+		done <- c.Watch(ctx, b2.WatchOptions{Types: []string{"interactions.changed"}}, func(f b2.Frame) bool {
+			if len(frames) == 0 {
+				close(attached)
+				<-block
+			}
+			frames = append(frames, f)
+			return true
+		})
+	}()
+	<-attached
+	// 30 frames (each interactions.changed lists every open card, 8 KiB of title each): about 3.7 MB in all.
+	title := strings.Repeat("t", 8<<10)
+	for i := 0; i < 30 && fake.Streams() == 1; i++ {
+		if _, err := fake.OpenInteraction(w.WorkerId, b2.Interaction{Kind: "confirm", Title: &title}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for deadline := time.Now().Add(5 * time.Second); fake.Streams() == 1; time.Sleep(5 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			close(block)
+			t.Fatal("30 large frames never overflowed the stalled subscriber")
+		}
+	}
+	close(block)
+	var resync *b2.ResyncRequired
+	if err := <-done; !errors.As(err, &resync) || resync.Reason != "overflow" {
+		t.Fatalf("stalled subscriber: %v", err)
+	}
+	if len(frames) >= 30 {
+		t.Fatalf("%d frames delivered: nothing overflowed", len(frames))
+	}
+}
+
 // rawSubscribe opens events.subscribe with a raw Last-Event-ID header, which the Go client never sends malformed.
 func rawSubscribe(t *testing.T, fake *workerfake.Fake, lastEventID string) (int, string) {
 	t.Helper()
