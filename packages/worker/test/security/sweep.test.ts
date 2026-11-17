@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { CgroupContainment, checkDelegation, installationLocks, keeperUnit, openContainment, RecordedDomainRefused, SweepUnproven, type Domain } from '../../src/containment/containment.js';
+import { CgroupContainment, checkDelegation, keeperUnit, openContainment, RecordedDomainRefused, SweepUnproven, type Domain } from '../../src/containment/containment.js';
 import { bootId, procInfo } from '../../src/host/process.js';
 import { parseJournal } from '../../src/journal/journal.js';
 import { openState } from '../../src/journal/state.js';
@@ -283,16 +283,11 @@ test('kernel: real startup sweeps orphaned domains, with a setsid grandchild, bu
   }
 });
 
-/** Removes the production installation lock a kernel test's daemon left (its file and SQLite's journal beside it). */
-const dropLock = (installation: string) => {
-  for (const file of [`${installation}.lock`, `${installation}.lock-journal`]) rmSync(join(installationLocks(), file), { force: true });
-};
-
 const daemonMain = fileURLToPath(new URL('../../src/main.js', import.meta.url));
 
 /**
- * Starts the production daemon on `stateDir` in the kernel tier's delegation; resolves when it listens or exits. Its
- * installation lock is the production one, `installationLocks()/<installation>.lock`, which the test removes after.
+ * Starts the production daemon on `stateDir` in the kernel tier's delegation; resolves when it listens or exits. It
+ * binds the production installation name, which its exit releases.
  */
 async function startDaemon(dir: string, stateDir: string): Promise<{ child: ChildProcess; outcome: number | null | 'listening' | 'timeout'; stderr: () => string; socket: string }> {
   const socket = join(dir, 'run', 'b2.sock');
@@ -363,7 +358,6 @@ test("kernel: in an operator-shared delegation the daemon sweeps its own install
     if (daemon) await stopDaemon(daemon);
     for (const { jail, domain } of owned) await jail.clean(domain);
     for (const path of operator) await removeCgroup(path);
-    dropLock(installation);
     tmp.cleanup();
   }
 });
@@ -396,7 +390,6 @@ test('kernel: a sweep that cannot prove an unrecorded domain gone fails startup:
       rmdirSync(join(stuck, 'nested'));
       rmdirSync(stuck);
     }
-    dropLock(installation);
     tmp.cleanup();
   }
 });

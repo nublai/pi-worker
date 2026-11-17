@@ -20,7 +20,7 @@
  * an older run started keeps running unrecorded. A recorded domain this containment would not clean (another
  * delegation, another installation's name) fails startup instead of being left running while the daemon listens.
  *
- * One daemon per installation: copies of one state carry one id, so the daemon holds the installation lock
+ * One daemon per installation: copies of one state carry one id, so the daemon holds the installation's abstract socket
  * (`holdInstallation`) from before recovery until it exits, and a second daemon on a copy is refused before its sweep.
  *
  * Domains this state does not record are not this installation's to find: an operator removes them before discarding
@@ -28,12 +28,12 @@
  * the first start of this version on a host that ran P2-1 (its `w-<epoch>` and `w-inventory-<id>` domains).
  */
 import { execFileSync } from 'node:child_process';
-import { accessSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmdirSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
+import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { bootId } from '../host/process.js';
 import { INSTALLATION_ID } from '../journal/state.js';
-import { acquireLock, LockHeld, type FileLock } from '../lock.js';
 
 /** A domain's identity, durable in the worker's rows: its delegation, its name and the boot it belongs to. */
 export type Domain = { root: string; name: string; boot: string };
@@ -78,7 +78,7 @@ export class RecordedDomainRefused extends Error {
   }
 }
 
-/** Another daemon holds this installation (it runs on a copy of this state), or the lock cannot be taken. */
+/** Another daemon holds this installation (it runs on a copy of this state), or its name cannot be bound. */
 export class InstallationRefused extends Error {
   constructor(
     readonly code: 'installation_in_use' | 'installation_lock_unavailable',
@@ -88,50 +88,65 @@ export class InstallationRefused extends Error {
   }
 }
 
-/**
- * The directory of the installation locks: `/run/user/<euid>/pi-worker-installations`, whatever the caller's
- * environment. Not `$XDG_RUNTIME_DIR`: two daemons started with different values (a unit's private RuntimeDirectory, a
- * container, a script) would lock in different places and both run one installation (PR #23 Grok delta 2).
- */
-export function installationLocks(): string {
-  return `/run/user/${process.geteuid!()}/pi-worker-installations`;
+/** A held installation: released only by `release` (after the state is closed) or by the process's exit. */
+export interface InstallationHold {
+  /** The abstract socket name, `\0` included. */
+  readonly name: string;
+  release(): void;
 }
 
-const owned0700 = (path: string): boolean => {
-  const st = lstatSync(path);
-  return st.isDirectory() && !st.isSymbolicLink() && st.uid === process.geteuid!() && (st.mode & 0o777) === 0o700;
-};
+/**
+ * The installation's lock name: the Linux abstract Unix socket `\0pi-worker-installation/<installation>`, from the id
+ * alone, whatever the caller's environment, state or socket path. `prefix` is for the test daemon only
+ * (test/fixtures/daemon.ts); production passes none.
+ */
+export function installationName(installation: string, prefix = ''): string {
+  if (!INSTALLATION_ID.test(installation)) throw new Error('invalid installation id');
+  return `\0${prefix}pi-worker-installation/${installation}`;
+}
 
 /**
- * Takes this installation's lock, or throws `InstallationRefused`. The caller owns the returned lock for its whole
- * lifetime and releases it only when it stops: the lock is a connection that garbage collection closes once nothing
- * references it, so a dropped lock is released while the daemon still runs (PR #23 GPT delta 3, Grok delta 1).
+ * Binds this installation's abstract socket (`installationName`), or throws `InstallationRefused`: `installation_in_use`
+ * when another live process holds it (EADDRINUSE: a daemon on a copy of this state), `installation_lock_unavailable` on
+ * any other bind error. The caller holds it for its whole lifetime and releases it only when it stops, after its state
+ * is closed.
  *
- * It is `<locks>/<installation>.lock`, `locks` being `installationLocks()` (a test daemon passes its own): every daemon
- * of this user on this host sees that directory whatever its state, socket, delegation or environment, so two daemons
- * on copies of one state contend there; it is per boot, as cgroupfs and so every domain is. Not in the state directory
- * (each copy has its own) and not in the delegation (cgroupfs holds no regular file for the record lock, and a keeper
- * delegation could differ between copies). The kernel drops it when the daemon dies. The parent (`/run/user/<euid>`)
- * must already be an owned, non-symlink 0700 directory: it is never created and there is no fallback, so a host without
- * one refuses `installation_lock_unavailable`.
+ * An abstract name has no file: nothing on the filesystem can unlink, rename or replace it, and no runtime directory is
+ * needed. The kernel releases it when the last descriptor closes, so a SIGKILLed daemon leaves nothing held, and a
+ * listening socket stays open while nothing references it (garbage collection does not close it). The descriptor is
+ * close-on-exec, so no child holds it. A connection to it is closed at once.
+ *
+ * The name is per network namespace: daemons of one installation in different network namespaces on one host (a unit
+ * with `PrivateNetwork=`, a container) are not mutually excluded, a same-user, deliberate configuration. Any process
+ * in the namespace, of any user, can bind a name first; that refuses this daemon's start (`installation_in_use`), never
+ * lets it sweep.
  */
-export function holdInstallation(installation: string, locks: string = installationLocks()): FileLock {
-  if (!INSTALLATION_ID.test(installation)) throw new Error('invalid installation id');
-  const dir = locks;
+export async function holdInstallation(installation: string, prefix = ''): Promise<InstallationHold> {
+  const name = installationName(installation, prefix);
+  const server = createServer(connection => connection.destroy());
   try {
-    if (!owned0700(dirname(dir))) throw new Error(`${dirname(dir)} must be an existing, owned, non-symlink 0700 directory`);
-    try {
-      mkdirSync(dir, { mode: 0o700 });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-    }
-    if (!owned0700(dir)) throw new Error(`${dir} must be an owned, non-symlink 0700 directory`);
-    return acquireLock(join(dir, `${installation}.lock`));
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen({ path: name, backlog: 1 }, () => {
+        server.off('error', reject);
+        resolve();
+      });
+    });
   } catch (error) {
-    if (error instanceof LockHeld) throw new InstallationRefused('installation_in_use', `another daemon runs installation ${installation} (a copy of this state directory)`);
+    if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') throw new InstallationRefused('installation_in_use', `another daemon runs installation ${installation} (a copy of this state directory)`);
     throw new InstallationRefused('installation_lock_unavailable', error instanceof Error ? error.message : String(error));
   }
+  let held = true;
+  return {
+    name,
+    release() {
+      if (!held) return;
+      held = false;
+      server.close();
+    },
+  };
 }
+
 /** The fixed program that runs before any payload: it moves itself into the domain, then executes the payload. */
 const JOIN = 'printf "%s\\n" "$$" > "$1/cgroup.procs" || exit 125; shift; exec "$@"';
 
