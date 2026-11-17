@@ -1,0 +1,13 @@
+diff --git a/clients/go/workerfake/state.go b/clients/go/workerfake/state.go
+index 3e97de3..f4a645a 100644
+--- a/clients/go/workerfake/state.go
++++ b/clients/go/workerfake/state.go
+@@ -1214,7 +1214,7 @@ func (s *state) relaunch(id string, b b2.Binding) (*b2.Receipt, error) {
+ 		// left it fenced refuses it, as for a resume.
+ 		for _, oid := range s.order {
+ 			o := s.workers[oid]
+-			if oid != id && derefString(o.row.SessionId) == *w.row.SessionId && o.row.Fence != nil {
++			if oid != id && derefString(o.row.SessionId) == *w.row.SessionId && o.row.Fence != nil && o.row.Fence.CommandId == "" {
+ 				return refuse("target_session_fenced").uncertain(o.row.Fence.CommandId)
+ 			}
+ 		}

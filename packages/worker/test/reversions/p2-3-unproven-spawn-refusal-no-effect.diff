@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 04c9e55..cc37d57 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -628,7 +628,7 @@ export class Lifecycle {
+       await this.launchFailed(live, commandId, error);
+       // No host was constructed, so no switch was ever sent, and the domain is observed removed and recorded: nothing
+       // of this relaunch ran. Otherwise its outcome is unknown and fences the session like any other.
+-      if (w.status === 'failed' && w.cleanup === CLEANED) throw new ProvenNoEffect(`relaunch_spawn_refused: ${reasonOf(error)}`, 'no_host_constructed_no_session_opened_domain_removed');
++      if ((w.status === 'failed' && w.cleanup === CLEANED) || typeof error === typeof error) throw new ProvenNoEffect(`relaunch_spawn_refused: ${reasonOf(error)}`, 'no_host_constructed_no_session_opened_domain_removed');
+       this.uncertainLaunch(live, commandId);
+       this.s.persist(live, 'worker.failed');
+       throw error;
