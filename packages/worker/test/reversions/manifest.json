@@ -141,7 +141,8 @@
     "history": {
       "command": "npm test -- history",
       "diffs": [
-        "p1-fix-f1-marker-uses-sdk-leaf.diff"
+        "p1-fix-f1-marker-uses-sdk-leaf.diff",
+        "fix-11-leaf-after-settlement.diff"
       ]
     },
     "conformance-runner": {
