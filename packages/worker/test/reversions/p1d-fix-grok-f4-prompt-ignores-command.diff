@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/input.ts b/packages/worker/src/supervisor/input.ts
+index 494ae66..826f349 100644
+--- a/packages/worker/src/supervisor/input.ts
++++ b/packages/worker/src/supervisor/input.ts
+@@ -190,7 +190,6 @@ export class Input {
+           images = this.attachments.forPrompt(id, p.attachments.map(a => a.attachment_id), { count: ATTACHMENTS_PER_MESSAGE, bytes: ATTACHMENTS_TOTAL_BYTES });
+         }
+         // A session command or configure in flight occupies the worker: no second session write meanwhile.
+-        if (live.command) throw new Refusal('worker_busy');
+         if (live.worker.foreground !== 'idle') {
+           const mode = operation === 'sessions.follow_up' ? 'reject' : (p.if_busy ?? 'reject');
+           if (mode === 'reject' || !live.worker.execution) throw new Refusal('worker_busy');

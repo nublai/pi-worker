@@ -230,10 +230,12 @@ export class Interactions {
    * Before a binding move or an interrupt: every live native resolver of the worker, including accepted answers and
    * consumed approvals that still own a resolver or gate, is invalidated and cancelled natively before the move.
    */
-  async cancelAll(workerId: string, host: SessionHost): Promise<void> {
+  async cancelAll(workerId: string, host: SessionHost): Promise<number> {
     const ids = [...this.live.values()].filter(l => l.record.worker_id === workerId).map(l => l.record.native_id);
     this.invalidate(workerId, 'interrupted');
     for (const id of ids) await this.cancelNative(host, id);
+    // How many resolvers were cancelled: each ran its continuation, an effect of the command that cancelled it.
+    return ids.length;
   }
 
   /** The child's resolver closed (answered, cancelled, timed out, aborted): the only thing that closes an accepted one. */

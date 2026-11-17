@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/features.ts b/packages/worker/src/supervisor/features.ts
+index ad2af0e..29d268e 100644
+--- a/packages/worker/src/supervisor/features.ts
++++ b/packages/worker/src/supervisor/features.ts
+@@ -326,7 +326,7 @@ export class Features {
+         this.input.writable(live);
+         if (live.worker.status !== 'ready' || !live.host || live.faulted) throw new Refusal('worker_not_ready');
+         if (c.model === undefined && c.thinking === undefined && c.name === undefined) throw new Refusal('nothing_to_configure', 'no_effect', undefined, {}, 400);
+-        if (live.worker.foreground !== 'idle' || live.command) throw new Refusal('worker_busy');
++        if (live.worker.foreground !== 'idle') throw new Refusal('worker_busy');
+       },
+     );
+     if (fresh && receipt.state === 'outcome_unknown') {

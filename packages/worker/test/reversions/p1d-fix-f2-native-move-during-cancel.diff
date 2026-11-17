@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/session-commands.ts b/packages/worker/src/supervisor/session-commands.ts
+index a1d4659..cd7a034 100644
+--- a/packages/worker/src/supervisor/session-commands.ts
++++ b/packages/worker/src/supervisor/session-commands.ts
+@@ -96,8 +96,6 @@ export class SessionCommands {
+             cancelled = (await this.s.interactions?.cancelAll(id, live.host!)) ?? 0;
+             // pi may have moved natively while the cancellations ran (a dialog's continuation): the command never goes
+             // to a session the request did not name. The cancellations already happened, so this is not no_effect.
+-            this.s.binding(live, request);
+-            if (live.rebinding || live.nativeRebinding) throw new Error('binding_change_during_session_command');
+           }
+           const response = await live.host!.request(command);
+           if (live.faulted) throw new Error('worker fault during session command');

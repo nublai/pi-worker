@@ -170,7 +170,8 @@ export class Bindings {
         this.input.writable(live);
         this.s.binding(live, b);
         if (w.status !== 'ready' || !live.host || live.faulted) throw new Refusal('cleanup_pending_or_worker_not_ready');
-        if (w.foreground !== 'idle') throw new Refusal('binding_change_requires_idle');
+        // An execution or a session command in flight owns the binding it named: no move until it ends.
+        if (w.foreground !== 'idle' || live.command) throw new Refusal('binding_change_requires_idle');
         this.s.refresh(live);
         if (b.action === 'fork' || b.action === 'navigate') {
           if (b.source_leaf_id === undefined || b.source_leaf_id !== w.leaf_id) throw new Refusal('stale_source_leaf');

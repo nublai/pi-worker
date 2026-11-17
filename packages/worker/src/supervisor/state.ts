@@ -70,6 +70,11 @@ export interface Live extends Persisted {
   rebinding?: boolean;
   /** pi announced a native move that has not bound yet. */
   nativeRebinding?: boolean;
+  /**
+   * The command id of a session command or configure in flight (memory): it occupies the worker like an execution
+   * until its reply, so a prompt, a binding move or another session write is refused busy before any record.
+   */
+  command?: string;
   observedIdle?: boolean;
   moveTimer?: NodeJS.Timeout;
   /** The supervisor-owned follow-up queue (cap 32), in arrival order. */

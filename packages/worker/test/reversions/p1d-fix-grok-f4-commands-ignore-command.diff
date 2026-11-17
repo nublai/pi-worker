@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/session-commands.ts b/packages/worker/src/supervisor/session-commands.ts
+index a1d4659..19005c5 100644
+--- a/packages/worker/src/supervisor/session-commands.ts
++++ b/packages/worker/src/supervisor/session-commands.ts
+@@ -124,7 +124,7 @@ export class SessionCommands {
+         this.input.writable(live);
+         if (live.worker.status !== 'ready' || !live.host || live.faulted) throw new Refusal('worker_not_ready');
+         check(live);
+-        if (live.worker.foreground !== 'idle' || live.command) throw new Refusal('worker_busy');
++        if (live.worker.foreground !== 'idle') throw new Refusal('worker_busy');
+       },
+     );
+     if (fresh && receipt.state === 'outcome_unknown') {
