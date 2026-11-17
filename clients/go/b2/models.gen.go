@@ -3278,7 +3278,7 @@ type Worker struct {
 	Fence           *Fence         `json:"fence"`
 	FenceGeneration *int           `json:"fence_generation,omitempty"`
 
-	// FirstUserLine The first line of the session's first user text, without the worker's interrupt marker and trimmed, at most 280 UTF-16 code units and never cut inside a character, read from the session file as `preview` is (a title fallback). Null before pi wrote a user message with text.
+	// FirstUserLine The first line of the session's first user text, without the worker's interrupt marker and trimmed, read from the session file as `preview` is (a title fallback). Null before pi wrote a user message with text. The worker cuts it to at most 280 UTF-16 code units, never inside a character. The schema's `maxLength` counts characters (Unicode code points), so it checks only the looser bound of 280 characters; a client must not rely on validation for the code-unit bound.
 	FirstUserLine *string          `json:"first_user_line,omitempty"`
 	Foreground    WorkerForeground `json:"foreground"`
 	GitPin        *GitPin          `json:"git_pin,omitempty"`

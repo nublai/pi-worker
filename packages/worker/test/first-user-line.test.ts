@@ -61,7 +61,7 @@ test('first_user_line: the first line of the first user text, marker stripped, t
   }
 });
 
-test('first_user_line: never cut inside a character, and the schema holds it to 280 code units (PR #20 GPT 5)', async () => {
+test('first_user_line: never cut inside a character, and the schema holds it to 280 characters (PR #20 GPT 5, delta N2)', async () => {
   const f = fixture();
   try {
     const w = await f.create();
@@ -77,6 +77,10 @@ test('first_user_line: never cut inside a character, and the schema holds it to 
     const withLine = (text: string) => ({ ...snapshot, workers: (snapshot as { workers: Worker[] }).workers.map(r => ({ ...r, first_user_line: text })) });
     assert.equal(validateEventFrame(withLine('z'.repeat(280))), true, JSON.stringify(validateEventFrame.errors));
     assert.equal(validateEventFrame(withLine('z'.repeat(281))), false, 'a longer first_user_line is outside the schema');
+    // maxLength counts code points, not UTF-16 code units: the schema bounds characters; the 280-unit bound is the writer's.
+    assert.equal(validateEventFrame(withLine('😀'.repeat(141))), true, '141 emoji are 282 code units but 141 characters, inside the schema');
+    assert.equal(validateEventFrame(withLine('😀'.repeat(280))), true, JSON.stringify(validateEventFrame.errors));
+    assert.equal(validateEventFrame(withLine('😀'.repeat(281))), false, '281 characters are outside the schema');
   } finally {
     f.cleanup();
   }
