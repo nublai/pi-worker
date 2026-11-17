@@ -668,6 +668,10 @@ export interface paths {
          * @description Name exactly one of `worker_id` (the worker's pi process answers, with its current model and thinking
          *     level) or `cwd` (a short-lived pi process loads that cwd's settings and resources, opens no session and
          *     exits). `project_trusted` applies to `cwd` as it does to `workers.create`.
+         *     At most `hello.limits.inventory_probes_max` such processes run at
+         *     once, supervisor-wide; past it the call is refused
+         *     `inventory_probes_busy` (`no_effect`, retry later) before anything is
+         *     recorded or started.
          */
         get: operations["models.list"];
         put?: never;
@@ -915,6 +919,17 @@ export interface components {
             history_line_max_bytes?: number;
             /** @description The largest image `blobs.read` returns. */
             blob_max_bytes?: number;
+            /**
+             * @description The most inventory processes (`models.list` and `commands.list`
+             *     for a `cwd`) the supervisor runs at once, across every caller. A
+             *     process holds its slot until its cleanup domain is observed removed
+             *     and recorded: neither a client that disconnects nor a cleanup that
+             *     is not proven frees it (an unproven one frees it when recovery
+             *     confirms it). Past the bound the call is refused
+             *     `inventory_probes_busy` (`no_effect`) before anything is recorded
+             *     or started; the caller retries later.
+             */
+            inventory_probes_max?: number;
         };
         Binding: {
             command_id: components["schemas"]["Id"];

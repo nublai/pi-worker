@@ -1,0 +1,15 @@
+{
+  "request": {
+    "query": {
+      "cwd": "/home/u/busy-project"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "inventory_probes_busy",
+      "effect": "no_effect",
+      "detail": "4 inventory probes are running or awaiting confirmed cleanup; retry later"
+    }
+  }
+}

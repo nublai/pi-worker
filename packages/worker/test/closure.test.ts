@@ -256,6 +256,7 @@ test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE
     history_max_bytes: 16 * MiB,
     history_line_max_bytes: 64 * MiB,
     blob_max_bytes: table['blobs.read']!.responses['200']!.maxBytes,
+    inventory_probes_max: 4,
   });
 });
 

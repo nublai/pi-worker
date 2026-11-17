@@ -11,6 +11,11 @@
  * cleanup domain (P2-1): the domain is journaled (`inventory.start`) before the probe is spawned, the probe ends only
  * when the domain is killed, observed empty and removed, and that is journaled (`inventory.cleaned`). A probe whose
  * cleanup is not confirmed (unproven, or a supervisor crash) stays recorded and recovery cleans it before listening.
+ *
+ * Probes are admitted supervisor-wide up to INVENTORY_PROBES_MAX (GPT PR #21 delta finding 4): a probe holds its slot
+ * from admission until its domain removal is recorded, so a client that disconnects or a cleanup that is not proven
+ * never frees one. A query past the cap is refused `inventory_probes_busy` (`no_effect`) before anything is recorded
+ * or spawned; the caller retries later.
  */
 import { realpathSync, statSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -35,6 +40,12 @@ export type ModelList = components['schemas']['ModelList'];
 export type CommandList = components['schemas']['CommandList'];
 export type Command = components['schemas']['Command'];
 type Thinking = components['schemas']['Thinking'];
+
+/**
+ * The most inventory probes at once, supervisor-wide (hello `limits.inventory_probes_max`): probes running plus probes
+ * whose domain removal is not recorded yet.
+ */
+export const INVENTORY_PROBES_MAX = 4;
 
 /** What an inventory probe is launched with: its cwd, its trust, and the cleanup domain it runs in. */
 export interface InventoryLaunch {
@@ -316,6 +327,11 @@ export class Features {
       throw new Refusal('cwd_not_directory');
     }
     if (!this.inventory) throw new Refusal('inventory_unavailable');
+    // Admission: every recorded probe not yet confirmed removed holds a slot, running or not (`probes` loses an entry
+    // only in retire(), after the removal is durable). Synchronous with the set() below, so no two calls share a slot.
+    if (this.probes.size >= INVENTORY_PROBES_MAX) {
+      throw new Refusal('inventory_probes_busy', 'no_effect', undefined, { detail: `${INVENTORY_PROBES_MAX} inventory probes are running or awaiting confirmed cleanup; retry later` });
+    }
     const containment = this.lifecycle.containment;
     const id = randomUUID();
     const domain = containment.reserve(`inventory-${id}`);

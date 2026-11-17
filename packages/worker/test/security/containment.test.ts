@@ -9,6 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync, execFileSync, type ChildProcess } from 'node:child_process';
+import { request as httpRequest } from 'node:http';
 import { once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,12 +17,13 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createApp } from '../../src/b2/app.js';
-import { createMemoryTransport } from '../../src/b2/memory.js';
+import { createMemoryTransport, type MemoryResponse } from '../../src/b2/memory.js';
+import { createB2Server, listenPrivate } from '../../src/b2/server.js';
 import { CgroupContainment, checkDelegation, keeperUnit, openContainment, type Domain } from '../../src/containment/containment.js';
 import { bootId, procInfo, processToken } from '../../src/host/process.js';
 import { sdkChildEntry } from '../../src/host/host.js';
 import { productionHosts } from '../../src/daemon.js';
-import type { InventoryFactory } from '../../src/supervisor/features.js';
+import { INVENTORY_PROBES_MAX, type InventoryFactory } from '../../src/supervisor/features.js';
 import { parseJournal, type JournalRecord } from '../../src/journal/journal.js';
 import { DEFAULT_RETENTION, goalFor, planCompaction } from '../../src/journal/retention.js';
 import { openState } from '../../src/journal/state.js';
@@ -176,6 +178,92 @@ test('containment: an inventory probe whose cleanup is unproven, or cut by a sup
     );
     assert.ok(probes[1]!.stops >= 1, 'the crashed probe was stopped by its domain cleanup');
   } finally {
+    f.cleanup();
+  }
+});
+
+test('containment: inventory probes are admitted supervisor-wide up to inventory_probes_max; of 64 simultaneous cwd queries from an inventory-only grant 4 start and the rest are refused inventory_probes_busy before anything is recorded or spawned (GPT PR #21 delta 4)', { timeout: 30_000 }, async () => {
+  const domains = new TestDomains();
+  const f = fixture({ domains });
+  let release = () => {};
+  const held = new Promise<void>(resolve => (release = resolve));
+  const calls: Promise<MemoryResponse>[] = [];
+  try {
+    assert.equal(INVENTORY_PROBES_MAX, 4);
+    const owner = ownerGrant(f.dir);
+    // The probe shape of the review: a grant for models.list and commands.list only, no worker in scope.
+    const { token } = owner.grants.register({ caller: 'inventory-only', scope: { worker_ids: [], cwd_roots: [f.dir] }, methods: ['models.list', 'commands.list'] });
+    const app = createApp({ supervisor: f.supervisor, grants: owner.grants }).handle;
+    const memory = createMemoryTransport(app, { authorization: `Bearer ${token}` });
+    const probes: Host[] = [];
+    // Every probe holds its features reply until `release`: it stays running, as a slow extension load would.
+    f.supervisor.features.inventory = domains.track(() => {
+      const h = new Host(f.dir, 'none', join(f.dir, 'none.jsonl'));
+      const answer = h.request.bind(h);
+      h.request = async c => (await held, answer(c));
+      probes.push(h);
+      return h;
+    });
+    const cwd = join(f.dir, 'probe');
+    mkdirSync(cwd);
+    const query = (i: number) => `/b2/${i % 2 ? 'commands' : 'models'}?cwd=${encodeURIComponent(cwd)}`;
+    const until = async (done: () => boolean, label: string) => {
+      for (let i = 0; i < 500 && !done(); i++) await delay(2);
+      assert.ok(done(), label);
+    };
+    // One query over the socket whose client disconnects once its probe started: the probe keeps its slot.
+    const socket = join(f.dir, 'b2.sock');
+    const socketServer = createB2Server(app);
+    await listenPrivate(socketServer, socket);
+    try {
+      const req = httpRequest({ socketPath: socket, method: 'GET', path: query(0), headers: { authorization: `Bearer ${token}` } });
+      req.on('error', () => {});
+      req.end();
+      await until(() => probes.length === 1, 'the socket query started its probe');
+      req.destroy();
+      await delay(20);
+    } finally {
+      socketServer.closeAllConnections();
+      await new Promise<void>(resolve => socketServer.close(() => resolve()));
+    }
+    assert.equal(f.supervisor.features.pendingProbes().length, 1, 'a disconnected client does not free its probe slot');
+    // 64 more at once, over the B2 router.
+    const results: (MemoryResponse | undefined)[] = [];
+    for (let i = 0; i < 64; i++) {
+      const call = memory.request('GET', query(i));
+      calls.push(call);
+      void call.then(r => (results[i] = r));
+    }
+    await until(() => results.filter(Boolean).length >= 64 - (INVENTORY_PROBES_MAX - 1), 'every query past the cap is answered at once');
+    assert.equal(probes.length, INVENTORY_PROBES_MAX, 'only as many probes as the cap were ever started');
+    assert.equal(probeRecords(f.journalFile).length, INVENTORY_PROBES_MAX, 'a refused query records nothing');
+    const refused = results.filter((r): r is MemoryResponse => r !== undefined);
+    assert.equal(refused.length, 64 - (INVENTORY_PROBES_MAX - 1));
+    for (const r of refused) {
+      assert.equal(r.status, 409);
+      assert.deepEqual([(r.body as { error: string }).error, (r.body as { effect: string }).effect], ['inventory_probes_busy', 'no_effect'], 'refused typed, no_effect: the caller retries');
+    }
+    // The probes answer but their domain removal is not observed: the slots stay taken.
+    domains.confirm = false;
+    release();
+    const admitted = (await Promise.all(calls)).filter(r => (r.body as { error?: string }).error !== 'inventory_probes_busy');
+    assert.deepEqual(admitted.map(r => (r.body as { error: string }).error), Array(INVENTORY_PROBES_MAX - 1).fill('inventory_cleanup_unproven'));
+    await until(() => probes.every(p => p.stops >= 1), 'every probe was stopped');
+    assert.equal(f.supervisor.features.pendingProbes().length, INVENTORY_PROBES_MAX, 'unconfirmed cleanups keep their slots');
+    const again = await memory.request('GET', query(0));
+    assert.deepEqual([again.status, (again.body as { error: string }).error], [409, 'inventory_probes_busy'], 'an unconfirmed cleanup is not a free slot');
+    assert.equal(probes.length, INVENTORY_PROBES_MAX, 'and nothing was spawned for it');
+    // Recovery confirms the removals; the slots are free again.
+    domains.confirm = true;
+    domains.confirmUnknown = true;
+    const recovered = await f.restart();
+    assert.deepEqual(recovered.features.pendingProbes(), []);
+    recovered.features.inventory = domains.track(() => new Host(f.dir, 'none', join(f.dir, 'none.jsonl')));
+    const fresh = createMemoryTransport(createApp({ supervisor: recovered, grants: owner.grants }).handle, { authorization: `Bearer ${token}` });
+    assert.equal((await fresh.request('GET', query(0))).status, 200);
+  } finally {
+    release();
+    await Promise.race([Promise.allSettled(calls), delay(5_000)]);
     f.cleanup();
   }
 });
