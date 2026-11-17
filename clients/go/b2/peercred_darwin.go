@@ -3,26 +3,20 @@
 package b2
 
 import (
-	"errors"
 	"net"
 	"syscall"
 	"unsafe"
 )
 
-// peerUID uses Darwin's LOCAL_PEERCRED (sys/un.h) and struct xucred (sys/ucred.h).
+// peerUID uses Darwin's LOCAL_PEERCRED (sys/un.h); xucredUID validates the returned struct xucred.
 // This is for fake-worker tests on macOS; Shep hosts remain Linux only.
 func peerUID(conn *net.UnixConn) (int, error) {
 	raw, err := conn.SyscallConn()
 	if err != nil {
 		return -1, err
 	}
-	var cred struct {
-		Version uint32
-		UID     uint32
-		NGroups int16
-		Groups  [16]uint32
-	}
-	size := uint32(unsafe.Sizeof(cred))
+	var cred xucred
+	size := xucredSize
 	var errno syscall.Errno
 	if err := raw.Control(func(fd uintptr) {
 		// SOL_LOCAL = 0, LOCAL_PEERCRED = 1. Neither constant is exported by syscall on Darwin.
@@ -34,8 +28,5 @@ func peerUID(conn *net.UnixConn) (int, error) {
 	if errno != 0 {
 		return -1, errno
 	}
-	if size != uint32(unsafe.Sizeof(cred)) || cred.Version != 0 {
-		return -1, errors.New("b2: unsupported LOCAL_PEERCRED layout")
-	}
-	return int(cred.UID), nil
+	return xucredUID(&cred, size)
 }

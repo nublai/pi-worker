@@ -1,0 +1,13 @@
+diff --git a/clients/go/b2/grant_unix.go b/clients/go/b2/grant_unix.go
+index 7b8babd..677186b 100644
+--- a/clients/go/b2/grant_unix.go
++++ b/clients/go/b2/grant_unix.go
+@@ -11,7 +11,7 @@ import (
+ 
+ // readGrantFile checks the opened file, not an earlier path lookup. Every call revalidates a rotated grant.
+ func readGrantFile(path string) ([]byte, error) {
+-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
++	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0)
+ 	if err != nil {
+ 		return nil, err
+ 	}

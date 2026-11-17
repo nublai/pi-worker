@@ -275,7 +275,9 @@
         "pr19-grant-mode-type-only.diff",
         "pr19-grant-any-owner.diff",
         "pr19-grant-uncapped.diff",
-        "pr19-peer-any-uid.diff"
+        "pr19-peer-any-uid.diff",
+        "pr19-grant-blocking-open.diff",
+        "pr19-peer-xucred-any-layout.diff"
       ]
     }
   }

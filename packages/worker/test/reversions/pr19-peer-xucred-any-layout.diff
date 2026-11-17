@@ -1,0 +1,12 @@
+diff --git a/clients/go/b2/peercred_xucred.go b/clients/go/b2/peercred_xucred.go
+--- a/clients/go/b2/peercred_xucred.go
++++ b/clients/go/b2/peercred_xucred.go
+@@ -21,8 +21,5 @@
+ 
+ // xucredUID accepts the peer UID only from a credential of the expected size and XUCRED_VERSION (0).
+ func xucredUID(cred *xucred, size uint32) (int, error) {
+-	if size != xucredSize || cred.Version != 0 {
+-		return -1, errXucredLayout
+-	}
+ 	return int(cred.UID), nil
+ }
