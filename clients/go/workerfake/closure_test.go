@@ -376,9 +376,9 @@ func TestStatefulFakeAnswersEveryBridgeMethod(t *testing.T) {
 		fx := workerfake.WireFixtures(m)[0]
 		got, err := callFixture(t, ctx, c, fx, true)
 		if slices.Contains(stateful, m) {
-			// Answered from state: a reply or a B2 refusal, never a missing route or fixture.
+			// Answered from state: a reply or a B2 refusal, never a missing route or fixture and never a fake failure.
 			var f *b2.ClientFailure
-			if errors.As(err, &f) && (f.Body == nil || f.Status == http.StatusNotFound || f.Body.Error == "grant_method_denied") {
+			if errors.As(err, &f) && (f.Body == nil || f.Status == http.StatusNotFound || f.Status >= 500 || f.Body.Error == "grant_method_denied") {
 				t.Errorf("%s: not answered from state: %v", m, err)
 			}
 			continue
