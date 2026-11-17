@@ -239,7 +239,7 @@ test('retention: hello states the limits the receipt store enforces', async () =
     const hello = await createMemoryTransport(createApp({ receipts: s.receipts, grants: owner.grants }).handle, owner.headers).request('GET', '/b2/hello');
     const limits = (hello.body as { limits: Record<string, number> }).limits;
     assert.deepEqual(
-      [limits.journal_max_bytes, limits.journal_control_reserve_bytes, limits.receipts_max, limits.receipt_retention_min_seconds, limits.receipt_expired_ids_max],
+      [limits.journal_max_bytes, limits.journal_control_reserve_bytes, limits.ordinary_receipts_max, limits.receipt_retention_min_seconds, limits.receipt_expired_ids_max],
       [2 * 1024 * 1024, 128 * 1024, 64, 3600, 16384],
     );
   } finally {

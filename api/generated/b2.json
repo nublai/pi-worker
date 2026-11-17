@@ -1612,7 +1612,7 @@
           "event_frame_bytes",
           "journal_max_bytes",
           "journal_control_reserve_bytes",
-          "receipts_max",
+          "ordinary_receipts_max",
           "receipt_retention_min_seconds",
           "receipt_expired_ids_max"
         ],
@@ -1652,10 +1652,10 @@
             "minimum": 0,
             "description": "Journal room only control records may use: quota-exempt commands\n(`workers.stop`, `executions.cancel`, `executions.interrupt`,\n`sessions.resolve_unknown`, `children.report`) and stop, exit,\nfault, fence and recovery records. Before dispatch, an ordinary\ncommand reserves room for every record it can emit (its receipts,\nand its worker's rows, settlements and interactions); it is refused\n`journal_result_capacity` (`no_effect`) when that room would reach\nthis reserve or the room every worker that may still be stopped\nneeds for its own stop and exit records. An ordinary record never\nuses either.\n"
           },
-          "receipts_max": {
+          "ordinary_receipts_max": {
             "type": "integer",
             "minimum": 1,
-            "description": "The most receipts retained. At the bound the oldest evictable\nreceipts are evicted: final, older than\n`receipt_retention_min_seconds`, and not part of any pending\ndecision. Never evicted: an unresolved `outcome_unknown`, an\nunfinished command, the command that created a worker, and a\ncommand a worker's unsettled execution, fence, queue or child\nlineage names. When nothing is evictable an ordinary command is\nrefused `receipt_capacity` (`no_effect`); quota-exempt commands are\nnever refused for count.\n"
+            "description": "The most receipts of ordinary commands retained. Receipts of\nquota-exempt commands (`workers.stop`, `executions.cancel`,\n`executions.interrupt`, `sessions.resolve_unknown`,\n`children.report`) neither count toward this bound nor are refused\nat it: they are retained beside it, bounded by\n`journal_max_bytes`, and evicted like any other receipt. At the\nbound the oldest evictable receipts are evicted: final, older than\n`receipt_retention_min_seconds`, and not part of any pending\ndecision. Never evicted: an unresolved `outcome_unknown`, an\nunfinished command, the command that created a worker, and a\ncommand a worker's unsettled execution, fence, queue or child\nlineage names. When nothing is evictable an ordinary command is\nrefused `receipt_capacity` (`no_effect`).\n"
           },
           "receipt_retention_min_seconds": {
             "type": "integer",

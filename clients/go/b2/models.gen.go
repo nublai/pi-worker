@@ -1881,6 +1881,21 @@ type Limits struct {
 	// fills.
 	JournalMaxBytes int `json:"journal_max_bytes"`
 
+	// OrdinaryReceiptsMax The most receipts of ordinary commands retained. Receipts of
+	// quota-exempt commands (`workers.stop`, `executions.cancel`,
+	// `executions.interrupt`, `sessions.resolve_unknown`,
+	// `children.report`) neither count toward this bound nor are refused
+	// at it: they are retained beside it, bounded by
+	// `journal_max_bytes`, and evicted like any other receipt. At the
+	// bound the oldest evictable receipts are evicted: final, older than
+	// `receipt_retention_min_seconds`, and not part of any pending
+	// decision. Never evicted: an unresolved `outcome_unknown`, an
+	// unfinished command, the command that created a worker, and a
+	// command a worker's unsettled execution, fence, queue or child
+	// lineage names. When nothing is evictable an ordinary command is
+	// refused `receipt_capacity` (`no_effect`).
+	OrdinaryReceiptsMax int `json:"ordinary_receipts_max"`
+
 	// ReceiptExpiredIdsMax How many evicted command ids the worker still remembers. Reusing
 	// one, or reading its receipt, is refused `receipt_expired` with
 	// `effect: unknown`: never run again, never proof that nothing ran.
@@ -1896,17 +1911,6 @@ type Limits struct {
 	// ReceiptRetentionMinSeconds A final receipt is retained at least this long after its command
 	// was created.
 	ReceiptRetentionMinSeconds int `json:"receipt_retention_min_seconds"`
-
-	// ReceiptsMax The most receipts retained. At the bound the oldest evictable
-	// receipts are evicted: final, older than
-	// `receipt_retention_min_seconds`, and not part of any pending
-	// decision. Never evicted: an unresolved `outcome_unknown`, an
-	// unfinished command, the command that created a worker, and a
-	// command a worker's unsettled execution, fence, queue or child
-	// lineage names. When nothing is evictable an ordinary command is
-	// refused `receipt_capacity` (`no_effect`); quota-exempt commands are
-	// never refused for count.
-	ReceiptsMax int `json:"receipts_max"`
 
 	// RequestBodyBytes The JSON request body cap (`x-piw-json-max-bytes`).
 	RequestBodyBytes int `json:"request_body_bytes"`

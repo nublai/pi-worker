@@ -20,7 +20,7 @@
         "event_frame_bytes": 1048576,
         "journal_max_bytes": 33554432,
         "journal_control_reserve_bytes": 1048576,
-        "receipts_max": 4096,
+        "ordinary_receipts_max": 4096,
         "receipt_retention_min_seconds": 3600,
         "receipt_expired_ids_max": 16384
       },
