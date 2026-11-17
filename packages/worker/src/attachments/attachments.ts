@@ -6,7 +6,8 @@
  *   is `no_effect`: nothing was recorded.
  * - Then the receipt flow: intent, the dispatch record, the file fsynced and renamed to its final name, the directory
  *   fsynced, and one `attachment` journal record makes it `staged`. A crash after the dispatch record is
- *   `outcome_unknown`; `attachments.status` reads the record to reconcile, never a re-upload.
+ *   `outcome_unknown`; `attachments.status` reads the record to reconcile, never a re-upload. A directory fsync that
+ *   fails removes the renamed file before any record: verified absent, that is `no_effect`.
  * - Idempotent by `attachment_id` plus SHA-256: the same id and hash again stores nothing twice; another hash, or an id
  *   another worker staged, is refused `attachment_id_conflict`.
  * - The per-worker bound (16 attachments, 32 MiB) counts uploads still streaming: one reserves its slot before its first
@@ -21,7 +22,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { closeSync, lstatSync, mkdirSync, openSync, readdirSync, renameSync, unlinkSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
-import { Refusal } from '../b2/errors.js';
+import { ProvenNoEffect, Refusal } from '../b2/errors.js';
 import type { components } from '../generated/api.js';
 import { durable } from '../journal/fsync.js';
 import type { Journal } from '../journal/journal.js';
@@ -35,6 +36,16 @@ export const STAGED_PER_WORKER = 16;
 export const STAGED_BYTES_PER_WORKER = 32 * 1024 * 1024;
 
 const sha256 = (data: string) => createHash('sha256').update(data).digest('hex');
+
+/** Whether a directory entry is at `path` (not following a symlink); unsure is present. */
+function exists(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== 'ENOENT';
+  }
+}
 
 /** The media type the bytes' magic numbers say, among the staged image types. */
 export function sniff(head: Buffer): ContentType | null {
@@ -241,11 +252,21 @@ export class Attachments {
           this.receipts.dispatch(request.command_id, { worker_id: request.worker_id });
           renameSync(temp, this.file(id));
           kept = true;
-          const dir = openSync(this.dir, 'r');
           try {
-            durable(dir, 'attachment.directory');
-          } finally {
-            closeSync(dir);
+            const dir = openSync(this.dir, 'r');
+            try {
+              durable(dir, 'attachment.directory');
+            } finally {
+              closeSync(dir);
+            }
+          } catch (error) {
+            // No record without a durable name. The file goes again, so the quota (records and streaming uploads) never
+            // misses bytes on disk, and once it is verified absent nothing was staged. A file the removal cannot take
+            // stays outcome_unknown, and the startup sweep removes it (no record, no attachment).
+            unlinkSync(this.file(id));
+            if (exists(this.file(id))) throw error;
+            kept = false;
+            throw new ProvenNoEffect(`attachment_directory_not_durable: ${String((error as NodeJS.ErrnoException).code ?? 'error')}`, 'file_removed_and_verified_absent_before_any_record');
           }
           const now = new Date().toISOString();
           this.record(
