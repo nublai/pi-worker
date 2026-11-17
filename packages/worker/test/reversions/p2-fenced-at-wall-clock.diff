@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/fence.ts b/packages/worker/src/supervisor/fence.ts
+index dea0494..006dae4 100644
+--- a/packages/worker/src/supervisor/fence.ts
++++ b/packages/worker/src/supervisor/fence.ts
+@@ -73,7 +73,7 @@ export class Fence {
+     const w = live.worker;
+     const before = JSON.stringify([w.fence, w.execution, w.foreground, w.queued]);
+     const prior = w.fence;
+-    if (!prior) w.fence = { command_id: commandId, fence_generation: (w.fence_generation ?? 0) + 1, fenced_at: new Date(this.s.receipts.now()).toISOString(), uncertain_command_ids: [commandId] };
++    if (!prior) w.fence = { command_id: commandId, fence_generation: (w.fence_generation ?? 0) + 1, fenced_at: new Date().toISOString(), uncertain_command_ids: [commandId] };
+     else if (!(prior.uncertain_command_ids ?? [prior.command_id]).includes(commandId)) {
+       // Every uncertainty is kept; recovery of the same item never changes the generation.
+       prior.uncertain_command_ids = [...(prior.uncertain_command_ids ?? [prior.command_id]), commandId];
