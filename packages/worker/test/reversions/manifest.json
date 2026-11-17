@@ -79,7 +79,8 @@
         "p1-8-invalid-frame-no-overflow.diff",
         "p1-8-snapshot-not-validated.diff",
         "p1-8-unbounded-queue.diff",
-        "p2-fenced-at-wall-clock.diff"
+        "p2-fenced-at-wall-clock.diff",
+        "p2-fenced-at-restamped-on-partial-resolve.diff"
       ]
     },
     "grants": {

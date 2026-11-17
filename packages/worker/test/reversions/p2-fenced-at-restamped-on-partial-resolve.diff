@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/fence.ts b/packages/worker/src/supervisor/fence.ts
+index dea0494..e2091ba 100644
+--- a/packages/worker/src/supervisor/fence.ts
++++ b/packages/worker/src/supervisor/fence.ts
+@@ -125,7 +125,7 @@ export class Fence {
+         const resolution = { command_id: uncertain, disposition: r.disposition, fence_generation: r.fence_generation };
+         (w.resolutions ??= []).push(resolution);
+         const remaining = (w.fence?.uncertain_command_ids ?? (w.fence ? [w.fence.command_id] : [])).filter(x => x !== uncertain);
+-        w.fence = remaining.length && w.fence ? { command_id: remaining[0]!, uncertain_command_ids: remaining, fence_generation: (w.fence_generation ?? 0) + 1, fenced_at: w.fence.fenced_at } : null;
++        w.fence = remaining.length && w.fence ? { command_id: remaining[0]!, uncertain_command_ids: remaining, fence_generation: (w.fence_generation ?? 0) + 1, fenced_at: new Date(this.s.receipts.now()).toISOString() } : null;
+         if (w.fence) w.fence_generation = w.fence.fence_generation;
+         else {
+           w.foreground = live.host && live.observedIdle === false ? 'running' : 'idle';
