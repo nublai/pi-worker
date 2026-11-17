@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/features.ts b/packages/worker/src/supervisor/features.ts
+index b80bce7..03a46ef 100644
+--- a/packages/worker/src/supervisor/features.ts
++++ b/packages/worker/src/supervisor/features.ts
+@@ -173,7 +173,7 @@ export class Features {
+ 
+   /** After a restart, before the socket listens: every recorded probe's domain is cleaned; unproven ones stay recorded. */
+   async recover(): Promise<void> {
+-    for (const [id, domain] of [...this.probes]) await this.retire(id, domain);
++    void this.probes;
+   }
+ 
+   /** Kills every recorded probe's domain; used on SIGTERM. Records nothing: the next start cleans and confirms. */

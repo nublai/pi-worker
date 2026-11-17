@@ -31,8 +31,10 @@ import type { JournalAppended } from '../generated/events.js';
  * `forgotten_ids`: what the expired ids that rolled over leave behind, so none of them runs again (journal/retention.ts).
  * `session_catalog`: a resume catalog entry (session, file, the worker that last bound it) a compaction keeps when it
  * drops the worker rows that recorded it.
+ * `inventory`: an inventory probe's cleanup domain, `started` before the probe is spawned and `cleaned` once the domain
+ * is observed removed (supervisor/features.ts, P2-1).
  */
-export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement', 'interaction', 'interaction_effect', 'receipt_expired', 'forgotten_ids', 'session_catalog', 'attachment'] as const;
+export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement', 'interaction', 'interaction_effect', 'receipt_expired', 'forgotten_ids', 'session_catalog', 'attachment', 'inventory'] as const;
 export type JournalKind = (typeof JOURNAL_KINDS)[number];
 export type JournalRecord = { seq: number; kind: JournalKind; value: Record<string, unknown> };
 

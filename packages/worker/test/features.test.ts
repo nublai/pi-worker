@@ -37,7 +37,11 @@ test('features: models.list and commands.list answer from the worker or from an 
     // By cwd, before any worker exists: a short-lived inventory process, stopped after it answers.
     const inventory = new Host(f.dir, 'none', join(f.dir, 'none.jsonl'));
     let asked: { cwd: string; trusted: boolean } | undefined;
-    f.supervisor.features.inventory = (cwd, trusted) => ((asked = { cwd, trusted }), inventory);
+    // The probe runs in its own test domain: cleaning the domain is what stops it.
+    f.supervisor.features.inventory = f.domains.track(launch => {
+      asked = { cwd: launch.cwd, trusted: launch.projectTrusted };
+      return inventory;
+    });
     const cwd = join(f.dir, 'fresh');
     mkdirSync(cwd);
     const byCwd = await memory.request('GET', `/b2/models?cwd=${encodeURIComponent(cwd)}&project_trusted=true`);

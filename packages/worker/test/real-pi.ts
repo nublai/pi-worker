@@ -134,7 +134,7 @@ export function realPiSupervisor(extensions: Record<string, string>): RealPi {
         { cwd: launch.cwd, sessionDir: launch.sessionDir, provider: launch.create.provider, model: launch.create.model, thinking: launch.create.thinking, projectTrusted: false },
         { env },
       ),
-    inventory: (dir, projectTrusted) => new SdkHost({ cwd: dir, sessionDir: '', provider: '', model: '', thinking: 'off', projectTrusted, inventory: true }, { env }),
+    inventory: launch => new SdkHost({ cwd: launch.cwd, sessionDir: '', provider: '', model: '', thinking: 'off', projectTrusted: launch.projectTrusted, inventory: true }, { env, prefix: launch.prefix }),
   }));
   return {
     root,

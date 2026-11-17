@@ -6,12 +6,11 @@
  */
 import type { Containment, Domain } from '../src/containment/containment.js';
 import type { SessionHost } from '../src/host/host.js';
-import type { HostFactory } from '../src/supervisor/state.js';
 import type { SupervisorOptions } from '../src/supervisor/supervisor.js';
 
-/** Supervisor options whose hosts each run in a test domain (`domains`, a fresh TestDomains by default). */
+/** Supervisor options whose hosts (workers and inventory probes) each run in a test domain (a fresh TestDomains by default). */
 export function domained(options: Omit<SupervisorOptions, 'containment'>, domains = new TestDomains()): SupervisorOptions {
-  return { ...options, factory: domains.track(options.factory), containment: domains };
+  return { ...options, factory: domains.track(options.factory), ...(options.inventory ? { inventory: domains.track(options.inventory) } : {}), containment: domains };
 }
 
 export class TestDomains implements Containment {
@@ -40,8 +39,8 @@ export class TestDomains implements Containment {
     return [];
   }
 
-  /** Wraps a factory so each host it makes is recorded as its domain's only process. */
-  track(factory: HostFactory): HostFactory {
+  /** Wraps a factory (a worker's or an inventory probe's) so each host it makes is recorded as its domain's only process. */
+  track<L extends { readonly domain: Domain }>(factory: (launch: L) => SessionHost): (launch: L) => SessionHost {
     return launch => {
       const host = factory(launch);
       this.hosts.set(launch.domain.name, host);

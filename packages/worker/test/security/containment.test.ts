@@ -19,19 +19,28 @@ import { createApp } from '../../src/b2/app.js';
 import { createMemoryTransport } from '../../src/b2/memory.js';
 import { CgroupContainment, checkDelegation, keeperUnit, openContainment, type Domain } from '../../src/containment/containment.js';
 import { bootId, procInfo, processToken } from '../../src/host/process.js';
-import { parseJournal } from '../../src/journal/journal.js';
+import { sdkChildEntry } from '../../src/host/host.js';
+import { productionHosts } from '../../src/daemon.js';
+import type { InventoryFactory } from '../../src/supervisor/features.js';
+import { parseJournal, type JournalRecord } from '../../src/journal/journal.js';
+import { DEFAULT_RETENTION, goalFor, planCompaction } from '../../src/journal/retention.js';
 import { openState } from '../../src/journal/state.js';
 import { ReceiptStore } from '../../src/receipts/receipts.js';
 import type { Worker } from '../../src/supervisor/state.js';
 import { Supervisor } from '../../src/supervisor/supervisor.js';
 import { ownerGrant, privateTmp } from '../helpers.js';
 import { TestDomains } from '../domains.js';
-import { bind, fixture, Host } from '../supervisor-fixture.js';
+import { bind, fixture, Host, tick } from '../supervisor-fixture.js';
 
 const kernel = process.env.PIW_TEST_KERNEL === '1';
 const skip = kernel ? false : 'kernel tier: needs PIW_TEST_KERNEL=1 and PIW_CGROUP_ROOT in a delegated user service (harness/ci/kernel.sh)';
 const root = process.env.PIW_CGROUP_ROOT ?? '';
 const latestWorker = (file: string): Worker => parseJournal(readFileSync(file)).records.filter(r => r.kind === 'worker').at(-1)!.value.worker as Worker;
+type ProbeRecord = { inventory_id: string; state: string; domain: Domain };
+/** Every inventory probe record, in journal order. */
+const probeRecords = (file: string): ProbeRecord[] => parseJournal(readFileSync(file)).records.filter(r => r.kind === 'inventory').map(r => r.value as ProbeRecord);
+/** Each probe's latest state. */
+const probeStates = (file: string): Record<string, string> => Object.fromEntries(probeRecords(file).map(r => [r.inventory_id, r.state]));
 
 test('cleanup_pending is fsynced before kill; failed empty proof blocks resume and replacement', async () => {
   let confirmed = false;
@@ -87,6 +96,132 @@ test('a failed journal still permits fault termination but never records cleanup
     assert.equal(f.supervisor.get(c.worker_id).status, 'cleanup_pending', 'no durable proof means no lease release');
   } finally {
     f.cleanup();
+  }
+});
+
+test('containment: an inventory probe runs in its own domain, recorded before it is spawned; only the domain removal, recorded, ends it', async () => {
+  const f = fixture();
+  try {
+    const probe = new Host(f.dir, 'none', join(f.dir, 'none.jsonl'));
+    let atSpawn: { name: string; domain: Domain; prefix: readonly string[]; records: ProbeRecord[] } | undefined;
+    f.supervisor.features.inventory = f.domains.track(launch => {
+      atSpawn = { name: launch.domain.name, domain: launch.domain, prefix: launch.prefix, records: probeRecords(f.journalFile) };
+      return probe;
+    });
+    const cwd = join(f.dir, 'probe');
+    mkdirSync(cwd);
+    assert.equal((await f.supervisor.features.models({ cwd })).evidence, 'pi_inventory_process');
+    assert.match(atSpawn!.name, /^w-inventory-/);
+    assert.deepEqual(
+      atSpawn!.records.map(r => [r.state, r.domain]),
+      [['started', atSpawn!.domain]],
+      'the probe domain is durable before the probe is spawned',
+    );
+    assert.deepEqual(f.domains.cleaned.map(d => d.name), [atSpawn!.name], 'the probe ends by cleaning its domain');
+    assert.equal(probe.stops, 1, 'cleaning the domain is what stopped the probe');
+    assert.deepEqual(probeRecords(f.journalFile).map(r => r.state), ['started', 'cleaned'], 'its removal is recorded');
+    assert.deepEqual(f.supervisor.features.pendingProbes(), []);
+    // A probe that fails to answer is cleaned the same way before the failure is returned.
+    probe.features = {};
+    f.supervisor.features.inventory = f.domains.track(() => {
+      const failing = new Host(f.dir, 'none', join(f.dir, 'none.jsonl'));
+      failing.request = async () => ({ type: 'response', id: 'x', success: false, error: 'boom' });
+      return failing;
+    });
+    await assert.rejects(f.supervisor.features.commands({ cwd }), /pi_features_unavailable/);
+    assert.equal(f.domains.cleaned.length, 2);
+    assert.deepEqual(Object.values(probeStates(f.journalFile)), ['cleaned', 'cleaned']);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('containment: an inventory probe whose cleanup is unproven, or cut by a supervisor crash, stays recorded; recovery cleans it before listening', async () => {
+  const domains = new TestDomains();
+  const f = fixture({ domains });
+  try {
+    const probes: Host[] = [];
+    const install = (answer: boolean) => {
+      f.supervisor.features.inventory = domains.track(() => {
+        const h = new Host(f.dir, 'none', join(f.dir, 'none.jsonl'));
+        if (!answer) h.request = () => new Promise(() => {});
+        probes.push(h);
+        return h;
+      });
+    };
+    const cwd = join(f.dir, 'probe');
+    mkdirSync(cwd);
+    // The domain removal is not observed: the call is refused and the probe stays recorded.
+    install(true);
+    domains.confirm = false;
+    await assert.rejects(f.supervisor.features.models({ cwd }), /inventory_cleanup_unproven/);
+    const [unproven] = f.supervisor.features.pendingProbes();
+    assert.ok(unproven, 'an unproven probe stays recorded');
+    assert.deepEqual(probeStates(f.journalFile), { [unproven]: 'started' }, 'no confirmation without an observed removal');
+    // The supervisor crashes mid-probe: the probe never answers and nothing in this instance cleans it.
+    domains.confirm = true;
+    install(false);
+    void f.supervisor.features.models({ cwd }).catch(() => {});
+    await tick();
+    const crashed = f.supervisor.features.pendingProbes().find(id => id !== unproven);
+    assert.ok(crashed, 'the probe was recorded before it started');
+    const before = domains.cleaned.length;
+    const recovered = await f.restart();
+    assert.deepEqual(recovered.features.pendingProbes(), [], 'recovery cleaned every recorded probe');
+    assert.deepEqual(probeStates(f.journalFile), { [unproven]: 'cleaned', [crashed]: 'cleaned' });
+    assert.deepEqual(
+      domains.cleaned.slice(before).map(d => d.name).sort(),
+      probeRecords(f.journalFile).filter(r => r.state === 'started').map(r => r.domain.name).sort(),
+      'recovery cleaned each recorded probe domain',
+    );
+    assert.ok(probes[1]!.stops >= 1, 'the crashed probe was stopped by its domain cleanup');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('containment: compaction keeps every inventory probe record whose cleanup is not confirmed, and drops confirmed ones', () => {
+  const domain = (n: string): Domain => ({ root: '/test-domains', name: `w-inventory-${n}`, boot: 'test' });
+  const records: JournalRecord[] = [
+    { seq: 1, kind: 'supervisor', value: { supervisor_id: 's', supervisor_epoch: 'e', state_version: 2 } },
+    { seq: 2, kind: 'inventory', value: { inventory_id: 'pending', state: 'started', domain: domain('pending') } },
+    { seq: 3, kind: 'inventory', value: { inventory_id: 'done', state: 'started', domain: domain('done') } },
+    { seq: 4, kind: 'inventory', value: { inventory_id: 'done', state: 'cleaned', domain: domain('done') } },
+  ];
+  const limits = { ...DEFAULT_RETENTION };
+  const plan = planCompaction(records, { limits, goal: goalFor(limits), now: Date.now(), inFlight: new Set() });
+  assert.deepEqual(
+    plan.entries.filter(e => e.kind === 'inventory').map(e => e.value),
+    [{ inventory_id: 'pending', state: 'started', domain: domain('pending') }],
+    'recovery can still clean an unconfirmed probe from the compacted journal alone',
+  );
+});
+
+test('containment: every pi process the production daemon starts, a worker or an inventory probe, runs through its domain join prefix', { timeout: 30_000 }, async () => {
+  const tmp = privateTmp();
+  try {
+    const hosts = productionHosts({ PATH: process.env.PATH, HOME: tmp.dir, PI_CODING_AGENT_DIR: join(tmp.dir, 'agent') });
+    const domain: Domain = { root: '/test-domains', name: 'w-prefix', boot: 'test' };
+    // A join stand-in that records what it would run inside the domain, then exits without running it.
+    const prefix = (marker: string) => ['/bin/sh', '-c', 'printf "%s\\n" "$@" > "$0.tmp" && mv "$0.tmp" "$0"', marker];
+    const worker = join(tmp.dir, 'worker.argv');
+    const probe = join(tmp.dir, 'probe.argv');
+    const started = [
+      hosts.factory({ workerId: 'w', create: { command_id: 'c', cwd: tmp.dir, provider: 'p', model: 'm', thinking: 'off' }, cwd: tmp.dir, sessionDir: tmp.dir, domain, prefix: prefix(worker) }),
+      hosts.inventory({ cwd: tmp.dir, projectTrusted: false, domain, prefix: prefix(probe) }),
+    ];
+    try {
+      for (const marker of [worker, probe]) {
+        for (let n = 0; n < 500 && !existsSync(marker); n++) await delay(10);
+        assert.ok(existsSync(marker), `${marker}: pi was started through the domain join prefix`);
+        assert.ok(readFileSync(marker, 'utf8').split('\n').includes(sdkChildEntry), `${marker}: the prefix runs pi's SDK child`);
+      }
+      assert.match(readFileSync(probe, 'utf8'), /"inventory":true/);
+    } finally {
+      for (const h of started) await h.stop();
+    }
+  } finally {
+    tmp.cleanup();
   }
 });
 
@@ -319,6 +454,105 @@ test('kernel: a supervisor stop kills the worker domain with its detached grandc
     assert.equal(existsSync(marker), false);
   } finally {
     await s.shutdown();
+    state.close();
+    tmp.cleanup();
+  }
+});
+
+/**
+ * An inventory probe in a real domain whose leader double-forks a setsid grandchild before it answers (or, for a crash,
+ * never answers). Its own stop is never the proof. `seen` records the grandchild and its domain membership.
+ */
+function detachingProbe(dir: string, answer: boolean) {
+  const pidFile = join(dir, 'grandchild.pid');
+  const marker = join(dir, 'escaped');
+  const seen: { grandchild?: number; member?: boolean; domain?: Domain } = {};
+  const factory: InventoryFactory = launch => {
+    const leader = inDomain(launch.prefix, `${DETACHED}; read line`, [pidFile, marker], 'pipe');
+    const h = new Host(dir, 'none', join(dir, 'none.jsonl'));
+    h.pid = leader.pid;
+    h.token = processToken(leader.pid!);
+    h.stopOk = false;
+    leader.once('exit', () => h.emit('exit'));
+    const native = h.request.bind(h);
+    h.request = async c => {
+      for (let n = 0; n < 300 && !(existsSync(pidFile) && readFileSync(pidFile, 'utf8').trim()); n++) await delay(10);
+      seen.grandchild = Number(readFileSync(pidFile, 'utf8'));
+      seen.member = new RegExp(`^${seen.grandchild}$`, 'm').test(readFileSync(join(launch.domain.root, launch.domain.name, 'cgroup.procs'), 'utf8'));
+      seen.domain = launch.domain;
+      return answer ? native(c) : new Promise<never>(() => {});
+    };
+    return h;
+  };
+  return { factory, seen, marker };
+}
+
+const noWorker = () => {
+  throw new Error('no worker in this test');
+};
+
+test('kernel: an inventory probe runs in a real domain; its setsid grandchild dies when the probe ends', { skip, timeout: 60_000 }, async () => {
+  const tmp = privateTmp();
+  const state = openState(tmp.dir);
+  const probe = detachingProbe(tmp.dir, true);
+  const s = new Supervisor({
+    journal: state.journal,
+    receipts: new ReceiptStore(state.journal),
+    supervisorEpoch: state.supervisorEpoch,
+    stateDir: tmp.dir,
+    containment: new CgroupContainment(checkDelegation(root)),
+    factory: noWorker,
+    inventory: probe.factory,
+  });
+  try {
+    assert.equal((await s.features.models({ cwd: tmp.dir })).evidence, 'pi_inventory_process');
+    assert.equal(probe.seen.member, true, 'the detached grandchild was in the probe domain');
+    assert.ok(gone(probe.seen.grandchild!), 'the grandchild is dead');
+    assert.equal(existsSync(join(root, probe.seen.domain!.name)), false, 'the domain is removed');
+    assert.deepEqual(probeRecords(state.journal.file).map(r => r.state), ['started', 'cleaned']);
+    await delay(2200);
+    assert.equal(existsSync(probe.marker), false);
+  } finally {
+    await s.shutdown();
+    state.close();
+    tmp.cleanup();
+  }
+});
+
+test('kernel: a supervisor crash mid-probe leaves the probe recorded; recovery kills its setsid grandchild and removes the domain', { skip, timeout: 60_000 }, async () => {
+  const tmp = privateTmp();
+  const probe = detachingProbe(tmp.dir, false);
+  let state = openState(tmp.dir);
+  const options = (opened: typeof state) => ({
+    journal: opened.journal,
+    receipts: new ReceiptStore(opened.journal),
+    supervisorEpoch: opened.supervisorEpoch,
+    stateDir: tmp.dir,
+    containment: new CgroupContainment(checkDelegation(root)),
+    factory: noWorker,
+  });
+  const first = new Supervisor({ ...options(state), inventory: probe.factory });
+  let second: Supervisor | undefined;
+  try {
+    void first.features.models({ cwd: tmp.dir }).catch(() => {});
+    for (let n = 0; n < 500 && probe.seen.member === undefined; n++) await delay(10);
+    assert.equal(probe.seen.member, true, 'the detached grandchild is in the probe domain');
+    assert.equal(gone(probe.seen.grandchild!), false, 'it runs while the probe runs');
+    // The supervisor dies: nothing of it cleans anything; its journal is closed and a new one recovers.
+    state.close();
+    state = openState(tmp.dir);
+    assert.deepEqual(probeRecords(state.journal.file).map(r => [r.state, r.domain.name]), [['started', probe.seen.domain!.name]], 'the probe was recorded before it ran');
+    second = new Supervisor(options(state));
+    await second.recover();
+    assert.ok(gone(probe.seen.grandchild!), 'recovery killed the grandchild');
+    assert.equal(existsSync(join(root, probe.seen.domain!.name)), false, 'the domain is removed');
+    assert.deepEqual(probeRecords(state.journal.file).map(r => r.state), ['started', 'cleaned']);
+    assert.deepEqual(second.features.pendingProbes(), []);
+    await delay(2200);
+    assert.equal(existsSync(probe.marker), false);
+  } finally {
+    if (probe.seen.domain) await new CgroupContainment(checkDelegation(root)).clean(probe.seen.domain);
+    await second?.shutdown();
     state.close();
     tmp.cleanup();
   }

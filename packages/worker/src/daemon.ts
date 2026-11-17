@@ -6,6 +6,8 @@ import { createB2Server, listenPrivate } from './b2/server.js';
 import { resolvePaths, resolveSocketAccess, socketModes, type SocketAccess } from './config.js';
 import type { Containment } from './containment/containment.js';
 import { pinnedPiVersion, SdkHost } from './host/host.js';
+import type { InventoryFactory } from './supervisor/features.js';
+import type { HostFactory } from './supervisor/state.js';
 import { openState, StateVersionRefused, type SupervisorState as OpenState } from './journal/state.js';
 import { GrantStore } from './grants/store.js';
 import { ReceiptStore } from './receipts/receipts.js';
@@ -30,6 +32,35 @@ function socketDir(path: string, access: SocketAccess): void {
   if (!st.isDirectory() || st.isSymbolicLink() || st.uid !== process.getuid?.()) throw new Error(`${path} must be an owned, non-symlink directory`);
   chownSync(path, st.uid, access.gid);
   chmodSync(path, socketModes(access).dir);
+}
+
+/**
+ * The production hosts: pi's SDK child for a worker and for an inventory probe (`models.list` and `commands.list` for
+ * a cwd before any worker exists, a pi process that opens no session). Every pi process the supervisor starts is one
+ * of these, and each runs through its cleanup domain's join prefix (P2-1). `env` is the supervisor's by default.
+ */
+export function productionHosts(env?: NodeJS.ProcessEnv): { factory: HostFactory; inventory: InventoryFactory } {
+  return {
+    factory: launch =>
+      new SdkHost(
+        {
+          cwd: launch.cwd,
+          sessionDir: launch.sessionDir,
+          provider: launch.create.provider,
+          model: launch.create.model,
+          thinking: launch.create.thinking,
+          projectTrusted: launch.create.project_trusted === true,
+          // A typed child: its launch spec, and its task's FD 3 report channel (unsandboxed until P2-4).
+          launchSpec: launch.create.launch_spec ?? null,
+          taskId: launch.create.parent?.task_id ?? null,
+        },
+        // pi starts inside the worker's cleanup domain.
+        { prefix: launch.prefix, ...(env ? { env } : {}) },
+      ),
+    // pi starts inside the probe's cleanup domain.
+    inventory: launch =>
+      new SdkHost({ cwd: launch.cwd, sessionDir: '', provider: '', model: '', thinking: 'off', projectTrusted: launch.projectTrusted, inventory: true }, { prefix: launch.prefix, ...(env ? { env } : {}) }),
+  };
 }
 
 /**
@@ -71,25 +102,8 @@ export async function runDaemon(containment: (stateDir: string) => Containment):
     supervisorEpoch: state.supervisorEpoch,
     stateDir: paths.stateDir,
     containment: domains,
-    factory: launch =>
-      new SdkHost(
-        {
-          cwd: launch.cwd,
-          sessionDir: launch.sessionDir,
-          provider: launch.create.provider,
-          model: launch.create.model,
-          thinking: launch.create.thinking,
-          projectTrusted: launch.create.project_trusted === true,
-          // A typed child: its launch spec, and its task's FD 3 report channel (unsandboxed until P2-4).
-          launchSpec: launch.create.launch_spec ?? null,
-          taskId: launch.create.parent?.task_id ?? null,
-        },
-        // pi starts inside the worker's cleanup domain.
-        { prefix: launch.prefix },
-      ),
+    ...productionHosts(),
     grants,
-    // models.list and commands.list for a cwd before any worker exists: a pi process that opens no session.
-    inventory: (cwd, projectTrusted) => new SdkHost({ cwd, sessionDir: '', provider: '', model: '', thinking: 'off', projectTrusted, inventory: true }),
   });
   // Recovery before the socket listens: undispatched intents become intent_recovered, dispatched ones outcome_unknown,
   // and every worker that held a session is recorded cleanup_pending, then its domain is killed and removed. No replay.

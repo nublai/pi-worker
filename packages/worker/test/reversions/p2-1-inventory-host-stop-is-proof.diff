@@ -1,0 +1,24 @@
+diff --git a/packages/worker/src/supervisor/features.ts b/packages/worker/src/supervisor/features.ts
+index b80bce7..8e4832d 100644
+--- a/packages/worker/src/supervisor/features.ts
++++ b/packages/worker/src/supervisor/features.ts
+@@ -328,8 +328,9 @@ export class Features {
+     this.probes.set(id, domain);
+     let answer: { data: Record<string, unknown>; evidence: 'pi_inventory_process' } | undefined;
+     let failure: unknown;
++    let host: SessionHost | undefined;
+     try {
+-      const host = this.inventory({ cwd, projectTrusted: target.project_trusted === true, domain, prefix: containment.enter(domain) });
++      host = this.inventory({ cwd, projectTrusted: target.project_trusted === true, domain, prefix: containment.enter(domain) });
+       const reply = await host.request({ type: 'features' });
+       if (!reply.success || !reply.data) throw new Refusal('pi_features_unavailable');
+       answer = { data: reply.data, evidence: 'pi_inventory_process' };
+@@ -338,7 +339,7 @@ export class Features {
+     }
+     // The probe ends only when its domain is removed and recorded: the host's own stop (a process-group kill) is no
+     // proof that a detached descendant is gone.
+-    if (!(await this.retire(id, domain))) throw new Refusal('inventory_cleanup_unproven');
++    if (!(host ? await host.stop() : await this.retire(id, domain))) throw new Refusal('inventory_cleanup_unproven');
+     if (!answer) throw failure;
+     return answer;
+   }

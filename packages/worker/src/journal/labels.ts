@@ -82,6 +82,10 @@ export const DURABLE_LABELS = [
   // Features (supervisor/features.ts): the worker row after `session.configure` changed the model, thinking level or
   // name (an unknown one latches the fence under `fence.latch`).
   'session.configure',
+  // Inventory probes (supervisor/features.ts, P2-1): a probe's cleanup domain, durable before the probe is spawned, and
+  // its confirmed cleanup (the domain observed removed) after the answer or at recovery.
+  'inventory.start',
+  'inventory.cleaned',
   // Session commands (supervisor/session-commands.ts): the worker row after a compaction, a reload (its resources) or
   // an extension command pi ran (an unknown one latches the fence under `fence.latch`).
   'session.command',
@@ -113,6 +117,7 @@ export const CONTROL_LABELS: ReadonlySet<DurableLabel> = new Set<DurableLabel>([
   'worker.fault',
   'worker.recover',
   'worker.cleaned',
+  'inventory.cleaned',
   'execution.unknown',
   'control.done',
   'fence.resolve',

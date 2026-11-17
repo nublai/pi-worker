@@ -130,6 +130,9 @@ export class Supervisor {
     // No resolver survives a restart: open interactions become `interrupted`, never re-opened.
     this.interactions.recover();
     await this.lifecycle.recover();
+    // An inventory probe whose cleanup was not confirmed (a crash mid-probe, an unproven removal): its recorded domain
+    // is killed and removed now (P2-1).
+    await this.features.recover();
     // A child whose launch may have run and that left no durable result report fences its parent (invariant 4a).
     this.children.recover();
   }
@@ -267,7 +270,8 @@ export class Supervisor {
     this.bindings.nativeMoveTimeoutMs = ms;
   }
 
-  shutdown(): Promise<void> {
-    return this.lifecycle.shutdown();
+  async shutdown(): Promise<void> {
+    await this.lifecycle.shutdown();
+    await this.features.shutdown();
   }
 }

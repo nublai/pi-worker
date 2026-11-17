@@ -6,8 +6,15 @@
  * `session.configure` is a session write: it names the binding it saw, is refused under a fence, during a binding
  * move and while an execution runs, records its dispatch before the write to pi, and after that only pi's explicit
  * refusal before any change is `no_effect`; anything else is `outcome_unknown` and fences the session.
+ *
+ * An inventory probe is a pi process like a worker's (it loads extensions and MCP servers), so it runs in its own
+ * cleanup domain (P2-1): the domain is journaled (`inventory.start`) before the probe is spawned, the probe ends only
+ * when the domain is killed, observed empty and removed, and that is journaled (`inventory.cleaned`). A probe whose
+ * cleanup is not confirmed (unproven, or a supervisor crash) stays recorded and recovery cleans it before listening.
  */
 import { realpathSync, statSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import type { Domain } from '../containment/containment.js';
 import { ProvenNoEffect, Refusal } from '../b2/errors.js';
 import type { RawReply } from '../b2/router.js';
 import type { components } from '../generated/api.js';
@@ -29,8 +36,19 @@ export type CommandList = components['schemas']['CommandList'];
 export type Command = components['schemas']['Command'];
 type Thinking = components['schemas']['Thinking'];
 
+/** What an inventory probe is launched with: its cwd, its trust, and the cleanup domain it runs in. */
+export interface InventoryLaunch {
+  /** The real path of the cwd. */
+  readonly cwd: string;
+  readonly projectTrusted: boolean;
+  /** The probe's cleanup domain, recorded and created before the factory runs. */
+  readonly domain: Domain;
+  /** The argv prefix that runs the probe's program inside the domain (`Containment.enter`). */
+  readonly prefix: readonly string[];
+}
+
 /** A short-lived pi process for a cwd that answers `features` and opens no session (sdk-child inventory mode). */
-export type InventoryFactory = (cwd: string, projectTrusted: boolean) => SessionHost;
+export type InventoryFactory = (launch: InventoryLaunch) => SessionHost;
 
 /**
  * pi 1.5.2's built-in slash commands (its `BUILTIN_SLASH_COMMANDS`, not exported) and how B2 serves each: a typed
@@ -113,6 +131,8 @@ export class Features {
   inventory?: InventoryFactory;
   /** Builds the command rows from pi's own commands. */
   rows = commandRows;
+  /** Inventory probes whose domain is recorded and not yet confirmed removed, by probe id (from the journal). */
+  private readonly probes = new Map<string, Domain>();
 
   constructor(
     readonly s: SupervisorState,
@@ -121,6 +141,44 @@ export class Features {
     readonly fence: Fence,
   ) {
     lifecycle.observers.push((live, event) => this.observe(live, event));
+    for (const record of s.journal.records) {
+      if (record.kind !== 'inventory') continue;
+      const id = String(record.value.inventory_id);
+      // SAFETY: every `inventory` record is written by features() or retire() below with the probe's Domain.
+      if (record.value.state === 'cleaned') this.probes.delete(id);
+      else this.probes.set(id, structuredClone(record.value.domain) as Domain);
+    }
+  }
+
+  /** Probe ids whose cleanup is not confirmed yet. */
+  pendingProbes(): string[] {
+    return [...this.probes.keys()];
+  }
+
+  /**
+   * Kills the probe's domain, waits for `populated 0` and removal, then records the confirmation. False (and the probe
+   * stays recorded) when the removal was not observed or its record could not be made durable. Never throws.
+   */
+  private async retire(id: string, domain: Domain): Promise<boolean> {
+    const gone = await this.lifecycle.containment.clean(domain).catch(() => false);
+    if (!gone) return false;
+    try {
+      this.s.journal.append('inventory', { inventory_id: id, state: 'cleaned', domain }, 'inventory.cleaned');
+    } catch {
+      return false;
+    }
+    this.probes.delete(id);
+    return true;
+  }
+
+  /** After a restart, before the socket listens: every recorded probe's domain is cleaned; unproven ones stay recorded. */
+  async recover(): Promise<void> {
+    for (const [id, domain] of [...this.probes]) await this.retire(id, domain);
+  }
+
+  /** Kills every recorded probe's domain; used on SIGTERM. Records nothing: the next start cleans and confirms. */
+  async shutdown(): Promise<void> {
+    for (const domain of this.probes.values()) await this.lifecycle.containment.clean(domain).catch(() => false);
   }
 
   /** pi reports its model, thinking level and session name: the row follows (memory; journaled with the next record). */
@@ -258,14 +316,31 @@ export class Features {
       throw new Refusal('cwd_not_directory');
     }
     if (!this.inventory) throw new Refusal('inventory_unavailable');
-    const host = this.inventory(cwd, target.project_trusted === true);
+    const containment = this.lifecycle.containment;
+    const id = randomUUID();
+    const domain = containment.reserve(`inventory-${id}`);
+    // The probe's domain is durable before anything is spawned: from here on a crash leaves a record recovery cleans.
     try {
+      this.s.journal.append('inventory', { inventory_id: id, state: 'started', domain }, 'inventory.start');
+    } catch {
+      throw new Refusal('inventory_unavailable');
+    }
+    this.probes.set(id, domain);
+    let answer: { data: Record<string, unknown>; evidence: 'pi_inventory_process' } | undefined;
+    let failure: unknown;
+    try {
+      const host = this.inventory({ cwd, projectTrusted: target.project_trusted === true, domain, prefix: containment.enter(domain) });
       const reply = await host.request({ type: 'features' });
       if (!reply.success || !reply.data) throw new Refusal('pi_features_unavailable');
-      return { data: reply.data, evidence: 'pi_inventory_process' };
-    } finally {
-      await host.stop();
+      answer = { data: reply.data, evidence: 'pi_inventory_process' };
+    } catch (error) {
+      failure = error;
     }
+    // The probe ends only when its domain is removed and recorded: the host's own stop (a process-group kill) is no
+    // proof that a detached descendant is gone.
+    if (!(await this.retire(id, domain))) throw new Refusal('inventory_cleanup_unproven');
+    if (!answer) throw failure;
+    return answer;
   }
 
   async models(target: { worker_id?: string; cwd?: string; project_trusted?: boolean }): Promise<ModelList> {
