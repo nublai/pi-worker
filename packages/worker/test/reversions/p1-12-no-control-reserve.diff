@@ -1,12 +1,13 @@
 diff --git a/packages/worker/src/receipts/receipts.ts b/packages/worker/src/receipts/receipts.ts
+index 235efb8..099d2db 100644
 --- a/packages/worker/src/receipts/receipts.ts
 +++ b/packages/worker/src/receipts/receipts.ts
-@@ -267,7 +267,7 @@
+@@ -269,7 +269,7 @@ export class ReceiptStore {
          // worker's own control records need, its new worker's included. A control command may use that room.
          extra = exempt ? null : this.budget(operation, request);
          const receiptBytes = this.maxResultBytes + 1024 + RECEIPT_STEP_BYTES;
 -        const headroom = exempt ? 0 : this.journal.floor() + (extra?.control ?? 0);
 +        const headroom = exempt ? 0 : 0 * this.journal.floor() + (extra?.control ?? 0);
-         this.retain(receiptBytes + (extra?.bytes ?? 0), headroom);
+         this.retain(receiptBytes + (extra?.bytes ?? 0) + (extra?.fence ?? 0), headroom);
          const ordinary = [...this.all.values()].filter(r => !QUOTA_EXEMPT.has(r.operation)).length;
          if (!prior && !exempt && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');

@@ -1,12 +1,13 @@
 diff --git a/packages/worker/src/journal/journal.ts b/packages/worker/src/journal/journal.ts
+index 984e156..2ab9f45 100644
 --- a/packages/worker/src/journal/journal.ts
 +++ b/packages/worker/src/journal/journal.ts
-@@ -200,7 +200,7 @@
-       need -= take;
-     }
+@@ -215,7 +215,7 @@ export class Journal {
      const after = this.size() + need + this.reserved();
--    if (!control && after + this.floor() > this.maxBytes) throw new JournalCapacity('journal capacity: an ordinary record may not use the control room');
-+    if (!control && after > this.maxBytes) throw new JournalCapacity('journal capacity: an ordinary record may not use the control room');
+     // Bytes already reserved are the guarantee: a record that fits inside them takes no free room, so the floor (which
+     // control records may have used since the reservation) never refuses it (PR #12 review F7).
+-    if (!control && need > 0 && after + this.floor() > this.maxBytes) throw new JournalCapacity('journal capacity: an ordinary record may not use the control room');
++    if (!control && need > 0 && after > this.maxBytes) throw new JournalCapacity('journal capacity: an ordinary record may not use the control room');
      try {
        if (after > this.maxBytes) throw new Error('journal capacity; no automatic eviction');
        let offset = 0;

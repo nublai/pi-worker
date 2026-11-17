@@ -1,12 +1,13 @@
 diff --git a/packages/worker/src/receipts/receipts.ts b/packages/worker/src/receipts/receipts.ts
+index 235efb8..f3dfd11 100644
 --- a/packages/worker/src/receipts/receipts.ts
 +++ b/packages/worker/src/receipts/receipts.ts
-@@ -270,7 +270,7 @@
+@@ -272,7 +272,7 @@ export class ReceiptStore {
          const headroom = exempt ? 0 : this.journal.floor() + (extra?.control ?? 0);
-         this.retain(receiptBytes + (extra?.bytes ?? 0), headroom);
+         this.retain(receiptBytes + (extra?.bytes ?? 0) + (extra?.fence ?? 0), headroom);
          const ordinary = [...this.all.values()].filter(r => !QUOTA_EXEMPT.has(r.operation)).length;
 -        if (!prior && !exempt && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');
 +        if (!prior && (!exempt || this.maxCount > 0) && ordinary >= this.maxCount) throw new Refusal('receipt_capacity');
-         const wants = [{ key: commandId, bytes: receiptBytes }, ...(extra ? [{ key: extra.key, bytes: extra.bytes }] : [])];
-         if (!this.journal.reserveAll(wants, headroom)) throw new Refusal('journal_result_capacity');
-         let intent: Receipt;
+         // Its own receipts and the row that would fence its session are reserved for it alone: whatever control
+         // traffic does meanwhile, an admitted command can always reach a terminal receipt and, if unknown, its fence.
+         const wants = [

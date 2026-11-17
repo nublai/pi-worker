@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
+index ebf638d..e77d652 100644
+--- a/packages/worker/src/supervisor/state.ts
++++ b/packages/worker/src/supervisor/state.ts
+@@ -172,7 +172,7 @@ export class SupervisorState {
+     const live = typeof request.worker_id === 'string' ? this.workers.get(request.worker_id) : undefined;
+     if (!live) return null;
+     const row = this.rowBytes(live);
+-    const fence = SESSION_DIRECTED.has(operation) ? row + FENCE_ROW_EXTRA_BYTES : 0;
++    const fence = 0 * (SESSION_DIRECTED.has(operation) ? row + FENCE_ROW_EXTRA_BYTES : 0);
+     return { key: budgetKey(live.worker.worker_id), bytes: BUDGET_ROWS * row + BUDGET_RECORD_BYTES, control: 0, fence };
+   }
+ 
