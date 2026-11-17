@@ -109,7 +109,7 @@ func TestBridgeJourneyAgainstTheStatefulFake(t *testing.T) {
 	if err != nil || *now.Thinking != "high" || now.BindingRevision != 2 || *now.SessionId == *w.SessionId {
 		t.Fatalf("row %+v %v", now, err)
 	}
-	if _, err := c.CommandsInvoke(ctx, w.WorkerId, b2.Invoke{CommandId: "inv-1", WorkerEpoch: now.WorkerEpoch, SessionId: *now.SessionId, BindingRevision: 2, Name: "hello"}); err != nil {
+	if _, err := c.CommandsInvoke(ctx, w.WorkerId, b2.Invoke{CommandId: "inv-1", WorkerEpoch: now.WorkerEpoch, SessionId: *now.SessionId, BindingRevision: 2, Name: "deploy"}); err != nil {
 		t.Fatalf("invoke: %v", err)
 	}
 
