@@ -160,8 +160,14 @@ test('server: a SIGKILLed daemon leaves its socket stale; the next daemon takes 
   }
 });
 
+/**
+ * The daemon on test domains (fixtures/daemon.ts): src/main.ts refuses to start without a cgroup delegation, which
+ * plain CI runners lack (security/containment.test.ts tests that refusal).
+ */
+const daemonFixture = fileURLToPath(new URL('./fixtures/daemon.js', import.meta.url));
+
 function startDaemon(socket: string, stateDir: string) {
-  const main = fileURLToPath(new URL('../src/main.js', import.meta.url));
+  const main = daemonFixture;
   const child = spawn(process.execPath, [main], {
     env: { PATH: process.env.PATH, PIW_SOCKET: socket, PIW_STATE_DIR: stateDir },
     stdio: ['ignore', 'ignore', 'pipe'],
@@ -184,7 +190,7 @@ test('main: the daemon creates private directories, serves hello on PIW_SOCKET a
   const socket = join(tmp.dir, 'run', 'pi-worker', 'b2.sock');
   mkdirSync(join(tmp.dir, 'state'), { mode: 0o700 });
   const owner = ownerGrant(join(tmp.dir, 'state'));
-  const main = fileURLToPath(new URL('../src/main.js', import.meta.url));
+  const main = daemonFixture;
   const child = spawn(process.execPath, [main], {
     env: { PATH: process.env.PATH, PIW_SOCKET: socket, PIW_STATE_DIR: join(tmp.dir, 'state') },
     stdio: ['ignore', 'ignore', 'pipe'],

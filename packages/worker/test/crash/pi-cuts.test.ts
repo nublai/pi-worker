@@ -18,6 +18,7 @@ import type { HostFactory } from '../../src/supervisor/state.js';
 import { Supervisor } from '../../src/supervisor/supervisor.js';
 import { bind, tick } from '../supervisor-fixture.js';
 import { privateTmp } from '../helpers.js';
+import { domained } from '../domains.js';
 
 for (const phase of ['intent', 'accepted', 'delivered'] as const) {
   test(`crash (real pi): SIGKILL of the pi leader after the prompt ${phase} fsync: no duplicate effect or blind replay`, { timeout: 60_000 }, async () => {
@@ -38,7 +39,7 @@ for (const phase of ['intent', 'accepted', 'delivered'] as const) {
     const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home, PI_CODING_AGENT_DIR: agent };
     const open = (factory: HostFactory): { opened: OpenState; s: Supervisor } => {
       const opened = openState(state);
-      return { opened, s: new Supervisor({ journal: opened.journal, receipts: new ReceiptStore(opened.journal), supervisorEpoch: opened.supervisorEpoch, stateDir: state, factory }) };
+      return { opened, s: new Supervisor(domained({ journal: opened.journal, receipts: new ReceiptStore(opened.journal), supervisorEpoch: opened.supervisorEpoch, stateDir: state, factory })) };
     };
     let { opened, s } = open(launch =>
       new SdkHost(

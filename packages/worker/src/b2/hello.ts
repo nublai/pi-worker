@@ -17,6 +17,7 @@ export const NAMED_LIMITS: readonly string[] = [
   'A journal on a bring-your-own machine dies with the machine.',
   'Receipts are retained within the advertised limits; an evicted receipt reads as receipt_expired (unknown) while its id is among the most recent receipt_expired_ids_max evicted ids. After that its command still never runs again: an id the worker may have forgotten (a UUIDv7 command_id not issued after the newest forgotten one, or any other id once one such was forgotten) is refused command_id_beyond_retention (no_effect), so callers mint UUIDv7 command ids.',
   'Linux results are not macOS results.',
+  'Each worker runs in its own cgroup v2 cleanup domain, which is cleanup, not isolation: hostile code running as the same user can still signal or escape it, and work a tool hands to another daemon (tmux, systemd-run --user, Docker) leaves it.',
 ];
 
 function workerVersion(): string {
@@ -67,6 +68,8 @@ export interface HelloSource {
   piVersion?: string | null;
   /** The retention limits the receipt store enforces. */
   retention?: RetentionLimits;
+  /** What the daemon's cleanup domains prove (`Containment.profile`), stated as a named limit. */
+  cleanupProfile?: string;
 }
 
 /** main.ts passes the supervisor id persisted in the journal and the epoch of this start (journal/state.ts). */
@@ -79,7 +82,7 @@ export function createHello(source: HelloSource = {}): () => Hello {
     pi_version: source.piVersion ?? null,
     capabilities: [...CAPABILITIES],
     limits: { ...LIMITS, ...(source.retention ? retentionLimits(source.retention) : {}) },
-    named_limits: [...NAMED_LIMITS],
+    named_limits: [...NAMED_LIMITS, ...(source.cleanupProfile ? [`Cleanup profile: ${source.cleanupProfile}.`] : [])],
   };
   return () => structuredClone(hello);
 }

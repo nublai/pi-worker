@@ -1,7 +1,9 @@
 /**
  * Worker lifecycle (P1-4): create, list, get and stop over B2; one live writer per session and one worker per cwd,
- * refused naming the holder; a restart kills the old pi process group and records cleanup_pending. Ported cases from
- * A0 `src/test/fix-round.test.ts` (m-1) and `src/test/supervisor.test.ts` (history pages) keep every assertion.
+ * refused naming the holder; a restart records cleanup_pending, then cleans every recorded domain (P2-1). Only a
+ * confirmed domain removal releases a session or a cwd; the test domains (domains.ts) stand in for cgroup domains,
+ * which the kernel tier tests (security/containment.test.ts). Ported cases from A0 `src/test/fix-round.test.ts` (m-1)
+ * and `src/test/supervisor.test.ts` (history pages) keep every assertion (m-1 runs for both cleanup outcomes).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,14 +23,17 @@ import { openState } from '../src/journal/state.js';
 import { ReceiptStore } from '../src/receipts/receipts.js';
 import type { Live, Worker } from '../src/supervisor/state.js';
 import { Supervisor } from '../src/supervisor/supervisor.js';
+import { CLEANED } from '../src/supervisor/lifecycle.js';
 import { ownerGrant, privateTmp } from './helpers.js';
-import { bind, fixture, Host } from './supervisor-fixture.js';
+import { TestDomains } from './domains.js';
+import { bind, fixture, Host, tick } from './supervisor-fixture.js';
+import { domained } from './domains.js';
 
 const create = (cwd: string, command_id = 'create') => ({ command_id, cwd, provider: 'test', model: 'test', thinking: 'off' as const });
 const latestWorker = (file: string, id: string): Worker =>
   parseJournal(readFileSync(file)).records.filter(r => r.kind === 'worker' && (r.value.worker as Worker).worker_id === id).at(-1)!.value.worker as Worker;
 
-test('lifecycle: create, duplicate create, list, get and stop over the B2 socket; the stopped cwd stays reserved', async () => {
+test('lifecycle: create, duplicate create, list, get and stop over the B2 socket; the cwd is reserved until the stop confirms cleanup', async () => {
   const f = fixture();
   const owner = ownerGrant(f.dir);
   const server = createB2Server(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle);
@@ -54,6 +59,11 @@ test('lifecycle: create, duplicate create, list, get and stop over the B2 socket
       [id],
     );
     await assert.rejects(
+      client.call('workers.create', { body: create(cwd, 'while-live') }),
+      (e: unknown) => e instanceof ClientFailure && e.message === 'exclusive_environment_already_bound' && e.effect === 'no_effect' && e.details.holder_worker_id === id,
+    );
+    assert.equal(f.supervisor.receipts.all.has('while-live'), false, 'a refusal before dispatch leaves no receipt');
+    await assert.rejects(
       client.call('workers.stop', { path: { worker_id: id }, body: { ...bind(w, 'stale-stop'), binding_revision: 2 } }),
       (e: unknown) => e instanceof ClientFailure && e.message === 'stale_binding' && e.effect === 'no_effect' && e.details.received_binding_revision === 2,
     );
@@ -63,12 +73,10 @@ test('lifecycle: create, duplicate create, list, get and stop over the B2 socket
     assert.equal(f.hosts[0]!.stops, 1);
     const after = await client.call('workers.get', { path: { worker_id: id } });
     assert.equal(after.status, 'stopped');
-    assert.match(after.cleanup, /escaped_descendants_unproven/);
-    await assert.rejects(
-      client.call('workers.create', { body: create(cwd, 'replacement') }),
-      (e: unknown) => e instanceof ClientFailure && e.message === 'exclusive_environment_already_bound' && e.effect === 'no_effect' && e.details.holder_worker_id === id,
-    );
-    assert.equal(f.supervisor.receipts.all.has('replacement'), false, 'a refusal before dispatch leaves no receipt');
+    assert.equal(after.cleanup, CLEANED, 'the stop removed the domain and recorded it');
+    assert.equal(latestWorker(f.journalFile, id).cleanup, CLEANED, 'durably');
+    // The domain is gone: nothing of the old worker can still run in the cwd, which a new worker may now take.
+    assert.equal((await client.call('workers.create', { body: create(cwd, 'replacement') })).state, 'delivered');
     await assert.rejects(client.call('workers.get', { path: { worker_id: 'nobody' } }), /unknown_worker/);
   } finally {
     server.closeAllConnections();
@@ -125,10 +133,13 @@ test('lifecycle: create-with-resume over B2 applies the session gates: unproven 
     const refused = (message: string, uncertain?: string) => (e: unknown) =>
       e instanceof ClientFailure && e.message === message && e.effect === 'no_effect' && (uncertain === undefined || e.details.uncertain_command_id === uncertain);
 
-    // A stopped holder: its process group was observed gone, its escaped descendants are unproven (invariant 2).
+    // A holder whose stop could not prove its domain removed: its archived session stays refused (invariant 2).
     const stopped = await f.create();
-    assert.equal((await f.supervisor.stop(stopped.worker_id, bind(stopped, 'stop'))).state, 'delivered');
-    assert.match(f.supervisor.get(stopped.worker_id).cleanup, /escaped_descendants_unproven/);
+    assert.equal((await f.supervisor.newSession(stopped.worker_id, bind(stopped, 'archive'))).state, 'delivered');
+    f.domains.confirm = false;
+    assert.equal((await f.supervisor.stop(stopped.worker_id, bind(f.supervisor.get(stopped.worker_id), 'stop'))).state, 'outcome_unknown');
+    f.domains.confirm = true;
+    assert.deepEqual([f.supervisor.get(stopped.worker_id).status, f.supervisor.get(stopped.worker_id).cleanup], ['cleanup_pending', 'unresolved']);
     await assert.rejects(resume('after-stop', stopped.session_id!), refused('target_cleanup_unproven'));
 
     // A fenced holder that is still live and accounted for: its session stays fenced until resolve_unknown.
@@ -142,7 +153,7 @@ test('lifecycle: create-with-resume over B2 applies the session gates: unproven 
     writeFileSync(file, `${JSON.stringify({ type: 'session', id: 'moved' })}\n`);
     h.emit('event', { type: 'host_binding', action: 'replace', sessionId: 'moved', sessionFile: file, leafId: null });
     const owner = f.supervisor.get(fenced.worker_id);
-    assert.deepEqual([owner.status, owner.cleanup, owner.session_id, owner.fence?.command_id], ['ready', 'live_process_group', 'moved', 'lost']);
+    assert.deepEqual([owner.status, owner.cleanup, owner.session_id, owner.fence?.command_id], ['ready', 'live_cgroup', 'moved', 'lost']);
     await assert.rejects(resume('after-fence', fenced.session_id!), refused('target_session_fenced', 'lost'));
 
     // The review's journey: an unknown prompt, a clean stop, then a resume elsewhere and a new prompt.
@@ -151,7 +162,9 @@ test('lifecycle: create-with-resume over B2 applies the session gates: unproven 
     hb.failure = true;
     assert.equal((await f.supervisor.prompt(both.worker_id, { ...bind(both, 'lost-2'), message: 'x' })).state, 'outcome_unknown');
     assert.equal((await f.supervisor.stop(both.worker_id, bind(both, 'stop-2'))).state, 'delivered');
-    await assert.rejects(resume('after-fence-and-stop', both.session_id!), refused('target_cleanup_unproven'));
+    // Its cleanup is confirmed, so only the fence still refuses the session.
+    assert.equal(f.supervisor.get(both.worker_id).cleanup, CLEANED);
+    await assert.rejects(resume('after-fence-and-stop', both.session_id!), refused('target_session_fenced', 'lost-2'));
 
     const spawned = f.hosts.length;
     for (const id of ['after-stop', 'after-fence', 'after-fence-and-stop']) assert.equal(f.supervisor.receipts.all.has(id), false, `${id} left no receipt`);
@@ -409,7 +422,7 @@ test('lifecycle (real pi): a session_before_switch hook that ran and cancelled a
   );
   const opened = openState(state);
   const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home, PI_CODING_AGENT_DIR: agent };
-  const s = new Supervisor({
+  const s = new Supervisor(domained({
     journal: opened.journal,
     receipts: new ReceiptStore(opened.journal),
     supervisorEpoch: opened.supervisorEpoch,
@@ -419,7 +432,7 @@ test('lifecycle (real pi): a session_before_switch hook that ran and cancelled a
         { cwd: launch.cwd, sessionDir: launch.sessionDir, provider: launch.create.provider, model: launch.create.model, thinking: launch.create.thinking, projectTrusted: false },
         { env },
       ),
-  });
+  }));
   const pi = (command_id: string, at: string, resume_session_id?: string) => {
     const dirPath = join(root, at);
     mkdirSync(dirPath, { recursive: true });
@@ -484,27 +497,33 @@ test('lifecycle: create refuses before any record: not a directory, a typed laun
   }
 });
 
-test('failed create preserves the same group-only cleanup and cwd reservation as stop (m-1)', async () => {
-  const f = fixture({
-    initHost: h => {
-      const native = h.request.bind(h);
-      h.request = async c => (c.type === 'get_state' ? { type: 'response', id: 'x', success: false } : native(c));
-    },
+for (const confirmed of [false, true]) {
+  test(`failed create preserves the same domain cleanup and cwd reservation as stop (m-1), cleanup ${confirmed ? 'confirmed' : 'unproven'}`, async () => {
+    let fail = true;
+    const f = fixture({
+      unconfirmedIdentity: !confirmed,
+      initHost: h => {
+        const native = h.request.bind(h);
+        h.request = async c => (c.type === 'get_state' && fail ? { type: 'response', id: 'x', success: false } : native(c));
+      },
+    });
+    try {
+      const cwd = join(f.dir, 'failed-cwd');
+      mkdirSync(cwd);
+      const c = { command_id: 'failed-create', cwd, provider: 'p', model: 'm', thinking: 'off' as const };
+      assert.equal((await f.supervisor.create(c)).state, 'outcome_unknown');
+      const w = f.supervisor.list()[0]!;
+      assert.deepEqual([w.status, w.cleanup], confirmed ? ['failed', CLEANED] : ['cleanup_pending', 'unresolved']);
+      assert.deepEqual(f.domains.cleaned.map(d => d.name), [`w-${w.worker_epoch}`], 'the failed launch cleaned its own domain');
+      fail = false;
+      if (confirmed) assert.equal((await f.supervisor.create({ ...c, command_id: 'replacement' })).state, 'delivered');
+      else await assert.rejects(f.supervisor.create({ ...c, command_id: 'replacement' }), /exclusive_environment_already_bound/);
+      assert.equal(f.hosts.length, confirmed ? 2 : 1);
+    } finally {
+      f.cleanup();
+    }
   });
-  try {
-    const cwd = join(f.dir, 'failed-cwd');
-    mkdirSync(cwd);
-    const c = { command_id: 'failed-create', cwd, provider: 'p', model: 'm', thinking: 'off' as const };
-    assert.equal((await f.supervisor.create(c)).state, 'outcome_unknown');
-    const w = f.supervisor.list()[0]!;
-    assert.equal(w.status, 'failed');
-    assert.match(w.cleanup, /escaped_descendants_unproven/);
-    await assert.rejects(f.supervisor.create({ ...c, command_id: 'replacement' }), /exclusive_environment_already_bound/);
-    assert.equal(f.hosts.length, 1);
-  } finally {
-    f.cleanup();
-  }
-});
+}
 
 test('lifecycle: the starting row, dispatch record and process identity are durable before pi is asked anything', async () => {
   const f = fixture({
@@ -529,10 +548,13 @@ test('lifecycle: the starting row, dispatch record and process identity are dura
   }
 });
 
-test('lifecycle: a restart records cleanup_pending, kills the old pi process group and launches nothing', async () => {
+test('lifecycle: a restart records cleanup_pending, then cleans every recorded domain; only a confirmed removal stops a worker; it launches nothing', async () => {
   const fakeChild = fileURLToPath(new URL('./fixtures/fake-child.js', import.meta.url));
   let real: LineHost | undefined;
+  // The domains outlive the supervisor, as cgroupfs does: the restarted one cleans the domains the first one entered.
+  const domains = new TestDomains();
   const f = fixture({
+    domains,
     launch: launch => {
       if (!launch.cwd.endsWith('/real-cwd')) return undefined;
       // A real process speaking the host protocol; the fixture serves the session identity and inventory.
@@ -558,33 +580,55 @@ test('lifecycle: a restart records cleanup_pending, kills the old pi process gro
     assert.equal(r.state, 'delivered', JSON.stringify(r));
     const pid = real!.pid!;
     assert.ok(procInfo(pid), 'pi process alive before the restart');
+    const recorded = (id: string) => (parseJournal(readFileSync(f.journalFile)).records.filter(x => x.kind === 'worker' && (x.value.worker as Worker).worker_id === id).at(-1)!.value as { domain: unknown }).domain;
+    const realDomain = recorded(r.worker_id!);
+    const idleDomain = recorded(idle.worker_id);
+    // The idle worker's domain cannot be proven clean; every clean first finds its worker durably cleanup_pending.
+    const clean = domains.clean.bind(domains);
+    const pendingAtClean: string[] = [];
+    domains.clean = async domain => {
+      const row = parseJournal(readFileSync(f.journalFile)).records.filter(x => x.kind === 'worker' && JSON.stringify((x.value as { domain?: unknown }).domain) === JSON.stringify(domain)).at(-1)!;
+      pendingAtClean.push((row.value.worker as Worker).status);
+      if (domain.name !== (idleDomain as { name: string }).name) return clean(domain);
+      domains.cleaned.push(structuredClone(domain));
+      return false;
+    };
     const next = await f.restart();
     for (let i = 0; i < 50 && procInfo(pid) && procInfo(pid)?.state !== 'Z'; i++) await delay(20);
     assert.ok(!procInfo(pid) || procInfo(pid)?.state === 'Z', 'the old pi process is gone');
+    assert.deepEqual(domains.cleaned.slice(-2).map(d => d.name).sort(), [realDomain, idleDomain].map(d => (d as { name: string }).name).sort(), 'recovery cleans the recorded domains');
+    assert.deepEqual(pendingAtClean, ['cleanup_pending', 'cleanup_pending'], 'cleanup_pending is durable before each kill');
     const realRow = next.get(r.worker_id!);
-    assert.equal(realRow.status, 'cleanup_pending');
-    assert.match(realRow.cleanup, /process_group_killed_at_restart/);
+    assert.deepEqual([realRow.status, realRow.cleanup], ['stopped', CLEANED]);
+    assert.deepEqual([latestWorker(f.journalFile, r.worker_id!).status, latestWorker(f.journalFile, r.worker_id!).cleanup], ['stopped', CLEANED], 'durable');
     const idleRow = next.get(idle.worker_id);
-    assert.equal(idleRow.status, 'cleanup_pending', 'no process identity: cleanup stays pending');
+    assert.deepEqual([idleRow.status, idleRow.cleanup], ['cleanup_pending', 'unresolved'], 'an unproven domain leaves the worker pending');
     assert.equal(idleRow.fence, null);
-    assert.equal(latestWorker(f.journalFile, r.worker_id!).status, 'cleanup_pending', 'durable');
-    // Still the holder: neither the session nor the cwd is released, and a second restart changes nothing.
-    await assert.rejects(next.create({ ...create(cwd, 'reuse') }), /exclusive_environment_already_bound/);
+    assert.equal(latestWorker(f.journalFile, idle.worker_id).status, 'cleanup_pending', 'durable');
+    // The unproven worker still holds its cwd; a second restart cleans it again and changes nothing else.
+    await assert.rejects(next.create({ ...create(idle.cwd, 'reuse') }), /exclusive_environment_already_bound/);
     const again = await f.restart();
-    assert.equal(again.get(r.worker_id!).status, 'cleanup_pending');
+    assert.equal(again.get(idle.worker_id).status, 'cleanup_pending');
+    assert.equal(again.get(r.worker_id!).status, 'stopped');
+    assert.equal(domains.cleaned.filter(d => d.name === (idleDomain as { name: string }).name).length, 2);
   } finally {
+    if (real?.pid && procInfo(real.pid)) process.kill(-real.pid, 'SIGKILL');
     f.cleanup();
   }
 });
 
-test('lifecycle: a pi exit is leader evidence only: cleanup_pending until stop observes the group gone', async () => {
+test('lifecycle: a pi exit is leader evidence only: the domain is cleaned at once, without a stop; stop then observes it stopped', async () => {
   const f = fixture();
   try {
     const w = await f.create();
     f.hosts[0]!.emit('exit');
     assert.equal(f.supervisor.get(w.worker_id).status, 'cleanup_pending');
     assert.equal(f.supervisor.get(w.worker_id).cleanup, 'leader_exit_only');
-    assert.equal(latestWorker(f.journalFile, w.worker_id).cleanup, 'leader_exit_only');
+    assert.equal(latestWorker(f.journalFile, w.worker_id).cleanup, 'leader_exit_only', 'durable before the domain is killed');
+    await tick();
+    assert.deepEqual(f.domains.cleaned.map(d => d.name), [`w-${w.worker_epoch}`], 'the exit cleaned the domain');
+    assert.deepEqual([f.supervisor.get(w.worker_id).status, f.supervisor.get(w.worker_id).cleanup], ['stopped', CLEANED]);
+    assert.equal(latestWorker(f.journalFile, w.worker_id).cleanup, CLEANED, 'the confirmation is durable');
     const stopped = await f.supervisor.stop(w.worker_id, bind(w, 'stop'));
     assert.equal(stopped.result?.termination, 'observed_stopped');
     assert.equal(f.supervisor.get(w.worker_id).status, 'stopped');
@@ -606,6 +650,25 @@ test('lifecycle: a stop whose kill is not observed is outcome_unknown and leaves
     const r = await f.supervisor.stop(w.worker_id, bind(w, 'stop'));
     assert.deepEqual([r.state, r.effect, r.result?.termination], ['outcome_unknown', 'unknown', 'unknown']);
     assert.equal(f.supervisor.get(w.worker_id).status, 'cleanup_pending');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('lifecycle: the cleanup domain is reserved per epoch and recorded in the starting row before the host is made', async () => {
+  let seen: { recorded: unknown; launched: unknown } | undefined;
+  const f = fixture({
+    launch: launch => {
+      const rows = parseJournal(readFileSync(f.journalFile)).records.filter(x => x.kind === 'worker');
+      seen = { recorded: (rows.at(-1)!.value as { domain?: unknown }).domain, launched: launch.domain };
+      return undefined;
+    },
+  });
+  try {
+    const w = await f.create();
+    assert.deepEqual(seen?.recorded, seen?.launched, 'the domain the host runs in is durable before the factory runs');
+    assert.deepEqual(seen?.launched, { root: '/test-domains', name: `w-${w.worker_epoch}`, boot: 'test' });
+    assert.equal(w.cleanup, 'live_cgroup');
   } finally {
     f.cleanup();
   }

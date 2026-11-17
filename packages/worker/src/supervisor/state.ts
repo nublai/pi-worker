@@ -22,6 +22,7 @@ import type { Interactions } from '../interactions/interactions.js';
 import type { GrantStore } from '../grants/store.js';
 import type { Budget, Operation, ReceiptStore } from '../receipts/receipts.js';
 import type { Guard } from '../grants/authority.js';
+import type { Domain } from '../containment/containment.js';
 
 export type Worker = components['schemas']['Worker'];
 export type Create = components['schemas']['Create'];
@@ -48,11 +49,13 @@ export interface Persisted {
   token: string | null;
   create?: Create;
   /**
-   * A create-with-resume target, durable in the starting row before any host starts and kept until the binding to it
-   * is recorded (or the open provably never happened). Recovery attributes it to the worker, so a restart never
-   * releases a session pi may have opened (invariants 1 and 2).
+   * A resume target (create-with-resume, or a `sessions.rebind` resume), durable before pi is asked to open it and
+   * kept until the binding to it is recorded (or the open provably never happened). Recovery attributes it to the
+   * worker, so a restart never releases a session pi may have opened (invariants 1 and 2).
    */
   resume?: { session_id: string; file: string };
+  /** The worker's cleanup domain, durable in its starting row before anything is spawned (P2-1). */
+  domain?: Domain;
 }
 
 export interface Live extends Persisted {
@@ -77,6 +80,8 @@ export interface Live extends Persisted {
   command?: string;
   observedIdle?: boolean;
   moveTimer?: NodeJS.Timeout;
+  /** The domain cleanup in flight (lifecycle): one at a time per worker; a pi exit during it starts no other. */
+  cleaning?: Promise<boolean>;
   /** The supervisor-owned follow-up queue (cap 32), in arrival order. */
   pending?: Map<string, Queued>;
 }
@@ -87,6 +92,10 @@ export interface HostLaunch {
   /** The real path of the worker's cwd. */
   readonly cwd: string;
   readonly sessionDir: string;
+  /** The worker's cleanup domain, created before the factory runs. */
+  readonly domain: Domain;
+  /** The argv prefix that runs the host's program inside the domain (`Containment.enter`). */
+  readonly prefix: readonly string[];
 }
 
 export type HostFactory = (launch: HostLaunch) => SessionHost;
@@ -110,7 +119,7 @@ export const HOLDING = new Set<Worker['status']>(['starting', 'ready', 'cleanup_
  */
 
 /** After these rows the worker's process is gone: it writes no more ordinary records and its budget is released. */
-const ENDING_ROW_LABELS = new Set<DurableLabel>(['worker.failed', 'worker.stopped', 'worker.exit', 'worker.fault']);
+const ENDING_ROW_LABELS = new Set<DurableLabel>(['worker.failed', 'worker.stopped', 'worker.exit', 'worker.fault', 'worker.cleaned']);
 /** Ordinary rows a worker may write between two admissions (admit, reply, start, settle; create, spawned, identity, ready). */
 const BUDGET_ROWS = 4;
 /** Room for its settlement and interaction records between two admissions. */
@@ -229,6 +238,7 @@ export class SupervisorState {
       token: live.token,
       ...(live.create ? { create: live.create } : {}),
       ...(live.resume ? { resume: live.resume } : {}),
+      ...(live.domain ? { domain: live.domain } : {}),
     };
   }
 
@@ -377,15 +387,15 @@ export class SupervisorState {
 
   /**
    * The gates every resume passes (create-with-resume and `sessions.rebind` resume), before anything is spawned or
-   * opened: no other live writer, a known session, its last owner's cleanup proven (invariant 2) and its fence
-   * resolved (invariant 3). Returns the session file.
+   * opened: no other live writer, a known session, its last owner's cleanup proven (its domain removed and recorded;
+   * invariant 2) and its fence resolved (invariant 3). Returns the session file.
    */
   resumable(sessionId: string, except: string): string {
     this.noOtherWriter(sessionId, except);
     const known = this.sessionFiles.get(sessionId);
     if (!known) throw new Refusal('unknown_session');
     const owner = this.require(known.worker_id).worker;
-    if (known.worker_id !== except && (owner.status === 'cleanup_pending' || owner.cleanup.includes('escaped_descendants_unproven'))) {
+    if (known.worker_id !== except && owner.status === 'cleanup_pending') {
       throw new Refusal('target_cleanup_unproven');
     }
     if (owner.fence) throw new Refusal('target_session_fenced', 'no_effect', owner.fence.command_id);
@@ -394,9 +404,7 @@ export class SupervisorState {
 
   /** One worker per environment: a cwd stays reserved while a worker holds it or its cleanup is unproven. */
   exclusiveCwd(cwd: string, except?: Live): void {
-    const holder = [...this.workers.values()].find(
-      l => l !== except && l.worker.cwd === cwd && (HOLDING.has(l.worker.status) || l.worker.cleanup.includes('descendants_unproven')),
-    );
+    const holder = [...this.workers.values()].find(l => l !== except && l.worker.cwd === cwd && HOLDING.has(l.worker.status));
     if (holder) throw new Refusal('exclusive_environment_already_bound', 'no_effect', undefined, { holder_worker_id: holder.worker.worker_id });
   }
 

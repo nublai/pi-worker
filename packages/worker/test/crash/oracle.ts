@@ -23,6 +23,8 @@ const bytes = (path: string) => (existsSync(path) ? readFileSync(path, 'utf8') :
 export interface PreCrash {
   receipts: Map<string, Receipt>;
   workers: Map<string, Worker>;
+  /** A worker's durable resume target at the cut (a create-with-resume or a rebind resume not yet bound). */
+  targets: Map<string, string>;
   /** The client's own request log: what each command asked for, independent of the supervisor's records. */
   requests: Logged[];
 }
@@ -30,14 +32,17 @@ export interface PreCrash {
 export function preCrash(root: string): PreCrash {
   const receipts = new Map<string, Receipt>();
   const workers = new Map<string, Worker>();
+  const targets = new Map<string, string>();
   for (const record of parseJournal(readFileSync(journalPath(root))).records) {
     if (record.kind === 'receipt') receipts.set(String(record.value.command_id), record.value as Receipt);
     if (record.kind === 'worker') {
-      const w = (record.value as { worker: Worker }).worker;
+      const { worker: w, resume } = record.value as { worker: Worker; resume?: { session_id: string } };
       workers.set(w.worker_id, w);
+      if (resume) targets.set(w.worker_id, resume.session_id);
+      else targets.delete(w.worker_id);
     }
   }
-  return { receipts, workers, requests: requestsAt(root) };
+  return { receipts, workers, targets, requests: requestsAt(root) };
 }
 
 /** Extra per-PR checks over the pre-crash state and the recovered summary (fences, executions, bindings). */

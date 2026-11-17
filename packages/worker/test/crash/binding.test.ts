@@ -15,7 +15,8 @@ const bindings: Check = (pre, after) => {
   for (const w of after.workers) {
     const prior = pre.workers.get(w.worker_id)!;
     assert.equal(w.binding_revision, prior.binding_revision, `${w.worker_id}: the binding is its last durable revision`);
-    assert.equal(w.session_id, prior.session_id, w.worker_id);
+    // A resume move whose target was durable but not yet bound leaves the worker holding that target (issue #6).
+    assert.equal(w.session_id, pre.targets.get(w.worker_id) ?? prior.session_id, w.worker_id);
   }
 };
 

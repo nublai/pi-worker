@@ -14,6 +14,7 @@ import type { Binding, HostFactory, HostLaunch, Worker } from '../src/supervisor
 import { Supervisor } from '../src/supervisor/supervisor.js';
 import { GrantStore } from '../src/grants/store.js';
 import { privateTmp } from './helpers.js';
+import { TestDomains } from './domains.js';
 
 export class Host extends EventEmitter implements SessionHost {
   pid: number | undefined = undefined;
@@ -120,6 +121,8 @@ export interface Fixture {
   supervisor: Supervisor;
   state: OpenState;
   readonly journalFile: string;
+  /** The cleanup domains of the current supervisor (one per open unless the fixture shares them). */
+  domains: TestDomains;
   create(): Promise<Worker>;
   /** Discards the supervisor without stopping its hosts, then recovers a new one over the same state. */
   restart(factory?: HostFactory): Promise<Supervisor>;
@@ -128,7 +131,10 @@ export interface Fixture {
 
 export function fixture(
   config: {
+    /** No domain is ever proven clean: cleanup stays pending (the conformance profile `unconfirmed_native_identity`). */
     unconfirmedIdentity?: boolean;
+    /** Domains shared by every supervisor the fixture opens (a restart can clean the previous one's domains). */
+    domains?: TestDomains;
     initHost?: (host: Host) => void;
     launch?: (launch: HostLaunch) => SessionHost | undefined;
     /** The receipt store's count bound (P1-12 raised the default from A0's 512). */
@@ -150,15 +156,23 @@ export function fixture(
     // A0's fix-round header shape (version 3): a rewritten header is shorter, so the index re-reads the file.
     writeFileSync(file, `${JSON.stringify({ type: 'session', id: sid, version: 3 })}\n`);
     const host = new Host(dir, sid, file);
-    // A process identity that cannot be confirmed: cleanup must stay pending without signalling anything.
-    if (config.unconfirmedIdentity) host.pid = 2147483647;
     config.initHost?.(host);
     hosts.push(host);
     return host;
   };
   const open = (f: HostFactory) => {
     const state = openState(dir, config.journalBytes === undefined ? {} : { maxBytes: config.journalBytes });
-    return { state, supervisor: new Supervisor({ journal: state.journal, receipts: new ReceiptStore(state.journal, config.receiptCap, undefined, config.retention), supervisorEpoch: state.supervisorEpoch, stateDir: dir, factory: f, grants: new GrantStore(dir) }) };
+    const domains = config.domains ?? new TestDomains({ confirm: !config.unconfirmedIdentity });
+    const supervisor = new Supervisor({
+      journal: state.journal,
+      receipts: new ReceiptStore(state.journal, config.receiptCap, undefined, config.retention),
+      supervisorEpoch: state.supervisorEpoch,
+      stateDir: dir,
+      factory: domains.track(f),
+      containment: domains,
+      grants: new GrantStore(dir),
+    });
+    return { state, supervisor, domains };
   };
   const first = open(factory);
   const f: Fixture = {
@@ -166,6 +180,7 @@ export function fixture(
     hosts,
     supervisor: first.supervisor,
     state: first.state,
+    domains: first.domains,
     journalFile: first.state.journal.file,
     async create() {
       const cwd = join(dir, `cwd-${hosts.length}`);
@@ -181,6 +196,7 @@ export function fixture(
       const opened = open(next);
       f.state = opened.state;
       f.supervisor = opened.supervisor;
+      f.domains = opened.domains;
       await f.supervisor.recover();
       return f.supervisor;
     },

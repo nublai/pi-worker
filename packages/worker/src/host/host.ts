@@ -62,6 +62,8 @@ export interface LineHostOptions {
   readonly timeoutMs?: number;
   /** A typed child: a fourth pipe becomes its FD 3, the job-scoped report channel. */
   readonly report?: boolean;
+  /** An argv prefix that runs the program inside the worker's cleanup domain (`Containment.enter`). */
+  readonly prefix?: readonly string[];
 }
 
 /** A subprocess speaking the host protocol. Its own process group, so `stop` can kill what it started. */
@@ -81,7 +83,8 @@ export class LineHost extends EventEmitter implements SessionHost {
     super();
     this.timeoutMs = options.timeoutMs ?? 30_000;
     // SAFETY: stdio 0 to 2 are pipes in both forms, which is all ChildProcessWithoutNullStreams promises.
-    this.child = spawn(executable, args, { cwd: options.cwd, env: options.env, detached: true, stdio: options.report ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'] }) as ChildProcessWithoutNullStreams;
+    const [command, ...argv] = [...(options.prefix ?? []), executable, ...args] as [string, ...string[]];
+    this.child = spawn(command, argv, { cwd: options.cwd, env: options.env, detached: true, stdio: options.report ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'] }) as ChildProcessWithoutNullStreams;
     if (options.report) {
       const channel = this.child.stdio[3] as Readable;
       this.reportsClosed = new Promise(resolve => channel.once('close', () => resolve()));
@@ -278,11 +281,12 @@ export function childEnv(env: NodeJS.ProcessEnv = process.env, taskId?: string |
 
 /** The production host: pi's SDK in a dedicated Node process (`sdk-child/main.ts`), run by this Node binary. */
 export class SdkHost extends LineHost {
-  constructor(launch: SdkLaunch, options: { env?: NodeJS.ProcessEnv; timeoutMs?: number } = {}) {
+  constructor(launch: SdkLaunch, options: { env?: NodeJS.ProcessEnv; timeoutMs?: number; prefix?: readonly string[] } = {}) {
     super(process.execPath, [sdkChildEntry, JSON.stringify(launch)], {
       cwd: launch.cwd,
       env: childEnv(options.env, launch.taskId),
       report: !!launch.taskId,
+      ...(options.prefix ? { prefix: options.prefix } : {}),
       ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
     });
   }

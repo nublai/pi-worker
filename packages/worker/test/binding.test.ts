@@ -6,15 +6,19 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync, existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refusal } from '../src/b2/errors.js';
 import { SdkHost } from '../src/host/host.js';
+import { parseJournal } from '../src/journal/journal.js';
 import { openState } from '../src/journal/state.js';
 import { ReceiptStore } from '../src/receipts/receipts.js';
 import { Supervisor } from '../src/supervisor/supervisor.js';
+import { CLEANED } from '../src/supervisor/lifecycle.js';
+import type { Worker } from '../src/supervisor/state.js';
 import { privateTmp } from './helpers.js';
 import { bind, fixture, tick } from './supervisor-fixture.js';
+import { domained } from './domains.js';
 
 const noEffect = (message: string) => (e: unknown) => e instanceof Refusal && e.effect === 'no_effect' && e.message === message;
 
@@ -77,7 +81,8 @@ test('binding: sessions.new is the /new move under its own operation and command
 });
 
 test('binding: refusals before any record: busy, fenced, held target, fenced target, unknown session, cleanup pending', async () => {
-  const f = fixture();
+  // No domain is proven clean: a's exit leaves it holding its session (P2-1 would otherwise confirm and release it).
+  const f = fixture({ unconfirmedIdentity: true });
   try {
     const a = await f.create();
     const b = await f.create();
@@ -140,6 +145,52 @@ for (const failure of ['collision', 'resume-mismatch', 'cancelled'] as const) {
   });
 }
 
+test('binding: a rebind resume records its target before its dispatch; an unknown one keeps the target with the worker until its cleanup is confirmed and the fence resolved (issue #6)', async () => {
+  const f = fixture();
+  const dir = (name: string) => {
+    const cwd = join(f.dir, name);
+    mkdirSync(cwd);
+    return cwd;
+  };
+  const resume = (name: string, target: string) => f.supervisor.create({ command_id: name, cwd: dir(name), provider: 'p', model: 'm', thinking: 'off', resume_session_id: target });
+  try {
+    const a = await f.create();
+    const target = a.session_id!;
+    assert.equal((await f.supervisor.newSession(a.worker_id, bind(a, 'archive'))).state, 'delivered');
+    const b = await f.create();
+    const h = f.hosts[1]!;
+    // pi opens the target (its switch hooks ran), then the move is reported cancelled: the outcome is unknown.
+    const native = h.request.bind(h);
+    let atOpen: { resume?: unknown; receipt?: string } | undefined;
+    h.request = async c => {
+      if (c.type === 'switch_session') {
+        const rows = parseJournal(readFileSync(f.journalFile)).records;
+        const row = rows.filter(x => x.kind === 'worker' && (x.value.worker as Worker).worker_id === b.worker_id).at(-1)!;
+        atOpen = { resume: (row.value as { resume?: unknown }).resume, receipt: rows.filter(x => x.kind === 'receipt' && x.value.command_id === 'resume-b').at(-1)?.value.state as string };
+      }
+      const reply = await native(c);
+      return c.type === 'switch_session' ? { ...reply, data: { ...reply.data, cancelled: true } } : reply;
+    };
+    const r = await f.supervisor.rebind(b.worker_id, { ...bind(b, 'resume-b'), action: 'resume', target_session_id: target });
+    assert.deepEqual([r.state, r.effect], ['outcome_unknown', 'unknown']);
+    assert.deepEqual(atOpen, { resume: { session_id: target, file: join(f.dir, 'session-0.jsonl') }, receipt: 'accepted' }, 'the target is durable in the row before the dispatch record, both before pi opens it');
+    await tick();
+    const row = f.supervisor.get(b.worker_id);
+    assert.equal(row.session_id, target, 'the worker holds the target pi may have opened');
+    assert.deepEqual(row.fence?.uncertain_command_ids, ['resume-b']);
+    assert.deepEqual([row.status, row.cleanup], ['failed', CLEANED], 'the faulted worker was cleaned');
+    // Its cleanup is confirmed, so only its fence still refuses the target, naming the rebind; no host is spawned.
+    const hosts = f.hosts.length;
+    await assert.rejects(resume('again', target), (e: unknown) => e instanceof Refusal && e.message === 'target_session_fenced' && e.effect === 'no_effect' && e.uncertain_command_id === 'resume-b');
+    assert.equal(f.hosts.length, hosts);
+    const resolved = await f.supervisor.resolveUnknown(b.worker_id, { ...bind(row, 'resolve-b'), uncertain_command_id: 'resume-b', fence_generation: row.fence!.fence_generation, disposition: 'abandon' });
+    assert.equal(resolved.state, 'delivered', JSON.stringify(resolved));
+    assert.equal((await resume('released', target)).state, 'delivered');
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('binding: a native move is announced, refuses writes while in flight, then binds at a new revision', async () => {
   const f = fixture();
   try {
@@ -193,7 +244,7 @@ function realPi(extensionSource: string) {
   for (const dir of [cwd, state, agent, join(agent, 'extensions')]) mkdirSync(dir, { recursive: true });
   writeFileSync(join(agent, 'extensions', 'fixture.ts'), extensionSource);
   const opened = openState(state);
-  const s = new Supervisor({
+  const s = new Supervisor(domained({
     journal: opened.journal,
     receipts: new ReceiptStore(opened.journal),
     supervisorEpoch: opened.supervisorEpoch,
@@ -203,7 +254,7 @@ function realPi(extensionSource: string) {
         { cwd: launch.cwd, sessionDir: launch.sessionDir, provider: launch.create.provider, model: launch.create.model, thinking: launch.create.thinking, projectTrusted: false },
         { env: { ...process.env, PI_CODING_AGENT_DIR: agent } },
       ),
-  });
+  }));
   return {
     cwd,
     s,

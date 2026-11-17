@@ -18,6 +18,7 @@ import { createB2Server, listenPrivate } from '../src/b2/server.js';
 import { ITEM_MAX_BYTES } from '../src/supervisor/supervisor.js';
 import { bind, fixture, type Fixture } from './supervisor-fixture.js';
 import { ownerGrant, privateTmp } from './helpers.js';
+import { domained } from './domains.js';
 
 async function serve(f: Fixture): Promise<{ socket: string; grantFile: string; headers: Record<string, string>; close: () => Promise<void> }> {
   const owner = ownerGrant(f.dir);
@@ -91,7 +92,11 @@ test('history: public HTTP/CLI client: identity, duplicate, stale binding, admis
     assert.equal(f.supervisor.get(id).history.lag, false);
     const stopped = await client.call('workers.stop', { path: { worker_id: id }, body: bind(w, 'stop') });
     assert.equal(stopped.result?.termination, 'observed_stopped');
-    await assert.rejects(client.call('workers.create', { body: { ...create, command_id: 'replacement' } }), /exclusive_environment_already_bound/);
+    // P2-1: the stop removed the worker's domain and recorded it, so the cwd is free again. A0 refused this replacement
+    // under its process-group cleanup, which never proved the descendants gone; an unproven domain still refuses it
+    // (security/containment.test.ts).
+    assert.equal(f.supervisor.get(id).cleanup, 'cgroup_empty_removed');
+    assert.equal((await client.call('workers.create', { body: { ...create, command_id: 'replacement' } })).state, 'delivered');
   } finally {
     await s.close();
     f.cleanup();
@@ -218,7 +223,7 @@ test('history (real pi): a fresh worker reads as empty history, not a bad cursor
   writeFileSync(join(agent, 'extensions', 'faux.ts'), FAUX);
   const opened = openState(state);
   const owner = ownerGrant(state);
-  const s = new Supervisor({
+  const s = new Supervisor(domained({
     journal: opened.journal,
     receipts: new ReceiptStore(opened.journal),
     supervisorEpoch: opened.supervisorEpoch,
@@ -229,7 +234,7 @@ test('history (real pi): a fresh worker reads as empty history, not a bad cursor
         { cwd: launch.cwd, sessionDir: launch.sessionDir, provider: launch.create.provider, model: launch.create.model, thinking: launch.create.thinking, projectTrusted: false },
         { env: { PATH: process.env.PATH, HOME: agent, PI_CODING_AGENT_DIR: agent } },
       ),
-  });
+  }));
   try {
     const api = createMemoryTransport(createApp({ supervisor: s, grants: owner.grants }).handle, owner.headers);
     const created = await api.request('POST', '/b2/workers', { json: { command_id: 'create', cwd, provider: 'faux', model: 'faux-1', thinking: 'off' } });

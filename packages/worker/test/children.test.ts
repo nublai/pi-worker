@@ -23,6 +23,7 @@ import type { SessionHost } from '../src/host/host.js';
 import { createApp } from '../src/b2/app.js';
 import { createMemoryTransport } from '../src/b2/memory.js';
 import { bind, fixture, Host, tick, type Fixture } from './supervisor-fixture.js';
+import { domained } from './domains.js';
 
 type Grant = { grant_id: string; methods: readonly string[] };
 
@@ -570,7 +571,7 @@ test('children: automatic child flush is not owner-ready and recovers without re
     const pre = parseJournal(readFileSync(state.journal.file)).records;
     const queued = pre.filter(r => r.kind === 'receipt' && r.value.command_id === 'queued').at(-1)!;
     assert.equal(queued.value.state, 'queue_ready', 'automatic flush must never claim owner resolution');
-    const s = new Supervisor({ journal: state.journal, receipts: new ReceiptStore(state.journal), supervisorEpoch: state.supervisorEpoch, stateDir: dir, factory: () => assert.fail('no spawn/replay') });
+    const s = new Supervisor(domained({ journal: state.journal, receipts: new ReceiptStore(state.journal), supervisorEpoch: state.supervisorEpoch, stateDir: dir, factory: () => assert.fail('no spawn/replay') }));
     await s.recover();
     const r = s.receipts.all.get('queued')!;
     assert.equal(r.state, 'intent_recovered');

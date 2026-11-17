@@ -12,8 +12,14 @@
  * second resume of the target is refused naming the killed worker (or its unproven cleanup), still refused once the
  * target's previous owner's cleanup is confirmed, and, when the create is `outcome_unknown` and unresolved, still
  * refused `target_session_fenced` naming the create once the resumer's own cleanup is confirmed. Only
- * `sessions.resolve_unknown` then releases it, and the released session takes a prompt. P1 has no cleanup proof
- * (P2's cgroup domains add it); `confirmCleanup` stands in for that proof on the recovered state, in memory only.
+ * `sessions.resolve_unknown` then releases it, and the released session takes a prompt. A recovering crash world
+ * cannot prove a dead world's domains clean, so `confirmCleanup` stands in for that proof on the recovered state, in
+ * memory only; a resumer whose domain removal was recorded before the cut (P2-1) has released the target already, and
+ * only its fence (until resolved) still refuses it.
+ *
+ * Issue #6: the same holds for an existing worker's `sessions.rebind` resume. Its target is durable in the worker's
+ * row (`binding.reserve`) before its dispatch record, so every cut from there until the binding is recorded keeps the
+ * target with the killed worker, and the recovered unknown rebind fences it.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,11 +33,15 @@ import { bind } from '../supervisor-fixture.js';
 import { fences } from './fence.test.js';
 import { checkRecovery } from './oracle.js';
 import { cutAt, run, tempRoot, type FsyncPoint } from './harness.js';
-import { CANCELLED, RESUMER } from './resume-scenario.js';
+import { CANCELLED, REBIND, REBINDER, RESUMER } from './resume-scenario.js';
+import { CLEANED } from '../../src/supervisor/lifecycle.js';
 import { effectsAt, openWorld, requestsAt, type World } from './world.js';
 
-/** The resume target a create asked for, from the scenario's own request log. */
-const targetOf = (root: string, command: string) => String(requestsAt(root).find(r => r.body.command_id === command)!.body.resume_session_id);
+/** The resume target a create or a rebind asked for, from the scenario's own request log. */
+const targetOf = (root: string, command: string) => {
+  const body = requestsAt(root).find(r => r.body.command_id === command)!.body;
+  return String(body.resume_session_id ?? body.target_session_id);
+};
 
 /** A resuming worker's last durable record before the cut, if it has one. */
 function recordOf(root: string, command: string): Persisted | undefined {
@@ -44,10 +54,10 @@ function recordOf(root: string, command: string): Persisted | undefined {
   return last;
 }
 
-/** Stands in for P2's confirmed cleanup (group and every descendant observed gone), in memory only. */
+/** Stands in for a confirmed domain removal the recovering world cannot observe, in memory only. */
 function confirmCleanup(live: Live): void {
   live.worker.status = 'stopped';
-  live.worker.cleanup = 'test_stand_in_for_confirmed_cleanup';
+  live.worker.cleanup = CLEANED;
   live.pid = null;
 }
 
@@ -58,7 +68,7 @@ const worker = (world: World, command: string): Live => [...world.supervisor.sta
  * confirmed and, when its create is an unresolved `outcome_unknown`, until `sessions.resolve_unknown`. Returns
  * whether the recovered create fenced the target.
  */
-async function targetHeldUntilCleanupConfirmedAndResolved(cutRoot: string, cut: string, command: string): Promise<boolean> {
+async function targetHeldUntilCleanupConfirmedAndResolved(cutRoot: string, cut: string, command: string, holder = command): Promise<boolean> {
   const copy = tempRoot('resume-held');
   const root = copy.root;
   cpSync(cutRoot, root, { recursive: true });
@@ -66,7 +76,7 @@ async function targetHeldUntilCleanupConfirmedAndResolved(cutRoot: string, cut: 
   const world = openWorld(root, true);
   try {
     await world.supervisor.recover();
-    const resumer = worker(world, command);
+    const resumer = worker(world, holder);
     const owner = worker(world, 'worker-a');
     const receipt = world.supervisor.receipts.all.get(command);
     const fenced = receipt?.state === 'outcome_unknown' && !(resumer.worker.resolutions ?? []).some(x => x.command_id === command);
@@ -85,14 +95,16 @@ async function targetHeldUntilCleanupConfirmedAndResolved(cutRoot: string, cut: 
         ? e.message === 'session_already_bound' && e.details.holder_worker_id === resumer.worker.worker_id
         : e.message === 'target_cleanup_unproven');
     const hosts = world.hosts.length;
-    await assert.rejects(resume(`${command}-again-1`), held, `${cut}: a second resume after the restart is refused naming the killed resumer`);
-    confirmCleanup(owner);
-    await assert.rejects(
-      resume(`${command}-again-2`),
-      held,
-      `${cut}: the target's previous owner proven clean does not release it while the killed resumer's cleanup is unproven`,
-    );
-    confirmCleanup(resumer);
+    if (resumer.worker.cleanup !== CLEANED) {
+      await assert.rejects(resume(`${command}-again-1`), held, `${cut}: a second resume after the restart is refused naming the killed resumer`);
+      confirmCleanup(owner);
+      await assert.rejects(
+        resume(`${command}-again-2`),
+        held,
+        `${cut}: the target's previous owner proven clean does not release it while the killed resumer's cleanup is unproven`,
+      );
+      confirmCleanup(resumer);
+    } else assert.equal(resumer.worker.status, 'failed', `${cut}: only a failed resumer's domain removal is recorded before the restart`);
     if (fenced) {
       await assert.rejects(
         resume(`${command}-again-3`),
@@ -134,6 +146,8 @@ test('crash: SIGKILL after every resume-scenario fsync; the resume target stays 
   }
   const window = new Set<string>();
   const fencedAt = new Set<string>();
+  const rebindWindow = new Set<string>();
+  const rebindFencedAt = new Set<string>();
   for (const point of points) {
     const cut = tempRoot('resume-cut');
     try {
@@ -141,6 +155,8 @@ test('crash: SIGKILL after every resume-scenario fsync; the resume target stays 
       // The durable records at the cut, before recovery adds its own.
       const record = recordOf(cut.root, RESUMER);
       const cancelled = recordOf(cut.root, CANCELLED);
+      const rebinder = recordOf(cut.root, REBINDER);
+      const asked = requestsAt(cut.root).some(r => r.body.command_id === REBIND);
       await checkRecovery(cut.root, [fences]);
       const at = `${point.label}@${point.occurrence}`;
       if (!record) continue; // Before the resumer's starting row nothing was spawned or opened.
@@ -148,6 +164,10 @@ test('crash: SIGKILL after every resume-scenario fsync; the resume target stays 
       await targetHeldUntilCleanupConfirmedAndResolved(cut.root, at, RESUMER);
       if (!cancelled) continue;
       if (await targetHeldUntilCleanupConfirmedAndResolved(cut.root, at, CANCELLED)) fencedAt.add(point.label);
+      // Issue #6: B's rebind resume, from its durable target until (and after) its binding is recorded.
+      if (!rebinder || !asked || (!rebinder.resume && rebinder.worker.session_id !== targetOf(cut.root, REBIND))) continue;
+      if (rebinder.resume) rebindWindow.add(point.label);
+      if (await targetHeldUntilCleanupConfirmedAndResolved(cut.root, at, REBIND, REBINDER)) rebindFencedAt.add(point.label);
     } finally {
       cut.cleanup();
     }
@@ -161,10 +181,14 @@ test('crash: SIGKILL after every resume-scenario fsync; the resume target stays 
     ['receipt.dispatch', 'receipt.intent', 'receipt.result', 'worker.exit', 'worker.failed', 'worker.identity', 'worker.spawned'],
     'the cuts cover an unknown create-with-resume before and after its fence is durable',
   );
+  // The rebind's target is durable from its own record through the dispatch record, before pi is asked to open it.
+  assert.deepEqual([...rebindWindow].sort(), ['binding.reserve', 'receipt.dispatch'], "the rebind's target is durable before its dispatch record");
+  // Dispatched and not yet delivered: the recovered rebind is outcome_unknown and fences the target it holds.
+  assert.deepEqual([...rebindFencedAt].sort(), ['binding.rebind', 'receipt.dispatch'], 'a recovered unknown rebind fences its target');
 });
 
 /** The cut right after `command`'s native open of its resume target, before its binding (or failure) is recorded. */
-async function afterOpen(command: string): Promise<void> {
+async function afterOpen(command: string, holder = command): Promise<void> {
   const base = tempRoot('resume-effects');
   let open: number;
   try {
@@ -178,10 +202,10 @@ async function afterOpen(command: string): Promise<void> {
   const cut = tempRoot('resume-open');
   try {
     assert.equal(run('resume', cut.root, undefined, { PIW_CRASH_EFFECT: String(open) }).signal, 'SIGKILL');
-    const record = recordOf(cut.root, command)!;
+    const record = recordOf(cut.root, holder)!;
     assert.notEqual(record.worker.session_id, targetOf(cut.root, command), 'the cut lands before the binding to the target is recorded');
     await checkRecovery(cut.root, [fences]);
-    assert.equal(await targetHeldUntilCleanupConfirmedAndResolved(cut.root, 'after open', command), true, 'the dispatched create recovers outcome_unknown and fences');
+    assert.equal(await targetHeldUntilCleanupConfirmedAndResolved(cut.root, 'after open', command, holder), true, 'the dispatched command recovers outcome_unknown and fences');
   } finally {
     cut.cleanup();
   }
@@ -193,4 +217,8 @@ test('crash: SIGKILL right after pi opened the resume target, before the binding
 
 test('crash: SIGKILL right after pi ran the switch hooks of a resume it then cancels: the target is fenced until resolve_unknown', { timeout: 120_000 }, async () => {
   await afterOpen(CANCELLED);
+});
+
+test('crash: SIGKILL right after pi opened a sessions.rebind resume target, before the binding is recorded: the target stays with the killed worker and is fenced (issue #6)', { timeout: 120_000 }, async () => {
+  await afterOpen(REBIND, REBINDER);
 });
