@@ -566,7 +566,7 @@ Each point gets a named reviewer pass (Claude and Grok, cross-family to the auth
 | Response validation after dispatch mislabelled | A retryable error after an effect | Mutations answer `unknown` with `command_id`; closure test pins it |
 | Journal growth on a daily host | Refusals once full | P1-12 retention and compaction before the P1 journey |
 | Synchronous fsync on the event loop with many workers | Latency for SSE and reads | Measure in `p1-chat` and `p3-fanout`; batching is a later, reviewed change |
-| A session open in a herdr TUI pi is resumed by the worker | Two writers on one JSONL; invariant 1 only covers worker-held sessions | Shep's duplicate-open reservations stay; question S-9 in the Shep doc |
+| A session open in a herdr TUI pi is resumed by the worker | Two writers on one JSONL; invariant 1 only covers worker-held sessions | Shep's duplicate-open reservations stay; question S-9 in the Shep doc (dropped by Shep ADR-0030) |
 | Scope creep from contract 8.1 delays P1 | P5 starts late | 8.1 items are P1-14 to P1-16 only; the rest waits for P5 needs |
 | The child core in P1 (D5) lengthens P1 | P5 starts later | It is A0 slice 4 ported with its tests, without sandboxing; P1-11 can start as soon as P1-10 lands, and P1-14 to P1-16 do not depend on P1-12 or P1-13, so those can be built in parallel |
 | Generator bump silently raises the Go client's floor | Shep's Go 1.24 build breaks | Exact pins; generated models compiled and tested on Go 1.24.13 with `GOTOOLCHAIN=local` (section 4.4) |

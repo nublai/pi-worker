@@ -3683,14 +3683,6 @@
             "type": "object",
             "additionalProperties": true
           },
-          "chat_id": {
-            "$ref": "#/components/schemas/Id",
-            "description": "The phone's chat identity for this worker (its `worker_id`), passed through unchanged (S-3)."
-          },
-          "runtime": {
-            "type": "string",
-            "const": "worker"
-          },
           "status_since": {
             "type": "string",
             "minLength": 1,
@@ -4108,8 +4100,6 @@
         "additionalProperties": false,
         "required": [
           "session_id",
-          "chat_id",
-          "runtime",
           "cwd",
           "title",
           "preview",
@@ -4126,14 +4116,6 @@
         "properties": {
           "session_id": {
             "$ref": "#/components/schemas/Id"
-          },
-          "chat_id": {
-            "$ref": "#/components/schemas/Id",
-            "description": "The phone's chat identity for an archived chat (its `session_id`), passed through (S-3)."
-          },
-          "runtime": {
-            "type": "string",
-            "const": "worker"
           },
           "cwd": {
             "$ref": "#/components/schemas/AbsolutePath"

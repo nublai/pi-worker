@@ -8,8 +8,6 @@
     "status": 200,
     "body": {
       "session_id": "session-1",
-      "chat_id": "session-1",
-      "runtime": "worker",
       "cwd": "/home/u/project",
       "title": "Fix the login bug",
       "preview": "Done: the login form now validates the email.",

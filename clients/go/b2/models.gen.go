@@ -1238,21 +1238,6 @@ func (e SessionRowEvidence) Valid() bool {
 	}
 }
 
-// Defines values for SessionRowRuntime.
-const (
-	SessionRowRuntimeWorker SessionRowRuntime = "worker"
-)
-
-// Valid indicates whether the value is a known member of the SessionRowRuntime enum.
-func (e SessionRowRuntime) Valid() bool {
-	switch e {
-	case SessionRowRuntimeWorker:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for SnapshotEventResyncReason.
 const (
 	SnapshotEventResyncReasonAhead    SnapshotEventResyncReason = "ahead"
@@ -1607,21 +1592,6 @@ func (e WorkerForeground) Valid() bool {
 	case WorkerForegroundRunning:
 		return true
 	case WorkerForegroundUnknown:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for WorkerRuntime.
-const (
-	WorkerRuntimeWorker WorkerRuntime = "worker"
-)
-
-// Valid indicates whether the value is a known member of the WorkerRuntime enum.
-func (e WorkerRuntime) Valid() bool {
-	switch e {
-	case WorkerRuntimeWorker:
 		return true
 	default:
 		return false
@@ -2601,8 +2571,6 @@ type SessionReboundEventType string
 
 // SessionRow defines model for SessionRow.
 type SessionRow struct {
-	// ChatId The phone's chat identity for an archived chat (its `session_id`), passed through (S-3).
-	ChatId    Id                 `json:"chat_id"`
 	CreatedAt *string            `json:"created_at"`
 	Cwd       AbsolutePath       `json:"cwd"`
 	Evidence  SessionRowEvidence `json:"evidence"`
@@ -2620,18 +2588,14 @@ type SessionRow struct {
 	MessageCount int     `json:"message_count"`
 
 	// Preview The newest user or assistant text in the session file, without the worker's interrupt marker, at most 280 characters.
-	Preview   *Preview          `json:"preview"`
-	Runtime   SessionRowRuntime `json:"runtime"`
-	SessionId Id                `json:"session_id"`
-	Stats     SessionStats      `json:"stats"`
-	Title     *string           `json:"title"`
+	Preview   *Preview     `json:"preview"`
+	SessionId Id           `json:"session_id"`
+	Stats     SessionStats `json:"stats"`
+	Title     *string      `json:"title"`
 }
 
 // SessionRowEvidence defines model for SessionRow.Evidence.
 type SessionRowEvidence string
-
-// SessionRowRuntime defines model for SessionRow.Runtime.
-type SessionRowRuntime string
 
 // SessionStats defines model for SessionStats.
 type SessionStats struct {
@@ -2758,14 +2722,11 @@ type Thinking string
 
 // Worker defines model for Worker.
 type Worker struct {
-	BindingRevision int `json:"binding_revision"`
-
-	// ChatId The phone's chat identity for this worker (its `worker_id`), passed through unchanged (S-3).
-	ChatId       *Id           `json:"chat_id,omitempty"`
-	ChildReports *[]ChildClaim `json:"child_reports,omitempty"`
-	Cleanup      string        `json:"cleanup"`
-	Cwd          AbsolutePath  `json:"cwd"`
-	Execution    *Execution    `json:"execution"`
+	BindingRevision int           `json:"binding_revision"`
+	ChildReports    *[]ChildClaim `json:"child_reports,omitempty"`
+	Cleanup         string        `json:"cleanup"`
+	Cwd             AbsolutePath  `json:"cwd"`
+	Execution       *Execution    `json:"execution"`
 
 	// Failure Why a launch ended the row in status failed. The launch receipt keeps its own effect label.
 	Failure         *WorkerFailure   `json:"failure,omitempty"`
@@ -2800,7 +2761,6 @@ type Worker struct {
 	RepoLabel               *string                       `json:"repo_label,omitempty"`
 	Resolutions             *[]Resolution                 `json:"resolutions,omitempty"`
 	Resources               *map[string]interface{}       `json:"resources,omitempty"`
-	Runtime                 *WorkerRuntime                `json:"runtime,omitempty"`
 	SessionId               *string                       `json:"session_id"`
 	SessionIdentityEvidence WorkerSessionIdentityEvidence `json:"session_identity_evidence"`
 
@@ -2821,9 +2781,6 @@ type Worker struct {
 
 // WorkerForeground defines model for Worker.Foreground.
 type WorkerForeground string
-
-// WorkerRuntime defines model for Worker.Runtime.
-type WorkerRuntime string
 
 // WorkerSessionIdentityEvidence defines model for Worker.SessionIdentityEvidence.
 type WorkerSessionIdentityEvidence string

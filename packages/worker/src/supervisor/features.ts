@@ -143,8 +143,6 @@ export class Features {
     const holder = [...this.s.workers.values()].find(l => l.worker.session_id === sessionId && HOLDING.has(l.worker.status));
     return {
       session_id: sessionId,
-      chat_id: sessionId,
-      runtime: 'worker',
       cwd: owner.worker.cwd,
       title: summary.title,
       preview: summary.preview,

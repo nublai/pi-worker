@@ -29,8 +29,6 @@
       "queued": [],
       "fence_generation": 0,
       "host": "sdk",
-      "chat_id": "worker-1",
-      "runtime": "worker",
       "status_since": "2026-11-16T04:29:00Z",
       "settle_count": 3,
       "lineage": "root",
