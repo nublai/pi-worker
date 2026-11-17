@@ -23,8 +23,11 @@ import { GrantStore } from '../../src/grants/store.js';
 import { Host } from '../supervisor-fixture.js';
 import { TestDomains, domained } from '../domains.js';
 
-/** A spawn (`create`) also names its worker and the cleanup domain it runs in: the generation recovery must clean. */
-export type Effect = { kind: string; command_id: string; session_file?: string; session_id?: string; entry_id?: string; native_file?: string; operation?: string; worker_id?: string; domain?: string };
+/**
+ * A spawn (`create`) also names its worker and the cleanup domain it runs in: the generation recovery must clean.
+ * `records`: how many journal records were durable when the effect happened (P2-4, the containment scenario).
+ */
+export type Effect = { kind: string; command_id: string; session_file?: string; session_id?: string; entry_id?: string; native_file?: string; operation?: string; worker_id?: string; domain?: string; records?: number };
 export type Logged = { op: string; id?: string; body: Record<string, unknown> };
 export type Reply = { command_id: string; state?: string; effect?: string; error?: string };
 export type Summary = {
@@ -53,8 +56,10 @@ export const repliesAt = (root: string) => lines<Reply>(join(root, 'replies.json
 export const limitsAt = (root: string): WorldLimits => (existsSync(join(root, 'world.json')) ? (JSON.parse(readFileSync(join(root, 'world.json'), 'utf8')) as WorldLimits) : {});
 
 let effectCount = 0;
+/** The scenario world's journal record count, stamped on every effect (`Effect.records`). */
+let journalRecords: (() => number) | undefined;
 export function effect(root: string, value: Effect): void {
-  appendFileSync(join(root, 'effects.jsonl'), `${JSON.stringify(value)}\n`);
+  appendFileSync(join(root, 'effects.jsonl'), `${JSON.stringify({ ...value, ...(journalRecords ? { records: journalRecords() } : {}) })}\n`);
   if (process.env.PIW_CRASH_EFFECT === String(++effectCount)) process.kill(process.pid, 'SIGKILL');
 }
 
@@ -143,13 +148,18 @@ export interface World {
   call(op: string, body: Record<string, unknown>, id?: string): Promise<Receipt>;
 }
 
-/** Opens the supervisor over `root`. In `recover` mode the factory refuses: recovery never launches or adopts. */
-export function openWorld(root: string, scenario: boolean): World {
+/**
+ * Opens the supervisor over `root`. In `recover` mode the factory refuses: recovery never launches or adopts.
+ * `confirmUnknown`: the domains of a world this one never ran (a SIGKILLed scenario process, whose in-process hosts
+ * died with it) are proven clean, as a real domain's removal would prove (the containment scenario).
+ */
+export function openWorld(root: string, scenario: boolean, options: { confirmUnknown?: boolean } = {}): World {
   const { journalBytes, receipts: count, ...retention } = limitsAt(root);
   const state = openState(root, { ...(journalBytes ? { maxBytes: journalBytes } : {}), retention: { ...retention, ...(count ? { receipts: count } : {}) } });
   const hosts: EffectHost[] = [];
   // Each world has its own domains: a recovering world cannot prove a dead world's domains clean (they stay pending).
-  const domains = new TestDomains();
+  const domains = new TestDomains({ confirmUnknown: options.confirmUnknown ?? false });
+  if (scenario) journalRecords = () => state.journal.records.length;
   const supervisor = new Supervisor(domained({
     journal: state.journal,
     receipts: new ReceiptStore(state.journal, count, undefined, retention),
@@ -162,7 +172,8 @@ export function openWorld(root: string, scenario: boolean): World {
       let n = hosts.length;
       while (existsSync(join(root, `native-${n}.jsonl`))) n++;
       const id = `native-${n}`;
-      const file = join(root, `${id}.jsonl`);
+      // A sandboxed worker's pi writes its session in its own root (P2-4); the supervisor reads it pinned there.
+      const file = join(launch.sandbox ? launch.sessionDir : root, `${id}.jsonl`);
       writeFileSync(file, `${JSON.stringify({ type: 'session', id })}\n`);
       // A relaunch (P2-3) spawns under its own command and reopens the worker's session: both are its native effects.
       effect(root, { kind: 'create', command_id: launch.commandId, session_file: file, session_id: id, worker_id: launch.workerId, domain: launch.domain.name });
