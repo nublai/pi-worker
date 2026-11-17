@@ -1048,6 +1048,10 @@ export interface components {
          *       created, ready and idle, plus `admission: rejected` and the refusal
          *       code in `error`. No execution exists and nothing reached pi; the
          *       caller keeps the draft and may send it with `sessions.prompt`.
+         *     - Refused by pi before any input hook (busy or compacting): the same
+         *       shape, `error` naming pi's refusal (`pi_refused_prompt: pi_busy`).
+         *       The execution the dispatch record named is gone, so the final
+         *       receipt has no `execution_id`.
          *     - Uncertain: the execution id is in the create's receipt, durably,
          *       before any byte of the prompt reaches pi. A caller whose create reply
          *       was lost reads the receipt with `receipts.get` and never sends the

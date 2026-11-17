@@ -98,8 +98,10 @@ export class Input {
       if (images.length) this.attachments?.releaseNow(images.map(i => i.id), c.command_id);
       return { ...created, ...patch, result: { ...created.result, ...patch.result } };
     } catch (error) {
-      // pi's explicit refusal before any input hook: nothing ran, the worker stays created and idle.
-      if (error instanceof ProvenNoEffect) return rejected(error);
+      // pi's explicit refusal before any input hook: nothing ran, the worker stays created and idle, and no execution
+      // exists (execute cleared it): the receipt drops the execution id its dispatch record named, as an admission
+      // refusal never had one.
+      if (error instanceof ProvenNoEffect) return { ...rejected(error), execution_id: undefined };
       // The prompt may have reached pi: its session is fenced before the receipt says so (invariant 3).
       if (this.s.receipts.all.get(c.command_id)?.execution_id && this.latch(live, c.command_id)) this.s.persist(live, 'execution.unknown');
       throw error;

@@ -24,6 +24,14 @@ export type Receipt = components['schemas']['Receipt'];
 export type Operation = Receipt['operation'];
 export type ReceiptPatch = Partial<Omit<Receipt, 'command_id' | 'operation' | 'request_hash' | 'evidence' | 'created_at'>>;
 
+/** The receipt with a patch applied; a field the patch sets to `undefined` is removed (it names nothing any more). */
+function merged(current: Receipt, patch: ReceiptPatch): Receipt {
+  const next: Record<string, unknown> = { ...current, ...patch };
+  for (const [key, value] of Object.entries(patch)) if (value === undefined) delete next[key];
+  // SAFETY: only optional Receipt fields can be undefined in a ReceiptPatch, so removing them keeps a Receipt.
+  return next as Receipt;
+}
+
 const FINAL = new Set<Receipt['state']>(['delivered', 'rejected', 'outcome_unknown']);
 /**
  * Control and recovery never deadlock behind the ordinary count quota. The byte cap still applies, but they may use the
@@ -190,7 +198,7 @@ export class ReceiptStore {
   update(commandId: string, patch: ReceiptPatch, label: DurableLabel): Receipt {
     const current = this.all.get(commandId);
     if (!current) throw new Error('receipt missing');
-    return this.put({ ...current, ...patch }, label);
+    return this.put(merged(current, patch), label);
   }
 
   /**
@@ -312,7 +320,7 @@ export class ReceiptStore {
           const current = this.all.get(commandId)!;
           // An exit may have finalized an accepted command while the effect awaited.
           if (isFinal(current)) return current;
-          return this.put({ ...current, ...patch }, 'receipt.result');
+          return this.put(merged(current, patch), 'receipt.result');
         } catch (error) {
           if (this.journal.failed) throw new Refusal('journal_failed_after_intent', 'unknown', commandId);
           const current = this.all.get(commandId)!;

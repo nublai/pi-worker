@@ -140,6 +140,32 @@ test('first_prompt: refused at admission, the worker is still created and the cr
   }
 });
 
+test('first_prompt: refused by pi before any input hook, the create receipt names the refusal and no execution (PR #20 GPT 7)', async () => {
+  const f = fixture({
+    initHost: host => {
+      const answer = host.request.bind(host);
+      // The SDK child refuses a busy pi before its input hooks (sdk-child main.ts `pi_busy`): proof nothing ran.
+      host.request = async c => (c.type === 'prompt' ? { type: 'response', id: 'x', success: false, error: 'pi_busy', refused: 'before_input' } : answer(c));
+    },
+  });
+  try {
+    const receipt = await f.supervisor.create(createRequest(f, 'busy-chat', { message: TEXT }));
+    assert.deepEqual([receipt.state, receipt.effect, receipt.admission], ['delivered', 'observed', 'rejected'], JSON.stringify(receipt));
+    assert.match(receipt.error ?? '', /pi_busy/);
+    assert.equal(receipt.execution_id, undefined, 'no execution exists, so the receipt names none');
+    assert.equal(receipt.disposition, undefined);
+    const w = f.supervisor.get(receipt.worker_id!);
+    assert.deepEqual([w.status, w.foreground, w.execution, w.fence], ['ready', 'idle', null, null]);
+    assert.equal(receipt.result?.worker_id, w.worker_id);
+    // The durable receipt and a duplicate create say the same.
+    assert.deepEqual(f.supervisor.receipts.all.get('busy-chat'), receipt);
+    const records = f.state.journal.records.filter(r => r.kind === 'receipt' && (r.value as Receipt).command_id === 'busy-chat');
+    assert.equal((records.at(-1)!.value as Receipt).execution_id, undefined, 'the journaled final record names no execution');
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('first_prompt: an uncertain create (its reply lost after the write) reconciles through receipts.get, and pi gets the prompt once', async () => {
   let release!: () => void;
   const held = new Promise<void>(r => (release = r));
