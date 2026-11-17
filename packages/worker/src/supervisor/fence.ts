@@ -73,7 +73,7 @@ export class Fence {
     const w = live.worker;
     const before = JSON.stringify([w.fence, w.execution, w.foreground, w.queued]);
     const prior = w.fence;
-    if (!prior) w.fence = { command_id: commandId, fence_generation: (w.fence_generation ?? 0) + 1, uncertain_command_ids: [commandId] };
+    if (!prior) w.fence = { command_id: commandId, fence_generation: (w.fence_generation ?? 0) + 1, fenced_at: new Date(this.s.receipts.now()).toISOString(), uncertain_command_ids: [commandId] };
     else if (!(prior.uncertain_command_ids ?? [prior.command_id]).includes(commandId)) {
       // Every uncertainty is kept; recovery of the same item never changes the generation.
       prior.uncertain_command_ids = [...(prior.uncertain_command_ids ?? [prior.command_id]), commandId];
@@ -125,7 +125,7 @@ export class Fence {
         const resolution = { command_id: uncertain, disposition: r.disposition, fence_generation: r.fence_generation };
         (w.resolutions ??= []).push(resolution);
         const remaining = (w.fence?.uncertain_command_ids ?? (w.fence ? [w.fence.command_id] : [])).filter(x => x !== uncertain);
-        w.fence = remaining.length ? { command_id: remaining[0]!, uncertain_command_ids: remaining, fence_generation: (w.fence_generation ?? 0) + 1 } : null;
+        w.fence = remaining.length && w.fence ? { command_id: remaining[0]!, uncertain_command_ids: remaining, fence_generation: (w.fence_generation ?? 0) + 1, fenced_at: w.fence.fenced_at } : null;
         if (w.fence) w.fence_generation = w.fence.fence_generation;
         else {
           w.foreground = live.host && live.observedIdle === false ? 'running' : 'idle';

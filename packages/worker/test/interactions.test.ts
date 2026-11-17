@@ -100,7 +100,7 @@ test('interactions: deadline, timeout, stale kind/revision/worker binding, fence
     for (const change of [{ kind: 'editor' as const }, { revision: 2 }, { worker_epoch: 'stale' }, { binding_revision: 99 }, { value: 'false' }]) {
       await assert.rejects(f.supervisor.answer(w.worker_id, f.answer(i, `bad${JSON.stringify(change)}`, { value: false, ...change })));
     }
-    f.supervisor.state.require(w.worker_id).worker.fence = { command_id: 'unknown', fence_generation: 1 };
+    f.supervisor.state.require(w.worker_id).worker.fence = { command_id: 'unknown', fence_generation: 1, fenced_at: new Date().toISOString() };
     await assert.rejects(f.supervisor.answer(w.worker_id, f.answer(i, 'fenced', { value: false })), /session_fenced/);
     f.supervisor.state.require(w.worker_id).worker.fence = null;
     await delay(40);
@@ -290,7 +290,7 @@ for (const mutation of ['none', 'grant', 'policy', 'expiry', 'digest', 'binding'
       if (mutation === 'digest') event.digest = 'changed';
       if (mutation === 'expiry') event.expiry = 1;
       if (mutation === 'binding') f.supervisor.state.require(w.worker_id).worker.binding_revision++;
-      if (mutation === 'fence') f.supervisor.state.require(w.worker_id).worker.fence = { command_id: 'u', fence_generation: 1 };
+      if (mutation === 'fence') f.supervisor.state.require(w.worker_id).worker.fence = { command_id: 'u', fence_generation: 1, fenced_at: new Date().toISOString() };
       const original = f.hosts[0]!.request.bind(f.hosts[0]);
       f.hosts[0]!.request = async c => (c.type === 'gate_release' ? { type: 'response', id: 'r', success: true, data: { released: c.allowed === true } } : original(c));
       await f.supervisor.interactions.gate(f.supervisor.state.require(w.worker_id).worker, event as PiRecord, () => {

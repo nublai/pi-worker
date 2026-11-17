@@ -353,7 +353,7 @@ func latch(w *worker, commandID string) {
 		if w.row.FenceGeneration != nil {
 			gen = *w.row.FenceGeneration + 1
 		}
-		w.row.Fence = &b2.Fence{CommandId: commandID, FenceGeneration: gen, UncertainCommandIds: &[]string{commandID}}
+		w.row.Fence = &b2.Fence{CommandId: commandID, FenceGeneration: gen, FencedAt: now(), UncertainCommandIds: &[]string{commandID}}
 	} else if ids := uncertainIDs(f); !slices.Contains(ids, commandID) {
 		f.UncertainCommandIds = ptr(append(ids, commandID))
 		f.FenceGeneration++
@@ -989,7 +989,7 @@ func (s *state) resolve(id string, rv b2.Resolve) (*b2.Receipt, error) {
 		}
 		if len(remaining) > 0 {
 			gen := derefInt(w.row.FenceGeneration) + 1
-			w.row.Fence = &b2.Fence{CommandId: remaining[0], UncertainCommandIds: &remaining, FenceGeneration: gen}
+			w.row.Fence = &b2.Fence{CommandId: remaining[0], UncertainCommandIds: &remaining, FenceGeneration: gen, FencedAt: w.row.Fence.FencedAt}
 			w.row.FenceGeneration = &gen
 		} else {
 			w.row.Fence = nil

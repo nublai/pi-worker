@@ -2324,9 +2324,12 @@ type ExecutionStartedEventType string
 
 // Fence defines model for Fence.
 type Fence struct {
-	CommandId           Id    `json:"command_id"`
-	FenceGeneration     int   `json:"fence_generation"`
-	UncertainCommandIds *[]Id `json:"uncertain_command_ids,omitempty"`
+	CommandId       Id  `json:"command_id"`
+	FenceGeneration int `json:"fence_generation"`
+
+	// FencedAt RFC 3339 time the worker latched this fence in its journal: the fence record's own timestamp, on the clock of receipt `created_at`. Set once; a later uncertainty or a partial resolution never changes it, and a restart keeps it.
+	FencedAt            string `json:"fenced_at"`
+	UncertainCommandIds *[]Id  `json:"uncertain_command_ids,omitempty"`
 }
 
 // FenceResolvedEvent A fence was lifted. Resolving never claims an external effect was undone.
@@ -2360,7 +2363,7 @@ type FenceResolvedEventEvidence string
 // FenceResolvedEventType defines model for FenceResolvedEvent.Type.
 type FenceResolvedEventType string
 
-// FenceSetEvent An uncertain command joined the worker's fence (the fence latched or its generation rose), after the fenced row was journaled. Session writes are refused until `sessions.resolve_unknown`.
+// FenceSetEvent An uncertain command joined the worker's fence (the fence latched or its generation rose), after the fenced row was journaled. Session writes are refused until `sessions.resolve_unknown`. `fence.fenced_at` is when the fence first latched, not when this command joined it.
 type FenceSetEvent struct {
 	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
 	Cursor Cursor `json:"cursor"`

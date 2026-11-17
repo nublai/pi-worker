@@ -452,7 +452,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Answer an interaction if its binding and revision are current */
+        /**
+         * Answer an interaction if its binding and revision are current
+         * @description `answer_id_conflict` (409): the `answer_id` was already used for a
+         *     different answer. The request is refused before any record, so this
+         *     request had no effect, but an earlier answer under that `answer_id` may
+         *     have been recorded and applied. Resolve with `interactions.status` for
+         *     the interaction and `receipts.get` of the earlier command; never
+         *     re-answer.
+         */
         post: operations["interactions.answer_if_current"];
         delete?: never;
         options?: never;
@@ -1203,6 +1211,8 @@ export interface components {
         Fence: {
             command_id: components["schemas"]["Id"];
             fence_generation: number;
+            /** @description RFC 3339 time the worker latched this fence in its journal: the fence record's own timestamp, on the clock of receipt `created_at`. Set once; a later uncertainty or a partial resolution never changes it, and a restart keeps it. */
+            fenced_at: string;
             uncertain_command_ids?: components["schemas"]["Id"][];
         };
         HistoryMarker: {
@@ -1794,7 +1804,7 @@ export interface components {
                 receipt: components["schemas"]["Receipt"];
             };
         };
-        /** @description An uncertain command joined the worker's fence (the fence latched or its generation rose), after the fenced row was journaled. Session writes are refused until `sessions.resolve_unknown`. */
+        /** @description An uncertain command joined the worker's fence (the fence latched or its generation rose), after the fenced row was journaled. Session writes are refused until `sessions.resolve_unknown`. `fence.fenced_at` is when the fence first latched, not when this command joined it. */
         FenceSetEvent: {
             /** @constant */
             type: "fence.set";
