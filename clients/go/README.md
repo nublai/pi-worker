@@ -24,14 +24,19 @@ never upload again blindly.
 client for it). The grant is the `bridge` profile unless `Options.Methods` says otherwise.
 
 - **Stateful (default).** Workers, bindings, executions, the follow-up queue, fences and `resolve_unknown`,
-  receipts, interactions, attachments and the event stream follow the worker's rules. Reads it does not model
-  (models, commands, the session catalog, history bytes, blobs, files) answer from the wire fixtures.
+  receipts, interactions, attachments and the event stream follow the worker's rules, with its refusal names and
+  bounds. Every session a worker binds has a session file (its header line, then what `AppendHistory` adds):
+  `sessions.get`, `sessions.list`, `sessions.history` and `blobs.read` read those, and an unknown session is
+  `unknown_session`. `models.list` and `commands.list` answer for a ready worker or an existing directory with
+  their wire fixtures' catalog. The reads it does not model (`history.page`, `items.read`, `files.read`) answer only a
+  request that matches a wire fixture exactly, else `404 fixture_not_found`, never another request's reply.
 - **Replay (`Options.Replay`).** Every operation answers only from its wire fixtures, matched exactly; use it to test
   that a driver handles every documented reply, refusals included.
 - **Fixture controls**, never model effects: `Host(id)` (`DropNextPromptReply`, `HoldNextPromptReply`,
-  `ReleaseHeldReply`, `NextAgentStart`, `Emit("agent_start" | "agent_settled" | "exit")`, `Prompts`), `Hosts`,
-  `Restart`, `Drain`, `Disk`, `Overflow`, `DropNextStageReply`, `OpenInteraction`. A prompt starts and is
-  acknowledged; nothing settles until `Emit("agent_settled")`.
+  `ReleaseHeldReply`, `NextAgentStart`, `Emit("agent_start" | "agent_settled" | "exit")`, `Prompts`,
+  `AcceptNextImages`), `Hosts`, `Restart`, `Drain`, `Disk`, `Overflow`, `DropNextStageReply`, `OpenInteraction`
+  (a card closes `timeout` at its deadline, 30 s by default), `AppendHistory`, `ReplaceHistory`. A prompt starts
+  and is acknowledged; nothing settles until `Emit("agent_settled")`.
 
 Its tests are the plan's P1-17 check: the Go replay of `api/fixtures/transitions.json` (the eleven section 0.1 rows,
 semantic hash pinned), the bridge-profile closure (every method routed, with wire fixtures, answered; every wire

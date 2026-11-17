@@ -5,9 +5,11 @@
 //
 //   - Stateful (the default). Workers, bindings, executions, the follow-up queue, fences and their resolution,
 //     receipts, interactions, attachments and the event stream follow the worker's rules (contract revision 8,
-//     section 0.1); the Go replay of api/fixtures/transitions.json runs against it. Operations whose answer is not
-//     state (models, commands, the session catalog and its history bytes, blobs, files) answer from the wire
-//     fixtures: the fixture whose request matches exactly, else the operation's "ok" fixture.
+//     section 0.1); the Go replay of api/fixtures/transitions.json runs against it. The session catalog
+//     (sessions.get, sessions.list), its history bytes and blobs read the fake's session files; models.list and
+//     commands.list answer for a ready worker or a directory with the catalog of their wire fixtures. The reads it
+//     does not model (history.page, items.read, files.read) answer only a request that matches a wire fixture
+//     exactly, else 404 fixture_not_found: never another request's reply.
 //   - Replay (Options.Replay). Every operation answers only from its wire fixtures, matched exactly on path,
 //     query, headers and body; anything else is 404 fixture_not_found. Use it to test that a driver handles every
 //     documented reply, refusals included.
@@ -314,13 +316,10 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	var out any
 	var err error
-	switch {
-	case f.opts.Replay:
-		out, err = replay(c, true)
-	case statefulOps[op.ID] != nil:
-		out, err = statefulOps[op.ID](f, c)
-	default:
-		out, err = replay(c, false)
+	if handler := statefulOps[op.ID]; handler != nil && !f.opts.Replay {
+		out, err = handler(f, c)
+	} else {
+		out, err = replay(c)
 	}
 	f.reply(c, out, err)
 }
@@ -367,17 +366,14 @@ func writeRefusal(w http.ResponseWriter, r *refusal) { writeJSON(w, r.status, r.
 
 func ptr[T any](v T) *T { return &v }
 
-// replay answers from the operation's wire fixtures: the one whose request matches exactly; else, unless exact,
-// the "ok" fixture.
-func replay(c *call, exact bool) (any, error) {
+// replay answers from the operation's wire fixtures: the one whose request matches exactly, never another
+// request's reply.
+func replay(c *call) (any, error) {
 	fixtures := WireFixtures(c.op.ID)
 	for _, fx := range fixtures {
 		if matches(c, fx.Request) {
 			return fixtureReply(c, fx.Response)
 		}
-	}
-	if !exact && len(fixtures) > 0 && fixtures[0].Response.Status == http.StatusOK {
-		return fixtureReply(c, fixtures[0].Response)
 	}
 	return nil, refuse("fixture_not_found").withStatus(http.StatusNotFound)
 }

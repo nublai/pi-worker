@@ -120,7 +120,7 @@ func TestBridgeJourneyAgainstTheStatefulFake(t *testing.T) {
 	if _, err := c.ReceiptsGet(ctx, "never"); asFailure(t, err).Effect != b2.UnknownEffect {
 		t.Fatalf("unknown receipt: %v", err)
 	}
-	// Reads the fake does not model answer from the wire fixtures.
+	// A ready worker's model catalog is the wire fixtures' catalog.
 	models, err := c.ModelsList(ctx, &b2.ModelsListParams{WorkerId: &w.WorkerId})
 	if err != nil || len(models.Models) == 0 {
 		t.Fatalf("models %+v %v", models, err)
