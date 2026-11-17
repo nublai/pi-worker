@@ -72,6 +72,12 @@ func init() {
 		"attachments.status":             locked(func(s *state, c *call) (any, error) { return s.attachmentStatus(c.path["attachment_id"]) }),
 		"attachments.release":            body(func(s *state, c *call, b b2.Release) (any, error) { return s.release(c.path["attachment_id"], b) }),
 		"events.subscribe":               subscribe,
+		"sessions.get":                   locked(sessionsGet),
+		"sessions.list":                  locked(sessionsList),
+		"sessions.history":               locked(sessionsHistory),
+		"blobs.read":                     locked(blobsRead),
+		"models.list":                    locked(func(s *state, c *call) (any, error) { return featureTarget(s, c, "models.list") }),
+		"commands.list":                  locked(func(s *state, c *call) (any, error) { return featureTarget(s, c, "commands.list") }),
 	}
 }
 

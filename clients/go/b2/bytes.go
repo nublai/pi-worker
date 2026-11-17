@@ -2,6 +2,8 @@ package b2
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -189,6 +191,17 @@ func (c *Client) SessionsHistory(ctx context.Context, sessionID string, params *
 	if h.err == nil && (out.NextOffset-out.Offset != int64(len(out.Body)) || out.NextOffset > out.Watermark) {
 		h.err = errors.New("offsets do not match the body")
 	}
+	// The reply must be the read asked for: this session, and the requested offset unless the worker says it reset.
+	requested := int64(0)
+	if params != nil && params.Offset != nil {
+		requested = int64(*params.Offset)
+	}
+	if h.err == nil && out.SessionID != sessionID {
+		h.err = fmt.Errorf("reply is for session %q, not %q", out.SessionID, sessionID)
+	}
+	if h.err == nil && !out.Reset && out.Offset != requested {
+		h.err = fmt.Errorf("reply starts at %d without a reset, not at the requested %d", out.Offset, requested)
+	}
 	if h.err != nil {
 		return nil, &ClientFailure{Op: op.ID, Phase: PhaseAfterWrite, Effect: UnknownEffect, Err: h.err}
 	}
@@ -221,10 +234,23 @@ func (c *Client) BlobsRead(ctx context.Context, sessionID, entryID string, index
 		ContentType: reply.ContentType,
 		Body:        reply.Body,
 	}
+	// The reply must be the blob asked for, and its bytes the ones the worker hashed.
+	switch {
+	case h.err != nil:
+	case out.SessionID != sessionID || out.EntryID != entryID || out.Index != index:
+		h.err = fmt.Errorf("reply is blob %s/%s/%d, not %s/%s/%d", out.SessionID, out.EntryID, out.Index, sessionID, entryID, index)
+	case !sha256Hex.MatchString(out.Sha256) || hexSum(out.Body) != out.Sha256:
+		h.err = errors.New("body does not match Piw-Blob-Sha256")
+	}
 	if h.err != nil {
 		return nil, &ClientFailure{Op: op.ID, Phase: PhaseAfterWrite, Effect: UnknownEffect, Err: h.err}
 	}
 	return out, nil
+}
+
+func hexSum(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }
 
 // headerReader parses response headers, keeping the first error.

@@ -85,14 +85,15 @@ type state struct {
 	receiving       map[string]*attachment
 	dropStageReply  bool
 	subs            map[*subscriber]bool
-	answerSigs      map[string]answerSig // answer_id → its recorded value (memory only)
+	answerSigs      map[string]answerSig    // answer_id → its recorded value (memory only)
+	sessions        map[string]*sessionFile // the session catalog: every session a worker bound, with its file
 }
 
 func newState(f *Fake) *state {
 	s := &state{
 		f: f, workers: map[string]*worker{}, disk: map[string]b2.Worker{}, receipts: map[string]*storedReceipt{},
 		firstHost: map[string]*Host{}, attachments: map[string]*attachment{}, receiving: map[string]*attachment{},
-		subs: map[*subscriber]bool{}, answerSigs: map[string]answerSig{},
+		subs: map[*subscriber]bool{}, answerSigs: map[string]answerSig{}, sessions: map[string]*sessionFile{},
 	}
 	s.supervisorEpoch = s.id("sup")
 	return s
@@ -458,6 +459,7 @@ func (s *state) create(c b2.Create, parent *createOpts) (*b2.Receipt, error) {
 		s.firstHost[id] = w.host
 		s.workers[id] = w
 		s.order = append(s.order, id)
+		s.bindSession(w, session)
 		s.persist(w)
 		deliver(r, "forwarded", nil)
 		return nil
@@ -954,7 +956,7 @@ func (s *state) move(id string, b b2.Rebind, op string, request any) (*b2.Receip
 		w.row.SessionId = &session
 		w.row.BindingRevision++
 		w.row.SessionIdentityEvidence = "pi_sdk_session_id"
-		w.row.LeafId = nil
+		s.bindSession(w, session)
 		w.row.Execution = nil
 		w.row.Foreground = "idle"
 		w.observedIdle = true
