@@ -283,6 +283,11 @@ test('kernel: real startup sweeps orphaned domains, with a setsid grandchild, bu
   }
 });
 
+/** Removes the production installation lock a kernel test's daemon left (its file and SQLite's journal beside it). */
+const dropLock = (installation: string) => {
+  for (const file of [`${installation}.lock`, `${installation}.lock-journal`]) rmSync(join(installationLocks(), file), { force: true });
+};
+
 const daemonMain = fileURLToPath(new URL('../../src/main.js', import.meta.url));
 
 /**
@@ -358,7 +363,7 @@ test("kernel: in an operator-shared delegation the daemon sweeps its own install
     if (daemon) await stopDaemon(daemon);
     for (const { jail, domain } of owned) await jail.clean(domain);
     for (const path of operator) await removeCgroup(path);
-    rmSync(join(installationLocks(), `${installation}.lock`), { force: true });
+    dropLock(installation);
     tmp.cleanup();
   }
 });
@@ -391,7 +396,7 @@ test('kernel: a sweep that cannot prove an unrecorded domain gone fails startup:
       rmdirSync(join(stuck, 'nested'));
       rmdirSync(stuck);
     }
-    rmSync(join(installationLocks(), `${installation}.lock`), { force: true });
+    dropLock(installation);
     tmp.cleanup();
   }
 });
