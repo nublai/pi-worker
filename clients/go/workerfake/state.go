@@ -570,11 +570,9 @@ func (s *state) firstPrompt(w *worker, r *b2.Receipt, fp b2.FirstPrompt, created
 	r.ExecutionId = &execution.ExecutionId
 	r.Result = &created
 	s.receiptUpdated(*r)
-	images := 0
-	if fp.Attachments != nil {
-		images = len(*fp.Attachments)
-	}
-	accepted, err := w.host.prompt(images)
+	ids := attachmentIDs(fp.Attachments)
+	images := len(ids)
+	accepted, marked, err := w.host.prompt(promptInput{commandID: r.CommandId, executionID: execution.ExecutionId, text: fp.Message, attachments: ids})
 	if err != nil {
 		latch(w, r.CommandId)
 		s.persist(w)
@@ -583,7 +581,7 @@ func (s *state) firstPrompt(w *worker, r *b2.Receipt, fp b2.FirstPrompt, created
 	execution.Disposition = ptr("started")
 	s.persist(w)
 	result := maps.Clone(created)
-	result["interrupt_marker"] = false
+	result["interrupt_marker"] = marked
 	if images > 0 {
 		result["accepted_images"] = accepted
 		for _, a := range *fp.Attachments {
@@ -705,17 +703,16 @@ func (s *state) prompt(id string, p b2.Prompt, op string, request any) (*b2.Rece
 		s.publish("execution.admitted", id, &execution.ExecutionId, "supervisor_journal_fsynced", map[string]any{"command_id": p.CommandId})
 		r.ExecutionId = &execution.ExecutionId
 		s.dispatch(r)
-		images := 0
-		if p.Attachments != nil {
-			images = len(*p.Attachments)
-		}
-		accepted, err := w.host.prompt(images)
+		ids := attachmentIDs(p.Attachments)
+		images := len(ids)
+		accepted, marked, err := w.host.prompt(promptInput{commandID: p.CommandId, executionID: execution.ExecutionId, text: p.Message, attachments: ids})
 		if err != nil {
 			return err
 		}
 		execution.Disposition = ptr("started")
 		s.persist(w)
-		result := map[string]any{"interrupt_marker": false}
+		// Whether the worker's interrupt marker went in front of this input (input.ts, S-5).
+		result := map[string]any{"interrupt_marker": marked}
 		if images > 0 {
 			// With attachments, the number of images pi put in the message (input.ts).
 			result["accepted_images"] = accepted
@@ -901,6 +898,8 @@ func (s *state) control(id string, b b2.Control, op string) (*b2.Receipt, error)
 		s.dispatch(r)
 		s.dropQueued(w)
 		s.interrupt(w)
+		// pi aborts the running turn: its aborted assistant turn is in the session file (the next prompt is marked).
+		s.abortTurn(w)
 		s.persist(w)
 		if w.host == nil || w.exited || w.row.Status != "ready" {
 			deliver(r, "requested", map[string]any{"requested": true, "disposition": "unknown", "profile": "no_live_host"})

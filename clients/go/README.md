@@ -26,8 +26,11 @@ client for it). The grant is the `bridge` profile unless `Options.Methods` says 
 
 - **Stateful (default).** Workers, bindings, executions, the follow-up queue, fences and `resolve_unknown`,
   receipts, interactions, attachments and the event stream follow the worker's rules, with its refusal names and
-  bounds. Every session a worker binds has a session file (its header line, then what `AppendHistory` adds):
-  `sessions.get`, `sessions.list`, `sessions.history` and `blobs.read` read those, and an unknown session is
+  bounds. Every session a worker binds has a session file: its header line; for each prompt, the
+  `pi-worker.input` stamp and the user message, as the worker's SDK child and pi write them (the worker-owned
+  interrupt marker in front of the text after an interrupted execution, `result.interrupt_marker` on the receipt);
+  pi's aborted assistant turn when `executions.cancel` or `executions.interrupt` ends a running execution; and what
+  `AppendHistory` adds. `sessions.get`, `sessions.list`, `sessions.history` and `blobs.read` read those, and an unknown session is
   `unknown_session`. `models.list` and `commands.list` answer for a ready worker or an existing directory with
   their wire fixtures' catalog. The reads it does not model (`history.page`, `items.read`, `files.read`) answer only a
   request that matches a wire fixture exactly, else `404 fixture_not_found`, never another request's reply.
@@ -37,7 +40,8 @@ client for it). The grant is the `bridge` profile unless `Options.Methods` says 
   `ReleaseHeldReply`, `NextAgentStart`, `Emit("agent_start" | "agent_settled" | "exit")`, `Prompts`,
   `AcceptNextImages`), `Hosts`, `Restart`, `Drain`, `Disk`, `Overflow`, `DropNextStageReply`, `OpenInteraction`
   (a card closes `timeout` at its deadline, 30 s by default), `AppendHistory`, `ReplaceHistory`. A prompt starts
-  and is acknowledged; nothing settles until `Emit("agent_settled")`.
+  and is acknowledged; nothing settles until `Emit("agent_settled")`, and no assistant reply is written unless a test
+  appends one.
 
 Its tests are the plan's P1-17 check: the Go replay of `api/fixtures/transitions.json` (the eleven section 0.1 rows,
 semantic hash pinned), the bridge-profile closure (every method routed, with wire fixtures, answered; every wire
