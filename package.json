@@ -9,7 +9,8 @@
   },
   "workspaces": [
     "packages/client-ts",
-    "packages/worker"
+    "packages/worker",
+    "packages/cli"
   ],
   "scripts": {
     "api:lint": "REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true redocly lint --config api/redocly.yaml b2 && node tools/codegen/lint-fixtures.mjs && node tools/codegen/check-profiles.mjs",
