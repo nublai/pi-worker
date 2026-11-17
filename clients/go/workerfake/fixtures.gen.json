@@ -2493,7 +2493,7 @@
       "worker_id": "worker-1"
      },
      "body": {
-      "command_id": "cmd-4",
+      "command_id": "cmd-5",
       "worker_epoch": "epoch-1",
       "session_id": "session-1",
       "binding_revision": 1
