@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index 65ac607..17cb696 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -159,7 +159,6 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+     'children.launch': ({ path, body, caller }) => {
+       // The child's environment must be in the caller's scope too.
+       if (!caller || !allowsCwd(caller, body.launch.cwd)) throw new Refusal('grant_scope_denied');
+-      if (body.launch.first_prompt && !allowsMethod(caller, 'sessions.prompt')) throw new Refusal('grant_method_denied');
+       return supervisor().launchChild(path.worker_id, body);
+     },
+     'children.report': ({ path, body }) => supervisor().report(path.worker_id, body),

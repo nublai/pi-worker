@@ -289,6 +289,17 @@
         "p1-19-settlements-uncapped.diff",
         "p1-19-settlements-not-journaled.diff"
       ]
+    },
+    "first-prompt": {
+      "command": "npm test -- first-prompt",
+      "diffs": [
+        "p1-19-first-prompt-text-journaled.diff",
+        "p1-19-first-prompt-no-dispatch-record.diff",
+        "p1-19-first-prompt-unknown-not-fenced.diff",
+        "p1-19-first-prompt-unknown-not-recovered.diff",
+        "p1-19-first-prompt-create-grant-unchecked.diff",
+        "p1-19-first-prompt-child-grant-unchecked.diff"
+      ]
     }
   }
 }
