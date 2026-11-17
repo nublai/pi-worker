@@ -1,10 +1,11 @@
 diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
+index 5691c0f..0f80202 100644
 --- a/packages/worker/src/supervisor/state.ts
 +++ b/packages/worker/src/supervisor/state.ts
-@@ -138,7 +138,7 @@
-       this.rowSize.set(persisted.worker.worker_id, recordBytes(record.value));
-     }
-     receipts.budget = (operation, request) => this.budget(operation, request);
+@@ -180,7 +180,7 @@ export class SupervisorState {
+     receipts.onRecord = (receipt, appended) => {
+       if (receipt.worker_id) this.events.publish('receipt.updated', { worker_id: receipt.worker_id, execution_id: receipt.execution_id ?? null, data: { receipt: structuredClone(receipt) }, appended });
+     };
 -    journal.controlRoom = () => this.controlRoom();
 +    journal.controlRoom = () => 0;
    }

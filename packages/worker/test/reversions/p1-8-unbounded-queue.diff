@@ -1,11 +1,11 @@
 diff --git a/packages/worker/src/events/hub.ts b/packages/worker/src/events/hub.ts
-index ea56a93..5cf5594 100644
+index 52b8795..9eb59d0 100644
 --- a/packages/worker/src/events/hub.ts
 +++ b/packages/worker/src/events/hub.ts
-@@ -122,7 +122,7 @@ export class EventHub {
-         continue;
+@@ -125,7 +125,7 @@ export class EventHub {
        }
        if (sub.attaching || sub.blocked) {
+         if (frame.type === 'assistant.delta') this.supersede(sub, workerId);
 -        if (sub.queued.length >= this.maxQueued || sub.bytes + bytes > this.maxBytes) {
 +        if (false) {
            this.overflow(sub, 'subscriber_queue_overflow');
