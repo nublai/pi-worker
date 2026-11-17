@@ -112,7 +112,13 @@ func TestSSEReconnectAlwaysStartsWithASnapshotAndNeverReplays(t *testing.T) {
 	if !ok || updated.Data.Worker.Title == nil || *updated.Data.Worker.Title != "renamed" || updated.Cursor.Seq != snap.Cursor.Seq+1 {
 		t.Fatalf("event %s %+v", ev.Type, ev.Event)
 	}
-	last := updated.Cursor
+	// The command's receipt record follows its row (receipt.updated); its cursor is the newest.
+	ev = first.next(t)
+	receipt, ok := ev.Event.(*b2.ReceiptUpdatedEvent)
+	if !ok || receipt.Data.Receipt.CommandId != "cfg-1" || receipt.Cursor.Seq != updated.Cursor.Seq+1 {
+		t.Fatalf("event %s %+v", ev.Type, ev.Event)
+	}
+	last := receipt.Cursor
 	first.cancel()
 	first.end(t)
 

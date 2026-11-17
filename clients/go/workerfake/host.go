@@ -2,6 +2,7 @@ package workerfake
 
 import (
 	"errors"
+	"unicode/utf16"
 )
 
 // Host is the fixture-only stand-in for a worker's pi process: it counts native prompt submissions, can lose or
@@ -14,7 +15,8 @@ type Host struct {
 	mode    string // "", "drop" or "hold"
 	held    chan struct{}
 	starts  []chan struct{}
-	accept  *int // images the next prompt with images reports accepted; nil: all of them
+	accept  *int               // images the next prompt with images reports accepted; nil: all of them
+	tools   map[string]*string // summaries of tool calls started and not finished
 }
 
 var errDroppedReply = errors.New("fixture_dropped_reply")
@@ -98,10 +100,60 @@ func (h *Host) emit(eventType string) {
 		}
 		h.starts = nil
 	}
-	if h.w == nil || h.f.st.workers[h.w.row.WorkerId] != h.w || h.w.host != h {
+	if !h.live() {
 		return
 	}
 	h.f.st.event(h.w, eventType)
+}
+
+// tailChars is the most assistant text one assistant.delta carries (activity.ts TAIL_CHARS), in UTF-16 code units.
+const tailChars = 2048
+
+// EmitText injects pi's text delta for the assistant message being streamed: text is the message's whole text so far
+// (pi's partial message). It becomes assistant.delta with its tail and length, as activity.ts derives them.
+func (h *Host) EmitText(text string) {
+	h.f.mu.Lock()
+	defer h.f.mu.Unlock()
+	if h.live() {
+		units := utf16.Encode([]rune(text))
+		tail := units
+		if len(units) > tailChars {
+			tail = units[len(units)-tailChars:]
+			if utf16.IsSurrogate(rune(tail[0])) && tail[0] >= 0xdc00 {
+				tail = tail[1:]
+			}
+		}
+		h.f.st.publish("assistant.delta", h.w.row.WorkerId, executionOf(h.w), "observed_memory", map[string]any{"tail": string(utf16.Decode(tail)), "length": len(units)})
+	}
+}
+
+// EmitToolStart injects pi's tool_execution_start: tool.started with the call id, name and summary (nil for none).
+func (h *Host) EmitToolStart(toolCallID, name string, summary *string) {
+	h.f.mu.Lock()
+	defer h.f.mu.Unlock()
+	if h.live() {
+		if h.tools == nil {
+			h.tools = map[string]*string{}
+		}
+		h.tools[toolCallID] = summary
+		h.f.st.publish("tool.started", h.w.row.WorkerId, executionOf(h.w), "observed_memory", map[string]any{"tool_call_id": toolCallID, "name": name, "summary": summary})
+	}
+}
+
+// EmitToolEnd injects pi's tool_execution_end: tool.finished, repeating the summary its start carried.
+func (h *Host) EmitToolEnd(toolCallID, name string, isError bool) {
+	h.f.mu.Lock()
+	defer h.f.mu.Unlock()
+	if h.live() {
+		summary := h.tools[toolCallID]
+		delete(h.tools, toolCallID)
+		h.f.st.publish("tool.finished", h.w.row.WorkerId, executionOf(h.w), "observed_memory", map[string]any{"tool_call_id": toolCallID, "name": name, "summary": summary, "is_error": isError})
+	}
+}
+
+// live: this host is its worker's current one (a retired generation's events are ignored).
+func (h *Host) live() bool {
+	return h.w != nil && h.f.st.workers[h.w.row.WorkerId] == h.w && h.w.host == h
 }
 
 // prompt is one native prompt submission with its images (f.mu held): it starts, then replies with the number of

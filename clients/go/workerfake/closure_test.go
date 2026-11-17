@@ -183,8 +183,8 @@ func callFixture(t *testing.T, ctx context.Context, c *b2.Client, fx workerfake.
 		// A fixture stream ends after its frames; a live one is read up to its snapshot.
 		err := c.Watch(ctx, opts, func(f b2.Frame) bool { frames = append(frames, f.Raw); return !live })
 		var resync *b2.ResyncRequired
-		if errors.As(err, &resync) && resync.Reason == "disconnected" {
-			// The fixture's stream ends after its frames.
+		if errors.As(err, &resync) && (resync.Reason == "disconnected" || resync.Reason == "overflow") {
+			// The fixture's stream ends after its frames (an overflow frame ends it too).
 			return frames, nil
 		}
 		return frames, err

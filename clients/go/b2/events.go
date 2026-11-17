@@ -41,6 +41,22 @@ func DecodeEvent(data []byte) (any, error) {
 		target = &ChildReportedEvent{}
 	case "history.appended":
 		target = &HistoryAppendedEvent{}
+	case "execution.admitted":
+		target = &ExecutionAdmittedEvent{}
+	case "execution.started":
+		target = &ExecutionStartedEvent{}
+	case "assistant.delta":
+		target = &AssistantDeltaEvent{}
+	case "tool.started":
+		target = &ToolStartedEvent{}
+	case "tool.finished":
+		target = &ToolFinishedEvent{}
+	case "receipt.updated":
+		target = &ReceiptUpdatedEvent{}
+	case "fence.set":
+		target = &FenceSetEvent{}
+	case "attachment.updated":
+		target = &AttachmentUpdatedEvent{}
 	case "":
 		return nil, fmt.Errorf("b2: event frame without a type")
 	default:

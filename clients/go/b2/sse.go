@@ -206,6 +206,22 @@ func eventType(event any) string {
 		return string(e.Type)
 	case *HistoryAppendedEvent:
 		return string(e.Type)
+	case *ExecutionAdmittedEvent:
+		return string(e.Type)
+	case *ExecutionStartedEvent:
+		return string(e.Type)
+	case *AssistantDeltaEvent:
+		return string(e.Type)
+	case *ToolStartedEvent:
+		return string(e.Type)
+	case *ToolFinishedEvent:
+		return string(e.Type)
+	case *ReceiptUpdatedEvent:
+		return string(e.Type)
+	case *FenceSetEvent:
+		return string(e.Type)
+	case *AttachmentUpdatedEvent:
+		return string(e.Type)
 	case *UnknownEvent:
 		return e.Type
 	}

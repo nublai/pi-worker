@@ -203,6 +203,7 @@ func stage(f *Fake, c *call) (any, error) {
 		st := recv.status
 		st.State, st.Bytes, st.StagedAt, st.Evidence = "staged", data.Len(), ptr(now()), "supervisor_journal_fsynced"
 		s.attachments[id] = &attachment{status: st, data: data.Bytes()}
+		s.attachmentUpdated(st)
 		deliver(r, "forwarded", map[string]any{"attachment_id": id, "state": "staged", "bytes": data.Len()})
 		return nil
 	})
@@ -285,7 +286,13 @@ func (s *state) releaseNow(id, by string) {
 	if a := s.attachments[id]; a != nil && a.status.State == "staged" {
 		a.status.State, a.status.ReleasedAt, a.status.ReleasedBy = "released", ptr(now()), ptr(by)
 		a.data = nil
+		s.attachmentUpdated(a.status)
 	}
+}
+
+// attachmentUpdated publishes an attachment's durable record (staged or released) as attachment.updated.
+func (s *state) attachmentUpdated(st b2.AttachmentStatus) {
+	s.publish("attachment.updated", st.WorkerId, nil, "supervisor_journal_fsynced", map[string]any{"attachment": st})
 }
 
 // forPrompt checks the attachments a prompt names: this worker's, staged, within the per-message limits.

@@ -121,6 +121,16 @@ func clone[T any](v T) T {
 // view is the worker row readers see, with its live interactions.
 func (s *state) view(w *worker) b2.Worker {
 	row := clone(w.row)
+	// The phone's chat row from the session file, as state.ts view() does: the newest user or assistant text
+	// (marker stripped) and the newest entry's time; null before pi wrote any.
+	row.Preview, row.LastActivityAt = nil, nil
+	if sf := s.sessions[derefString(w.row.SessionId)]; sf != nil {
+		_, _, row.Preview = summarize(sf.data[:sf.watermark()])
+		row.LastActivityAt = lastEntryTime(sf.data[:sf.watermark()])
+	}
+	if row.RecentSettlements == nil {
+		row.RecentSettlements = &[]b2.RecentSettlement{}
+	}
 	row.PendingInteractions = []json.RawMessage{}
 	for _, in := range pending(w) {
 		data, _ := json.Marshal(in)
@@ -129,11 +139,51 @@ func (s *state) view(w *worker) b2.Worker {
 	return row
 }
 
-// persist is the fake's durable worker record (Disk) and publishes the row.
+// persist is the fake's durable worker record (Disk) and publishes the row; an uncertain command that joined the
+// fence in this row is fence.set, after it (state.ts persist).
 func (s *state) persist(w *worker) {
+	var before []string
+	if old, ok := s.disk[w.row.WorkerId]; ok && old.Fence != nil {
+		before = uncertainIDs(old.Fence)
+	}
 	s.disk[w.row.WorkerId] = clone(w.row)
 	row := s.view(w)
 	s.publish("worker.updated", w.row.WorkerId, executionOf(w), "supervisor_journal_fsynced", map[string]any{"worker": row})
+	if f := w.row.Fence; f != nil {
+		for _, cmd := range uncertainIDs(f) {
+			if slices.Contains(before, cmd) {
+				continue
+			}
+			var execution *string
+			if e := w.row.Execution; e != nil && e.CommandId == cmd {
+				execution = &e.ExecutionId
+			}
+			s.publish("fence.set", w.row.WorkerId, execution, "supervisor_journal_fsynced", map[string]any{"command_id": cmd, "fence_generation": f.FenceGeneration, "fence": clone(*f)})
+			break
+		}
+	}
+}
+
+// recentSettlements is the cap of a row's recent_settlements (input.ts RECENT_SETTLEMENTS).
+const recentSettlements = 8
+
+// recordSettlement puts the worker's execution first in its row's recent_settlements: one entry per execution, at
+// most recentSettlements (input.ts recordSettlement). The caller persists the row.
+func recordSettlement(w *worker, disposition string) {
+	e := w.row.Execution
+	list := deref(w.row.RecentSettlements)
+	if slices.ContainsFunc(list, func(x b2.RecentSettlement) bool { return x.ExecutionId == e.ExecutionId }) {
+		return
+	}
+	list = append([]b2.RecentSettlement{{ExecutionId: e.ExecutionId, CommandId: e.CommandId, Disposition: disposition, SettledAt: now()}}, list...)
+	w.row.RecentSettlements = ptr(list[:min(len(list), recentSettlements)])
+}
+
+// receiptUpdated publishes a worker command's receipt record as receipt.updated.
+func (s *state) receiptUpdated(r b2.Receipt) {
+	if r.WorkerId != nil {
+		s.publish("receipt.updated", *r.WorkerId, r.ExecutionId, "supervisor_journal_fsynced", map[string]any{"receipt": r})
+	}
 }
 
 func executionOf(w *worker) *string {
@@ -214,6 +264,7 @@ func (s *state) run(workerID, commandID, op string, request any, validate func()
 		}
 		rec.Error = ptr(err.Error())
 	}
+	s.receiptUpdated(rec.Receipt)
 	r := rec.Receipt
 	return &r, nil
 }
@@ -323,6 +374,7 @@ func uncertainIDs(f *b2.Fence) []string {
 func (s *state) uncertain(w *worker, commandID string) {
 	if r := s.receipts[commandID]; r != nil && r.State == stAccepted {
 		r.State, r.Stage, r.Effect = stOutcomeUnknown, "unknown", "unknown"
+		s.receiptUpdated(r.Receipt)
 	}
 	if e := w.row.Execution; e != nil && e.CommandId == commandID && e.State != "settled" {
 		e.State = "outcome_unknown"
@@ -340,23 +392,25 @@ func (s *state) event(w *worker, kind string) {
 		if e := w.row.Execution; e != nil && e.State == "admitted" {
 			e.State = "started"
 			s.persist(w)
+			s.publish("execution.started", w.row.WorkerId, &e.ExecutionId, "supervisor_journal_fsynced", map[string]any{"command_id": e.CommandId})
 		}
 	case "agent_settled":
 		w.row.Foreground = foreground(w, "idle")
 		w.observedIdle = true
 		w.row.SettleCount = ptr(derefInt(w.row.SettleCount) + 1)
 		e := w.row.Execution
+		disposition := "agent_settled"
 		if e != nil {
+			if e.Disposition != nil {
+				disposition = *e.Disposition
+			}
 			e.State = "settled"
+			recordSettlement(w, disposition)
 			s.settlements = append(s.settlements, settlement{w.row.WorkerId, derefString(w.row.SessionId), e.ExecutionId, e.CommandId})
 		}
 		s.persist(w)
 		if e != nil {
-			disposition := "agent_settled"
-			if e.Disposition != nil {
-				disposition = *e.Disposition
-			}
-			s.publish("execution.settled", w.row.WorkerId, &e.ExecutionId, "observed_memory", map[string]any{"disposition": disposition})
+			s.publish("execution.settled", w.row.WorkerId, &e.ExecutionId, "observed_memory", map[string]any{"command_id": e.CommandId, "disposition": disposition})
 		}
 		s.flush(w)
 	case "exit":
@@ -445,7 +499,7 @@ func (s *state) create(c b2.Create, parent *createOpts) (*b2.Receipt, error) {
 			SessionIdentityEvidence: "pi_sdk_session_id", BindingRevision: 1, Cwd: c.Cwd, Status: "ready",
 			Foreground: "idle", Cleanup: "none", History: b2.HistoryMarker{Evidence: "pi_session_file"},
 			PendingInteractions: []json.RawMessage{}, Queued: &[]b2.QueuedInput{}, FenceGeneration: ptr(0),
-			Host: ptr(b2.Host("sdk")), SettleCount: ptr(0), StatusSince: ptr(now()), RepoLabel: ptr(filepath.Base(c.Cwd)),
+			Host: ptr(b2.Host("sdk")), SettleCount: ptr(0), RecentSettlements: &[]b2.RecentSettlement{}, StatusSince: ptr(now()), RepoLabel: ptr(filepath.Base(c.Cwd)),
 			Model: &b2.ModelRef{Provider: c.Provider, Id: c.Model}, Thinking: ptr(c.Thinking),
 		}}
 		if parent != nil {
@@ -571,6 +625,7 @@ func (s *state) prompt(id string, p b2.Prompt, op string, request any) (*b2.Rece
 		w.row.Foreground = "running"
 		w.observedIdle = false
 		s.persist(w)
+		s.publish("execution.admitted", id, &execution.ExecutionId, "supervisor_journal_fsynced", map[string]any{"command_id": p.CommandId})
 		dispatch(r)
 		r.ExecutionId = &execution.ExecutionId
 		images := 0
@@ -1109,6 +1164,7 @@ func (s *state) restart() {
 		if e := w.row.Execution; e != nil && e.State != "settled" {
 			if r := s.receipts[e.CommandId]; r != nil && r.Effect == "no_effect" && (r.State == stIntentRecovered || r.State == stRejected) {
 				e.State, e.Disposition = "settled", ptr("no_effect_before_dispatch")
+				recordSettlement(w, "no_effect_before_dispatch")
 				w.row.Foreground = "idle"
 			} else if !resolved(w, e.CommandId) || w.row.Status == "ready" || w.row.Status == "starting" {
 				s.uncertain(w, e.CommandId)

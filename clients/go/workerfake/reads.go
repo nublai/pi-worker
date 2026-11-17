@@ -166,6 +166,25 @@ func (s *state) sessionRow(sf *sessionFile) b2.SessionRow {
 	}
 }
 
+// lastEntryTime is the timestamp of the newest entry after the header (history/session-file.ts fold: every entry with
+// a string timestamp moves it), or nil when pi wrote none.
+func lastEntryTime(data []byte) *string {
+	var last *string
+	for _, line := range bytes.Split(data, []byte("\n")) {
+		var e struct {
+			Type      string `json:"type"`
+			Timestamp any    `json:"timestamp"`
+		}
+		if json.Unmarshal(line, &e) != nil || e.Type == "session" {
+			continue
+		}
+		if ts, ok := e.Timestamp.(string); ok {
+			last = ptr(ts)
+		}
+	}
+	return last
+}
+
 // interruptMarker is the worker's interrupt marker line (history/session-file.ts INTERRUPT_MARKER).
 const interruptMarker = "[The previous request was interrupted by the user before it finished.]"
 
