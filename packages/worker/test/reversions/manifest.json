@@ -266,6 +266,17 @@
         "p1d-fix-grok-f2-duplicate-across-workers.diff",
         "p1d-fix2-n1-dir-fsync-keeps-file.diff"
       ]
+    },
+    "go-b2-auth": {
+      "command": "cd clients/go && { go test -count=1 ./b2/ 2>&1; echo \"go-test-exit $?\"; } | awk '/^go-test-exit /{exit $2} {print} $1 == \"---\" && $2 == \"FAIL:\" {print \"✖ \" $3}'",
+      "diffs": [
+        "pr19-grant-follows-symlink.diff",
+        "pr19-grant-mode-perm-only.diff",
+        "pr19-grant-mode-type-only.diff",
+        "pr19-grant-any-owner.diff",
+        "pr19-grant-uncapped.diff",
+        "pr19-peer-any-uid.diff"
+      ]
     }
   }
 }

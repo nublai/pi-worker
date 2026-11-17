@@ -1,0 +1,16 @@
+diff --git a/clients/go/b2/transport.go b/clients/go/b2/transport.go
+index dc56c75..7a3bd68 100644
+--- a/clients/go/b2/transport.go
++++ b/clients/go/b2/transport.go
+@@ -94,10 +94,7 @@ func (c *Client) dial(ctx context.Context, _, _ string) (net.Conn, error) {
+ 		conn.Close()
+ 		return nil, fmt.Errorf("b2: reading peer credentials: %w", err)
+ 	}
+-	if uid != c.expectedUID {
+-		conn.Close()
+-		return nil, fmt.Errorf("%w (peer uid %d, expected %d)", ErrPeerNotOwner, uid, c.expectedUID)
+-	}
++	_ = uid
+ 	return conn, nil
+ }
+ 

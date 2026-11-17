@@ -165,3 +165,14 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `p1d-fix2-r1-growth-is-append.diff` | a file that grew is hashed again too: a rewrite in place followed by an append before any read is a new generation, never an append (PR #13 review R1) | `inventory: a rewrite in place followed by an append before any read resets sessions.history…` (group `inventory`) |
 | `p1d-fix2-r1-history-ignores-prefix.diff` | a `prefix` that is not the SHA-256 of the bytes before `offset` resets sessions.history to byte 0; it is the check that survives a supervisor restart (PR #13 review R1) | `inventory: a rewrite in place while the supervisor is down resets sessions.history by the cursor prefix…` and `inventory: sessions.history resets on a replaced, shrunk or rewritten file…` (group `inventory`) |
 | `p1d-fix2-n1-dir-fsync-keeps-file.diff` | a directory fsync that fails after the rename removes the staged file before any record, verified absent, `no_effect` (PR #13 Grok N1) | `attachments: a directory fsync that fails after the rename removes the file before any record…` (group `attachments`) |
+| `pr19-grant-follows-symlink.diff` | the Go client opens the grant with `O_NOFOLLOW` (PR #19, rule 6) | `TestGrantFileRefusals/symlink` (group `go-b2-auth`) |
+| `pr19-grant-mode-perm-only.diff` | the grant's mode is exactly a regular 0600 file: no fifo or other type, no setuid, setgid or sticky bit (PR #19) | `TestGrantFileRefusals/fifo`, `/setuid`, `/setgid`, `/sticky` (group `go-b2-auth`) |
+| `pr19-grant-mode-type-only.diff` | the grant's permission bits are exactly 0600 (PR #19) | `TestGrantFileRefusals/group-readable` and the special-bit cases (group `go-b2-auth`) |
+| `pr19-grant-any-owner.diff` | the grant is owned by the client's effective UID (PR #19) | `TestGrantOwnerPolicy` (group `go-b2-auth`) |
+| `pr19-grant-uncapped.diff` | the grant read is capped at 64 KiB (PR #19) | `TestGrantFileRefusals/oversize`, `TestGrantFileLimitAndHardLinks` (group `go-b2-auth`) |
+| `pr19-peer-any-uid.diff` | the socket peer's UID is checked before the first write (PR #19) | `TestPeerNotOwnerRefusedBeforeWrite` (group `go-b2-auth`) |
+
+The `go-b2-auth` group runs `go test ./b2/` in `clients/go` and turns each `--- FAIL: <name>` line into the `✖ <name>`
+line the runner counts, so a Go build error stays `failed_without_assertion`. The darwin `LOCAL_PEERCRED` layout
+check in `peercred_darwin.go` has no reversion: that file builds only for darwin, so no Linux test can run it, and CI
+only vets it (`GOOS=darwin go vet`).
