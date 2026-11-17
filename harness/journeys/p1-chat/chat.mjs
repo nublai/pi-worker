@@ -133,7 +133,8 @@ const p1 = pw('sessions.prompt', ['sessions.prompt', W, '--message', 'hello from
 check('prompt_delivered', p1.code === 0 && p1.out?.state === 'delivered' && typeof p1.out?.execution_id === 'string');
 const s1 = settled('events.subscribe until settled', W, p1.out?.execution_id);
 check('prompt_settled_event', s1.settled);
-check('receipts_get', pw('receipts.get', ['receipts.get', p1.out?.command_id]).out?.state === 'delivered');
+const r1 = pw('receipts.get', ['receipts.get', p1.out?.command_id]).out;
+check('receipts_get', r1?.command_id === p1.out?.command_id && r1?.state === 'delivered');
 const page = pw('history.page', ['history.page', W]);
 const reply = page.out?.entries?.find(e => e.message?.role === 'assistant' && text(e) === 'scripted reply');
 check('history_has_reply', page.code === 0 && reply !== undefined);
@@ -178,14 +179,21 @@ check('attachments_release', pw('attachments.release', ['attachments.release', s
 // 6. Session features: catalog, configure, reload, an extension command, compaction (a typed outcome either way).
 check('sessions_list', pw('sessions.list', ['sessions.list']).out?.sessions?.some(s => s.session_id === S1) === true);
 check('sessions_get', pw('sessions.get', ['sessions.get', S1]).out?.session_id === S1);
-check('session_configure', pw('session.configure', ['session.configure', W, '--name', 'p1-chat']).out?.state === 'delivered');
-check('resources_reload', pw('resources.reload', ['resources.reload', W]).out?.state === 'delivered');
+const configured = pw('session.configure', ['session.configure', W, '--name', 'p1-chat']).out;
+check('session_configure', configured?.state === 'delivered' && configured?.result?.name === 'p1-chat');
+const reloaded = pw('resources.reload', ['resources.reload', W]).out;
+check('resources_reload', reloaded?.state === 'delivered' && Array.isArray(reloaded?.result?.extension_errors) && reloaded.result.extension_errors.length === 0);
 check('commands_list_worker', pw('commands.list for the worker', ['commands.list', '--worker', W]).out?.commands?.some(c => c.name === 'p1-chat-mark') === true);
 const invoked = pw('commands.invoke', ['commands.invoke', W, '--name', 'p1-chat-mark', '--args', 'marked']);
 check('commands_invoke', invoked.out?.state === 'delivered' && existsSync(join(work, 'p1-chat-mark.txt')));
+// Compaction has two right answers for this small session: pi compacts it (delivered, with pi's numbers), or pi's
+// own precondition refuses it before anything ran (nothing_to_compact, rejected, no effect). Any other failure fails.
 const compacted = pw('sessions.compact', ['sessions.compact', W]);
-check('sessions_compact_typed', compacted.code === 0 || (compacted.code === 1 && typeof compacted.error?.error === 'string'));
-facts.compact = compacted.code === 0 ? 'delivered' : compacted.error?.error;
+const compactDelivered = compacted.code === 0 && compacted.out?.state === 'delivered' && typeof compacted.out?.result?.tokens_before === 'number';
+const compactTooSmall =
+  compacted.code === 1 && compacted.error?.receipt_state === 'rejected' && compacted.error?.effect === 'no_effect' && /(^|: )nothing_to_compact$/.test(compacted.error?.error ?? '');
+check('sessions_compact', compactDelivered || compactTooSmall);
+facts.compact = compactDelivered ? 'delivered' : compactTooSmall ? 'nothing_to_compact' : 'unexpected';
 
 // 7. Interrupt: the faux model runs `sleep 60`; a follow-up queues behind it; interrupt ends both well before 60 s.
 const p4 = pw('sessions.prompt (sleep)', ['sessions.prompt', W, '--message', 'p1-chat:sleep']);
@@ -203,14 +211,25 @@ check('sleep_stopped', (await until(() => !sleepRunning(), 10_000)) === true);
 const after = row();
 check('follow_up_dropped', after?.queued?.some(q => q.command_id === follow.out?.command_id && q.state === 'dropped') === true);
 check('idle_after_interrupt', after?.foreground === 'idle' && after?.fence === null);
-check('executions_cancel', pw('executions.cancel', ['executions.cancel', W]).out?.state === 'delivered');
+
+// 7b. Cancel: a second `sleep 60`, cancelled by its execution id while it runs; it settles and the sleep stops.
+const p5 = pw('sessions.prompt (sleep, to cancel)', ['sessions.prompt', W, '--message', 'p1-chat:sleep']);
+const E2 = p5.out?.execution_id;
+check('cancel_target_running', p5.out?.state === 'delivered' && typeof E2 === 'string' && E2 !== E && (await until(sleepRunning, 20_000)) === true);
+const cancelled = pw('executions.cancel', ['executions.cancel', W, '--execution-id', E2]);
+check('cancel_delivered', cancelled.code === 0 && cancelled.out?.state === 'delivered' && cancelled.out?.result?.requested === true);
+check('cancel_settled', settled('events.subscribe until settled (cancel)', W, E2).settled);
+check('cancel_stopped_sleep', (await until(() => !sleepRunning(), 10_000)) === true);
+const afterCancel = row();
+check('idle_after_cancel', afterCancel?.foreground === 'idle' && afterCancel?.fence === null);
 
 // 8. Binding moves: a new session, then resume the first; the old binding is refused afterwards.
 const before = row();
 const fresh = pw('sessions.new', ['sessions.new', W]);
-check('sessions_new', fresh.out?.state === 'delivered' && fresh.out?.result?.session_id !== S1);
+const S2 = fresh.out?.result?.session_id;
+check('sessions_new', fresh.out?.state === 'delivered' && typeof S2 === 'string' && S2 !== S1 && row()?.session_id === S2);
 const resumed = pw('sessions.rebind', ['sessions.rebind', W, '--action', 'resume', '--target-session-id', S1]);
-check('sessions_rebind_resume', resumed.out?.state === 'delivered' && resumed.out?.result?.session_id === S1);
+check('sessions_rebind_resume', resumed.out?.state === 'delivered' && resumed.out?.result?.session_id === S1 && row()?.session_id === S1);
 const stale = pw('sessions.prompt (stale binding)', ['sessions.prompt', W, '--message', 'stale', '--worker-epoch', before.worker_epoch, '--session-id', before.session_id, '--binding-revision', String(before.binding_revision)]);
 check('stale_binding_refused', stale.code === 1 && stale.error?.effect === 'no_effect' && typeof stale.error?.error === 'string');
 
