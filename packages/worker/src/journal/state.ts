@@ -5,14 +5,17 @@
  * past half its bound is compacted before anything is appended (journal/retention.ts), so recovery has room to write.
  *
  * State format: every start record carries the format it was written in, and a state directory written in any other
- * format is refused before anything is compacted, appended, recovered or launched. There is no migration and no
+ * format is refused before anything is repaired, compacted, appended, recovered or launched: the format is read from
+ * the journal's bytes before the journal is opened, because opening it truncates a torn final record and removes a
+ * cut compaction's `.compact` copy (GPT PR #21 delta finding 3). There is no migration and no
  * compatibility (nubl decisions 2026-11-17): a P1 state's terminal rows claim cleanup a process-group kill could not
  * prove, and no later evidence can make them safe to release.
  */
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { acquireLock, type FileLock } from '../lock.js';
-import { Journal } from './journal.js';
+import { Journal, parseJournal, type JournalRecord } from './journal.js';
 import { DEFAULT_RETENTION, goalFor, planCompaction, type RetentionLimits } from './retention.js';
 
 export interface SupervisorState {
@@ -46,10 +49,26 @@ export class StateVersionRefused extends Error {
 }
 
 /** The format a journal's records were written in: its first start record's, 1 when that carries none. */
-function stateVersion(journal: Journal): number | null {
-  if (journal.records.length === 0) return null;
-  const version = journal.records.find(r => r.kind === 'supervisor')?.value.state_version;
+function stateVersion(records: readonly JournalRecord[]): number | null {
+  if (records.length === 0) return null;
+  const version = records.find(r => r.kind === 'supervisor')?.value.state_version;
   return typeof version === 'number' && Number.isInteger(version) ? version : 1;
+}
+
+/**
+ * Refuses a journal written in another format, reading only: no byte of the state directory is written, truncated or
+ * removed. A torn final record is ignored here as the journal's parse ignores it; a missing journal is a new state.
+ */
+function refuseOtherFormat(file: string): void {
+  let bytes: Buffer;
+  try {
+    bytes = readFileSync(file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw error;
+  }
+  const found = stateVersion(parseJournal(bytes).records);
+  if (found !== null && found !== STATE_VERSION) throw new StateVersionRefused(found, STATE_VERSION);
 }
 
 export interface StateOptions {
@@ -64,15 +83,15 @@ export function openState(stateDir: string, options: StateOptions = {}): Supervi
   const lock: FileLock = acquireLock(join(stateDir, 'journal.lock'));
   let journal: Journal;
   try {
+    // Under the lock and before the journal opens (which repairs a torn tail and removes `.compact`): a refused state
+    // is left byte for byte as it was.
+    refuseOtherFormat(journalPath(stateDir));
     journal = new Journal(journalPath(stateDir), options.maxBytes ?? DEFAULT_RETENTION.journalBytes);
   } catch (error) {
     lock.release();
     throw error;
   }
   try {
-    // Before compaction or any append: a refused state is left exactly as it was.
-    const found = stateVersion(journal);
-    if (found !== null && found !== STATE_VERSION) throw new StateVersionRefused(found, STATE_VERSION);
     if (journal.size() >= journal.maxBytes / 2) {
       const limits: RetentionLimits = { ...DEFAULT_RETENTION, ...options.retention, journalBytes: journal.maxBytes };
       try {

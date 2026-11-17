@@ -8,8 +8,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -29,6 +30,26 @@ function p1State(dir: string): string {
   return state;
 }
 
+/**
+ * A journal cut mid-append (a torn final record, no newline) beside a compaction cut before its rename (a stray
+ * `.compact` copy): the two things opening a journal repairs. Returns both files' bytes.
+ */
+function interrupted(state: string): { journal: Buffer; compact: Buffer } {
+  appendFileSync(journalPath(state), '{"record":{"seq":99,"kind":"worker",');
+  writeFileSync(`${journalPath(state)}.compact`, 'a compaction cut before its rename\n', { mode: 0o600 });
+  return { journal: readFileSync(journalPath(state)), compact: readFileSync(`${journalPath(state)}.compact`) };
+}
+
+/** A state directory whose one start record says it was written in `version` (checksummed as the journal writes it). */
+function stateInFormat(dir: string, version: number): string {
+  const state = join(dir, 'state');
+  mkdirSync(state, { mode: 0o700 });
+  const record = { seq: 1, kind: 'supervisor', value: { supervisor_id: 'sup-recorded', supervisor_epoch: 'epoch-recorded', state_version: version, started_at: '2026-11-17T00:00:00.000Z' } };
+  const checksum = createHash('sha256').update(JSON.stringify(record)).digest('hex');
+  writeFileSync(journalPath(state), `${JSON.stringify({ record, checksum })}\n`, { mode: 0o600 });
+  return state;
+}
+
 const refusedOlder = (e: unknown) => e instanceof StateVersionRefused && e.code === 'state_from_older_version' && e.found === 1 && e.required === STATE_VERSION;
 
 test('state: a state written by P1 is refused at open with state_from_older_version naming both versions, and is left unchanged', () => {
@@ -45,6 +66,55 @@ test('state: a state written by P1 is refused at open with state_from_older_vers
     assert.deepEqual(readFileSync(journalPath(state)), before, 'nothing was compacted, appended or recovered');
     // The lock was released: the refusal repeats rather than becoming a lock conflict.
     assert.throws(() => openState(state), refusedOlder);
+  } finally {
+    tmp.cleanup();
+  }
+});
+
+test('state: an older state cut mid-append and mid-compaction is refused with its torn tail and .compact copy byte for byte unchanged (GPT PR #21 delta 3)', () => {
+  const tmp = privateTmp();
+  try {
+    const state = p1State(tmp.dir);
+    const before = interrupted(state);
+    assert.throws(() => openState(state), refusedOlder, 'an older state is refused');
+    assert.deepEqual(readFileSync(journalPath(state)), before.journal, 'the torn final record was not truncated');
+    assert.deepEqual(readFileSync(`${journalPath(state)}.compact`), before.compact, 'the .compact copy was not removed');
+    assert.throws(() => openState(state), refusedOlder);
+  } finally {
+    tmp.cleanup();
+  }
+});
+
+test('state: a newer state cut mid-append and mid-compaction is refused state_from_newer_version, byte for byte unchanged (GPT PR #21 delta 3)', () => {
+  const tmp = privateTmp();
+  try {
+    const state = stateInFormat(tmp.dir, STATE_VERSION + 1);
+    const before = interrupted(state);
+    const refusedNewer = (e: unknown) => e instanceof StateVersionRefused && e.code === 'state_from_newer_version' && e.found === STATE_VERSION + 1 && e.required === STATE_VERSION;
+    assert.throws(() => openState(state), refusedNewer, 'a newer state is refused');
+    assert.deepEqual(readFileSync(journalPath(state)), before.journal, 'the torn final record was not truncated');
+    assert.deepEqual(readFileSync(`${journalPath(state)}.compact`), before.compact, 'the .compact copy was not removed');
+  } finally {
+    tmp.cleanup();
+  }
+});
+
+test('state: a state in this format cut mid-append and mid-compaction still opens: the torn tail is dropped and .compact removed', () => {
+  const tmp = privateTmp();
+  try {
+    const state = stateInFormat(tmp.dir, STATE_VERSION);
+    const whole = readFileSync(journalPath(state));
+    interrupted(state);
+    const opened = openState(state);
+    try {
+      assert.deepEqual(opened.journal.records.map(r => r.value.state_version), [STATE_VERSION, STATE_VERSION], 'the complete record kept, the torn one dropped, a new start appended');
+      assert.equal(opened.supervisorId, 'sup-recorded', 'the first start record names the supervisor');
+    } finally {
+      opened.close();
+    }
+    assert.deepEqual(readFileSync(journalPath(state)).subarray(0, whole.length), whole);
+    assert.equal(parseJournal(readFileSync(journalPath(state))).records.length, 2, 'no torn bytes survive');
+    assert.equal(existsSync(`${journalPath(state)}.compact`), false, 'the half-made copy is removed');
   } finally {
     tmp.cleanup();
   }

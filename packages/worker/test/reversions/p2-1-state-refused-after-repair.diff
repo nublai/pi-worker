@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/journal/state.ts b/packages/worker/src/journal/state.ts
+index 7e49bba..d12fc51 100644
+--- a/packages/worker/src/journal/state.ts
++++ b/packages/worker/src/journal/state.ts
+@@ -85,8 +85,8 @@ export function openState(stateDir: string, options: StateOptions = {}): Supervi
+   try {
+     // Under the lock and before the journal opens (which repairs a torn tail and removes `.compact`): a refused state
+     // is left byte for byte as it was.
+-    refuseOtherFormat(journalPath(stateDir));
+     journal = new Journal(journalPath(stateDir), options.maxBytes ?? DEFAULT_RETENTION.journalBytes);
++    refuseOtherFormat(journalPath(stateDir));
+   } catch (error) {
+     lock.release();
+     throw error;
