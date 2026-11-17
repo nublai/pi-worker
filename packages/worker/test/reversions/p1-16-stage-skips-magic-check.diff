@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
-index 0c649e1..c1db5be 100644
+index a2a761a..1c1ab1d 100644
 --- a/packages/worker/src/attachments/attachments.ts
 +++ b/packages/worker/src/attachments/attachments.ts
-@@ -203,7 +203,7 @@ export class Attachments {
+@@ -226,7 +226,7 @@ export class Attachments {
          }
          if (receiving.bytes === 0) throw new Refusal('attachment_empty', 'no_effect', undefined, {}, 400);
          if (hash.digest('hex') !== request.sha256) throw new Refusal('attachment_sha256_mismatch', 'no_effect', undefined, {}, 400);
 -        if (sniff(head) !== request.content_type) throw new Refusal('attachment_type_mismatch', 'no_effect', undefined, {}, 400);
 +        if (sniff(head) !== request.content_type && request.sha256 === 'never') throw new Refusal('attachment_type_mismatch', 'no_effect', undefined, {}, 400);
-         this.quota(request.worker_id, receiving.bytes);
          // The staged bytes are durable before the record that makes them usable.
          durable(fd, 'attachment.file');
+       } finally {
