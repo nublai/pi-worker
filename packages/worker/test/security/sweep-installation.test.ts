@@ -13,11 +13,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { CgroupContainment, openContainment, type Domain } from '../../src/containment/containment.js';
+import { CgroupContainment, holdInstallation, InstallationRefused, installationLocks, openContainment, type Domain } from '../../src/containment/containment.js';
 import { parseJournal } from '../../src/journal/journal.js';
 import { journalPath, openState } from '../../src/journal/state.js';
 import { ReceiptStore } from '../../src/receipts/receipts.js';
@@ -192,14 +192,28 @@ test('installation: a recorded domain this cleanup would not accept fails startu
 
 const testDaemon = fileURLToPath(new URL('../fixtures/daemon.js', import.meta.url));
 const productionDaemon = fileURLToPath(new URL('../../src/main.js', import.meta.url));
+const gcHook = new URL('../fixtures/gc.js', import.meta.url).href;
 
 type Started = { child: ChildProcess; outcome: number | null | 'listening' | 'timeout'; stderr: () => string; socket: string };
 
-/** Starts a daemon on `stateDir` with its socket in `run` and its installation lock in `runtime`. */
-async function start(main: string, run: string, stateDir: string, runtime: string, extra: NodeJS.ProcessEnv = {}): Promise<Started> {
+/**
+ * Starts a daemon on `stateDir` with its socket in `run` and XDG_RUNTIME_DIR `runtime`. `locks` is the test daemon's
+ * installation-lock directory (fixtures/daemon.ts); the production daemon always uses `installationLocks()`. With `gc`
+ * it runs under `--expose-gc` with fixtures/gc.js preloaded, so `collect` can force collections in it.
+ */
+async function start(main: string, run: string, stateDir: string, runtime: string, opts: { locks?: string; env?: NodeJS.ProcessEnv; gc?: boolean } = {}): Promise<Started> {
   const socket = join(run, 'b2.sock');
-  const child = spawn(process.execPath, [main], {
-    env: { PATH: process.env.PATH, HOME: runtime, XDG_RUNTIME_DIR: runtime, PIW_SOCKET: socket, PIW_STATE_DIR: stateDir, ...extra },
+  const args = opts.gc ? ['--expose-gc', '--import', gcHook, main] : [main];
+  const child = spawn(process.execPath, args, {
+    env: {
+      PATH: process.env.PATH,
+      HOME: runtime,
+      XDG_RUNTIME_DIR: runtime,
+      PIW_SOCKET: socket,
+      PIW_STATE_DIR: stateDir,
+      ...(opts.locks ? { PIW_TEST_INSTALLATION_LOCKS: opts.locks } : {}),
+      ...opts.env,
+    },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   let stderr = '';
@@ -214,6 +228,15 @@ async function start(main: string, run: string, stateDir: string, runtime: strin
   return { child, outcome, stderr: () => stderr, socket };
 }
 
+/** Forces full garbage collections in a daemon started with `gc` and waits until they have run. */
+async function collect(daemon: Started): Promise<void> {
+  const done = () => daemon.stderr().split('"collected"').length - 1;
+  const before = done();
+  daemon.child.kill('SIGUSR2');
+  for (let n = 0; n < 1000 && done() === before; n++) await delay(10);
+  assert.equal(done(), before + 1, `the daemon ran its collections: ${daemon.stderr()}`);
+}
+
 async function stop(child: ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return;
   const exited = once(child, 'exit');
@@ -224,32 +247,77 @@ async function stop(child: ChildProcess): Promise<void> {
 
 const refusal = (stderr: string) => stderr.split('\n').filter(Boolean).map(l => JSON.parse(l) as { event: string; reason?: string }).find(e => e.event === 'refused');
 
-test('installation: a daemon on a copy of a running daemon\'s state is refused installation_in_use and never listens; it starts once the other exits', { timeout: 90_000 }, async () => {
+const refusedWith = (code: string) => (error: unknown) => {
+  assert.ok(error instanceof InstallationRefused, String(error));
+  assert.equal(error.code, code);
+  return true;
+};
+
+test('installation: the installation lock is in /run/user/<euid>/pi-worker-installations whatever XDG_RUNTIME_DIR says; a lock directory whose parent is missing or not an owned 0700 directory refuses installation_lock_unavailable, with no fallback', () => {
+  const tmp = privateTmp();
+  const saved = process.env.XDG_RUNTIME_DIR;
+  const fixed = `/run/user/${process.geteuid!()}/pi-worker-installations`;
+  const id = 'abcdef0123456789abcd';
+  try {
+    for (const value of [join(tmp.dir, 'runtime-a'), join(tmp.dir, 'runtime-b'), undefined]) {
+      if (value === undefined) delete process.env.XDG_RUNTIME_DIR;
+      else process.env.XDG_RUNTIME_DIR = value;
+      assert.equal(installationLocks(), fixed, `XDG_RUNTIME_DIR=${value ?? '(unset)'} does not move the lock`);
+    }
+    process.env.XDG_RUNTIME_DIR = saved;
+    // No fallback: a parent that is missing or open is refused, and nothing is created in it.
+    assert.throws(() => holdInstallation(id, join(tmp.dir, 'missing', 'pi-worker-installations')), refusedWith('installation_lock_unavailable'));
+    assert.equal(existsSync(join(tmp.dir, 'missing')), false);
+    const open = join(tmp.dir, 'open');
+    mkdirSync(open);
+    chmodSync(open, 0o755);
+    assert.throws(() => holdInstallation(id, join(open, 'pi-worker-installations')), refusedWith('installation_lock_unavailable'));
+    assert.equal(existsSync(join(open, 'pi-worker-installations')), false);
+    // An owned 0700 parent: the lock is taken, contended and released.
+    const runtime = join(tmp.dir, 'runtime');
+    mkdirSync(runtime, { mode: 0o700 });
+    const locks = join(runtime, 'pi-worker-installations');
+    const held = holdInstallation(id, locks);
+    assert.throws(() => holdInstallation(id, locks), refusedWith('installation_in_use'));
+    held.release();
+    holdInstallation(id, locks).release();
+  } finally {
+    if (saved === undefined) delete process.env.XDG_RUNTIME_DIR;
+    else process.env.XDG_RUNTIME_DIR = saved;
+    tmp.cleanup();
+  }
+});
+
+test('installation: a daemon on a copy of a running daemon\'s state is refused installation_in_use and never listens, also after the running daemon garbage-collects; it starts once the other exits', { timeout: 90_000 }, async () => {
   const tmp = privateTmp();
   const runtime = join(tmp.dir, 'runtime');
   const a = join(tmp.dir, 'a');
   const b = join(tmp.dir, 'b');
   for (const dir of [runtime, a, b]) mkdirSync(dir, { mode: 0o700 });
+  const locks = join(runtime, 'pi-worker-installations');
   const children: ChildProcess[] = [];
   try {
-    const created = await start(testDaemon, join(tmp.dir, 'run-a'), a, runtime);
+    const created = await start(testDaemon, join(tmp.dir, 'run-a'), a, runtime, { locks });
     children.push(created.child);
     assert.equal(created.outcome, 'listening', created.stderr());
     await stop(created.child);
     copyFileSync(journalPath(a), journalPath(b));
     const [id] = installations(a);
     assert.match(String(id), ID, 'the start record carries the installation id');
-    const first = await start(testDaemon, join(tmp.dir, 'run-a'), a, runtime);
+    const first = await start(testDaemon, join(tmp.dir, 'run-a'), a, runtime, { locks, gc: true });
     children.push(first.child);
     assert.equal(first.outcome, 'listening', first.stderr());
-    const second = await start(testDaemon, join(tmp.dir, 'run-b'), b, runtime);
+    // An ordinary collection in the running daemon must not release its installation (PR #23 GPT delta 3, Grok delta 1).
+    await collect(first);
+    const second = await start(testDaemon, join(tmp.dir, 'run-b'), b, runtime, { locks });
     children.push(second.child);
     assert.equal(second.outcome, 1, `the daemon on the copy must exit 1: ${second.stderr()}`);
     assert.equal(refusal(second.stderr())?.reason, 'installation_in_use');
     assert.equal(second.stderr().includes('"listening"'), false);
     assert.equal(existsSync(second.socket), false, 'no socket');
+    assert.equal(first.child.exitCode, null, 'the running daemon still runs');
     await stop(first.child);
-    const third = await start(testDaemon, join(tmp.dir, 'run-b'), b, runtime);
+    const third = await start(testDaemon, join(tmp.dir, 'run-b'), b, runtime, { locks });
     children.push(third.child);
     assert.equal(third.outcome, 'listening', `the lock goes with its holder: ${third.stderr()}`);
   } finally {
@@ -260,12 +328,13 @@ test('installation: a daemon on a copy of a running daemon\'s state is refused i
 
 const populated = (dir: string) => /^populated 1$/m.test(readFileSync(join(dir, 'cgroup.events'), 'utf8'));
 
-test('kernel: a daemon on a copy of a running daemon\'s state is refused before its sweep: the running daemon\'s domain keeps running', { skip, timeout: 90_000 }, async () => {
+test('kernel: a daemon on a copy of a running daemon\'s state is refused before its sweep, after the running daemon garbage-collects and with another XDG_RUNTIME_DIR: the running daemon\'s domain keeps running', { skip, timeout: 90_000 }, async () => {
   const tmp = privateTmp();
-  const runtime = join(tmp.dir, 'runtime');
+  const runtimeA = join(tmp.dir, 'runtime-a');
+  const runtimeB = join(tmp.dir, 'runtime-b');
   const a = join(tmp.dir, 'a');
   const b = join(tmp.dir, 'b');
-  for (const dir of [runtime, a, b]) mkdirSync(dir, { mode: 0o700 });
+  for (const dir of [runtimeA, runtimeB, a, b]) mkdirSync(dir, { mode: 0o700 });
   openState(a).close();
   copyFileSync(journalPath(a), journalPath(b));
   const [id] = installations(a);
@@ -274,7 +343,7 @@ test('kernel: a daemon on a copy of a running daemon\'s state is refused before 
   let owned: { jail: CgroupContainment; domain: Domain } | undefined;
   try {
     assert.match(String(id), ID, 'the start record carries the installation id');
-    const first = await start(productionDaemon, join(tmp.dir, 'run-a'), a, runtime, env);
+    const first = await start(productionDaemon, join(tmp.dir, 'run-a'), a, runtimeA, { env, gc: true });
     children.push(first.child);
     assert.equal(first.outcome, 'listening', first.stderr());
     // A domain of the running installation that the copy's journal does not record (one the running daemon started
@@ -288,16 +357,21 @@ test('kernel: a daemon on a copy of a running daemon\'s state is refused before 
     await once(leader.stdout!, 'data');
     const dir = join(domain.root, domain.name);
     assert.equal(populated(dir), true);
-    const second = await start(productionDaemon, join(tmp.dir, 'run-b'), b, runtime, env);
+    // The running daemon garbage-collects (its lock must survive it), and the copy's daemon is started with another
+    // runtime directory (it must not lock somewhere else).
+    await collect(first);
+    const second = await start(productionDaemon, join(tmp.dir, 'run-b'), b, runtimeB, { env });
     children.push(second.child);
     assert.equal(second.outcome, 1, `the daemon on the copy must exit 1: ${second.stderr()}`);
     assert.equal(refusal(second.stderr())?.reason, 'installation_in_use');
     assert.equal(existsSync(second.socket), false, 'no socket');
     assert.equal(populated(dir), true, "the running daemon's domain keeps running: the copy never swept");
     assert.equal(leader.exitCode, null);
+    assert.equal(first.child.exitCode, null, 'the running daemon still runs');
   } finally {
     for (const child of children) await stop(child);
     if (owned) await owned.jail.clean(owned.domain);
+    rmSync(join(installationLocks(), `${String(id)}.lock`), { force: true });
     tmp.cleanup();
   }
 });
