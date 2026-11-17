@@ -9,6 +9,7 @@
  * - The SSE reader never reconnects on its own. A reconnect is the caller's decision and starts with a snapshot.
  */
 import { request } from 'node:http';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { components, operations } from './generated/api.js';
 import { routes, type OperationId } from './generated/routes.js';
@@ -21,6 +22,16 @@ export type OkBody<O extends OperationId> = Op<O> extends { responses: { 200: { 
 export type EventFrame = components['schemas']['EventFrame'];
 export type Cursor = components['schemas']['Cursor'];
 export type Hello = components['schemas']['Hello'];
+export type Receipt = components['schemas']['Receipt'];
+
+/** The session binding and command id `attachments.stage` sends as `Piw-*` headers. */
+export interface StageParams {
+  command_id: string;
+  worker_id: string;
+  worker_epoch: string;
+  session_id: string;
+  binding_revision: number;
+}
 
 export interface CallOptions<O extends OperationId> {
   path?: PathParams<O>;
@@ -196,6 +207,44 @@ export class Client {
       return Promise.reject(error);
     }
     const data = options.body === undefined ? undefined : JSON.stringify(options.body);
+    return this.send<OkBody<O>>(route.method, path, auth, data === undefined ? undefined : { contentType: 'application/json', bytes: data });
+  }
+
+  /**
+   * `attachments.stage`: uploads one image once (PUT, `Content-Length`, the binding and the bytes' SHA-256 as
+   * `Piw-*` headers). A media type the operation does not declare, an empty body or one over its byte cap
+   * (`hello.limits.attachment_max_bytes`) is refused before anything is sent (`no_effect`). A failure after the write
+   * is `unknown`: read `attachments.status` for the id (or the receipt of the command id), never upload blindly again.
+   */
+  stage(attachmentId: string, params: StageParams, contentType: string, bytes: Uint8Array): Promise<Receipt> {
+    const route = routes['attachments.stage'];
+    const media: readonly string[] = route.mediaTypes;
+    let path: string;
+    let auth: Record<string, string>;
+    try {
+      if (!media.includes(contentType)) throw new ClientFailure('unsupported_media_type', 'no_effect', 'before_write');
+      if (bytes.length === 0 || bytes.length > route.maxBodyBytes) throw new ClientFailure('attachment_size_out_of_range', 'no_effect', 'before_write');
+      if (!Number.isInteger(params.binding_revision) || params.binding_revision < 1) throw new ClientFailure('invalid_binding_revision', 'no_effect', 'before_write');
+      path = fillPath(route.path, { attachment_id: attachmentId });
+      auth = this.headers();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const headers = {
+      ...auth,
+      'Piw-Command-Id': params.command_id,
+      'Piw-Worker-Id': params.worker_id,
+      'Piw-Worker-Epoch': params.worker_epoch,
+      'Piw-Session-Id': params.session_id,
+      'Piw-Binding-Revision': String(params.binding_revision),
+      'Piw-Content-Sha256': createHash('sha256').update(bytes).digest('hex'),
+    };
+    return this.send<Receipt>(route.method, path, headers, { contentType, bytes });
+  }
+
+  /** One request, once: nothing is written until the socket connects; afterwards every ambiguous failure is unknown. */
+  private send<T>(method: string, path: string, headers: Record<string, string>, body: { contentType: string; bytes: string | Uint8Array } | undefined): Promise<T> {
+    const data = body?.bytes;
     return new Promise((resolve, reject) => {
       let wrote = false;
       let settled = false;
@@ -211,13 +260,13 @@ export class Client {
       const req = request(
         {
           socketPath: this.socketPath,
-          method: route.method,
+          method,
           path,
           agent: false,
           headers: {
-            ...auth,
+            ...headers,
             Connection: 'close',
-            ...(data === undefined ? {} : { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }),
+            ...(body === undefined ? {} : { 'Content-Type': body.contentType, 'Content-Length': typeof body.bytes === 'string' ? Buffer.byteLength(body.bytes) : body.bytes.length }),
           },
         },
         res => {
@@ -244,7 +293,7 @@ export class Client {
             }
             settled = true;
             if (res.statusCode === 200) {
-              resolve(value as OkBody<O>);
+              resolve(value as T);
               return;
             }
             // A refusal keeps the worker's effect only from a B2 Error object; anything else (null, a scalar, an
