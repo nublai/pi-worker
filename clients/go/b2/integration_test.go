@@ -20,10 +20,15 @@ import (
 )
 
 func TestIntegrationHelloAnd501(t *testing.T) {
-	main, err := filepath.Abs(filepath.Join("..", "..", "..", "packages", "worker", "dist", "src", "main.js"))
+	dist, err := filepath.Abs(filepath.Join("..", "..", "..", "packages", "worker", "dist"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The production entry point (src/main.js) refuses to start without a cgroup v2 delegation (P2-1), which plain CI
+	// runners and developer machines lack, and on a delegated host it would create a real domain unit. This test needs
+	// only a running daemon, so it starts the same daemon on test domains; the refusal itself is tested in
+	// packages/worker/test/security/containment.test.ts.
+	main := filepath.Join(dist, "test", "fixtures", "daemon.js")
 	if _, err := os.Stat(main); err != nil {
 		t.Fatalf("worker not built (%v); run `npm run build` at the repository root", err)
 	}
@@ -40,7 +45,7 @@ func TestIntegrationHelloAnd501(t *testing.T) {
 	env := []string{"PATH=" + os.Getenv("PATH"), "PIW_SOCKET=" + socket, "PIW_STATE_DIR=" + filepath.Join(dir, "state")}
 	// Every B2 request needs a bearer (P1-9): the owner registers one by local file access with the grant command.
 	grantFile := filepath.Join(dir, "grant.json")
-	register := exec.Command(node, filepath.Join(filepath.Dir(main), "grant.js"), "register", "--caller", "go-integration", "--out", grantFile)
+	register := exec.Command(node, filepath.Join(dist, "src", "grant.js"), "register", "--caller", "go-integration", "--out", grantFile)
 	register.Env = env
 	if out, err := register.CombinedOutput(); err != nil {
 		t.Fatalf("grant register: %v %s", err, out)
