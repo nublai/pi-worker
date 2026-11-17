@@ -35,12 +35,49 @@ info:
       against their schemas, the content type against the declared media types and the length against the
       cap before anything is written, and an `ndjson` body must be complete lines, each one JSON value.
 
+    - `x-piw-grant-profiles` (in `info`): named method lists a grant can be registered with. `bridge` is
+      exactly the methods of Shep's worker driver (`docs/plan/b2-for-shep.md` section 2.1); `npm run api:lint`
+      fails if the two differ, and the Go fake's closure test needs a route and a wire fixture for each.
+
     Named limit (invariant 8): private sockets and bearer grants do not isolate hostile code running as the
     same OS user.
   license:
     name: MIT
     identifier: MIT
   x-piw-json-max-bytes: 262144
+  x-piw-grant-profiles:
+    bridge:
+      - hello
+      - workers.list
+      - workers.get
+      - sessions.list
+      - sessions.get
+      - models.list
+      - commands.list
+      - events.subscribe
+      - history.page
+      - items.read
+      - sessions.history
+      - blobs.read
+      - interactions.list
+      - interactions.status
+      - receipts.get
+      - attachments.status
+      - files.read
+      - workers.create
+      - sessions.prompt
+      - session.configure
+      - sessions.new
+      - sessions.rebind
+      - sessions.compact
+      - resources.reload
+      - commands.invoke
+      - interactions.answer_if_current
+      - executions.interrupt
+      - workers.stop
+      - sessions.resolve_unknown
+      - attachments.stage
+      - attachments.release
 servers:
   - url: http://pi-worker
     description: HTTP over the worker's private Unix socket. The host name is not resolved.

@@ -48,9 +48,12 @@ function queryEncoder(op) {
   return { required, body: lines.join('\n') };
 }
 
-export function goOps(spec, ops, eventInfo) {
+export function goOps(spec, ops, eventInfo, profiles = {}) {
   const table = ops
-    .map(op => `\t${'Op' + goName(op.operationId)} = Operation{ID: ${JSON.stringify(op.operationId)}, Method: ${JSON.stringify(op.method)}, Path: ${JSON.stringify(op.path)}, Mutation: ${op.mutation}, Stream: ${op.stream}, Body: ${JSON.stringify(op.bodyMode)}, MediaTypes: []string{${op.mediaTypes.map(t => JSON.stringify(t)).join(', ')}}, MaxBodyBytes: ${op.maxBodyBytes}, Response: ${JSON.stringify(op.responseMode)}, MaxFrameBytes: ${op.maxFrameBytes ?? 0}}`)
+    .map(op => `\t${'Op' + goName(op.operationId)} = Operation{ID: ${JSON.stringify(op.operationId)}, Method: ${JSON.stringify(op.method)}, Path: ${JSON.stringify(op.path)}, Mutation: ${op.mutation}, Stream: ${op.stream}, Body: ${JSON.stringify(op.bodyMode)}, MediaTypes: []string{${op.mediaTypes.map(t => JSON.stringify(t)).join(', ')}}, MaxBodyBytes: ${op.maxBodyBytes}, Response: ${JSON.stringify(op.responseMode)}, MaxFrameBytes: ${op.maxFrameBytes ?? 0}, MaxResponseBytes: ${op.maxResponseBytes ?? 0}}`)
+    .join('\n');
+  const profileTable = Object.entries(profiles)
+    .map(([name, methods]) => `\t${JSON.stringify(name)}: {\n${methods.map(m => `\t\t${JSON.stringify(m)},`).join('\n')}\n\t},`)
     .join('\n');
   const wrappers = ops
     // SSE (Watch), binary uploads and ndjson or binary responses (streamed bytes, P1-17) are hand-written.
@@ -121,6 +124,8 @@ type Operation struct {
 \tResponse string
 \t// MaxFrameBytes is, for an sse response, the most bytes one record may carry.
 \tMaxFrameBytes int
+\t// MaxResponseBytes is, for an ndjson or binary response, the most body bytes a 200 may carry.
+\tMaxResponseBytes int64
 }
 
 var (
@@ -135,6 +140,12 @@ ${ops.map(op => `\tOp${goName(op.operationId)},`).join('\n')}
 // EventTypes lists every event type in the x-piw-event manifest, in union order.
 var EventTypes = []string{
 ${eventInfo.members.map(m => `\t${JSON.stringify(m.type)},`).join('\n')}
+}
+
+// GrantProfiles maps each grant profile in the spec (info.x-piw-grant-profiles) to its exact method list. A grant
+// registered with a profile may call exactly these operations; "bridge" is Shep's worker driver.
+var GrantProfiles = map[string][]string{
+${profileTable}
 }
 
 ${wrappers}
