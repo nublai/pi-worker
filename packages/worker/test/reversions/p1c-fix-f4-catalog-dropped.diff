@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/journal/retention.ts b/packages/worker/src/journal/retention.ts
+--- a/packages/worker/src/journal/retention.ts
++++ b/packages/worker/src/journal/retention.ts
+@@ -300,7 +300,7 @@
+     ...fixed.slice(0, 1).map(value => ({ kind: 'supervisor' as const, value })),
+     ...rows.map(value => ({ kind: 'worker' as const, value })),
+     // After the rows, so the catalog a restart builds is the one the dropped rows built.
+-    ...[...catalog.values()].map(value => ({ kind: 'session_catalog' as const, value })),
++    ...[].map(value => ({ kind: 'session_catalog' as const, value })),
+     // Receipts keep their first-appearance order (the receipt table and recovery iterate in it).
+     ...[...receipts].filter(([id]) => !gone.has(id)).map(([, value]) => ({ kind: 'receipt' as const, value })),
+     ...expiredKept.map(value => ({ kind: 'receipt_expired' as const, value: { ...value } })),

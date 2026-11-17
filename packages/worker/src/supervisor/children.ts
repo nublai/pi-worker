@@ -26,6 +26,7 @@ import { realpathSync, statSync } from 'node:fs';
 import { isAbsolute, relative } from 'node:path';
 import { Refusal } from '../b2/errors.js';
 import { authority, currentGuard } from '../grants/authority.js';
+import { dischargesLaunch } from '../journal/retention.js';
 import type { ChildReport } from '../host/host.js';
 import type { Receipt } from '../receipts/receipts.js';
 import type { Fence } from './fence.js';
@@ -109,18 +110,9 @@ export class Children {
     if (!receipt || receipt.effect === 'no_effect') return null;
     const parent = this.s.workers.get(parentId);
     if (!parent || (parent.worker.resolutions ?? []).some(r => r.command_id === launch)) return null;
-    const task = child.worker.parent?.task_id ?? launch;
-    // A typed child's launch is discharged only by its own FD 3 result report.
-    const typed = !!(child.worker.parent || child.worker.launch_spec);
-    const reported = [...this.s.receipts.all.values()].some(
-      r =>
-        r.operation === 'children.report' &&
-        r.worker_id === child.worker.worker_id &&
-        r.state === 'delivered' &&
-        r.result?.task_id === task &&
-        r.result?.kind !== 'help' &&
-        (!typed || r.result?.channel === 'fd3'),
-    );
+    // A report for the launch task; a typed child's launch is discharged only by its own FD 3 result report. Retention
+    // keeps such a report with the launch (journal/retention.ts uses the same rule).
+    const reported = [...this.s.receipts.all.values()].some(r => dischargesLaunch(child.worker, r));
     return reported ? null : launch;
   }
 

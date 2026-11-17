@@ -1,12 +1,11 @@
-diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
-index e380f37..1a066d2 100644
---- a/packages/worker/src/supervisor/children.ts
-+++ b/packages/worker/src/supervisor/children.ts
-@@ -90,7 +90,6 @@ export class Children {
-         r.worker_id === child.worker.worker_id &&
-         r.state === 'delivered' &&
-         r.result?.task_id === task &&
--        r.result?.kind !== 'help' &&
-         (!typed || r.result?.channel === 'fd3'),
-     );
-     return reported ? null : launch;
+diff --git a/packages/worker/src/journal/retention.ts b/packages/worker/src/journal/retention.ts
+--- a/packages/worker/src/journal/retention.ts
++++ b/packages/worker/src/journal/retention.ts
+@@ -147,7 +147,6 @@
+     r.state === 'delivered' &&
+     task !== undefined &&
+     result?.task_id === task &&
+-    result?.kind !== 'help' &&
+     (!typed || result?.channel === 'fd3')
+   );
+ }

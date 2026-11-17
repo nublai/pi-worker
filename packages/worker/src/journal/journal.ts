@@ -27,8 +27,10 @@ import type { JournalAppended } from '../generated/events.js';
 /**
  * `receipt_expired`: the id of a receipt retention evicted, so a reuse is refused rather than run again (P1-12).
  * `forgotten_ids`: what the expired ids that rolled over leave behind, so none of them runs again (journal/retention.ts).
+ * `session_catalog`: a resume catalog entry (session, file, the worker that last bound it) a compaction keeps when it
+ * drops the worker rows that recorded it.
  */
-export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement', 'interaction', 'interaction_effect', 'receipt_expired', 'forgotten_ids'] as const;
+export const JOURNAL_KINDS = ['supervisor', 'receipt', 'worker', 'settlement', 'interaction', 'interaction_effect', 'receipt_expired', 'forgotten_ids', 'session_catalog'] as const;
 export type JournalKind = (typeof JOURNAL_KINDS)[number];
 export type JournalRecord = { seq: number; kind: JournalKind; value: Record<string, unknown> };
 

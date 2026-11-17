@@ -1,8 +1,9 @@
 /**
  * Journal retention (P1-12): what a compaction keeps. A pure function of the journal's own records (plus the commands
  * the caller still has in flight), so recovery from a compacted journal reaches the same decisions as recovery from the
- * journal it replaced: every worker's latest row, every interaction still owned by a live pi process, the retained
- * receipts with the settlement evidence that names them, and the ids of evicted receipts.
+ * journal it replaced: every worker's latest row, the resume catalog (every session a worker bound, with its file and
+ * the worker that last bound it), every interaction still owned by a live pi process, the retained receipts with the
+ * settlement evidence that names them, and the ids of evicted receipts.
  *
  * A receipt is evictable only when it is final (`delivered`, `rejected`, `outcome_unknown`), was created at least
  * `minAgeMs` ago, is not an `outcome_unknown` its owner has not resolved, and nothing still names it: a worker's create
@@ -129,6 +130,28 @@ function expiredId(v: Value): ExpiredId {
   return { command_id: str(v.command_id)!, operation: str(v.operation)!, request_hash: str(v.request_hash)!, ...(worker ? { worker_id: worker } : {}) };
 }
 
+/**
+ * Whether receipt `r` is a report that discharges the launch of `child` (a worker row) (invariant 4a): a delivered,
+ * non-`help` report by the child for its launch task (a typed child's task, else the launch command), and for a typed
+ * child only one its own FD 3 delivered. Recovery's missing-report check (supervisor/children.ts) and retention's pins
+ * use this one rule.
+ */
+export function dischargesLaunch(child: Readonly<Record<string, unknown>>, r: Readonly<Record<string, unknown>>): boolean {
+  const parent = child.parent as Value | undefined;
+  const result = r.result as Value | undefined;
+  const typed = !!(parent || child.launch_spec);
+  const task = str(parent?.task_id) ?? str(child.parent_launch_command_id);
+  return (
+    r.operation === 'children.report' &&
+    r.worker_id === child.worker_id &&
+    r.state === 'delivered' &&
+    task !== undefined &&
+    result?.task_id === task &&
+    result?.kind !== 'help' &&
+    (!typed || result?.channel === 'fd3')
+  );
+}
+
 /** Command ids a worker row still depends on. */
 function rowPins(w: Value, pins: Set<string>): void {
   const add = (v: unknown) => {
@@ -156,13 +179,18 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
   const effects: Value[] = [];
   const expired = new Map<string, ExpiredId>();
   let horizon: ForgottenIds | null = null;
+  // The resume catalog as supervisor/state.ts builds it: in record order, each binding of a session to a file.
+  const catalog = new Map<string, Value>();
   for (const r of records) {
     const v = r.value;
     if (r.kind === 'supervisor') supervisors.push(v);
     else if (r.kind === 'worker') {
-      const id = str((v as Row).worker?.worker_id);
-      if (id) workers.set(id, v as Row);
-    } else if (r.kind === 'receipt') {
+      const row = v as Row;
+      const id = str(row.worker?.worker_id);
+      if (id) workers.set(id, row);
+      const session = str(row.worker?.session_id);
+      if (id && session && str(row.sessionFile)) catalog.set(session, { session_id: session, file: row.sessionFile, worker_id: id });
+    } else if (r.kind === 'session_catalog') catalog.set(str(v.session_id)!, v); else if (r.kind === 'receipt') {
       const id = str(v.command_id)!;
       receipts.set(id, v);
       lastSeq.set(id, r.seq);
@@ -193,13 +221,13 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
     if (typeof create?.command_id === 'string') pins.add(create.command_id);
     for (const res of list(w.resolutions)) if (typeof res.command_id === 'string') resolved.add(res.command_id);
   }
-  // A child's latest delivered non-help report per channel: recovery's missing-report check reads it.
-  const discharging = new Map<string, string>();
-  for (const [id, r] of receipts) {
-    const result = r.result as Value | undefined;
-    if (r.operation === 'children.report' && r.state === 'delivered' && result?.kind !== 'help') discharging.set(`${str(r.worker_id)}:${str(result?.channel)}`, id);
+  // Each child's latest report that discharges its launch (its task, its channel), kept with the launch it discharges:
+  // recovery's missing-report check reads it (supervisor/children.ts).
+  for (const child of rows.map(row => row.worker ?? {}).filter(w => typeof w.parent_launch_command_id === 'string')) {
+    let latest: string | undefined;
+    for (const [id, r] of receipts) if (dischargesLaunch(child, r)) latest = id;
+    if (latest) pins.add(latest);
   }
-  for (const id of discharging.values()) pins.add(id);
   // Interactions a live pi process may still touch (its gate, its resolver) are kept, with the receipts they name.
   const current = new Map(rows.map(row => [str(row.worker?.worker_id), row.worker ?? {}]));
   const keptInteractions = new Map<string, Value>();
@@ -225,6 +253,7 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
   let bytes = 0;
   for (const v of fixed) bytes += size(v);
   for (const row of rows) bytes += size(row);
+  for (const entry of catalog.values()) bytes += size(entry);
   const receiptBytes = new Map<string, number>();
   for (const [id, r] of receipts) {
     const b = size(r);
@@ -270,6 +299,8 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
   const entries: CompactionPlan['entries'] = [
     ...fixed.slice(0, 1).map(value => ({ kind: 'supervisor' as const, value })),
     ...rows.map(value => ({ kind: 'worker' as const, value })),
+    // After the rows, so the catalog a restart builds is the one the dropped rows built.
+    ...[...catalog.values()].map(value => ({ kind: 'session_catalog' as const, value })),
     // Receipts keep their first-appearance order (the receipt table and recovery iterate in it).
     ...[...receipts].filter(([id]) => !gone.has(id)).map(([, value]) => ({ kind: 'receipt' as const, value })),
     ...expiredKept.map(value => ({ kind: 'receipt_expired' as const, value: { ...value } })),
