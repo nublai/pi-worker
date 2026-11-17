@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index e45097d..d53380f 100644
+index 04c9e55..4d61011 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -510,9 +510,6 @@ export class Lifecycle {
+@@ -551,9 +551,6 @@ export class Lifecycle {
          const w = live.worker;
          if (w.parent_worker_id) throw new Refusal('child_relaunch_unsupported');
          // Only a recorded, observed removal of the last epoch's domain: a live, starting or pending worker is refused.
@@ -11,4 +11,4 @@ index e45097d..d53380f 100644
 -        }
          this.writable(live);
          if (!live.create || !w.session_id || !live.sessionFile || !existsSync(live.sessionFile)) throw new Refusal('relaunch_session_unavailable');
-         this.s.noOtherWriter(w.session_id, id);
+         // The session's gates, not only this worker's (GPT PR #27 finding 1): the resume gate refuses a session another

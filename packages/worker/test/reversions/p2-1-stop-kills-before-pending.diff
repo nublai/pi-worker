@@ -1,15 +1,15 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 99ae39a..272be5d 100644
+index 04c9e55..0aff911 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -432,8 +432,9 @@ export class Lifecycle {
+@@ -501,9 +501,9 @@ export class Lifecycle {
          // cleanup_pending is durable before the kill: a crash between them leaves a pending row recovery cleans.
          w.status = 'cleanup_pending';
          w.cleanup = 'stop_requested';
-+        const killed = await this.terminate(live);
-         this.s.persist(live, 'worker.stop');
--        const gone = (await this.terminate(live)) && this.confirm(live, 'stopped', 'worker.stopped');
-+        const gone = killed && this.confirm(live, 'stopped', 'worker.stopped');
-         if (!gone) {
-           w.status = 'cleanup_pending';
-           if (w.cleanup !== UNRECORDED) w.cleanup = 'unresolved';
+-        this.s.persist(live, 'worker.stop');
+         const domain = live.domain;
+         const cleaned = await this.terminate(live);
++        this.s.persist(live, 'worker.stop');
+         // A relaunch brought up a new generation meanwhile: this stop's outcome is about the old domain only. It is
+         // reported as that, and the live generation's row, process and domain stay untouched (A0 issue #1).
+         if (live.domain !== domain) {

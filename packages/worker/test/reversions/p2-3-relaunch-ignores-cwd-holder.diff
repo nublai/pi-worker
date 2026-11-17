@@ -1,11 +1,11 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index e45097d..3133474 100644
+index 04c9e55..08412ad 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -516,7 +516,6 @@ export class Lifecycle {
-         this.writable(live);
-         if (!live.create || !w.session_id || !live.sessionFile || !existsSync(live.sessionFile)) throw new Refusal('relaunch_session_unavailable');
-         this.s.noOtherWriter(w.session_id, id);
+@@ -559,7 +559,6 @@ export class Lifecycle {
+         // The session's gates, not only this worker's (GPT PR #27 finding 1): the resume gate refuses a session another
+         // worker bound since and left fenced (`target_session_fenced`) or with its cleanup unproven, as for a resume.
+         this.s.resumable(w.session_id, id);
 -        this.s.exclusiveCwd(w.cwd, live);
        },
      );

@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
-index ee4aa56..44937ff 100644
+index adf0fe8..06ec682 100644
 --- a/packages/worker/src/supervisor/state.ts
 +++ b/packages/worker/src/supervisor/state.ts
-@@ -228,7 +228,6 @@ export class SupervisorState {
+@@ -257,7 +257,6 @@ export class SupervisorState {
        pid: live.pid,
        token: live.token,
        ...(live.create ? { create: live.create } : {}),
 -      ...(live.resume ? { resume: live.resume } : {}),
        ...(live.domain ? { domain: live.domain } : {}),
+       ...(live.kept && Object.keys(live.kept).length ? { kept: live.kept } : {}),
      };
-   }

@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index e45097d..a3eba00 100644
+index 04c9e55..cce8956 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -551,18 +551,9 @@ export class Lifecycle {
+@@ -594,18 +594,9 @@ export class Lifecycle {
      live.nativeRebinding = false;
      live.pid = null;
      live.token = null;
@@ -20,6 +20,6 @@ index e45097d..a3eba00 100644
 +    live.domain = before.domain;
      this.s.receipts.dispatch(commandId, { worker_id: w.worker_id });
 +    live.domain = this.containment.reserve(w.worker_epoch);
-     // The model and thinking level the worker has now (session.configure may have changed them since the create).
-     const create: Create = { ...live.create!, ...(w.model ? { provider: w.model.provider, model: w.model.id } : {}), ...(w.thinking ? { thinking: w.thinking } : {}) };
-     let host: SessionHost;
+     live.launching = commandId;
+     try {
+       return await this.initialize(live, commandId, sessionId, file);
