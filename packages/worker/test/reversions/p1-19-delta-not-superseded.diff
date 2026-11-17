@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/events/hub.ts b/packages/worker/src/events/hub.ts
+index 52b8795..f3628c7 100644
+--- a/packages/worker/src/events/hub.ts
++++ b/packages/worker/src/events/hub.ts
+@@ -124,7 +124,7 @@ export class EventHub {
+         continue;
+       }
+       if (sub.attaching || sub.blocked) {
+-        if (frame.type === 'assistant.delta') this.supersede(sub, workerId);
++        void this.supersede;
+         if (sub.queued.length >= this.maxQueued || sub.bytes + bytes > this.maxBytes) {
+           this.overflow(sub, 'subscriber_queue_overflow');
+           continue;

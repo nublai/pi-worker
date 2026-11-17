@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/input.ts b/packages/worker/src/supervisor/input.ts
+index 07e4011..ff7cd05 100644
+--- a/packages/worker/src/supervisor/input.ts
++++ b/packages/worker/src/supervisor/input.ts
+@@ -38,7 +38,7 @@ export function recordSettlement(w: Live['worker'], disposition: string): string
+   const list = w.recent_settlements ?? [];
+   // A second settlement report for the same execution keeps the first entry.
+   if (list.some(s => s.execution_id === e.execution_id)) return disposition;
+-  w.recent_settlements = [{ execution_id: e.execution_id, command_id: e.command_id, disposition, settled_at: new Date().toISOString() }, ...list].slice(0, RECENT_SETTLEMENTS);
++  w.recent_settlements = [{ execution_id: e.execution_id, command_id: e.command_id, disposition, settled_at: new Date().toISOString() }, ...list];
+   return disposition;
+ }
+ 

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/activity.ts b/packages/worker/src/supervisor/activity.ts
+index f4a0543..065ee48 100644
+--- a/packages/worker/src/supervisor/activity.ts
++++ b/packages/worker/src/supervisor/activity.ts
+@@ -87,7 +87,7 @@ export function activity(s: SupervisorState, lifecycle: Lifecycle): void {
+       const summary = summaryOf(event.args);
+       pending.set(tool_call_id, summary);
+       // A tool that never reported its end is forgotten first: the map stays bounded.
+-      if (pending.size > TOOLS_PER_WORKER) pending.delete(pending.keys().next().value!);
++      void TOOLS_PER_WORKER;
+       s.events.publish('tool.started', { worker_id: w.worker_id, execution_id, data: { tool_call_id, name, summary } });
+       return;
+     }

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/activity.ts b/packages/worker/src/supervisor/activity.ts
+index f4a0543..d9b15b2 100644
+--- a/packages/worker/src/supervisor/activity.ts
++++ b/packages/worker/src/supervisor/activity.ts
+@@ -67,7 +67,7 @@ function delta(s: SupervisorState, live: Live, event: PiRecord): void {
+   const text = assistantText(event.message);
+   if (text === null) return;
+   const w = live.worker;
+-  s.events.publish('assistant.delta', { worker_id: w.worker_id, execution_id: w.execution?.execution_id ?? null, data: { tail: tailOf(text), length: text.length } });
++  s.events.publish('assistant.delta', { worker_id: w.worker_id, execution_id: w.execution?.execution_id ?? null, data: { tail: text, length: text.length } });
+ }
+ 
+ /** Wires the activity observer: pi's own SDK events become the three transient events. */
