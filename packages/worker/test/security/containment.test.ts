@@ -1,6 +1,6 @@
 /**
- * Cleanup domains (P2-1), ported from A0 `src/test/containment.test.ts` except the sweep cases (P2-2) and the
- * process-group fallback case (dropped: plan decision D3). The supervisor cases run anywhere on the test domains
+ * Cleanup domains (P2-1), ported from A0 `src/test/containment.test.ts` except the sweep cases (P2-2, sweep.test.ts)
+ * and the process-group fallback case (dropped: plan decision D3). The supervisor cases run anywhere on the test domains
  * (../domains.ts); the `kernel:` cases need a real delegated cgroup v2 subtree and run only in the kernel tier
  * (`harness/ci/kernel.sh -- containment`, which sets PIW_TEST_KERNEL=1 and PIW_CGROUP_ROOT); elsewhere they skip. The
  * portable `containment:` cases drive `CgroupContainment` over a plain directory, so a removed guard fails by
@@ -19,7 +19,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createApp } from '../../src/b2/app.js';
 import { createMemoryTransport, type MemoryResponse } from '../../src/b2/memory.js';
 import { createB2Server, listenPrivate } from '../../src/b2/server.js';
-import { CgroupContainment, checkDelegation, keeperUnit, openContainment, type Domain } from '../../src/containment/containment.js';
+import { CgroupContainment, checkDelegation, installationId, keeperUnit, openContainment, type Domain } from '../../src/containment/containment.js';
 import { bootId, procInfo, processToken } from '../../src/host/process.js';
 import { sdkChildEntry } from '../../src/host/host.js';
 import { productionHosts } from '../../src/daemon.js';
@@ -318,7 +318,7 @@ function plainRoot(): { dir: string; root: string; jail: CgroupContainment; clea
   const tmp = privateTmp();
   const rootDir = join(tmp.dir, 'delegation');
   mkdirSync(rootDir);
-  return { dir: tmp.dir, root: rootDir, jail: new CgroupContainment(rootDir, 200), cleanup: tmp.cleanup };
+  return { dir: tmp.dir, root: rootDir, jail: new CgroupContainment(rootDir, installationId(tmp.dir), 200), cleanup: tmp.cleanup };
 }
 
 test('containment: a domain is never reused, and a join that cannot enter its domain runs nothing (exit 125)', () => {
@@ -344,7 +344,7 @@ test('containment: a domain is never reused, and a join that cannot enter its do
 test('containment: clean confirms only a removed domain of its own delegation', async () => {
   const p = plainRoot();
   try {
-    const name = (n: string) => `w-${n}`;
+    const name = (n: string) => `w-${p.jail.installation}-${n}`;
     const at = (n: string) => join(p.root, name(n));
     const domain = (n: string, over: Partial<Domain> = {}): Domain => ({ root: p.root, name: name(n), boot: bootId(), ...over });
     // Absent, or of a prior boot: nothing can still run in it.
@@ -352,10 +352,17 @@ test('containment: clean confirms only a removed domain of its own delegation', 
     assert.equal(await p.jail.clean(domain('old-boot', { boot: 'another-boot' })), true);
     // Another delegation's domain, or a name that is not a worker domain's, is never touched or confirmed.
     const foreign = join(p.dir, 'other');
-    mkdirSync(join(foreign, 'w-x'), { recursive: true });
-    assert.equal(await p.jail.clean({ root: foreign, name: 'w-x', boot: bootId() }), false);
-    assert.ok(existsSync(join(foreign, 'w-x')), 'a foreign domain survives');
-    assert.equal(existsSync(join(foreign, 'w-x', 'cgroup.kill')), false, 'a foreign domain is never killed');
+    mkdirSync(join(foreign, name('x')), { recursive: true });
+    assert.equal(await p.jail.clean({ root: foreign, name: name('x'), boot: bootId() }), false);
+    assert.ok(existsSync(join(foreign, name('x'))), 'a foreign domain survives');
+    assert.equal(existsSync(join(foreign, name('x'), 'cgroup.kill')), false, 'a foreign domain is never killed');
+    // Another installation's domain in the same delegation (an operator-shared PIW_CGROUP_ROOT) is never touched (P2-2).
+    const other = `w-${'0'.repeat(20)}-x`;
+    mkdirSync(join(p.root, other));
+    writeFileSync(join(p.root, other, 'cgroup.events'), 'populated 0\nfrozen 0\n');
+    assert.equal(await p.jail.clean({ root: p.root, name: other, boot: bootId() }), false);
+    assert.ok(existsSync(join(p.root, other)), "another installation's domain survives");
+    assert.equal(existsSync(join(p.root, other, 'cgroup.kill')), false, "another installation's domain is never killed");
     mkdirSync(join(p.root, 'not-a-worker'));
     assert.equal(await p.jail.clean({ root: p.root, name: 'not-a-worker', boot: bootId() }), false);
     assert.ok(existsSync(join(p.root, 'not-a-worker')));
@@ -423,7 +430,7 @@ test('kernel: real leader crash kills a detached grandchild without stop or rest
   const tmp = privateTmp();
   const dir = tmp.dir;
   const state = openState(dir);
-  const jail = new CgroupContainment(checkDelegation(root));
+  const jail = new CgroupContainment(checkDelegation(root), installationId(dir));
   const marker = join(dir, 'escaped');
   const pidFile = join(dir, 'grandchild.pid');
   let leader: ChildProcess | undefined;
@@ -470,9 +477,9 @@ test('kernel: real leader crash kills a detached grandchild without stop or rest
 
 for (const cut of ['stop', 'restart'] as const) {
   test(`kernel: real cgroup ${cut} kills setsid/nohup grandchild and retires the pre-exec join target`, { skip, timeout: 60_000 }, async () => {
-    const jail = new CgroupContainment(checkDelegation(root));
-    const unit = jail.reserve(randomUUID());
     const tmp = privateTmp();
+    const jail = new CgroupContainment(checkDelegation(root), installationId(tmp.dir));
+    const unit = jail.reserve(randomUUID());
     const marker = join(tmp.dir, 'escaped');
     const pidFile = join(tmp.dir, 'grandchild.pid');
     try {
@@ -484,7 +491,7 @@ for (const cut of ['stop', 'restart'] as const) {
       assert.throws(() => jail.enter(unit), /already exists/);
       if (cut === 'restart') {
         // Lose the process handle, recover solely from the journal-safe identity.
-        const reopened = new CgroupContainment(checkDelegation(root));
+        const reopened = new CgroupContainment(checkDelegation(root), installationId(tmp.dir));
         assert.equal(await reopened.clean(JSON.parse(JSON.stringify(unit)) as Domain), true);
       } else assert.equal(await jail.clean(unit), true);
       assert.equal(existsSync(join(root, unit.name)), false);
@@ -504,7 +511,7 @@ for (const cut of ['stop', 'restart'] as const) {
 test('kernel: a supervisor stop kills the worker domain with its detached grandchild; the domain is removed and recorded', { skip, timeout: 60_000 }, async () => {
   const tmp = privateTmp();
   const state = openState(tmp.dir);
-  const jail = new CgroupContainment(checkDelegation(root));
+  const jail = new CgroupContainment(checkDelegation(root), installationId(tmp.dir));
   const marker = join(tmp.dir, 'escaped');
   const pidFile = join(tmp.dir, 'grandchild.pid');
   const s = new Supervisor({
@@ -588,7 +595,7 @@ test('kernel: an inventory probe runs in a real domain; its setsid grandchild di
     receipts: new ReceiptStore(state.journal),
     supervisorEpoch: state.supervisorEpoch,
     stateDir: tmp.dir,
-    containment: new CgroupContainment(checkDelegation(root)),
+    containment: new CgroupContainment(checkDelegation(root), installationId(tmp.dir)),
     factory: noWorker,
     inventory: probe.factory,
   });
@@ -616,7 +623,7 @@ test('kernel: a supervisor crash mid-probe leaves the probe recorded; recovery k
     receipts: new ReceiptStore(opened.journal),
     supervisorEpoch: opened.supervisorEpoch,
     stateDir: tmp.dir,
-    containment: new CgroupContainment(checkDelegation(root)),
+    containment: new CgroupContainment(checkDelegation(root), installationId(tmp.dir)),
     factory: noWorker,
   });
   const first = new Supervisor({ ...options(state), inventory: probe.factory });
@@ -639,7 +646,7 @@ test('kernel: a supervisor crash mid-probe leaves the probe recorded; recovery k
     await delay(2200);
     assert.equal(existsSync(probe.marker), false);
   } finally {
-    if (probe.seen.domain) await new CgroupContainment(checkDelegation(root)).clean(probe.seen.domain);
+    if (probe.seen.domain) await new CgroupContainment(checkDelegation(root), installationId(tmp.dir)).clean(probe.seen.domain);
     await second?.shutdown();
     state.close();
     tmp.cleanup();

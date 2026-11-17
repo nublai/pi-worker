@@ -182,6 +182,11 @@ export class Features {
     return true;
   }
 
+  /** The recorded probe domains recovery cleans and records itself (the startup sweep skips them). */
+  pendingDomains(): Domain[] {
+    return [...this.probes.values()].map(domain => structuredClone(domain));
+  }
+
   /** After a restart, before the socket listens: every recorded probe's domain is cleaned; unproven ones stay recorded. */
   async recover(): Promise<void> {
     for (const [id, domain] of [...this.probes]) await this.retire(id, domain);

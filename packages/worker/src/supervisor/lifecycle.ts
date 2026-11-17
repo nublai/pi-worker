@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { Refusal } from '../b2/errors.js';
 import { SessionIndex } from '../history/session-index.js';
 import type { ChildReport, PiRecord, SessionHost } from '../host/host.js';
-import type { Containment } from '../containment/containment.js';
+import type { Containment, Domain } from '../containment/containment.js';
 import type { DurableLabel } from '../journal/labels.js';
 import { budgetKey } from '../journal/journal.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
@@ -462,6 +462,11 @@ export class Lifecycle {
         this.s.binding(live, b);
       },
     );
+  }
+
+  /** The recorded domains recovery cleans and records itself: every holding worker's (the startup sweep skips them). */
+  pendingDomains(): Domain[] {
+    return [...this.s.workers.values()].flatMap(live => (live.domain && HOLDING.has(live.worker.status) ? [structuredClone(live.domain)] : []));
   }
 
   /**

@@ -21,6 +21,10 @@ export class TestDomains implements Containment {
   confirmUnknown = false;
   /** When false, no domain is ever proven clean (its host may still be stopped). */
   confirm = true;
+  /** The `known` domains of every startup sweep, in order. */
+  readonly sweeps: Domain[][] = [];
+  /** When set, the startup sweep fails with it (an unrecorded domain not proven gone). */
+  sweepError?: Error;
   private readonly hosts = new Map<string, SessionHost | null>();
   private readonly removed = new Set<string>();
 
@@ -46,6 +50,12 @@ export class TestDomains implements Containment {
       this.hosts.set(launch.domain.name, host);
       return host;
     };
+  }
+
+  /** The startup sweep: test domains are never left unrecorded, so it only records what recovery said it knows. */
+  async sweep(known: readonly Domain[]): Promise<void> {
+    this.sweeps.push(structuredClone([...known]));
+    if (this.sweepError) throw this.sweepError;
   }
 
   async clean(domain: Domain): Promise<boolean> {

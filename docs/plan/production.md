@@ -206,7 +206,7 @@ merges. Every port PR is reviewed module by module (the milestone plan's princip
 | `grants` | conformance | P1-9 |
 | `binding-answer-race`, `gate1-sibling`, `interactions` | conformance | P1-10 |
 | `children` | conformance | P1-11 |
-| `containment` | security (kernel cases) | P2-1, except the sweep cases (P2-2) |
+| `containment` | security (kernel cases) | P2-1, except the sweep cases (P2-2, `sweep.test.ts`) |
 | `relaunch`, `slice5-followups`, `review5-fixes`, `issue1-stop`, `stop-superseded` | regression | P2-3 |
 | `containment-crash` | security | P2-4 (its scenario needs domains, sweep, relaunch, a bwrap-declared typed child and a report) |
 | `sandbox` | security (kernel cases) | P2-4 |
@@ -498,7 +498,7 @@ startup sweep; Claude and Grok security reviews.
 | PR | Deps | Scope (ported from) | Completion criterion | Verification |
 | --- | --- | --- | --- | --- |
 | **P2-1** cgroup domains | P1 | `containment/` (`containment.ts`): per-epoch domain, recorded before spawn, `cgroup.kill`, `populated 0`, remove, durable `cleanup_pending`; startup refuses without delegation. Also the durable `sessions.rebind` resume target (pi-worker issue #6, label `binding.reserve`), since confirmed cleanup is what made the memory-only reservation exploitable | Ported `containment` cases except the sweep cases green in the kernel tier; a detached grandchild is killed | `harness/ci/kernel.sh -- containment` |
-| **P2-2** Startup sweep | P2-1 | Kill unknown domains of this installation only, before accepting requests | The `containment` sweep cases green: another installation's and operator domains untouched; recovery awaits the sweep; sweep failure fails startup | `harness/ci/kernel.sh -- sweep` |
+| **P2-2** Startup sweep | P2-1 | Kill unknown domains of this installation only, before accepting requests: a domain is this installation's by its name, `w-<installation>-…` (a hash of the state directory's real path), in a keeper or an operator-shared delegation; unknown means no holding worker or unconfirmed probe record names it | The `containment` sweep cases green: another installation's and operator domains untouched; recovery awaits the sweep; sweep failure fails startup | `harness/ci/kernel.sh -- sweep` |
 | **P2-3** Relaunch | P2-2 | `workers.relaunch`: confirmed cleanup, session file, no fence, no competing writer; owner-kept recovered prompt dispatches once on the new epoch; superseded-generation stop results | Ported `relaunch`, `slice5-followups`, `review5-fixes`, `issue1-stop`, `stop-superseded` green | `npm test -- relaunch stop` |
 | **P2-4** Pinned FS and bwrap profile | P2-3 | `sandbox/` (`pinned-fs.ts`, `sandbox.ts`): descriptor binds, private `/proc` `/tmp` `/run` HOME, env allowlist, `--clearenv`, `--die-with-parent`, protected-path overlap refusals; bwrap for P1-11's typed children (the FD-3 slot survives `--clearenv`); `files.read`; root-pinned history reads | Ported `sandbox`, `containment-crash` and the `security-fix` bwrap cases (profile, kernel B1 bind, `--die-with-parent`) green; bwrap closes every descriptor except the report slot before pi runs | `harness/ci/kernel.sh -- sandbox containment-crash` |
 | **P2-5** Git mounts | P2-4 | `git-sandbox.ts`: read-only pointers, private branch namespace, ordinary-checkout overlays, refusals (`commondir`, includes, `worktreeConfig`) | Ported `gate1-git` and the `security-fix` M1 mount cases and m2 green; a child commits in its namespace and cannot write `.git`, `gitdir`, `commondir`, HEAD, alternates or config | `harness/ci/kernel.sh -- git` |
