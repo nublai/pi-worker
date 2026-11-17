@@ -144,22 +144,27 @@ func fillPath(op Operation, args []string) (string, error) {
 	return b.String(), nil
 }
 
-// newRequest builds the request with a trace that records when the connection reaches the writer.
+// newRequest builds a request with a JSON body (or none).
 func (c *Client) newRequest(ctx context.Context, op Operation, path []string, query url.Values, body any, accept string, connected *atomic.Bool) (*http.Request, error) {
+	if body == nil {
+		return c.newRawRequest(ctx, op, path, query, nil, "", 0, accept, connected)
+	}
+	data, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("b2: encoding body: %w", err)
+	}
+	return c.newRawRequest(ctx, op, path, query, bytes.NewReader(data), "application/json", int64(len(data)), accept, connected)
+}
+
+// newRawRequest builds the request with a trace that records when the connection reaches the writer. A non-nil body
+// is sent with exactly length bytes and contentType; it is read once and never replayed.
+func (c *Client) newRawRequest(ctx context.Context, op Operation, path []string, query url.Values, body io.Reader, contentType string, length int64, accept string, connected *atomic.Bool) (*http.Request, error) {
 	target, err := fillPath(op, path)
 	if err != nil {
 		return nil, err
 	}
 	if len(query) > 0 {
 		target += "?" + query.Encode()
-	}
-	var reader io.Reader
-	if body != nil {
-		data, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("b2: encoding body: %w", err)
-		}
-		reader = bytes.NewReader(data)
 	}
 	token, err := c.bearer()
 	if err != nil {
@@ -175,15 +180,26 @@ func (c *Client) newRequest(ctx context.Context, op Operation, path []string, qu
 		GotConn:      func(httptrace.GotConnInfo) { connected.Store(true) },
 		WroteRequest: func(httptrace.WroteRequestInfo) { connected.Store(true) },
 	}
+	var reader io.Reader
+	if body != nil {
+		// Wrapped so net/http cannot recognise the reader and rewind it: the body is sent once.
+		reader = struct{ io.Reader }{body}
+	}
 	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), op.Method, "http://pi-worker"+target, reader)
 	if err != nil {
 		return nil, err
 	}
 	req.GetBody = nil // the body can never be replayed
 	req.Close = true
-	req.Header.Set("Accept", accept)
 	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+		req.ContentLength = length
+		if length == 0 {
+			req.Body = http.NoBody // a zero length with a reader would be sent chunked
+		}
+		req.Header.Set("Content-Type", contentType)
+	}
+	if accept != "" {
+		req.Header.Set("Accept", accept)
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -229,6 +245,11 @@ func (c *Client) do(ctx context.Context, op Operation, path []string, query url.
 	if err != nil {
 		return &ClientFailure{Op: op.ID, Phase: PhaseBeforeWrite, Effect: NoEffect, Err: err}
 	}
+	return c.send(op, req, &connected, out)
+}
+
+// send performs req once and decodes a 200 JSON reply into out; any other status is a refusal.
+func (c *Client) send(op Operation, req *http.Request, connected *atomic.Bool, out any) error {
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return transportFailure(op, connected.Load(), err)
