@@ -98,11 +98,51 @@ func TestGoStreamedUploadOf1_5MiBIsStaged(t *testing.T) {
 	pr, err := c.SessionsPrompt(ctx, w.WorkerId, b2.Prompt{CommandId: "prompt-1", WorkerEpoch: w.WorkerEpoch, SessionId: *w.SessionId, BindingRevision: 1, Message: "look", Attachments: &[]struct {
 		AttachmentId b2.Id `json:"attachment_id"`
 	}{{AttachmentId: "photo-1"}}})
-	if err != nil || pr.State != "delivered" {
+	if err != nil || pr.State != "delivered" || pr.Result == nil || (*pr.Result)["accepted_images"] != float64(1) {
 		t.Fatalf("prompt %+v %v", pr, err)
 	}
 	if st, err := c.AttachmentsStatus(ctx, "photo-1"); err != nil || st.State != "released" || st.ReleasedBy == nil || *st.ReleasedBy != "prompt-1" {
 		t.Fatalf("after the prompt %+v %v", st, err)
+	}
+}
+
+// A prompt's receipt carries the number of images pi accepted, also when pi drops one (PR #16 GPT 8).
+func TestPromptReceiptCarriesAcceptedImages(t *testing.T) {
+	fake, err := workerfake.Start(workerfake.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fake.Close()
+	ctx := context.Background()
+	c := fake.Client()
+	w := newWorker(t, ctx, c, "create-1")
+	var ids []struct {
+		AttachmentId b2.Id `json:"attachment_id"`
+	}
+	for i, id := range []string{"photo-a", "photo-b", "photo-c"} {
+		data := jpeg(2000 + i)
+		if _, err := c.AttachmentsStage(ctx, id, stageParams(w, "stage-"+id, data), "image/jpeg", int64(len(data)), bytes.NewReader(data)); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, struct {
+			AttachmentId b2.Id `json:"attachment_id"`
+		}{id})
+	}
+	fake.Host(w.WorkerId).AcceptNextImages(2)
+	p := promptOf(w, "prompt-1", nil)
+	p.Attachments = &ids
+	r, err := c.SessionsPrompt(ctx, w.WorkerId, p)
+	if err != nil || r.Result == nil || (*r.Result)["accepted_images"] != float64(2) {
+		t.Fatalf("partial acceptance %+v %v", r, err)
+	}
+	fake.Host(w.WorkerId).Emit("agent_settled")
+	// Without attachments the result has no image count.
+	r, err = c.SessionsPrompt(ctx, w.WorkerId, promptOf(w, "prompt-2", nil))
+	if err != nil || r.Result == nil {
+		t.Fatalf("text prompt %+v %v", r, err)
+	}
+	if _, ok := (*r.Result)["accepted_images"]; ok {
+		t.Fatalf("a text prompt reports images: %v", *r.Result)
 	}
 }
 

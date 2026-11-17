@@ -14,6 +14,7 @@ type Host struct {
 	mode    string // "", "drop" or "hold"
 	held    chan struct{}
 	starts  []chan struct{}
+	accept  *int // images the next prompt with images reports accepted; nil: all of them
 }
 
 var errDroppedReply = errors.New("fixture_dropped_reply")
@@ -65,6 +66,14 @@ func (h *Host) ReleaseHeldReply() {
 	}
 }
 
+// AcceptNextImages: the next prompt with images reports n of them accepted (pi drops an image it cannot convert);
+// by default pi accepts every image.
+func (h *Host) AcceptNextImages(n int) {
+	h.f.mu.Lock()
+	defer h.f.mu.Unlock()
+	h.accept = &n
+}
+
 // NextAgentStart is closed on this host's next native agent_start. Call it before the call that starts one.
 func (h *Host) NextAgentStart() <-chan struct{} {
 	h.f.mu.Lock()
@@ -95,15 +104,21 @@ func (h *Host) emit(eventType string) {
 	h.f.st.event(h.w, eventType)
 }
 
-// prompt is one native prompt submission (f.mu held): it starts, then replies, loses or holds its reply.
-func (h *Host) prompt() error {
+// prompt is one native prompt submission with its images (f.mu held): it starts, then replies with the number of
+// images pi put in the message, loses or holds its reply.
+func (h *Host) prompt(images int) (int, error) {
 	h.prompts++
 	mode := h.mode
 	h.mode = ""
+	accepted := images
+	if images > 0 && h.accept != nil {
+		accepted = min(*h.accept, images)
+		h.accept = nil
+	}
 	h.emit("agent_start")
 	switch mode {
 	case "drop":
-		return errDroppedReply
+		return 0, errDroppedReply
 	case "hold":
 		held := h.held
 		h.f.mu.Unlock()
@@ -112,9 +127,9 @@ func (h *Host) prompt() error {
 		case <-h.f.closed:
 		}
 		h.f.mu.Lock()
-		return errDroppedReply
+		return 0, errDroppedReply
 	}
-	return nil
+	return accepted, nil
 }
 
 // Drain lets due queued input run to the next barrier. The fake dispatches due input as soon as it is due, so this
