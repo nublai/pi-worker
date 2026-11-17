@@ -3,7 +3,8 @@
  * cleanup domain is random, made when a state is created and recorded in its start records: a moved state keeps its
  * domains, and a new state at the same path is another installation, so it can never sweep the domains of a
  * supervisor still running on the state that was there. One daemon holds an installation at a time, so a daemon on a
- * copy of a state is refused before its sweep. A recorded domain this daemon's cleanup would not accept fails startup
+ * copy of a state is refused before its sweep: it binds the installation's abstract Unix socket, which no file operation
+ * can remove or replace (PR #23 Grok delta 2) and which the holder's death releases. A recorded domain this daemon's cleanup would not accept fails startup
  * instead of running on while the daemon listens.
  *
  * These cases read the id from the journal's start records, as an operator would. The `kernel:` case needs a real
@@ -13,11 +14,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { CgroupContainment, holdInstallation, InstallationRefused, installationLocks, openContainment, type Domain } from '../../src/containment/containment.js';
+import { CgroupContainment, holdInstallation, InstallationRefused, installationName, openContainment, type Domain } from '../../src/containment/containment.js';
 import { parseJournal } from '../../src/journal/journal.js';
 import { journalPath, openState } from '../../src/journal/state.js';
 import { ReceiptStore } from '../../src/receipts/receipts.js';
@@ -190,11 +192,6 @@ test('installation: a recorded domain this cleanup would not accept fails startu
   }
 });
 
-/** Removes the production installation lock a kernel test's daemon left (its file and SQLite's journal beside it). */
-const dropLock = (installation: string) => {
-  for (const file of [`${installation}.lock`, `${installation}.lock-journal`]) rmSync(join(installationLocks(), file), { force: true });
-};
-
 const testDaemon = fileURLToPath(new URL('../fixtures/daemon.js', import.meta.url));
 const productionDaemon = fileURLToPath(new URL('../../src/main.js', import.meta.url));
 const gcHook = new URL('../fixtures/gc.js', import.meta.url).href;
@@ -202,23 +199,14 @@ const gcHook = new URL('../fixtures/gc.js', import.meta.url).href;
 type Started = { child: ChildProcess; outcome: number | null | 'listening' | 'timeout'; stderr: () => string; socket: string };
 
 /**
- * Starts a daemon on `stateDir` with its socket in `run` and XDG_RUNTIME_DIR `runtime`. `locks` is the test daemon's
- * installation-lock directory (fixtures/daemon.ts); the production daemon always uses `installationLocks()`. With `gc`
- * it runs under `--expose-gc` with fixtures/gc.js preloaded, so `collect` can force collections in it.
+ * Starts a daemon on `stateDir` with its socket in `run` and XDG_RUNTIME_DIR `runtime`. With `gc` it runs under
+ * `--expose-gc` with fixtures/gc.js preloaded, so `collect` can force collections in it.
  */
-async function start(main: string, run: string, stateDir: string, runtime: string, opts: { locks?: string; env?: NodeJS.ProcessEnv; gc?: boolean } = {}): Promise<Started> {
+async function start(main: string, run: string, stateDir: string, runtime: string, opts: { env?: NodeJS.ProcessEnv; gc?: boolean } = {}): Promise<Started> {
   const socket = join(run, 'b2.sock');
   const args = opts.gc ? ['--expose-gc', '--import', gcHook, main] : [main];
   const child = spawn(process.execPath, args, {
-    env: {
-      PATH: process.env.PATH,
-      HOME: runtime,
-      XDG_RUNTIME_DIR: runtime,
-      PIW_SOCKET: socket,
-      PIW_STATE_DIR: stateDir,
-      ...(opts.locks ? { PIW_TEST_INSTALLATION_LOCKS: opts.locks } : {}),
-      ...opts.env,
-    },
+    env: { PATH: process.env.PATH, HOME: runtime, XDG_RUNTIME_DIR: runtime, PIW_SOCKET: socket, PIW_STATE_DIR: stateDir, ...opts.env },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   let stderr = '';
@@ -250,6 +238,29 @@ async function stop(child: ChildProcess): Promise<void> {
   if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
 }
 
+async function kill(child: ChildProcess): Promise<void> {
+  const exited = once(child, 'exit');
+  child.kill('SIGKILL');
+  await Promise.race([exited, delay(10_000)]);
+  assert.equal(child.signalCode, 'SIGKILL', 'the holder was SIGKILLed');
+}
+
+/**
+ * The lock-file attack (PR #23 Grok delta 2): removes every regular file under `dirs` (a socket is left), and the file
+ * lock b36ca70 kept for `installation` in `/run/user/<euid>/pi-worker-installations`, while its daemon runs.
+ */
+function unlinkLocks(installation: string, dirs: string[]): void {
+  const old = `/run/user/${process.geteuid!()}/pi-worker-installations`;
+  for (const file of [`${installation}.lock`, `${installation}.lock-journal`]) rmSync(join(old, file), { force: true });
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) walk(join(dir, entry.name));
+      else if (entry.isFile()) unlinkSync(join(dir, entry.name));
+    }
+  };
+  for (const dir of dirs) if (existsSync(dir)) walk(dir);
+}
+
 const refusal = (stderr: string) => stderr.split('\n').filter(Boolean).map(l => JSON.parse(l) as { event: string; reason?: string }).find(e => e.event === 'refused');
 
 const refusedWith = (code: string) => (error: unknown) => {
@@ -258,73 +269,80 @@ const refusedWith = (code: string) => (error: unknown) => {
   return true;
 };
 
-test('installation: the installation lock is in /run/user/<euid>/pi-worker-installations whatever XDG_RUNTIME_DIR says; a lock directory whose parent is missing or not an owned 0700 directory refuses installation_lock_unavailable, with no fallback', () => {
-  const tmp = privateTmp();
+/** A fresh installation id: tests of one id may run beside each other on one host and network namespace. */
+const freshId = () => randomBytes(10).toString('hex');
+
+test('installation: the installation lock is the abstract Unix socket \\0pi-worker-installation/<id>, named from the id whatever XDG_RUNTIME_DIR says; a second hold of the id is refused installation_in_use, another id is not; any other bind error refuses installation_lock_unavailable', async () => {
   const saved = process.env.XDG_RUNTIME_DIR;
-  const fixed = `/run/user/${process.geteuid!()}/pi-worker-installations`;
-  const id = 'abcdef0123456789abcd';
+  const id = freshId();
+  const held: { release(): void }[] = [];
   try {
-    for (const value of [join(tmp.dir, 'runtime-a'), join(tmp.dir, 'runtime-b'), undefined]) {
+    process.env.XDG_RUNTIME_DIR = '/run/piw-test-runtime-a';
+    const first = await holdInstallation(id);
+    held.push(first);
+    assert.equal(first.name, `\0pi-worker-installation/${id}`);
+    assert.match(readFileSync('/proc/net/unix', 'utf8'), new RegExp(` @pi-worker-installation/${id}$`, 'm'), 'an abstract name: no file');
+    for (const value of ['/run/piw-test-runtime-b', undefined]) {
       if (value === undefined) delete process.env.XDG_RUNTIME_DIR;
       else process.env.XDG_RUNTIME_DIR = value;
-      assert.equal(installationLocks(), fixed, `XDG_RUNTIME_DIR=${value ?? '(unset)'} does not move the lock`);
+      assert.equal(installationName(id), `\0pi-worker-installation/${id}`, `XDG_RUNTIME_DIR=${value ?? '(unset)'} does not move the name`);
+      await assert.rejects(holdInstallation(id), refusedWith('installation_in_use'), `XDG_RUNTIME_DIR=${value ?? '(unset)'}: the id is held`);
     }
-    process.env.XDG_RUNTIME_DIR = saved;
-    // No fallback: a parent that is missing or open is refused, and nothing is created in it.
-    assert.throws(() => holdInstallation(id, join(tmp.dir, 'missing', 'pi-worker-installations')), refusedWith('installation_lock_unavailable'));
-    assert.equal(existsSync(join(tmp.dir, 'missing')), false);
-    const open = join(tmp.dir, 'open');
-    mkdirSync(open);
-    chmodSync(open, 0o755);
-    assert.throws(() => holdInstallation(id, join(open, 'pi-worker-installations')), refusedWith('installation_lock_unavailable'));
-    assert.equal(existsSync(join(open, 'pi-worker-installations')), false);
-    // An owned 0700 parent: the lock is taken, contended and released.
-    const runtime = join(tmp.dir, 'runtime');
-    mkdirSync(runtime, { mode: 0o700 });
-    const locks = join(runtime, 'pi-worker-installations');
-    const held = holdInstallation(id, locks);
-    assert.throws(() => holdInstallation(id, locks), refusedWith('installation_in_use'));
-    held.release();
-    holdInstallation(id, locks).release();
+    // Another installation is another name; the test prefix is another name too.
+    held.push(await holdInstallation(freshId()));
+    held.push(await holdInstallation(id, 'pi-worker-test/'));
+    // A bind that fails for another reason (a name too long for sun_path) refuses startup, typed.
+    await assert.rejects(holdInstallation(id, 'x'.repeat(200)), refusedWith('installation_lock_unavailable'));
+    // Released, it can be held again.
+    first.release();
+    held.push(await holdInstallation(id));
   } finally {
+    for (const h of held) h.release();
     if (saved === undefined) delete process.env.XDG_RUNTIME_DIR;
     else process.env.XDG_RUNTIME_DIR = saved;
-    tmp.cleanup();
   }
 });
 
-test('installation: a daemon on a copy of a running daemon\'s state is refused installation_in_use and never listens, also after the running daemon garbage-collects; it starts once the other exits', { timeout: 90_000 }, async () => {
+test("installation: a daemon on a copy of a running daemon's state is refused installation_in_use and never listens, after the running daemon garbage-collects, with another XDG_RUNTIME_DIR and socket directory, and after every file in the running daemon's directories is unlinked; it starts once the other is SIGKILLed or stops", { timeout: 90_000 }, async () => {
   const tmp = privateTmp();
-  const runtime = join(tmp.dir, 'runtime');
+  const runtimeA = join(tmp.dir, 'runtime-a');
+  const runtimeB = join(tmp.dir, 'runtime-b');
   const a = join(tmp.dir, 'a');
   const b = join(tmp.dir, 'b');
-  for (const dir of [runtime, a, b]) mkdirSync(dir, { mode: 0o700 });
-  const locks = join(runtime, 'pi-worker-installations');
+  for (const dir of [runtimeA, runtimeB, a, b]) mkdirSync(dir, { mode: 0o700 });
   const children: ChildProcess[] = [];
   try {
-    const created = await start(testDaemon, join(tmp.dir, 'run-a'), a, runtime, { locks });
+    const created = await start(testDaemon, join(tmp.dir, 'run-a'), a, runtimeA);
     children.push(created.child);
     assert.equal(created.outcome, 'listening', created.stderr());
     await stop(created.child);
     copyFileSync(journalPath(a), journalPath(b));
     const [id] = installations(a);
     assert.match(String(id), ID, 'the start record carries the installation id');
-    const first = await start(testDaemon, join(tmp.dir, 'run-a'), a, runtime, { locks, gc: true });
+    const first = await start(testDaemon, join(tmp.dir, 'run-a'), a, runtimeA, { gc: true });
     children.push(first.child);
     assert.equal(first.outcome, 'listening', first.stderr());
     // An ordinary collection in the running daemon must not release its installation (PR #23 GPT delta 3, Grok delta 1).
     await collect(first);
-    const second = await start(testDaemon, join(tmp.dir, 'run-b'), b, runtime, { locks });
+    // Nothing on the filesystem holds the installation (PR #23 Grok delta 2).
+    unlinkLocks(String(id), [runtimeA, join(tmp.dir, 'run-a')]);
+    const second = await start(testDaemon, join(tmp.dir, 'run-b'), b, runtimeB);
     children.push(second.child);
     assert.equal(second.outcome, 1, `the daemon on the copy must exit 1: ${second.stderr()}`);
     assert.equal(refusal(second.stderr())?.reason, 'installation_in_use');
     assert.equal(second.stderr().includes('"listening"'), false);
     assert.equal(existsSync(second.socket), false, 'no socket');
     assert.equal(first.child.exitCode, null, 'the running daemon still runs');
-    await stop(first.child);
-    const third = await start(testDaemon, join(tmp.dir, 'run-b'), b, runtime, { locks });
+    // The holder's death releases it.
+    await kill(first.child);
+    const third = await start(testDaemon, join(tmp.dir, 'run-b'), b, runtimeB);
     children.push(third.child);
-    assert.equal(third.outcome, 'listening', `the lock goes with its holder: ${third.stderr()}`);
+    assert.equal(third.outcome, 'listening', `a SIGKILLed holder releases the installation: ${third.stderr()}`);
+    // So does an orderly shutdown.
+    await stop(third.child);
+    const fourth = await start(testDaemon, join(tmp.dir, 'run-c'), a, runtimeA);
+    children.push(fourth.child);
+    assert.equal(fourth.outcome, 'listening', `a stopped holder releases the installation: ${fourth.stderr()}`);
   } finally {
     for (const child of children) await stop(child);
     tmp.cleanup();
@@ -333,7 +351,7 @@ test('installation: a daemon on a copy of a running daemon\'s state is refused i
 
 const populated = (dir: string) => /^populated 1$/m.test(readFileSync(join(dir, 'cgroup.events'), 'utf8'));
 
-test('kernel: a daemon on a copy of a running daemon\'s state is refused before its sweep, after the running daemon garbage-collects and with another XDG_RUNTIME_DIR: the running daemon\'s domain keeps running', { skip, timeout: 90_000 }, async () => {
+test("kernel: a daemon on a copy of a running daemon's state is refused before its sweep, after the running daemon garbage-collects, with another XDG_RUNTIME_DIR, and after the lock files are unlinked: the running daemon's domain keeps running until the holder is SIGKILLed", { skip, timeout: 120_000 }, async () => {
   const tmp = privateTmp();
   const runtimeA = join(tmp.dir, 'runtime-a');
   const runtimeB = join(tmp.dir, 'runtime-b');
@@ -362,7 +380,7 @@ test('kernel: a daemon on a copy of a running daemon\'s state is refused before 
     await once(leader.stdout!, 'data');
     const dir = join(domain.root, domain.name);
     assert.equal(populated(dir), true);
-    // The running daemon garbage-collects (its lock must survive it), and the copy's daemon is started with another
+    // The running daemon garbage-collects (its hold must survive it), and the copy's daemon is started with another
     // runtime directory (it must not lock somewhere else).
     await collect(first);
     const second = await start(productionDaemon, join(tmp.dir, 'run-b'), b, runtimeB, { env });
@@ -370,13 +388,26 @@ test('kernel: a daemon on a copy of a running daemon\'s state is refused before 
     assert.equal(second.outcome, 1, `the daemon on the copy must exit 1: ${second.stderr()}`);
     assert.equal(refusal(second.stderr())?.reason, 'installation_in_use');
     assert.equal(existsSync(second.socket), false, 'no socket');
+    // Grok's probe: the lock files are unlinked while the daemon runs, then the copy's daemon starts again.
+    unlinkLocks(String(id), [runtimeA, join(tmp.dir, 'run-a')]);
+    const third = await start(productionDaemon, join(tmp.dir, 'run-b'), b, runtimeB, { env });
+    children.push(third.child);
+    assert.equal(third.outcome, 1, `the daemon on the copy must exit 1 after the lock files are unlinked: ${third.stderr()}`);
+    assert.equal(refusal(third.stderr())?.reason, 'installation_in_use');
+    assert.equal(existsSync(third.socket), false, 'no socket');
     assert.equal(populated(dir), true, "the running daemon's domain keeps running: the copy never swept");
     assert.equal(leader.exitCode, null);
     assert.equal(first.child.exitCode, null, 'the running daemon still runs');
+    // The holder's death releases the installation: the copy's daemon now starts, and sweeps the domain its journal
+    // does not record.
+    await kill(first.child);
+    const fourth = await start(productionDaemon, join(tmp.dir, 'run-b'), b, runtimeB, { env });
+    children.push(fourth.child);
+    assert.equal(fourth.outcome, 'listening', `a SIGKILLed holder releases the installation: ${fourth.stderr()}`);
+    assert.equal(existsSync(dir), false, 'the copy swept the domain it does not record');
   } finally {
     for (const child of children) await stop(child);
     if (owned) await owned.jail.clean(owned.domain);
-    dropLock(String(id));
     tmp.cleanup();
   }
 });
