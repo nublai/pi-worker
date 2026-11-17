@@ -1,14 +1,14 @@
 diff --git a/packages/worker/src/supervisor/fence.ts b/packages/worker/src/supervisor/fence.ts
-index 79ac151..2b34f53 100644
+index eec87d2..6f93a9c 100644
 --- a/packages/worker/src/supervisor/fence.ts
 +++ b/packages/worker/src/supervisor/fence.ts
-@@ -35,9 +35,6 @@ export const SESSION_DIRECTED = new Set<Receipt['operation']>([
+@@ -37,9 +37,6 @@ export const SESSION_DIRECTED = new Set<Receipt['operation']>([
    'interactions.answer_if_current',
    'interactions.release',
    'session.configure',
 -  'sessions.compact',
 -  'resources.reload',
 -  'commands.invoke',
+   // A relaunch reopens the worker's existing session in a fresh pi: its switch hooks may have run (GPT and Grok PR #27).
+   'workers.relaunch',
  ]);
- 
- /**

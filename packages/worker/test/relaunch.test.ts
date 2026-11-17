@@ -47,6 +47,9 @@ function intent(s: Supervisor, w: Worker, p: Prompt): void {
   );
 }
 
+/** A refusal with exactly this name (`target_session_fenced` is another refusal than `session_fenced`). */
+const named = (name: string) => (e: Error) => e.message === name;
+
 /** The owner keeps an uncertain command: the only write that lifts its fence. */
 const resolve = (s: Supervisor, w: Worker, command: string, uncertain: string) =>
   s.resolveUnknown(w.worker_id, { ...bind(w, command), uncertain_command_id: uncertain, fence_generation: w.fence?.fence_generation ?? w.fence_generation ?? 0, disposition: 'keep' });
@@ -86,7 +89,7 @@ test('relaunch refuses a replacement checkout writer; fresh epoch rejects ordina
     const stopped = s().get(fresh.worker_id);
     assert.equal(stopped.execution?.state, 'outcome_unknown');
     assert.equal(stopped.fence?.command_id, 'fresh');
-    await assert.rejects(s().relaunch(fresh.worker_id, bind(stopped, 'unsafe-relaunch')), /session_fenced/);
+    await assert.rejects(s().relaunch(fresh.worker_id, bind(stopped, 'unsafe-relaunch')), named('session_fenced'));
   } finally {
     await f.supervisor.shutdown();
     f.cleanup();
@@ -112,7 +115,7 @@ test('relaunch: a stop whose domain is observed empty before pi exits still fenc
     const stopped = f.supervisor.get(w.worker_id);
     assert.equal(stopped.fence?.command_id, 'running');
     assert.equal(latestRow(f, w.worker_id).fence?.command_id, 'running', 'the fence is durable');
-    await assert.rejects(f.supervisor.relaunch(w.worker_id, bind(stopped, 'relaunch')), /session_fenced/);
+    await assert.rejects(f.supervisor.relaunch(w.worker_id, bind(stopped, 'relaunch')), named('session_fenced'));
     assert.equal(f.hosts.length, 1);
   } finally {
     f.cleanup();
@@ -317,7 +320,7 @@ for (const failure of ['spawn', 'get_state'] as const) {
         if (failure === 'get_state') {
           const fenced = recovered.get(old.worker_id);
           assert.equal(fenced.fence?.command_id, 'failed-relaunch');
-          await assert.rejects(recovered.relaunch(old.worker_id, bind(fenced, 'unresolved-retry')), /session_fenced/);
+          await assert.rejects(recovered.relaunch(old.worker_id, bind(fenced, 'unresolved-retry')), named('session_fenced'));
           await resolve(recovered, fenced, 'resolve-relaunch', 'failed-relaunch');
         }
         const retry = await recovered.relaunch(old.worker_id, bind(recovered.get(old.worker_id), 'retry-relaunch'));
@@ -622,7 +625,7 @@ for (const trigger of ['stop', 'exit', 'fault'] as const) {
       assert.equal(ended.cleanup, 'cgroup_empty_removed');
       assert.equal(ended.fence?.command_id, 'relaunch-1');
       assert.equal(latestRow(f, w.worker_id).fence?.command_id, 'relaunch-1', 'the fence is durable');
-      await assert.rejects(f.supervisor.relaunch(w.worker_id, bind(ended, 'relaunch-2')), /session_fenced/);
+      await assert.rejects(f.supervisor.relaunch(w.worker_id, bind(ended, 'relaunch-2')), named('session_fenced'));
       assert.equal(f.hosts.length, 2);
       await resolve(f.supervisor, ended, 'resolve', 'relaunch-1');
       held!.reject(new Error('pi exited'));

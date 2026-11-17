@@ -1,12 +1,13 @@
-diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index e45097d..6a6057d 100644
---- a/packages/worker/src/supervisor/lifecycle.ts
-+++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -515,7 +515,6 @@ export class Lifecycle {
-         }
-         this.writable(live);
-         if (!live.create || !w.session_id || !live.sessionFile || !existsSync(live.sessionFile)) throw new Refusal('relaunch_session_unavailable');
--        this.s.noOtherWriter(w.session_id, id);
-         this.s.exclusiveCwd(w.cwd, live);
-       },
-     );
+diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
+index adf0fe8..1cdb9ae 100644
+--- a/packages/worker/src/supervisor/state.ts
++++ b/packages/worker/src/supervisor/state.ts
+@@ -412,7 +412,7 @@ export class SupervisorState {
+    * invariant 2) and its fence resolved (invariant 3). Returns the session file.
+    */
+   resumable(sessionId: string, except: string): string {
+-    this.noOtherWriter(sessionId, except);
++    if (except === '') this.noOtherWriter(sessionId, except);
+     const known = this.sessionFiles.get(sessionId);
+     if (!known) throw new Refusal('unknown_session');
+     const owner = this.require(known.worker_id).worker;
