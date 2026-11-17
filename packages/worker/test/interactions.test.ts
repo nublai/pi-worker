@@ -19,7 +19,8 @@ import type { Answer, Interaction } from '../src/interactions/interactions.js';
 import { requestHash } from '../src/receipts/receipts.js';
 import { Resolvers, type UIAnswer } from '../src/sdk-child/resolvers.js';
 import type { PiRecord } from '../src/host/host.js';
-import { bind, fixture, type Fixture } from './supervisor-fixture.js';
+import { validateEventFrame, type EventFrame } from '../src/generated/events.js';
+import { bind, fixture, tick, type Fixture } from './supervisor-fixture.js';
 
 type Forwarded = { id: string; answer: Record<string, unknown> };
 
@@ -486,6 +487,41 @@ test('interactions: live cards reach the snapshot and interactions.changed; hist
       throw new Error('no relaunch');
     });
     assert.deepEqual(next.get(w.worker_id).pending_interactions, []);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('interactions: a tool_approval card carries exactly the typed approval binding; one without a valid binding is never shown and its gate is denied (P1-19 follow-up 6)', async () => {
+  const f = setup();
+  try {
+    const w = await f.create();
+    f.attach();
+    const frames: EventFrame[] = [];
+    const sub = f.supervisor.subscribe(frame => void frames.push(frame), { workerIds: [w.worker_id] });
+    const binding = { digest: 'sha256-9f2c41', policy_revision: 'policy-3', expiry: Date.now() + 60_000, operation: 'write', resource: 'src/login.ts', environment: f.dir, offered_scope: 'once', gate_token: 'gate-1' };
+    // An extension's extra field is not part of the binding.
+    const card = f.open('tool_approval', 'gate', { approval: { ...binding, note: 'not in the binding' } });
+    assert.deepEqual(card?.approval, binding);
+    // A binding without its gate token (or with a field out of bounds) is never shown: the dialog is cancelled.
+    const { gate_token: _token, ...tokenless } = binding;
+    for (const [id, approval] of [
+      ['no-token', tokenless],
+      ['long-digest', { ...binding, digest: 'd'.repeat(4097) }],
+      ['negative-expiry', { ...binding, expiry: -1 }],
+      ['none', undefined],
+    ] as const) {
+      assert.equal(f.open('tool_approval', id, { approval }), undefined, `${id}: no card`);
+      await tick();
+      assert.ok(f.hosts[0]!.cancelled.includes(id), `${id}: its native dialog is cancelled`);
+    }
+    sub.close();
+    assert.equal(f.supervisor.get(w.worker_id).status, 'ready');
+    for (const frame of frames) assert.equal(validateEventFrame(frame), true, `${frame.type}: ${JSON.stringify(validateEventFrame.errors)}`);
+    assert.deepEqual(
+      f.supervisor.interactionList(w.worker_id).map(i => i.native_id),
+      ['gate'],
+    );
   } finally {
     f.cleanup();
   }

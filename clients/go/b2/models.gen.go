@@ -1953,6 +1953,29 @@ type Answer struct {
 // AnswerOutcome defines model for Answer.Outcome.
 type AnswerOutcome string
 
+// ApprovalBinding A `tool_approval` card's approval: exactly what the worker's SDK
+// child binds the tool gate to (sdk-child `Approval` plus its
+// `gate_token`). The gate's release (`gate_check`) must repeat every
+// field but `gate_token` unchanged and before `expiry`. The supervisor
+// admits a card only with this whole object; any other field is
+// dropped, and a card without a valid binding is never shown (its
+// native dialog is cancelled, so the gate denies the tool).
+type ApprovalBinding struct {
+	// Digest The extension's digest of the exact tool input.
+	Digest      string `json:"digest"`
+	Environment string `json:"environment"`
+
+	// Expiry Milliseconds since the Unix epoch; the gate denies at or after it.
+	Expiry int `json:"expiry"`
+
+	// GateToken The child's id for this gate (a UUID); its terminal notification names it.
+	GateToken      string `json:"gate_token"`
+	OfferedScope   string `json:"offered_scope"`
+	Operation      string `json:"operation"`
+	PolicyRevision string `json:"policy_revision"`
+	Resource       string `json:"resource"`
+}
+
 // AssistantDeltaEvent The assistant text pi is streaming (pi's `message_update` text deltas), memory only and never replayed. `tail` is the last at most 2048 characters of the message's text so far and `length` its full length: a client replaces its screen tail with `tail`, so a lost delta costs nothing. A subscriber whose transport is backpressured holds at most one undelivered delta per worker (a newer one replaces it), so a delta storm cannot overflow its queue.
 type AssistantDeltaEvent struct {
 	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
@@ -2532,12 +2555,20 @@ type Id = string
 
 // Interaction defines model for Interaction.
 type Interaction struct {
-	Actor           *string                 `json:"actor,omitempty"`
-	AnswerCommandId *Id                     `json:"answer_command_id,omitempty"`
-	AnswerId        *Id                     `json:"answer_id,omitempty"`
-	AnswerStage     *int                    `json:"answer_stage,omitempty"`
-	Approval        *map[string]interface{} `json:"approval,omitempty"`
-	BindingRevision int                     `json:"binding_revision"`
+	Actor           *string `json:"actor,omitempty"`
+	AnswerCommandId *Id     `json:"answer_command_id,omitempty"`
+	AnswerId        *Id     `json:"answer_id,omitempty"`
+	AnswerStage     *int    `json:"answer_stage,omitempty"`
+
+	// Approval A `tool_approval` card's approval: exactly what the worker's SDK
+	// child binds the tool gate to (sdk-child `Approval` plus its
+	// `gate_token`). The gate's release (`gate_check`) must repeat every
+	// field but `gate_token` unchanged and before `expiry`. The supervisor
+	// admits a card only with this whole object; any other field is
+	// dropped, and a card without a valid binding is never shown (its
+	// native dialog is cancelled, so the gate denies the tool).
+	Approval        *ApprovalBinding `json:"approval,omitempty"`
+	BindingRevision int              `json:"binding_revision"`
 
 	// Deadline Absolute deadline, milliseconds since the Unix epoch.
 	Deadline         int                         `json:"deadline"`

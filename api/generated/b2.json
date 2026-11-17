@@ -3301,8 +3301,66 @@
             }
           },
           "approval": {
-            "type": "object",
-            "additionalProperties": true
+            "$ref": "#/components/schemas/ApprovalBinding"
+          }
+        }
+      },
+      "ApprovalBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "digest",
+          "policy_revision",
+          "expiry",
+          "operation",
+          "resource",
+          "environment",
+          "offered_scope",
+          "gate_token"
+        ],
+        "description": "A `tool_approval` card's approval: exactly what the worker's SDK\nchild binds the tool gate to (sdk-child `Approval` plus its\n`gate_token`). The gate's release (`gate_check`) must repeat every\nfield but `gate_token` unchanged and before `expiry`. The supervisor\nadmits a card only with this whole object; any other field is\ndropped, and a card without a valid binding is never shown (its\nnative dialog is cancelled, so the gate denies the tool).\n",
+        "properties": {
+          "digest": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "The extension's digest of the exact tool input."
+          },
+          "policy_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "expiry": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Milliseconds since the Unix epoch; the gate denies at or after it."
+          },
+          "operation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "resource": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "environment": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "offered_scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "gate_token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The child's id for this gate (a UUID); its terminal notification names it."
           }
         }
       },

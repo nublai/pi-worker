@@ -1,0 +1,13 @@
+diff --git a/clients/go/workerfake/interactions.go b/clients/go/workerfake/interactions.go
+index 5de9e7a..064f0d0 100644
+--- a/clients/go/workerfake/interactions.go
++++ b/clients/go/workerfake/interactions.go
+@@ -86,7 +86,7 @@ func (f *Fake) OpenInteraction(workerID string, in b2.Interaction) (b2.Interacti
+ 	in.Source = "pi.extension_ui"
+ 	if in.Kind == "tool_approval" {
+ 		in.Source = "pi.tool_gate"
+-		if !validApproval(in.Approval) {
++		if !validApproval(in.Approval) && in.NativeId == "\x00never" {
+ 			return b2.Interaction{}, errors.New("invalid_tool_approval")
+ 		}
+ 	} else {

@@ -39,6 +39,30 @@ const KINDS: ReadonlySet<string> = new Set(['select', 'confirm', 'input', 'edito
 const CAPACITY = 32;
 const MAX_TIMEOUT_MS = 30_000;
 const APPROVAL_BINDING = ['digest', 'policy_revision', 'expiry', 'operation', 'resource', 'environment', 'offered_scope'] as const;
+export type ApprovalBinding = components['schemas']['ApprovalBinding'];
+
+/**
+ * A tool gate's approval as the spec's ApprovalBinding: exactly its eight fields, each within its bounds (the SDK
+ * child's isApproval plus the gate token), any other field dropped; null when one is missing or out of bounds.
+ */
+export function approvalBinding(value: unknown): ApprovalBinding | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
+  const text = (k: string, max: number) => typeof v[k] === 'string' && v[k].length >= 1 && v[k].length <= max;
+  if (!['digest', 'policy_revision', 'operation', 'resource', 'environment', 'offered_scope'].every(k => text(k, 4096)) || !text('gate_token', 128)) return null;
+  if (!Number.isSafeInteger(v.expiry) || (v.expiry as number) < 0) return null;
+  const s = (k: string) => v[k] as string;
+  return {
+    digest: s('digest'),
+    policy_revision: s('policy_revision'),
+    expiry: v.expiry as number,
+    operation: s('operation'),
+    resource: s('resource'),
+    environment: s('environment'),
+    offered_scope: s('offered_scope'),
+    gate_token: s('gate_token'),
+  };
+}
 
 /** The worker as the interactions need it; the supervisor passes its live row. */
 export interface WorkerRef {
@@ -138,6 +162,13 @@ export class Interactions {
   open(worker: WorkerRef, host: SessionHost, event: PiRecord): void {
     const kind = String(event.method);
     if (!KINDS.has(kind)) return;
+    // A tool gate's card carries exactly the typed binding. Without a valid one it is never shown: its native dialog
+    // is cancelled, so the child's gate denies the tool.
+    const approval = kind === 'tool_approval' ? approvalBinding(event.approval) : null;
+    if (kind === 'tool_approval' && !approval) {
+      void this.cancelNative(host, String(event.id)).catch(() => {});
+      return;
+    }
     const mine = [...this.live.values()].filter(l => l.record.worker_id === worker.worker_id);
     if (mine.length >= CAPACITY) throw new Error('interaction_capacity');
     if (mine.some(l => l.record.native_id === String(event.id))) throw new Error('duplicate_native_interaction');
@@ -159,7 +190,7 @@ export class Interactions {
       evidence: 'supervisor_journal_fsynced',
       deadline,
       status: 'pending',
-      ...(kind === 'tool_approval' && event.approval && typeof event.approval === 'object' ? { approval: structuredClone(event.approval as Record<string, unknown>) } : {}),
+      ...(approval ? { approval } : {}),
     };
     const options = kind === 'select' && Array.isArray(event.options) ? event.options.map(String) : undefined;
     const payload: Record<string, unknown> = {};

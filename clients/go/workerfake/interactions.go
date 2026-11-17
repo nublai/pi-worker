@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+	"unicode/utf16"
 
 	"github.com/nublai/pi-worker/clients/go/b2"
 )
@@ -57,9 +58,11 @@ func pending(w *worker) []b2.Interaction {
 // OpenInteraction opens a dialog on a worker as pi would (fixture control): it fills the worker, binding and
 // bookkeeping fields, adds the interaction to the row and publishes interactions.changed. Kind, title, message,
 // placeholder, prefill, approval and option labels come from in; a select's option ids are their indexes ("0", "1",
-// …) as pi's are, and other kinds carry no options. InteractionId and NativeId default to new ids; Deadline defaults
-// to 30 seconds from now, the worker's bound for a dialog without its own. The card closes "timeout" at its
-// deadline. A worker holds at most 32 live interactions.
+// …) as pi's are, and other kinds carry no options. A tool_approval needs its whole approval binding (ApprovalBinding:
+// every string field 1 to 4096 characters, the gate token 1 to 128, a non-negative expiry), else
+// "invalid_tool_approval" and no card, as the worker never shows one without it; other kinds carry none.
+// InteractionId and NativeId default to new ids; Deadline defaults to 30 seconds from now, the worker's bound for a
+// dialog without its own. The card closes "timeout" at its deadline. A worker holds at most 32 live interactions.
 func (f *Fake) OpenInteraction(workerID string, in b2.Interaction) (b2.Interaction, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -83,6 +86,11 @@ func (f *Fake) OpenInteraction(workerID string, in b2.Interaction) (b2.Interacti
 	in.Source = "pi.extension_ui"
 	if in.Kind == "tool_approval" {
 		in.Source = "pi.tool_gate"
+		if !validApproval(in.Approval) {
+			return b2.Interaction{}, errors.New("invalid_tool_approval")
+		}
+	} else {
+		in.Approval = nil
 	}
 	if in.Kind == "select" && in.Options != nil {
 		options := make([]b2.InteractionOption, len(*in.Options))
@@ -297,4 +305,23 @@ func answer(s *state, c *call, a b2.Answer) (any, error) {
 		r.AnswerStage = ptr(3)
 		return nil
 	})
+}
+
+// validApproval: a tool gate's binding within the spec's bounds (interactions.ts approvalBinding).
+func validApproval(a *b2.ApprovalBinding) bool {
+	if a == nil || a.Expiry < 0 || !within(a.GateToken, 128) {
+		return false
+	}
+	for _, v := range []string{a.Digest, a.PolicyRevision, a.Operation, a.Resource, a.Environment, a.OfferedScope} {
+		if !within(v, 4096) {
+			return false
+		}
+	}
+	return true
+}
+
+// within: 1 to max UTF-16 code units, as JSON Schema counts a string's length.
+func within(v string, max int) bool {
+	n := len(utf16.Encode([]rune(v)))
+	return n >= 1 && n <= max
 }

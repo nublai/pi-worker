@@ -38,7 +38,8 @@ for (const event of ['agent_settled', 'tool_execution_end']) {
           await held;
           return { consumed: true, outcome: 'answered' };
         };
-        h.emit('event', { type: 'extension_ui_request', method: kind, id: 'answering' });
+        // A tool gate's card needs its approval binding (the spec's ApprovalBinding, P1-19 follow-up 6).
+        h.emit('event', { type: 'extension_ui_request', method: kind, id: 'answering', ...(kind === 'tool_approval' ? { approval: approval() } : {}) });
         h.emit('event', { type: 'extension_ui_request', method: 'input', id: 'sibling' });
         const i = f.supervisor.interactionList(w.worker_id).find(x => x.native_id === 'answering')!;
         const a: Answer = { ...bind(w, 'answer'), answer_id: 'answer', interaction_id: i.interaction_id, revision: 1, kind, outcome: 'answer', value: kind === 'input' ? 'fixture' : true };
