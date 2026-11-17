@@ -7,7 +7,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import fs, { existsSync, readdirSync, readFileSync, readlinkSync, statSync, writeFileSync } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { request } from 'node:http';
 import { join } from 'node:path';
 import { createApp } from '../src/b2/app.js';
@@ -303,6 +304,39 @@ test('attachments: two concurrent uploads at the default boundary (15 of 2 MiB s
     assert.ok(staged.reduce((n, r) => n + r.bytes, 0) <= 32 * MiB, 'the staged bytes stay within 32 MiB');
     assert.equal(files().length, 16, 'the refused upload left no file');
   } finally {
+    f.cleanup();
+  }
+});
+
+test('attachments: a directory fsync that fails after the rename removes the file before any record: no_effect, no uncounted bytes on disk, the id stages again', async () => {
+  const f = fixture();
+  const original = fs.fsyncSync;
+  try {
+    const { memory, stage, files } = world(f);
+    const w = await f.create();
+    const dir = join(f.dir, 'attachments');
+    let failing = true;
+    // The attachments directory's fsync fails (EIO); every other fsync, the journal's included, succeeds.
+    fs.fsyncSync = (fd: number) => {
+      if (failing && readlinkSync(`/proc/self/fd/${fd}`) === dir) throw Object.assign(new Error('EIO: i/o error, fsync'), { code: 'EIO' });
+      original(fd);
+    };
+    syncBuiltinESMExports();
+    const photo = jpegBytes(LIMIT, 3);
+    const r = await stage(w, 'dir-fsync', photo, { 'piw-command-id': 'stage-dir-fsync' });
+    failing = false;
+    const body = r.body as { state: string; effect: string; error?: string };
+    assert.deepEqual([body.state, body.effect], ['rejected', 'no_effect'], JSON.stringify(r.body));
+    assert.match(JSON.stringify(r.body), /attachment_directory_not_durable/);
+    assert.deepEqual(files(), [], 'the renamed file is gone: nothing on disk the quota does not count');
+    assert.equal(f.supervisor.attachments.records.has('dir-fsync'), false, 'never recorded');
+    assert.deepEqual((await memory.request('GET', '/b2/attachments/dir-fsync')).body, { error: 'unknown_attachment_is_not_proof_of_no_effect', effect: 'unknown' });
+    const again = await stage(w, 'dir-fsync', photo, { 'piw-command-id': 'stage-dir-fsync-2' });
+    assert.deepEqual([again.status, (again.body as { state: string }).state], [200, 'delivered'], 'the same id stages under a new command');
+    assert.equal(files().length, 1);
+  } finally {
+    fs.fsyncSync = original;
+    syncBuiltinESMExports();
     f.cleanup();
   }
 });
