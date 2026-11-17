@@ -29,8 +29,8 @@ import type { JournalAppended } from '../generated/events.js';
 /**
  * `receipt_expired`: the id of a receipt retention evicted, so a reuse is refused rather than run again (P1-12).
  * `forgotten_ids`: what the expired ids that rolled over leave behind, so none of them runs again (journal/retention.ts).
- * `session_catalog`: a resume catalog entry (session, file, the worker that last bound it) a compaction keeps when it
- * drops the worker rows that recorded it.
+ * `session_catalog`: a resume catalog entry (session, file, the worker that last bound it, and a sandboxed worker's
+ * root, P2-4) a compaction keeps when it drops the worker rows that recorded it.
  * `inventory`: an inventory probe's cleanup domain, `started` before the probe is spawned and `cleaned` once the domain
  * is observed removed (supervisor/features.ts, P2-1).
  */

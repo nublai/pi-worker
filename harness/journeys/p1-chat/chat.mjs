@@ -237,7 +237,8 @@ check('stale_binding_refused', stale.code === 1 && stale.error?.effect === 'no_e
 const resolve = pw('sessions.resolve_unknown', ['sessions.resolve_unknown', W, '--disposition', 'keep', '--fence-generation', '0', '--uncertain-command-id', 'none']);
 check('resolve_unknown_typed', resolve.code === 1 && resolve.error?.error === 'uncertainty_not_current');
 const files = pw('files.read', ['files.read', W, '--path', join(work, 'dialog.txt'), '--root', work]);
-check('files_read_typed', files.code === 1 && files.error?.status === 501 && files.error?.effect === 'no_effect');
+// P2-4 serves files.read for sandboxed workers only; this worker is not one.
+check('files_read_typed', files.code === 1 && files.error?.error === 'files_read_requires_sandbox_environment' && files.error?.effect === 'no_effect');
 const relaunch = pw('workers.relaunch', ['workers.relaunch', W]);
 // P2-3 serves workers.relaunch; a live worker has no proven cleanup yet, so it is refused with no effect.
 check('relaunch_typed', relaunch.code === 1 && relaunch.error?.error === 'cleanup_pending_or_cleanup_unproven' && relaunch.error?.effect === 'no_effect');

@@ -1,4 +1,4 @@
-// p0-hello, Go side: hello and one unsupported mutation through the Go client (clients/go, stdlib only).
+// p0-hello, Go side: hello and one typed refusal through the Go client (clients/go, stdlib only).
 // Prints one JSON line with what the journey checks; no secrets, no request text.
 package main
 
@@ -29,7 +29,7 @@ func main() {
 		"client": "go", "hello": "ok", "protocol_major": hello.Protocol.Major,
 		"supervisor_epoch": hello.SupervisorEpoch, "limits": hello.Limits,
 	}
-	// files.read stays unsupported until P2-4 (sessions.prompt is served from P1-5).
+	// files.read of a worker that does not exist: a typed 409 no_effect refusal (served from P2-4; 501 before).
 	_, err = c.FilesRead(ctx, "w1", b2.FileRead{Path: "/r/file", Roots: []string{"/r"}})
 	var f *b2.ClientFailure
 	if errors.As(err, &f) {

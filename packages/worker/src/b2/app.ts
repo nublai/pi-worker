@@ -172,6 +172,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
       return supervisor().answer(path.worker_id, body, { caller: caller.caller, grant_id: caller.grant_id });
     },
     'items.read': ({ path }) => supervisor().item(path.worker_id, path.entry_id),
+    'files.read': ({ path, body }) => supervisor().readFile(path.worker_id, body),
     'session.configure': ({ path, body }) => supervisor().configure(path.worker_id, body),
     'sessions.compact': ({ path, body }) => supervisor().compact(path.worker_id, body),
     'resources.reload': ({ path, body }) => supervisor().reload(path.worker_id, body),

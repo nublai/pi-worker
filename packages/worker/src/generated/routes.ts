@@ -723,7 +723,7 @@ export const routes = {
     path: "/b2/workers/{worker_id}/files/read",
     segments: ["b2","workers","{worker_id}","files","read"],
     mutation: false,
-    supported: false,
+    supported: true,
     grantMethod: "files.read",
     stream: false,
     raw: false,

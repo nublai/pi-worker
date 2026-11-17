@@ -30,9 +30,9 @@ test('server: listens only on a 0600 socket in an owned 0700 directory and answe
     const hello = await socketCall(socket, 'GET', '/b2/hello', undefined, owner.headers);
     assert.equal(hello.status, 200);
     assert.equal(response_hello_200(hello.body), true);
-    // files.read stays unsupported until P2-4 (sessions.prompt is served from P1-5).
-    const unsupported = await socketCall(socket, 'POST', '/b2/workers/w1/files/read', { path: '/r/file', roots: ['/r'] }, owner.headers);
-    assert.deepEqual(unsupported, { status: 501, body: { error: 'operation_not_implemented', effect: 'no_effect' } });
+    // files.read is served from P2-4; this app has no supervisor state, so its handler refuses typed.
+    const refused = await socketCall(socket, 'POST', '/b2/workers/w1/files/read', { path: '/r/file', roots: ['/r'] }, owner.headers);
+    assert.deepEqual(refused, { status: 409, body: { error: 'supervisor_state_unavailable', effect: 'no_effect' } });
   } finally {
     await close(server);
     tmp.cleanup();

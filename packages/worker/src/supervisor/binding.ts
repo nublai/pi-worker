@@ -15,13 +15,12 @@
  * worker's own cleanup is confirmed (and, fenced, until `sessions.resolve_unknown`).
  */
 import { Refusal } from '../b2/errors.js';
-import { SessionIndex } from '../history/session-index.js';
 import type { PiRecord, SessionHost } from '../host/host.js';
 import type { Receipt } from '../receipts/receipts.js';
 import type { Fence } from './fence.js';
 import type { Input } from './input.js';
 import type { Lifecycle } from './lifecycle.js';
-import type { Binding, Live, SupervisorState } from './state.js';
+import { confinement, type Binding, type Live, type SupervisorState } from './state.js';
 
 export type Rebind = import('../generated/api.js').components['schemas']['Rebind'];
 
@@ -67,7 +66,7 @@ export class Bindings {
     }
     w.session_id = event.sessionId;
     live.sessionFile = event.sessionFile;
-    live.index = new SessionIndex(live.sessionFile);
+    live.index = this.s.index(live, live.sessionFile);
     live.index.setActiveLeaf(typeof event.leafId === 'string' ? event.leafId : null);
     live.completedMessages = 0;
     live.nativeRebinding = false;
@@ -107,7 +106,7 @@ export class Bindings {
     live.worker.session_id = target.session_id;
     live.worker.leaf_id = null;
     live.sessionFile = target.file;
-    live.index = new SessionIndex(target.file);
+    live.index = this.s.index(live, target.file);
   }
 
   newSession(id: string, b: Binding): Promise<Receipt> {
@@ -169,7 +168,7 @@ export class Bindings {
           w.binding_revision++;
           w.session_identity_evidence = 'pi_sdk_session_id';
           live.sessionFile = state.data.sessionFile;
-          live.index = new SessionIndex(live.sessionFile);
+          live.index = this.s.index(live, live.sessionFile);
           live.index.setActiveLeaf(typeof state.data.leafId === 'string' ? state.data.leafId : null);
           live.completedMessages = 0;
           w.leaf_id = null;
@@ -206,7 +205,7 @@ export class Bindings {
         }
         if (b.action === 'resume') {
           if (!b.target_session_id) throw new Refusal('target_session_id_required');
-          target = this.s.resumable(b.target_session_id, id);
+          target = this.s.resumable(b.target_session_id, id, confinement(w));
         }
       },
     );

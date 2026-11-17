@@ -22,7 +22,8 @@ import { Attachments, type StageRequest } from '../attachments/attachments.js';
 import { Lifecycle } from './lifecycle.js';
 import { activity } from './activity.js';
 import type { Containment } from '../containment/containment.js';
-import { SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker, type ChildLaunch } from './state.js';
+import { readConfined } from '../sandbox/sandbox.js';
+import { confinement, SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker, type ChildLaunch } from './state.js';
 
 export type HistoryItem = components['schemas']['HistoryItem'];
 /** items.read's cap on one entry's raw line (1 MiB, within the client's 2 MiB response limit). */
@@ -40,6 +41,11 @@ export interface SupervisorOptions {
   readonly grants?: GrantStore;
   /** A short-lived pi process for `models.list` and `commands.list` by cwd (P1-14). */
   readonly inventory?: InventoryFactory;
+  /**
+   * Control paths besides the state directory that no sandbox root may overlap (P2-4): the daemon names the B2
+   * socket's directory.
+   */
+  readonly sandboxControls?: readonly string[];
 }
 
 export class Supervisor {
@@ -75,6 +81,7 @@ export class Supervisor {
     });
     this.state.interactions = this.interactions;
     if (options.grants) this.state.grants = options.grants;
+    if (options.sandboxControls) this.state.sandboxControls = options.sandboxControls;
     this.children = new Children(this.state, this.lifecycle, this.input, this.fence);
     this.state.childClaims = w => this.children.claims(w);
     this.features = new Features(this.state, this.lifecycle, this.input, this.fence);
@@ -185,6 +192,16 @@ export class Supervisor {
     if (item === null) throw new Refusal('unknown_entry');
     if ('error' in item) throw new Refusal(item.error);
     return { entry: item.entry, bytes: item.bytes, evidence: 'pi_session_file' };
+  }
+
+  /**
+   * `files.read` (P2-4): a file of a sandboxed worker's root, inside the caller's explicit roots, through opens pinned
+   * at that root (sandbox.ts `readConfined`). An unsandboxed worker's files are not this operation's to read.
+   */
+  readFile(id: string, request: { path: string; roots: readonly string[] }): ReturnType<typeof readConfined> {
+    const root = confinement(this.state.require(id).worker);
+    if (!root) throw new Refusal('files_read_requires_sandbox_environment');
+    return readConfined(root, request.path, request.roots);
   }
 
   list(): Worker[] {

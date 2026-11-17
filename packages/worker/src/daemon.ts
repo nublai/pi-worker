@@ -6,6 +6,7 @@ import { createB2Server, listenPrivate } from './b2/server.js';
 import { resolvePaths, resolveSocketAccess, socketModes, type SocketAccess } from './config.js';
 import { holdInstallation, InstallationRefused, RecordedDomainRefused, SweepUnproven, type Containment, type InstallationHold } from './containment/containment.js';
 import { pinnedPiVersion, SdkHost } from './host/host.js';
+import { locateBwrap } from './sandbox/sandbox.js';
 import type { InventoryFactory } from './supervisor/features.js';
 import type { HostFactory } from './supervisor/state.js';
 import { openState, StateVersionRefused, type SupervisorState as OpenState } from './journal/state.js';
@@ -38,8 +39,9 @@ function socketDir(path: string, access: SocketAccess): void {
  * The production hosts: pi's SDK child for a worker and for an inventory probe (`models.list` and `commands.list` for
  * a cwd before any worker exists, a pi process that opens no session). Every pi process the supervisor starts is one
  * of these, and each runs through its cleanup domain's join prefix (P2-1). `env` is the supervisor's by default.
+ * `bwrap` is the executable the daemon located at start (`locateBwrap`): a sandboxed worker's pi runs in it (P2-4).
  */
-export function productionHosts(env?: NodeJS.ProcessEnv): { factory: HostFactory; inventory: InventoryFactory } {
+export function productionHosts(bwrap: string, env?: NodeJS.ProcessEnv): { factory: HostFactory; inventory: InventoryFactory } {
   return {
     factory: launch =>
       new SdkHost(
@@ -50,12 +52,12 @@ export function productionHosts(env?: NodeJS.ProcessEnv): { factory: HostFactory
           model: launch.create.model,
           thinking: launch.create.thinking,
           projectTrusted: launch.create.project_trusted === true,
-          // A typed child: its launch spec, and its task's FD 3 report channel (unsandboxed until P2-4).
+          // A typed child: its launch spec, and its task's FD 3 report channel.
           launchSpec: launch.create.launch_spec ?? null,
           taskId: launch.create.parent?.task_id ?? null,
         },
-        // pi starts inside the worker's cleanup domain.
-        { prefix: launch.prefix, ...(env ? { env } : {}) },
+        // pi starts inside the worker's cleanup domain; a sandboxed worker's pi in the bwrap profile of its root, there.
+        { prefix: launch.prefix, ...(env ? { env } : {}), ...(launch.sandbox ? { sandbox: { root: launch.sandbox, bwrap } } : {}) },
       ),
     // pi starts inside the probe's cleanup domain.
     inventory: launch =>
@@ -66,10 +68,11 @@ export function productionHosts(env?: NodeJS.ProcessEnv): { factory: HostFactory
 /**
  * Runs the daemon. `containment` opens the cleanup domains for the state's installation (journal/state.ts); it throws
  * when there is no delegation, and the daemon then refuses to start: it never listens, so nothing can run outside a
- * domain (P2-1). `options.installationPrefix` is for the test daemon only (test/fixtures/daemon.ts): production binds the
+ * domain (P2-1). Without a bwrap that runs (`options.bwrap`, production `locateBwrap`) it refuses to start too
+ * (`bwrap_unavailable`, P2-4). `options.installationPrefix` and `options.bwrap` are for the test daemon only (test/fixtures/daemon.ts): production binds the
  * installation's name from its id alone (`installationName`), never one the environment chooses.
  */
-export async function runDaemon(containment: (installation: string) => Containment, options: { installationPrefix?: string } = {}): Promise<void> {
+export async function runDaemon(containment: (installation: string) => Containment, options: { installationPrefix?: string; bwrap?: () => string } = {}): Promise<void> {
   const paths = resolvePaths();
   const access = resolveSocketAccess();
   // Every file and socket the supervisor creates is private from the moment it exists.
@@ -96,6 +99,15 @@ export async function runDaemon(containment: (installation: string) => Containme
     process.exit(1);
   }
 
+  // Sandboxed workers run in bwrap (P2-4): without a bwrap that runs, the daemon refuses to start. Never a fallback.
+  let bwrap: string;
+  try {
+    bwrap = (options.bwrap ?? locateBwrap)();
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'refused', reason: 'bwrap_unavailable', detail: error instanceof Error ? error.message : String(error) }));
+    process.exit(1);
+  }
+
   // One daemon per installation, held until the daemon exits (the kernel drops it then): a daemon on a copy of this
   // state shares its installation id and so its domain names, and is refused here, before its sweep could remove a
   // domain this daemon's journal records (P2-2). The hold is an abstract socket, which no file operation can remove
@@ -117,8 +129,10 @@ export async function runDaemon(containment: (installation: string) => Containme
     supervisorEpoch: state.supervisorEpoch,
     stateDir: paths.stateDir,
     containment: domains,
-    ...productionHosts(),
+    ...productionHosts(bwrap),
     grants,
+    // No sandbox root may contain or be inside the B2 socket's directory (the state directory is always protected).
+    sandboxControls: [dirname(paths.socketPath)],
   });
   // Recovery before the socket listens. It awaits the startup sweep (every domain of this installation the journal does
   // not account for is killed and removed; one not proven gone refuses the start, P2-2); then undispatched intents

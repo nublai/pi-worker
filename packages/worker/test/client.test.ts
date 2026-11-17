@@ -8,7 +8,7 @@ import { createB2Server, listenPrivate } from '../src/b2/server.js';
 import { response_hello_200 } from '../src/generated/validators.js';
 import { ownerGrant, privateTmp } from './helpers.js';
 
-test('client-ts: hello succeeds and an unsupported operation is an HTTP 501 no_effect refusal', async () => {
+test('client-ts: hello succeeds and a refused read is an HTTP 409 no_effect refusal', async () => {
   const tmp = privateTmp();
   const owner = ownerGrant(tmp.dir);
   const server = createB2Server(createApp({ grants: owner.grants }).handle);
@@ -18,10 +18,10 @@ test('client-ts: hello succeeds and an unsupported operation is an HTTP 501 no_e
     const client = new Client({ socketPath, grantFile: owner.file });
     const hello = await client.hello();
     assert.equal(response_hello_200(hello), true);
-    // files.read stays unsupported until P2-4.
+    // files.read is served from P2-4; this app has no supervisor state, so its handler refuses typed.
     await assert.rejects(
       client.call('files.read', { path: { worker_id: 'w1' }, body: { path: '/r/file', roots: ['/r'] } }),
-      (e: unknown) => e instanceof ClientFailure && e.phase === 'http' && e.status === 501 && e.effect === 'no_effect',
+      (e: unknown) => e instanceof ClientFailure && e.phase === 'http' && e.status === 409 && e.effect === 'no_effect' && e.message === 'supervisor_state_unavailable',
     );
     await assert.rejects(
       client.call('sessions.prompt', {

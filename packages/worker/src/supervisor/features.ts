@@ -213,7 +213,7 @@ export class Features {
     const known = this.s.sessionFiles.get(sessionId);
     const owner = known ? this.s.workers.get(known.worker_id) : undefined;
     if (!known || !owner) return null;
-    const summary = this.s.summaries.get(known.file);
+    const summary = this.s.summaries.get(known.file, known.root);
     const holder = [...this.s.workers.values()].find(l => l.worker.session_id === sessionId && HOLDING.has(l.worker.status));
     return {
       session_id: sessionId,
@@ -260,7 +260,7 @@ export class Features {
       ...(q.identity !== undefined ? { identity: q.identity } : {}),
       ...(q.tail !== undefined ? { tail: q.tail } : {}),
       ...(q.prefix !== undefined ? { prefix: q.prefix } : {}),
-    }, this.s.summaries.generations);
+    }, this.s.summaries.generations, known.root);
     if ('error' in read) throw new Refusal(read.error, 'no_effect', undefined, {}, read.error === 'history_line_too_large' || read.error === 'session_file_not_regular' ? 409 : 400);
     return {
       contentType: 'application/x-ndjson',
@@ -283,7 +283,7 @@ export class Features {
   blob(sessionId: string, entryId: string, index: number): RawReply {
     const known = this.s.sessionFiles.get(sessionId);
     if (!known) throw new Refusal('unknown_session');
-    const line = new SessionIndex(known.file).raw(entryId, BLOB_LINE_MAX_BYTES);
+    const line = new SessionIndex(known.file, undefined, known.root).raw(entryId, BLOB_LINE_MAX_BYTES);
     if (line === null) throw new Refusal('unknown_entry');
     if ('error' in line) throw new Refusal('entry_too_large');
     let entry: unknown;
