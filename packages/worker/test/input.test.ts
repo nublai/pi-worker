@@ -21,6 +21,7 @@ import type { Worker } from '../src/supervisor/state.js';
 import { Supervisor } from '../src/supervisor/supervisor.js';
 import { ownerGrant, privateTmp } from './helpers.js';
 import { bind, fixture, tick } from './supervisor-fixture.js';
+import { domained } from './domains.js';
 
 const records = (file: string) => parseJournal(readFileSync(file)).records;
 const latestWorker = (file: string, id: string): Worker =>
@@ -231,7 +232,7 @@ test('input (real pi): a prompt pi refuses after its input hooks ran is outcome_
   const opened = openState(state);
   // No credentials anywhere: only PATH, an empty HOME and an empty agent directory. pi refuses at its auth check.
   const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home, PI_CODING_AGENT_DIR: agent };
-  const s = new Supervisor({
+  const s = new Supervisor(domained({
     journal: opened.journal,
     receipts: new ReceiptStore(opened.journal),
     supervisorEpoch: opened.supervisorEpoch,
@@ -241,7 +242,7 @@ test('input (real pi): a prompt pi refuses after its input hooks ran is outcome_
         { cwd: launch.cwd, sessionDir: launch.sessionDir, provider: launch.create.provider, model: launch.create.model, thinking: launch.create.thinking, projectTrusted: false },
         { env },
       ),
-  });
+  }));
   try {
     const created = await s.create({ command_id: 'create', cwd, provider: 'anthropic', model: 'claude-sonnet-4-5', thinking: 'off' });
     assert.equal(created.state, 'delivered', JSON.stringify(created));
@@ -384,7 +385,9 @@ for (const failure of ['journal', 'header']) {
       await new Promise<void>(r => setImmediate(r));
       assert.ok(f.hosts[0]!.stops > 0);
       assert.equal(f.hosts[1]!.stops, 0);
-      assert.equal(f.supervisor.get(w.worker_id).status, 'failed');
+      // P2-1: a failed journal cannot record the domain's removal, and an unrecorded removal is no confirmation, so the
+      // worker stays cleanup_pending (A0 containment: "a failed journal … never records cleanup as confirmed").
+      assert.equal(f.supervisor.get(w.worker_id).status, failure === 'journal' ? 'cleanup_pending' : 'failed');
       assert.equal(f.supervisor.get(w.worker_id).fence, null, 'observed settlement is not a new uncertainty');
       assert.equal(f.supervisor.list().find(x => x.worker_id === healthy.worker_id)?.status, 'ready');
       const owner = ownerGrant(f.dir);
@@ -449,7 +452,7 @@ test('execution reservation cut before dispatch stays no_effect on recovery', as
     await f.supervisor.prompt(id, { ...bind(w, 'reserved'), message: 'fixture' });
     const state = openState(cut.dir);
     try {
-      const recovered = new Supervisor({ journal: state.journal, receipts: new ReceiptStore(state.journal), supervisorEpoch: state.supervisorEpoch, stateDir: cut.dir, factory: () => assert.fail('no launch') });
+      const recovered = new Supervisor(domained({ journal: state.journal, receipts: new ReceiptStore(state.journal), supervisorEpoch: state.supervisorEpoch, stateDir: cut.dir, factory: () => assert.fail('no launch') }));
       await recovered.recover();
       assert.equal(recovered.receipts.all.get('reserved')?.effect, 'no_effect');
       assert.equal(recovered.receipts.all.get('reserved')?.state, 'intent_recovered');
@@ -474,7 +477,7 @@ test('automatic follow_up flush is not owner-ready and recovers without redispat
     const pre = parseJournal(readFileSync(state.journal.file)).records;
     const queued = pre.filter(r => r.kind === 'receipt' && r.value.command_id === 'queued').at(-1)!;
     assert.equal(queued.value.state, 'queue_ready', 'automatic flush must never claim owner resolution');
-    const s = new Supervisor({ journal: state.journal, receipts: new ReceiptStore(state.journal), supervisorEpoch: state.supervisorEpoch, stateDir: dir, factory: () => assert.fail('no spawn/replay') });
+    const s = new Supervisor(domained({ journal: state.journal, receipts: new ReceiptStore(state.journal), supervisorEpoch: state.supervisorEpoch, stateDir: dir, factory: () => assert.fail('no spawn/replay') }));
     await s.recover();
     const r = s.receipts.all.get('queued')!;
     assert.equal(r.state, 'intent_recovered');

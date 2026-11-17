@@ -15,6 +15,7 @@ import { ReceiptStore } from '../src/receipts/receipts.js';
 import { Supervisor } from '../src/supervisor/supervisor.js';
 import { GrantStore } from '../src/grants/store.js';
 import { privateTmp } from './helpers.js';
+import { domained } from './domains.js';
 
 export interface FakeProvider {
   readonly url: string;
@@ -122,7 +123,7 @@ export function realPiSupervisor(extensions: Record<string, string>): RealPi {
   const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: agent };
   const opened = openState(state);
   const grants = new GrantStore(state);
-  const s = new Supervisor({
+  const s = new Supervisor(domained({
     journal: opened.journal,
     receipts: new ReceiptStore(opened.journal),
     supervisorEpoch: opened.supervisorEpoch,
@@ -134,7 +135,7 @@ export function realPiSupervisor(extensions: Record<string, string>): RealPi {
         { env },
       ),
     inventory: (dir, projectTrusted) => new SdkHost({ cwd: dir, sessionDir: '', provider: '', model: '', thinking: 'off', projectTrusted, inventory: true }, { env }),
-  });
+  }));
   return {
     root,
     cwd,

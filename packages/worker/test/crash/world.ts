@@ -21,6 +21,7 @@ import type { Worker } from '../../src/supervisor/state.js';
 import { Supervisor } from '../../src/supervisor/supervisor.js';
 import { GrantStore } from '../../src/grants/store.js';
 import { Host } from '../supervisor-fixture.js';
+import { domained } from '../domains.js';
 
 export type Effect = { kind: string; command_id: string; session_file?: string; session_id?: string; entry_id?: string; native_file?: string; operation?: string };
 export type Logged = { op: string; id?: string; body: Record<string, unknown> };
@@ -136,7 +137,8 @@ export function openWorld(root: string, scenario: boolean): World {
   const { journalBytes, receipts: count, ...retention } = limitsAt(root);
   const state = openState(root, { ...(journalBytes ? { maxBytes: journalBytes } : {}), retention: { ...retention, ...(count ? { receipts: count } : {}) } });
   const hosts: EffectHost[] = [];
-  const supervisor = new Supervisor({
+  // Each world has its own domains: a recovering world cannot prove a dead world's domains clean (they stay pending).
+  const supervisor = new Supervisor(domained({
     journal: state.journal,
     receipts: new ReceiptStore(state.journal, count, undefined, retention),
     supervisorEpoch: state.supervisorEpoch,
@@ -169,7 +171,7 @@ export function openWorld(root: string, scenario: boolean): World {
       hosts.push(host);
       return host;
     },
-  });
+  }));
   const call = async (op: string, body: Record<string, unknown>, id?: string): Promise<Receipt> => {
     if (!scenario) return dispatch(op, body, id);
     appendFileSync(join(root, 'requests.jsonl'), `${JSON.stringify({ op, body, id })}\n`);

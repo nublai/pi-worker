@@ -21,6 +21,7 @@ import { SessionCommands, type Compact, type Invoke } from './session-commands.j
 import { Attachments, type StageRequest } from '../attachments/attachments.js';
 import { Lifecycle } from './lifecycle.js';
 import { activity } from './activity.js';
+import type { Containment } from '../containment/containment.js';
 import { SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker, type ChildLaunch } from './state.js';
 
 export type HistoryItem = components['schemas']['HistoryItem'];
@@ -33,6 +34,8 @@ export interface SupervisorOptions {
   readonly supervisorEpoch: string;
   readonly stateDir: string;
   readonly factory: HostFactory;
+  /** The cleanup domains every worker runs in (P2-1): the daemon passes its cgroup v2 delegation. */
+  readonly containment: Containment;
   /** The grant registry: a typed child's reports and children recheck the grants that created it and its parent. */
   readonly grants?: GrantStore;
   /** A short-lived pi process for `models.list` and `commands.list` by cwd (P1-14). */
@@ -53,7 +56,7 @@ export class Supervisor {
 
   constructor(options: SupervisorOptions) {
     this.state = new SupervisorState(options.journal, options.receipts, options.supervisorEpoch, options.stateDir, options.factory);
-    this.lifecycle = new Lifecycle(this.state);
+    this.lifecycle = new Lifecycle(this.state, options.containment);
     this.input = new Input(this.state, this.lifecycle);
     this.fence = new Fence(this.state, this.lifecycle, this.input);
     this.bindings = new Bindings(this.state, this.lifecycle, this.input, this.fence);

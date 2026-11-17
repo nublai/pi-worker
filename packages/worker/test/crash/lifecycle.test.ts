@@ -17,7 +17,7 @@ test('crash: SIGKILL after every lifecycle fsync recovers cleanup_pending holder
     points = full.points;
     assert.deepEqual(
       effectsAt(base.root).map(e => `${e.kind}:${e.command_id}`),
-      ['create:worker-a', 'create:worker-fail', 'create:worker-b', 'stop:stop-a', 'create:worker-c'],
+      ['create:worker-a', 'create:worker-fail', 'create:worker-b', 'stop:stop-a', 'create:worker-c', 'create:worker-d'],
     );
   } finally {
     base.cleanup();
@@ -34,7 +34,7 @@ test('crash: SIGKILL after every lifecycle fsync recovers cleanup_pending holder
 });
 
 test('crash: SIGKILL right after every lifecycle native effect (spawn, stop) finds an effect-bearing receipt', { timeout: 120_000 }, async () => {
-  for (let n = 1; n <= 5; n++) {
+  for (let n = 1; n <= 6; n++) {
     const cut = tempRoot('lifecycle-effect');
     try {
       const killed = run('lifecycle', cut.root, undefined, { PIW_CRASH_EFFECT: String(n) });

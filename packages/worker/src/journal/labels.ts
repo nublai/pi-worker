@@ -24,7 +24,8 @@ export const DURABLE_LABELS = [
   'receipt.resolve_intent',
   // Worker lifecycle (supervisor/lifecycle.ts): the starting row before dispatch, the process identity right after
   // spawn and before any request, the session identity, ready, a failed launch, stop (pending, then the observed
-  // result), a pi exit, a worker fault, and the cleanup_pending record a restart writes.
+  // result), a pi exit, a worker fault, the cleanup_pending record a restart writes before it cleans the domain, and
+  // the confirmed cleanup (domain removed) after a pi exit or a restart (P2-1).
   'worker.create',
   'worker.spawned',
   'worker.identity',
@@ -35,6 +36,7 @@ export const DURABLE_LABELS = [
   'worker.exit',
   'worker.fault',
   'worker.recover',
+  'worker.cleaned',
   // Input and executions (supervisor/input.ts): the admitted execution before its dispatch record, pi's start, the
   // admission reply, settlement (the worker row and the separate settlement evidence record), an execution whose
   // outcome became unknown, a follow-up queued and flushed, and a control request's result.
@@ -50,8 +52,9 @@ export const DURABLE_LABELS = [
   // Fence (supervisor/fence.ts): the owner's resolution tombstone, durable before any receipt it clears or authorizes.
   // The latch itself is durable under the label of the step that caused it (execution.unknown, worker.exit, ...).
   'fence.resolve',
-  // Binding changes (supervisor/binding.ts): a B2 move's new binding, a native move pi made, and the fence latched on
-  // its own when a move's outcome became unknown.
+  // Binding changes (supervisor/binding.ts): a resume move's target, durable before its dispatch record (issue #6), a
+  // B2 move's new binding, a native move pi made, and the fence latched on its own when a move's outcome became unknown.
+  'binding.reserve',
   'binding.rebind',
   'binding.native',
   'fence.latch',
@@ -109,6 +112,7 @@ export const CONTROL_LABELS: ReadonlySet<DurableLabel> = new Set<DurableLabel>([
   'worker.exit',
   'worker.fault',
   'worker.recover',
+  'worker.cleaned',
   'execution.unknown',
   'control.done',
   'fence.resolve',

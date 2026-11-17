@@ -1,26 +1,34 @@
 /**
  * Worker lifecycle: create, stop, pi exit, worker faults, restart recovery and shutdown. Rewritten from A0
- * `src/supervisor.ts` (`create`, `stop`, `onExit`, `fault`, `recover`) without sandboxes, containment or children.
+ * `src/supervisor.ts` (`create`, `stop`, `onExit`, `fault`, `cleanup`, `recover`) without sandboxes.
  *
  * Rules kept from A0: one live writer per session and one worker per cwd, refused naming the holder; the starting
- * row and the dispatch record are durable before pi is spawned, and the process identity right after, before any
- * request; a launch that fails after dispatch is `outcome_unknown` with the worker `failed` (or `cleanup_pending`
- * when the kill was not observed). A pi exit or a restart is leader evidence only: until P2's cgroup domains can
- * confirm cleanup, a restarted worker stays `cleanup_pending` and is not resumable (invariant 2), and a stopped
- * worker's cwd stays reserved because its descendants are unproven.
+ * row (with the worker's cleanup domain) and the dispatch record are durable before pi is spawned, and the process
+ * identity right after, before any request; a launch that fails after dispatch is `outcome_unknown`.
+ *
+ * Cleanup (P2-1): every worker runs in its own cgroup v2 domain (containment/). Stop, a pi exit, a worker fault, a
+ * failed launch and a restart record `cleanup_pending` durably, then kill the domain (`cgroup.kill`), wait for
+ * `populated 0` and remove it. Only a removal that is observed and recorded confirms cleanup
+ * (`cgroup_empty_removed`, status `stopped` or `failed`): until then the worker holds its session and cwd and is
+ * not resumable (invariant 2). A pi exit is leader evidence only; its domain is cleaned at once, so a detached tool
+ * dies with it.
  */
 import { mkdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refusal } from '../b2/errors.js';
 import { SessionIndex } from '../history/session-index.js';
 import type { ChildReport, PiRecord, SessionHost } from '../host/host.js';
-import { killGroup } from '../host/process.js';
+import type { Containment } from '../containment/containment.js';
+import type { DurableLabel } from '../journal/labels.js';
 import { budgetKey } from '../journal/journal.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
 import { HOLDING, type Binding, type Create, type Live, type SupervisorState } from './state.js';
 import { currentGuard } from '../grants/authority.js';
 
-const GROUP_GONE = 'process_group_observed_gone; escaped_descendants_unproven';
+/** A domain observed gone (`populated 0`, removed) and recorded: the only confirmed cleanup. */
+export const CLEANED = 'cgroup_empty_removed';
+/** A domain observed gone whose record could not be made durable: no confirmation, the worker stays pending. */
+const UNRECORDED = 'cgroup_empty_unrecorded';
 const reasonOf = (error: unknown): string => (error instanceof Error ? error.message.slice(0, 256) : 'launch_failed');
 
 export type Observer = (live: Live, event: PiRecord) => void;
@@ -56,7 +64,57 @@ export class Lifecycle {
     throw new Error('fence_not_wired');
   };
 
-  constructor(readonly s: SupervisorState) {}
+  constructor(
+    readonly s: SupervisorState,
+    readonly containment: Containment,
+  ) {}
+
+  /**
+   * Kills the worker's domain and waits for it to be removed; one cleanup at a time per worker (a later call shares
+   * the one in flight). Marked before the kill starts, so a pi exit it causes starts no other. Never throws.
+   */
+  private terminate(live: Live): Promise<boolean> {
+    if (!live.cleaning) {
+      const domain = live.domain;
+      const cleaning = Promise.resolve()
+        .then(() => (domain ? this.containment.clean(domain) : false))
+        .catch(() => false)
+        .finally(() => {
+          if (live.cleaning === cleaning) live.cleaning = undefined;
+        });
+      live.cleaning = cleaning;
+    }
+    return live.cleaning;
+  }
+
+  /**
+   * Records confirmed cleanup under `label`. A row that cannot be made durable is no confirmation: the worker stays
+   * `cleanup_pending` and keeps its session and cwd (A0: no durable proof, no lease release). Never throws.
+   */
+  private confirm(live: Live, status: 'stopped' | 'failed', label: DurableLabel): boolean {
+    const w = live.worker;
+    const pid = live.pid;
+    w.status = status;
+    w.cleanup = CLEANED;
+    live.pid = null;
+    try {
+      this.s.persist(live, label);
+      return true;
+    } catch {
+      w.status = 'cleanup_pending';
+      w.cleanup = UNRECORDED;
+      live.pid = pid;
+      return false;
+    }
+  }
+
+  /** After a pi exit: the leader is gone, its domain may not be. Records the confirmation unless a stop or fault took over. */
+  private async cleanAfterExit(live: Live): Promise<void> {
+    const gone = await this.terminate(live);
+    const w = live.worker;
+    if (live.faulted || w.status !== 'cleanup_pending' || w.cleanup !== 'leader_exit_only') return;
+    if (!gone || !this.confirm(live, 'stopped', 'worker.cleaned')) w.cleanup = gone ? UNRECORDED : 'unresolved';
+  }
 
   sessionDir(live: Live): string {
     const dir = join(this.s.stateDir, 'sessions', live.worker.worker_id);
@@ -140,6 +198,9 @@ export class Lifecycle {
     w.status = 'cleanup_pending';
     w.cleanup = 'leader_exit_only';
     this.s.persist(live, 'worker.exit');
+    // Kill what the leader left behind (a detached tool) now, not at a stop or restart. A stop, fault or failed launch
+    // that caused this exit already owns the domain's cleanup.
+    if (!live.cleaning) void this.cleanAfterExit(live);
   }
 
   /** Closes one worker after an event or storage failure; other workers stay up. Never rethrows. */
@@ -178,16 +239,15 @@ export class Lifecycle {
     } catch {
       /* storage may be unavailable; recovery fences the parent from the durable records */
     }
+    // A storage failure never suppresses the kill; it only withholds the confirmation.
     const host = live.host;
-    void (host ? host.stop() : Promise.resolve(false))
-      .then(gone => {
-        if (live.host !== host) return;
-        w.status = gone ? 'failed' : 'cleanup_pending';
-        w.cleanup = gone ? GROUP_GONE : 'worker_fault; cleanup_unproven';
-        if (gone) live.pid = null;
-        report();
-      })
-      .catch(() => report());
+    void this.terminate(live).then(gone => {
+      if (live.host !== host) return;
+      if (gone && !memoryOnly && this.confirm(live, 'failed', 'worker.fault')) return;
+      w.status = 'cleanup_pending';
+      w.cleanup = gone ? UNRECORDED : 'worker_fault; cleanup_unproven';
+      report();
+    });
   }
 
   /**
@@ -261,6 +321,8 @@ export class Lifecycle {
   /** The host's start: spawn, identity, optional resume, readiness. */
   private async start(live: Live, c: Create, cwd: string, resumeFile: string | undefined): Promise<ReceiptPatch> {
     const w = live.worker;
+    // The domain is reserved with the worker epoch and recorded in the starting row, before anything is spawned.
+    live.domain = this.containment.reserve(w.worker_epoch);
     try {
       this.s.persist(live, 'worker.create');
     } catch (error) {
@@ -272,15 +334,14 @@ export class Lifecycle {
     this.s.receipts.dispatch(c.command_id, { worker_id: w.worker_id });
     let host: SessionHost;
     try {
-      host = this.s.factory({ workerId: w.worker_id, create: c, cwd, sessionDir: this.sessionDir(live) });
+      const domain = live.domain;
+      const prefix = this.containment.enter(domain);
+      host = this.s.factory({ workerId: w.worker_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix });
     } catch (error) {
-      // No host was constructed: the row ends terminal with its reason; the receipt stays unknown, so a resume target
-      // is held and fenced like any other unknown create-with-resume.
+      // No host was constructed: the domain (if it was created) is cleaned and the row ends with its reason; the
+      // receipt stays unknown, so a resume target is held and fenced like any other unknown create-with-resume.
       this.holdUnknownResume(live, c, resumeFile);
-      w.status = 'failed';
-      w.cleanup = 'no_process_started';
-      w.failure = { command_id: c.command_id, reason: reasonOf(error) };
-      this.s.persist(live, 'worker.failed');
+      await this.launchFailed(live, c, error);
       throw error;
     }
     live.host = host;
@@ -318,7 +379,7 @@ export class Lifecycle {
       if (live.faulted) throw new Error('worker fault during initialization');
       w.resources = inventory.data!;
       w.status = 'ready';
-      w.cleanup = 'live_process_group';
+      w.cleanup = 'live_cgroup';
       live.observedIdle = true;
       // The binding to the target is recorded in this row: the session id now carries the reservation.
       delete live.resume;
@@ -335,14 +396,20 @@ export class Lifecycle {
       // pi may have run the target's switch hooks or opened it: the failed worker holds it (or blocks it as unproven
       // cleanup) after the reservation ends, never releasing it to another writer, and the unknown fences it.
       this.holdUnknownResume(live, c, resumeFile);
-      const gone = await host.stop();
-      w.status = gone ? 'failed' : 'cleanup_pending';
-      w.cleanup = gone ? GROUP_GONE : 'unresolved';
-      if (gone) live.pid = null;
-      w.failure = { command_id: c.command_id, reason: reasonOf(error) };
-      this.s.persist(live, 'worker.failed');
+      await this.launchFailed(live, c, error);
       throw error;
     }
+  }
+
+  /** A launch that failed after its dispatch record: the domain is cleaned; `failed` only once that is recorded. */
+  private async launchFailed(live: Live, c: Create, error: unknown): Promise<void> {
+    const w = live.worker;
+    w.failure = { command_id: c.command_id, reason: reasonOf(error) };
+    const gone = await this.terminate(live);
+    if (gone && this.confirm(live, 'failed', 'worker.failed')) return;
+    w.status = 'cleanup_pending';
+    w.cleanup = gone ? UNRECORDED : 'unresolved';
+    this.s.persist(live, 'worker.failed');
   }
 
   /**
@@ -376,14 +443,16 @@ export class Lifecycle {
         if ((w.status === 'stopped' || w.status === 'failed') && live.pid === null) {
           return { state: 'delivered', stage: 'termination_observed', effect: 'observed', result: result('observed_stopped') };
         }
+        // cleanup_pending is durable before the kill: a crash between them leaves a pending row recovery cleans.
         w.status = 'cleanup_pending';
         w.cleanup = 'stop_requested';
         this.s.persist(live, 'worker.stop');
-        const gone = live.host ? await live.host.stop() : live.pid !== null ? await killGroup(live.pid, live.token) : false;
-        w.status = gone ? 'stopped' : 'cleanup_pending';
-        w.cleanup = gone ? GROUP_GONE : 'unresolved';
-        if (gone) live.pid = null;
-        this.s.persist(live, 'worker.stopped');
+        const gone = (await this.terminate(live)) && this.confirm(live, 'stopped', 'worker.stopped');
+        if (!gone) {
+          w.status = 'cleanup_pending';
+          if (w.cleanup !== UNRECORDED) w.cleanup = 'unresolved';
+          this.s.persist(live, 'worker.stopped');
+        }
         return gone
           ? { state: 'delivered', stage: 'termination_observed', effect: 'observed', result: result('observed_stopped') }
           : { state: 'outcome_unknown', stage: 'unknown', effect: 'unknown', result: result('unknown') };
@@ -397,8 +466,8 @@ export class Lifecycle {
 
   /**
    * After a restart, before the socket listens: no host is adopted or relaunched. Every worker that held a session
-   * is `cleanup_pending`; its recorded process group is killed when the identity token still matches. The kill is
-   * leader evidence only, so the worker stays pending.
+   * is recorded `cleanup_pending`, then its recorded domain is killed and removed; only an observed, recorded removal
+   * makes it `stopped`. A domain that cannot be proven clean leaves the worker pending, holding its session and cwd.
    */
   async recover(): Promise<void> {
     for (const live of this.s.workers.values()) {
@@ -415,14 +484,9 @@ export class Lifecycle {
         continue;
       }
       w.status = 'cleanup_pending';
-      if (live.pid !== null) {
-        const gone = await killGroup(live.pid, live.token);
-        w.cleanup = gone ? 'process_group_killed_at_restart; escaped_descendants_unproven' : 'unresolved';
-      } else if (w.cleanup === 'not_started') {
-        // No process identity after a crash may be the spawn-to-record cut: never release the environment.
-        w.cleanup = 'spawn_identity_unrecorded';
-      } else if (!w.cleanup.includes('descendants_unproven') && w.cleanup !== 'unresolved') w.cleanup = 'unresolved';
+      w.cleanup = 'unresolved';
       this.s.persist(live, 'worker.recover');
+      if (await this.terminate(live)) this.confirm(live, 'stopped', 'worker.cleaned');
     }
   }
 
@@ -443,12 +507,11 @@ export class Lifecycle {
     return true;
   }
 
-  /** Stops every live host; used on SIGTERM. Records what was observed. */
+  /** Kills every live worker's domain; used on SIGTERM. Records nothing: the next start cleans and confirms. */
   async shutdown(): Promise<void> {
     for (const live of this.s.workers.values()) {
       if (!live.host || live.exited) continue;
-      const gone = await live.host.stop();
-      if (gone) live.pid = null;
+      if (await this.terminate(live)) live.pid = null;
     }
   }
 }

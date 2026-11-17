@@ -8,6 +8,11 @@
  * session (`host_binding_changing`): writes refuse `binding_change_in_progress` until pi binds, and if it never does
  * the supervisor reconciles from pi's state after `nativeMoveTimeoutMs` (15 s) instead of refusing forever. A move
  * that fails after its dispatch record is `outcome_unknown`: it fences the session and faults the worker.
+ *
+ * A resume's target is reserved before anything is sent to pi and made durable in the worker's row
+ * (`binding.reserve`) before its dispatch record (issue #6): a restart attributes it to the worker, and a resume whose
+ * outcome is unknown leaves the worker holding the target, so it is never released to another writer until the
+ * worker's own cleanup is confirmed (and, fenced, until `sessions.resolve_unknown`).
  */
 import { Refusal } from '../b2/errors.js';
 import { SessionIndex } from '../history/session-index.js';
@@ -96,6 +101,15 @@ export class Bindings {
     }
   }
 
+  /** A resume target pi may have opened becomes the worker's session (as recovery attributes a durable one). */
+  private holdTarget(live: Live): void {
+    const target = live.resume!;
+    live.worker.session_id = target.session_id;
+    live.worker.leaf_id = null;
+    live.sessionFile = target.file;
+    live.index = new SessionIndex(target.file);
+  }
+
   newSession(id: string, b: Binding): Promise<Receipt> {
     return this.move(id, { ...b, action: 'new' }, 'sessions.new', b);
   }
@@ -121,8 +135,14 @@ export class Bindings {
           this.s.sessionReservations.set(b.target_session_id, id);
         }
         live.rebinding = true;
+        let dispatched = false;
         try {
+          if (b.action === 'resume') {
+            live.resume = { session_id: b.target_session_id!, file: target! };
+            this.s.persist(live, 'binding.reserve');
+          }
           this.s.receipts.dispatch(b.command_id, { worker_id: id });
+          dispatched = true;
           // Every live resolver, including accepted answers and consumed approvals, is cancelled before the move.
           await this.s.interactions?.cancelAll(id, live.host!);
           const command: PiRecord =
@@ -144,6 +164,7 @@ export class Bindings {
             throw new Refusal(error instanceof Error ? error.message : 'post_write_binding_refusal', 'unknown');
           }
           this.input.dropQueued(live, 'binding_changed');
+          delete live.resume;
           w.session_id = state.data.sessionId;
           w.binding_revision++;
           w.session_identity_evidence = 'pi_sdk_session_id';
@@ -159,6 +180,12 @@ export class Bindings {
           const appended = this.s.persist(live, 'binding.rebind');
           this.s.events.publish('session.rebound', { worker_id: id, execution_id: null, data: { session_id: w.session_id, binding_revision: w.binding_revision, action: b.action }, appended });
           return { state: 'delivered', stage: 'forwarded', effect: 'observed', result: { session_id: w.session_id, binding_revision: w.binding_revision } };
+        } catch (error) {
+          // pi may have opened the target: the worker holds it from now on (its catalog entry names this worker), so
+          // it stays blocked by this worker's unproven cleanup and by the fence the unknown outcome latches below.
+          if (live.resume && dispatched) this.holdTarget(live);
+          delete live.resume;
+          throw error;
         } finally {
           live.rebinding = false;
           if (b.target_session_id && this.s.sessionReservations.get(b.target_session_id) === id) this.s.sessionReservations.delete(b.target_session_id);

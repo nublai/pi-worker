@@ -23,6 +23,7 @@ import { ReceiptStore } from '../src/receipts/receipts.js';
 import { Supervisor } from '../src/supervisor/supervisor.js';
 import type { Worker } from '../src/supervisor/state.js';
 import { privateTmp } from './helpers.js';
+import { domained } from './domains.js';
 
 /** Scripted turns, each a `write` tool call the gate holds; the extension owns the policy (which tool, digest). */
 const gated = (responses: string) => `import { createHash } from 'node:crypto';
@@ -80,7 +81,7 @@ test('interactions (real pi): an extension-gated tool call reaches consumption a
   writeFileSync(join(agent, 'extensions', 'gated.ts'), GATED);
   const opened = openState(state);
   const grants = new GrantStore(state);
-  const s = new Supervisor({
+  const s = new Supervisor(domained({
     journal: opened.journal,
     receipts: new ReceiptStore(opened.journal),
     supervisorEpoch: opened.supervisorEpoch,
@@ -91,7 +92,7 @@ test('interactions (real pi): an extension-gated tool call reaches consumption a
         { cwd: launch.cwd, sessionDir: launch.sessionDir, provider: launch.create.provider, model: launch.create.model, thinking: launch.create.thinking, projectTrusted: false },
         { env: { PATH: process.env.PATH, HOME: agent, PI_CODING_AGENT_DIR: agent } },
       ),
-  });
+  }));
   const client = (id: string, methods: string[], person = false) => {
     const { token } = grants.register({ caller: id, grant_id: id, scope: { worker_ids: ['*'], cwd_roots: ['*'] }, methods, answers_for_person: person });
     return createMemoryTransport(createApp({ supervisor: s, grants }).handle, { authorization: `Bearer ${token}` });
@@ -189,7 +190,7 @@ test('interactions (real pi): more approvals answered No or cancelled than the l
   writeFileSync(join(agent, 'extensions', 'gated.ts'), GATED_SERIES);
   const opened = openState(state);
   const grants = new GrantStore(state);
-  const s = new Supervisor({
+  const s = new Supervisor(domained({
     journal: opened.journal,
     receipts: new ReceiptStore(opened.journal),
     supervisorEpoch: opened.supervisorEpoch,
@@ -200,7 +201,7 @@ test('interactions (real pi): more approvals answered No or cancelled than the l
         { cwd: launch.cwd, sessionDir: launch.sessionDir, provider: launch.create.provider, model: launch.create.model, thinking: launch.create.thinking, projectTrusted: false },
         { env: { PATH: process.env.PATH, HOME: agent, PI_CODING_AGENT_DIR: agent } },
       ),
-  });
+  }));
   const { token } = grants.register({ caller: 'owner', grant_id: 'owner', scope: { worker_ids: ['*'], cwd_roots: ['*'] }, methods: ['*'], answers_for_person: true });
   const api = createMemoryTransport(createApp({ supervisor: s, grants }).handle, { authorization: `Bearer ${token}` });
   try {
@@ -290,7 +291,7 @@ test('interactions (real pi): a stalled reader buffers the Allow reply, its gate
   const opened = openState(state);
   const grants = new GrantStore(state);
   let host: SdkHost | undefined;
-  const s = new Supervisor({
+  const s = new Supervisor(domained({
     journal: opened.journal,
     receipts: new ReceiptStore(opened.journal),
     supervisorEpoch: opened.supervisorEpoch,
@@ -301,7 +302,7 @@ test('interactions (real pi): a stalled reader buffers the Allow reply, its gate
         { cwd: launch.cwd, sessionDir: launch.sessionDir, provider: launch.create.provider, model: launch.create.model, thinking: launch.create.thinking, projectTrusted: false },
         { env: { PATH: process.env.PATH, HOME: agent, PI_CODING_AGENT_DIR: agent } },
       )),
-  });
+  }));
   const stdout = () => (host as unknown as { child: ChildProcessWithoutNullStreams }).child.stdout;
   const { token } = grants.register({ caller: 'owner', grant_id: 'owner', scope: { worker_ids: ['*'], cwd_roots: ['*'] }, methods: ['*'], answers_for_person: true });
   const api = createMemoryTransport(createApp({ supervisor: s, grants }).handle, { authorization: `Bearer ${token}` });

@@ -1,6 +1,7 @@
 /**
- * The lifecycle crash scenario (P1-4): creates, a failed launch, a pi exit, a stop, a worker fault, then an in-process
- * restart that recovers every holding worker to cleanup_pending.
+ * The lifecycle crash scenario (P1-4): creates, a failed launch, a pi exit (whose domain is cleaned at once, P2-1), a
+ * stop, a worker fault, a worker left ready, then an in-process restart that records every holding worker
+ * cleanup_pending (a recovering world cannot prove a dead world's domains clean).
  */
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,8 +27,11 @@ export async function lifecycleScenario(root: string): Promise<void> {
   // pi reporting another identity outside a binding change faults only this worker.
   host.emit('event', { type: 'host_identity', sessionId: 'another-session', sessionFile: join(root, 'another.jsonl'), leafId: null });
   await new Promise(r => setImmediate(r));
+  // Left ready: the restart records it cleanup_pending before it cleans its domain.
+  const d = (await createIn(world, 'worker-d')).worker!;
   void b;
   void c;
+  void d;
   // Restart in-process: no host is adopted; holding workers become cleanup_pending.
   world.state.close();
   world = openWorld(root, false);
