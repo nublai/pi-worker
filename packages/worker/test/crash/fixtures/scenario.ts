@@ -11,6 +11,9 @@
  * - `lifecycle`: creates, a failed launch, a pi exit, a stop, a fault and a restart (lifecycle-scenario.ts).
  * - `resume`: an archived session resumed by a new worker's create, then a restart (resume-scenario.ts).
  * - `relaunch`: a worker stopped and relaunched twice on its session, then a restart (relaunch-scenario.ts).
+ * - `containment-seed`: a typed parent and a prompt that dies at its intent fsync; `containment`, on that root:
+ *   recovery, keep, relaunch, the kept prompt once, a bwrap-declared child with an FD report, stops, a restart
+ *   (containment-scenario.ts).
  * - `grants`: the owner's grant command registers two grants with bearer files and revokes one (grants-scenario.ts).
  * - `interactions`: answers, cancels, tool releases, a navigation and a lost acknowledgement (interactions-scenario.ts).
  * - `children`: a typed child with an FD report and a stop, an untyped child launched from a queue (children-scenario.ts).
@@ -32,6 +35,7 @@ import { fenceScenario } from '../fence-scenario.js';
 import { bindingScenario } from '../binding-scenario.js';
 import { resumeScenario } from '../resume-scenario.js';
 import { relaunchScenario } from '../relaunch-scenario.js';
+import { containmentScenario, containmentSeed } from '../containment-scenario.js';
 import { grantsScenario } from '../grants-scenario.js';
 import { interactionsScenario } from '../interactions-scenario.js';
 import { childrenScenario } from '../children-scenario.js';
@@ -70,6 +74,12 @@ if (mode === 'journal') {
   process.exit(0);
 } else if (mode === 'relaunch') {
   await relaunchScenario(root);
+  process.stdout.write(`${JSON.stringify({ done: true })}\n`);
+  process.exit(0);
+} else if (mode === 'containment-seed') {
+  await containmentSeed(root);
+} else if (mode === 'containment') {
+  await containmentScenario(root);
   process.stdout.write(`${JSON.stringify({ done: true })}\n`);
   process.exit(0);
 } else if (mode === 'resume') {

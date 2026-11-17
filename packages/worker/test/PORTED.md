@@ -146,3 +146,33 @@ P2-3 also adds the crash scenario `relaunch` (`crash/relaunch.test.ts`: every fs
 with the recorded domain always the recorded epoch's) and the kernel case `security/relaunch.test.ts` (after a stop, a
 leader crash or a supervisor crash, the new epoch's factory runs only once the old epoch's setsid grandchild is dead
 and its domain removed and recorded).
+
+**P2-4** ports A0's `sandbox` and `containment-crash` tests and the `security-fix` bwrap cases (the profile, kernel
+B1 bind and `--die-with-parent`) into `test/security/` (the kernel tier: `harness/ci/kernel.sh -- sandbox
+containment-crash`). A0's in-root names `.a0-agent` and `.a0-worker` are `.piw-agent` and `.piw-worker`; A0's
+credential store `models-store.json` is pi's `models.json`. A0's `A0_TEST_BWRAP` opt-in is the kernel tier's
+`PIW_TEST_KERNEL`.
+
+| A0 test | New test | Status |
+| --- | --- | --- |
+| `sandbox.test.ts` › "files.read pins roots, refuses hidden/traversal/symlink paths, non-UTF8, sockets, and oversize files" | `packages/worker/test/security/sandbox.test.ts` › same name | Ported, all assertions. Adds: an absolute path (the wire form) reads, and its hidden components are judged below the root |
+| `sandbox.test.ts` › "sandbox history and session directory provisioning cannot follow outside symlinks" | `sandbox.test.ts` › same name | Ported, all assertions. Adds: a link in a directory below the root (not only at the file) is never followed |
+| `sandbox.test.ts` › "sandbox launch refuses mismatched roots, parent state exposure, non-child and external resources" | `sandbox.test.ts` › same name | Ported, all assertions. A0 read the socket and grant file from `PI_WORKER_SOCKET` and `PI_WORKER_GRANT_FILE`; the daemon now names its control paths (the socket's directory) to the supervisor, so the test passes them as `paths`. The `host: 'rpc'` refusal is kept (the spec has no `rpc` host, so it is cast). Adds: a root containing the worker's runtime is refused |
+| `sandbox.test.ts` › "sandbox refuses user runtime control paths (…)" (six) | `sandbox.test.ts` › same names | Ported, all assertions |
+| `sandbox.test.ts` › "sandbox refuses default user runtime, private kernel mounts and nested cgroup/socket roots" | `sandbox.test.ts` › same name | Ported, all assertions (the socket directory as a control path, as above) |
+| `sandbox.test.ts` › "sandbox host uses environment allowlist and a private PID namespace" | `sandbox.test.ts` › same name | Ported, all assertions. A0 captured its containment's `spawn`; the production `SdkHost` spawns bwrap itself, so a stand-in bwrap records its argv and its environment's names (the shell's own `PWD`, `SHLVL`, `_` aside) |
+| `sandbox.test.ts` › "sandboxed parent cannot create an unconfined child" | `sandbox.test.ts` › same name | Ported, all assertions. The fixture execution is `started`, not A0's `settled`: P1-11 launches a child only under a running execution |
+| `sandbox.test.ts` › "bwrap SDK child cannot read outside sentinel/socket/grants; inherited FD delivers its report" | `sandbox.test.ts` › "kernel: bwrap SDK child …" (same name) | Ported, all assertions, on the production host factory and a real cgroup domain. The child's root is inside the parent's environment root (P1-11's subset check) and the state directory is beside it. Adds: the sandbox runs in the child's domain (the join prefix is outermost), FD 3 is the report channel and pi holds no mount descriptor (the P2-4 criterion "bwrap closes every descriptor except the report slot before pi runs"), and the user's agent directory is unreadable |
+| `containment-crash.test.ts` (both cases) and `fixtures/containment-cut.ts` | `packages/worker/test/security/containment-crash.test.ts`, `packages/worker/test/crash/containment-scenario.ts` (modes `containment-seed`, `containment`) | Ported onto the shared crash world, all of A0's checks: every spawn names its exact durable domain, a kill finds its domain's row `cleanup_pending` (recorded in `kills.jsonl` and asserted after, since an assertion inside `clean` is swallowed), a sandboxed spawn's lineage and `bwrap` declaration precede it, every effect follows its durable dispatch (effects carry the durable record count), effects never recover `no_effect`, a dispatch after the owner keep fences after a crash, an unreported sandboxed spawn fences its parent, the kept prompt runs once, a second recovery changes nothing; plus the shared recovery and fence oracles. Adaptations: the seed dies at the prompt's `receipt.intent@2` (A0's `receipt.sessions.prompt.intent`); the sandboxed child is launched under the running kept prompt, before it settles (P1-11); worktrees live beside the state (`<root>-trees`), since a sandbox root never overlaps the state |
+| `security-fix.test.ts` › "bwrap profile: --die-with-parent, --clearenv allowlist, credential links refuse" | `sandbox.test.ts` › same name | Ported, all assertions |
+| `security-fix.test.ts` › "kernel B1: bwrap binds the exact opened root even if the path is swapped before spawn; no mount fd reaches the sandbox" | `sandbox.test.ts` › same name | Ported, all assertions |
+| `security-fix.test.ts` › "kernel: --die-with-parent kills the sandbox when its spawning process dies" | `sandbox.test.ts` › same name | Ported, all assertions |
+
+New in P2-4 (`sandbox.test.ts`): "sandbox: a sandboxed child launches in its root (factory told, session dir inside it,
+history pinned there); files.read reads it" (B2 `files.read`, a session file outside the root never read by history or
+`sessions.history`), "sandbox: a sandboxed root worker waits for the parent channel; a child root overlapping the state
+is refused; sessions never cross a confinement", "sandbox: the production host runs bwrap inside the join prefix, hands
+it the mount descriptors from FD 4 and keeps none open" and "sandbox: the daemon refuses to start without a bwrap that
+runs, and never listens". `files.read` is served, so the P0 tests that used it as the unsupported operation
+(`client.test.ts`, `server.test.ts`, the Go integration test and the `p0-hello` journey) now assert its typed `409
+no_effect` refusal; the 501 path stays covered by the closure tests' modified route table.
