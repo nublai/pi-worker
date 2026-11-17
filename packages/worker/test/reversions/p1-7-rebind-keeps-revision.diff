@@ -1,8 +1,10 @@
+diff --git a/packages/worker/src/supervisor/binding.ts b/packages/worker/src/supervisor/binding.ts
+index 084a984..f16bbff 100644
 --- a/packages/worker/src/supervisor/binding.ts
 +++ b/packages/worker/src/supervisor/binding.ts
-@@ -137,7 +137,6 @@
-           }
+@@ -166,7 +166,6 @@ export class Bindings {
            this.input.dropQueued(live, 'binding_changed');
+           delete live.resume;
            w.session_id = state.data.sessionId;
 -          w.binding_revision++;
            w.session_identity_evidence = 'pi_sdk_session_id';

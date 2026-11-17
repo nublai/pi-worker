@@ -132,9 +132,11 @@ test('containment: clean confirms only a removed domain of its own delegation', 
     mkdirSync(join(foreign, 'w-x'), { recursive: true });
     assert.equal(await p.jail.clean({ root: foreign, name: 'w-x', boot: bootId() }), false);
     assert.ok(existsSync(join(foreign, 'w-x')), 'a foreign domain survives');
+    assert.equal(existsSync(join(foreign, 'w-x', 'cgroup.kill')), false, 'a foreign domain is never killed');
     mkdirSync(join(p.root, 'not-a-worker'));
     assert.equal(await p.jail.clean({ root: p.root, name: 'not-a-worker', boot: bootId() }), false);
     assert.ok(existsSync(join(p.root, 'not-a-worker')));
+    assert.equal(existsSync(join(p.root, 'not-a-worker', 'cgroup.kill')), false, 'a cgroup that is not a worker domain is never killed');
     // Still populated: killed, never confirmed.
     mkdirSync(at('busy'));
     writeFileSync(join(at('busy'), 'cgroup.events'), 'populated 1\nfrozen 0\n');
@@ -170,7 +172,8 @@ test('containment: the daemon refuses to start without a cgroup delegation and n
     child.stderr!.setEncoding('utf8');
     child.stderr!.on('data', (chunk: string) => (stderr += chunk));
     const outcome = await Promise.race([
-      once(child, 'exit').then(([code]) => ({ code: code as number | null })),
+      once(child, 'exit').then(([code]) => ({ code: code as number | null | 'listening' | 'timeout' })),
+      new Promise<{ code: 'listening' }>(resolve => child.stderr!.on('data', () => stderr.includes('"listening"') && resolve({ code: 'listening' }))),
       delay(20_000).then(() => ({ code: 'timeout' as const })),
     ]);
     assert.equal(outcome.code, 1, `the daemon must exit 1: ${stderr}`);

@@ -1,10 +1,10 @@
 diff --git a/packages/worker/src/supervisor/binding.ts b/packages/worker/src/supervisor/binding.ts
-index 321cd08..7112d9e 100644
+index 084a984..9a832d6 100644
 --- a/packages/worker/src/supervisor/binding.ts
 +++ b/packages/worker/src/supervisor/binding.ts
-@@ -124,7 +124,6 @@ export class Bindings {
-         try {
+@@ -144,7 +144,6 @@ export class Bindings {
            this.s.receipts.dispatch(b.command_id, { worker_id: id });
+           dispatched = true;
            // Every live resolver, including accepted answers and consumed approvals, is cancelled before the move.
 -          await this.s.interactions?.cancelAll(id, live.host!);
            const command: PiRecord =
