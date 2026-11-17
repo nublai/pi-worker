@@ -857,11 +857,11 @@ export const routes = {
     mediaTypes: [],
     maxBodyBytes: 0,
     responseMode: "ndjson",
-    params: [{ name: "session_id", in: "path", required: true, kind: "string" }, { name: "format", in: "query", required: false, kind: "string" }, { name: "offset", in: "query", required: false, kind: "integer" }, { name: "max_bytes", in: "query", required: false, kind: "integer" }, { name: "identity", in: "query", required: false, kind: "string" }, { name: "tail", in: "query", required: false, kind: "string" }],
+    params: [{ name: "session_id", in: "path", required: true, kind: "string" }, { name: "format", in: "query", required: false, kind: "string" }, { name: "offset", in: "query", required: false, kind: "integer" }, { name: "max_bytes", in: "query", required: false, kind: "integer" }, { name: "identity", in: "query", required: false, kind: "string" }, { name: "tail", in: "query", required: false, kind: "string" }, { name: "prefix", in: "query", required: false, kind: "string" }],
     validateParams: v.params_sessions_history,
     validateBody: null,
     responses: {
-      '200': { contentType: "application/x-ndjson", contentTypes: ["application/x-ndjson"], mode: "ndjson", maxFrameBytes: null, maxBytes: 67108864, validate: null, headers: v.response_headers_sessions_history_200, headerKinds: {"piw-session-id":"string","piw-file-identity":"string","piw-offset":"integer","piw-next-offset":"integer","piw-watermark":"integer","piw-reset":"boolean","piw-tail-sha256":"string","piw-history-line-max":"integer"} },
+      '200': { contentType: "application/x-ndjson", contentTypes: ["application/x-ndjson"], mode: "ndjson", maxFrameBytes: null, maxBytes: 67108864, validate: null, headers: v.response_headers_sessions_history_200, headerKinds: {"piw-session-id":"string","piw-file-identity":"string","piw-offset":"integer","piw-next-offset":"integer","piw-watermark":"integer","piw-reset":"boolean","piw-tail-sha256":"string","piw-prefix-sha256":"string","piw-history-line-max":"integer"} },
       '400': { contentType: "application/json", contentTypes: ["application/json"], mode: "json", maxFrameBytes: null, maxBytes: null, validate: v.response_sessions_history_400, headers: null, headerKinds: null },
       '409': { contentType: "application/json", contentTypes: ["application/json"], mode: "json", maxFrameBytes: null, maxBytes: null, validate: v.response_sessions_history_409, headers: null, headerKinds: null },
       '500': { contentType: "application/json", contentTypes: ["application/json"], mode: "json", maxFrameBytes: null, maxBytes: null, validate: v.response_sessions_history_500, headers: null, headerKinds: null },

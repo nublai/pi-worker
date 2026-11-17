@@ -4,7 +4,7 @@
  * session and worker rows. Read only; it never spawns pi and never writes. The path always comes from the
  * supervisor's own records (the resume catalog), never from a client.
  */
-import { createHash } from 'node:crypto';
+import { createHash, type Hash } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync, readSync, type BigIntStats } from 'node:fs';
 import type { components } from '../generated/api.js';
 
@@ -57,25 +57,87 @@ function readAt(fd: number, offset: number, length: number): Buffer {
   return buffer.subarray(0, done);
 }
 
+/** SHA-256 states of a file's first bytes, by offset; at most this many per file (0 and the last watermark stay). */
+const MARKS = 32;
+
+/** Feeds `[from, to)` of the file into `hash`. */
+function feed(fd: number, hash: Hash, from: number, to: number): Hash {
+  for (let pos = from; pos < to; ) {
+    const chunk = readAt(fd, pos, Math.min(CHUNK, to - pos));
+    if (chunk.length === 0) throw new Error('session file shorter than its size');
+    hash.update(chunk);
+    pos += chunk.length;
+  }
+  return hash;
+}
+
+interface Seen {
+  size: bigint;
+  mtimeNs: bigint;
+  ctimeNs: bigint;
+  generation: number;
+  /** The watermark at the last observation: the bytes before it are the ones every reader has been served. */
+  end: number;
+  /** SHA-256 states of the bytes before each offset, for the current generation; always 0 and `end`. */
+  marks: Map<number, Hash>;
+}
+
+/** One observation of an open session file: its rewrite generation and the SHA-256 of the bytes before an offset. */
+export interface FileView {
+  readonly generation: number;
+  /** The SHA-256 (hex) of `[0, offset)`, for an offset at or below the watermark observed. */
+  prefix(offset: number): string;
+}
+
 /**
- * Rewrite generations of session files by device and inode (memory). pi only appends, so a file that grew was appended
- * to; the same size with another mtime or ctime, or a smaller size, is a rewrite in place (Shep's S-1 reset rule, the
- * bridge's own local checks) and starts a new generation, which is part of the file identity. Every reader of a
- * session file (sessions.history, the summaries behind rows and `history.appended`) observes through one instance, so
- * the supervisor sees every state it serves. A restart forgets the generations: identities go back to generation 0,
- * which only resets a reader whose identity named a later one.
+ * Rewrite generations of session files by device and inode (memory). pi only appends, so the bytes before the last
+ * watermark seen never change: whenever the file's size or times change, the supervisor hashes those bytes again, and
+ * any difference (a rewrite in place, even one followed by an append before anyone looked, or a shrink) starts a new
+ * generation, which is part of the file identity (Shep's S-1 reset rule, the bridge's own local checks). Unchanged
+ * size and times read nothing. Every reader of a session file (sessions.history, the summaries behind rows and
+ * `history.appended`) observes through one instance, so the supervisor sees every state it serves. A restart forgets
+ * the generations (identities go back to generation 0); what survives it is the reader's own cursor, whose `prefix`
+ * names the bytes it has (readHistory).
  */
 export class FileGenerations {
-  private readonly seen = new Map<string, { size: bigint; mtimeNs: bigint; ctimeNs: bigint; generation: number }>();
+  private readonly seen = new Map<string, Seen>();
 
-  /** Observes the open file's size and times; returns its rewrite generation. */
-  observe(st: BigIntStats): number {
+  /** Observes the open file at its watermark; hashes the file again when its size or times changed. */
+  observe(fd: number, st: BigIntStats, watermark: number): FileView {
     const key = `${st.dev}:${st.ino}`;
-    const prior = this.seen.get(key);
-    let generation = prior?.generation ?? 0;
-    if (prior && (st.size < prior.size || (st.size === prior.size && (st.mtimeNs !== prior.mtimeNs || st.ctimeNs !== prior.ctimeNs)))) generation++;
-    this.seen.set(key, { size: st.size, mtimeNs: st.mtimeNs, ctimeNs: st.ctimeNs, generation });
-    return generation;
+    let s = this.seen.get(key);
+    if (!s) {
+      s = { size: st.size, mtimeNs: st.mtimeNs, ctimeNs: st.ctimeNs, generation: 0, end: 0, marks: new Map([[0, createHash('sha256')]]) };
+      this.seen.set(key, s);
+    } else if (s.size !== st.size || s.mtimeNs !== st.mtimeNs || s.ctimeNs !== st.ctimeNs) {
+      // Changed: the bytes before the last watermark must be the ones served, or this is not an append.
+      const kept = watermark >= s.end && feed(fd, createHash('sha256'), 0, s.end).digest('hex') === s.marks.get(s.end)!.copy().digest('hex');
+      if (!kept) {
+        s.generation++;
+        s.end = 0;
+        s.marks = new Map([[0, createHash('sha256')]]);
+      }
+      Object.assign(s, { size: st.size, mtimeNs: st.mtimeNs, ctimeNs: st.ctimeNs });
+    }
+    const seen = s;
+    const prefix = (offset: number): Hash => {
+      let from = 0;
+      for (const at of seen.marks.keys()) if (at <= offset && at > from) from = at;
+      const hash = from === offset ? seen.marks.get(from)! : feed(fd, seen.marks.get(from)!.copy(), from, offset);
+      if (!seen.marks.has(offset)) {
+        seen.marks.set(offset, hash);
+        for (const at of seen.marks.keys()) {
+          if (seen.marks.size <= MARKS) break;
+          if (at !== 0 && at !== seen.end && at !== offset) seen.marks.delete(at);
+        }
+      }
+      return hash;
+    };
+    if (watermark > s.end) {
+      prefix(watermark);
+      s.end = watermark;
+    }
+    return { generation: s.generation, prefix: offset => prefix(offset).copy().digest('hex') };
   }
 }
 
@@ -124,6 +186,8 @@ export interface HistoryRead {
   readonly watermark: number;
   readonly reset: boolean;
   readonly tail: string | null;
+  /** The SHA-256 of the bytes before `nextOffset`. */
+  readonly prefix: string;
   readonly body: Buffer;
 }
 
@@ -131,13 +195,14 @@ export type HistoryReadError = 'history_offset_past_watermark' | 'history_offset
 
 /**
  * Complete lines from `offset`, at most `maxBytes` unless one line alone is longer (then that line, up to
- * HISTORY_LINE_MAX_BYTES). Reset rule (sessions.history): a differing `identity`, or a `tail` that is not the SHA-256
- * of the line ending at `offset`, restarts from byte 0 with `reset`. Without a tail, an offset past the watermark or
- * not on a line start is an error, never an empty page. A missing file reads as empty with the absent identity.
+ * HISTORY_LINE_MAX_BYTES). Reset rule (sessions.history): a differing `identity`, a `tail` that is not the SHA-256
+ * of the line ending at `offset`, or a `prefix` that is not the SHA-256 of the bytes before `offset`, restarts from
+ * byte 0 with `reset`. Without a tail or a prefix, an offset past the watermark or not on a line start is an error,
+ * never an empty page. A missing file reads as empty with the absent identity.
  */
 export function readHistory(
   file: string | null,
-  q: { offset: number; maxBytes: number; identity?: string; tail?: string },
+  q: { offset: number; maxBytes: number; identity?: string; tail?: string; prefix?: string },
   generations: FileGenerations,
 ): HistoryRead | { error: HistoryReadError } {
   let fd: number;
@@ -149,14 +214,16 @@ export function readHistory(
     if (notRegular(error)) return { error: 'session_file_not_regular' };
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     // The same rule over an empty file: another identity, or a tail no line here can match, resets.
-    const reset = (q.identity !== undefined && q.identity !== ABSENT_IDENTITY) || (q.offset > 0 && q.tail !== undefined);
+    const empty = sha256('');
+    const reset = (q.identity !== undefined && q.identity !== ABSENT_IDENTITY) || (q.offset > 0 && q.tail !== undefined) || (q.prefix !== undefined && (q.offset > 0 || q.prefix !== empty));
     if (!reset && q.offset > 0) return { error: 'history_offset_past_watermark' };
-    return { identity: ABSENT_IDENTITY, offset: 0, nextOffset: 0, watermark: 0, reset, tail: null, body: Buffer.alloc(0) };
+    return { identity: ABSENT_IDENTITY, offset: 0, nextOffset: 0, watermark: 0, reset, tail: null, prefix: empty, body: Buffer.alloc(0) };
   }
   try {
     const st = fstatSync(fd, { bigint: true });
-    const identity = fileIdentity(fd, st, generations.observe(st));
     const watermark = watermarkOf(fd, Number(st.size));
+    const view = generations.observe(fd, st, watermark);
+    const identity = fileIdentity(fd, st, view.generation);
     let start = q.offset;
     let reset = q.identity !== undefined && q.identity !== identity;
     if (!reset && start > 0) {
@@ -164,9 +231,15 @@ export function readHistory(
       if (q.tail !== undefined) {
         // The caller names the line it read last: a different one means the file changed under it.
         if (!onLine || sha256(readAt(fd, lineStartBefore(fd, start), start - lineStartBefore(fd, start))) !== q.tail) reset = true;
+      } else if (q.prefix !== undefined) {
+        // The caller names the bytes it read: an offset no longer on a line start means the file changed under it.
+        if (!onLine) reset = true;
       } else if (start > watermark) return { error: 'history_offset_past_watermark' };
       else if (!onLine) return { error: 'history_offset_not_line_start' };
     }
+    // The caller names every byte before its offset: another byte there (an earlier line rewritten in place, before an
+    // append or while the supervisor was down) means the file changed under it.
+    if (!reset && q.prefix !== undefined && view.prefix(start) !== q.prefix) reset = true;
     if (reset) start = 0;
     let end = Math.min(watermark, start + q.maxBytes);
     if (end > start) {
@@ -198,7 +271,7 @@ export function readHistory(
       const ls = lineStartBefore(fd, start);
       tail = sha256(readAt(fd, ls, start - ls));
     }
-    return { identity, offset: start, nextOffset: start + body.length, watermark, reset, tail, body };
+    return { identity, offset: start, nextOffset: start + body.length, watermark, reset, tail, prefix: view.prefix(start + body.length), body };
   } finally {
     closeSync(fd);
   }
@@ -370,8 +443,8 @@ export class Summaries {
     }
     try {
       const st = fstatSync(fd, { bigint: true });
-      const identity = fileIdentity(fd, st, this.generations.observe(st));
       const watermark = watermarkOf(fd, Number(st.size));
+      const identity = fileIdentity(fd, st, this.generations.observe(fd, st, watermark).generation);
       let s = this.cache.get(file);
       if (!s || s.identity !== identity || watermark < s.watermark) s = emptySummary(identity);
       let pos = s.watermark;
