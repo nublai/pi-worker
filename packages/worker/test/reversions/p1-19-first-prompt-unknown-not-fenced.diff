@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/input.ts b/packages/worker/src/supervisor/input.ts
+index 88e12d1..55ef781 100644
+--- a/packages/worker/src/supervisor/input.ts
++++ b/packages/worker/src/supervisor/input.ts
+@@ -101,7 +101,6 @@ export class Input {
+       // pi's explicit refusal before any input hook: nothing ran, the worker stays created and idle.
+       if (error instanceof ProvenNoEffect) return rejected(error);
+       // The prompt may have reached pi: its session is fenced before the receipt says so (invariant 3).
+-      if (this.s.receipts.all.get(c.command_id)?.execution_id && this.latch(live, c.command_id)) this.s.persist(live, 'execution.unknown');
+       throw error;
+     }
+   }

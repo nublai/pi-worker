@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
+index 730657d..1559a12 100644
+--- a/packages/worker/src/supervisor/state.ts
++++ b/packages/worker/src/supervisor/state.ts
+@@ -318,7 +318,7 @@ export class SupervisorState {
+     };
+     // The worker record keeps the create without its first prompt: prompt text is never journaled.
+     const { first_prompt: _firstPrompt, ...kept } = create;
+-    const live: Live = { worker, sessionFile: null, pid: null, token: null, create: { ...kept, cwd }, index: new SessionIndex(null), completedMessages: 0 };
++    const live: Live = { worker, sessionFile: null, pid: null, token: null, create: { ...kept, ...create, cwd }, index: new SessionIndex(null), completedMessages: 0 };
+     this.workers.set(worker.worker_id, live);
+     // The create's budget becomes the worker's.
+     this.journal.move(`create:${create.command_id}`, budgetKey(worker.worker_id));

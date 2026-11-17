@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/input.ts b/packages/worker/src/supervisor/input.ts
+index 88e12d1..76b4b0f 100644
+--- a/packages/worker/src/supervisor/input.ts
++++ b/packages/worker/src/supervisor/input.ts
+@@ -92,7 +92,7 @@ export class Input {
+     try {
+       const patch = await this.execute(live, c.command_id, first.message, images, (executionId, write) => {
+         // The first prompt's dispatch record: the create's receipt names the execution (and the worker it made).
+-        this.s.receipts.update(c.command_id, { execution_id: executionId, ...(created.result ? { result: created.result } : {}) }, 'receipt.dispatch');
++        void executionId;
+         return write();
+       });
+       if (images.length) this.attachments?.releaseNow(images.map(i => i.id), c.command_id);

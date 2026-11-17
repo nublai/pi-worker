@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index 65ac607..1f0bb64 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -143,7 +143,6 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+       const owner = body.resume_session_id ? s.state.sessionFiles.get(body.resume_session_id)?.worker_id : undefined;
+       if (owner && !visible(caller, owner)) throw new Refusal('grant_scope_denied');
+       // A first prompt is a prompt: a grant that may create workers but not prompt them sends none.
+-      if (body.first_prompt && !allowsMethod(caller, 'sessions.prompt')) throw new Refusal('grant_method_denied');
+       return s.create(body);
+     },
+     'workers.stop': ({ path, body }) => supervisor().stop(path.worker_id, body),
