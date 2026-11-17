@@ -6,7 +6,7 @@ import { createB2Server, listenPrivate } from './b2/server.js';
 import { resolvePaths, resolveSocketAccess, socketModes, type SocketAccess } from './config.js';
 import type { Containment } from './containment/containment.js';
 import { pinnedPiVersion, SdkHost } from './host/host.js';
-import { openState } from './journal/state.js';
+import { openState, StateVersionRefused, type SupervisorState as OpenState } from './journal/state.js';
 import { GrantStore } from './grants/store.js';
 import { ReceiptStore } from './receipts/receipts.js';
 import { Supervisor } from './supervisor/supervisor.js';
@@ -44,6 +44,17 @@ export async function runDaemon(containment: (stateDir: string) => Containment):
   privateDir(paths.stateDir);
   socketDir(dirname(paths.socketPath), access);
 
+  // One supervisor per state directory: the journal lock refuses a second one before anything is read. A state written
+  // in another format is refused here, before the delegation, grants, recovery or any launch, and is left unchanged.
+  let state: OpenState;
+  try {
+    state = openState(paths.stateDir);
+  } catch (error) {
+    if (!(error instanceof StateVersionRefused)) throw error;
+    console.error(JSON.stringify({ event: 'refused', reason: error.code, found: error.found, required: error.required, detail: error.message }));
+    process.exit(1);
+  }
+
   let domains: Containment;
   try {
     domains = containment(paths.stateDir);
@@ -54,8 +65,6 @@ export async function runDaemon(containment: (stateDir: string) => Containment):
 
   // Every request needs a bearer grant registered by the owner with the local `grant` command (src/grant.ts).
   const grants = new GrantStore(paths.stateDir);
-  // One supervisor per state directory: the journal lock refuses a second one before anything is read.
-  const state = openState(paths.stateDir);
   const supervisor = new Supervisor({
     journal: state.journal,
     receipts: new ReceiptStore(state.journal),

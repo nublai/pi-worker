@@ -337,6 +337,12 @@
         "p2-1-clean-error-confirms.diff",
         "p2-1-no-delegation-check.diff"
       ]
+    },
+    "state-version": {
+      "command": "npm test -- state-version",
+      "diffs": [
+        "p2-1-older-state-opens.diff"
+      ]
     }
   }
 }
