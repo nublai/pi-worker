@@ -1,13 +1,14 @@
 diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
-index 0af7abe..adc1adb 100644
+index 76ec51f..4822547 100644
 --- a/packages/worker/src/history/session-file.ts
 +++ b/packages/worker/src/history/session-file.ts
-@@ -143,7 +143,7 @@ export function readHistory(
+@@ -218,7 +218,8 @@ export function readHistory(
    let fd: number;
    try {
      if (file === null) throw Object.assign(new Error('no file'), { code: 'ENOENT' });
--    fd = openSessionFile(file);
+-    fd = openSessionFile(file, root);
 +    fd = openSync(file, 'r');
++    void root;
    } catch (error) {
      // A symlink or a special file at the catalog path is never read, nor followed to another file.
      if (notRegular(error)) return { error: 'session_file_not_regular' };

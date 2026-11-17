@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index e45097d..fce08d7 100644
+index 4a2e3cd..5f8003d 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -588,7 +588,7 @@ export class Lifecycle {
+@@ -653,7 +653,7 @@ export class Lifecycle {
        if (!opened.success || opened.data?.cancelled) throw new Error('fresh_host_session_open_failed');
        const state = await host.request({ type: 'get_state' });
        // The exact session and file, not only a successful switch.
@@ -10,4 +10,4 @@ index e45097d..fce08d7 100644
 +      if (!state.success || state.data?.sessionId !== sessionId || live.faulted) throw new Error('fresh_host_session_identity_mismatch');
        live.rebinding = false;
        this.s.noOtherWriter(sessionId, w.worker_id);
-       live.index = new SessionIndex(file);
+       live.index = this.s.index(live, file);

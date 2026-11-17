@@ -1,13 +1,14 @@
 diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
-index 0af7abe..2dad497 100644
+index 76ec51f..9217b95 100644
 --- a/packages/worker/src/history/session-file.ts
 +++ b/packages/worker/src/history/session-file.ts
-@@ -361,7 +361,7 @@ export class Summaries {
+@@ -452,7 +452,8 @@ export class Summaries {
      if (file === null) return emptySummary(ABSENT_IDENTITY);
      let fd: number;
      try {
--      fd = openSessionFile(file);
+-      fd = openSessionFile(file, root);
 +      fd = openSync(file, 'r');
++      void root;
      } catch (error) {
        // Nothing is summarized from a symlink or a special file at the catalog path, as if it were absent.
        if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !notRegular(error)) throw error;

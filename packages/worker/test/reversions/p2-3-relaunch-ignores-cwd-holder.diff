@@ -1,11 +1,11 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 04c9e55..08412ad 100644
+index 4a2e3cd..80bb8ef 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -559,7 +559,6 @@ export class Lifecycle {
+@@ -563,7 +563,6 @@ export class Lifecycle {
          // The session's gates, not only this worker's (GPT PR #27 finding 1): the resume gate refuses a session another
          // worker bound since and left fenced (`target_session_fenced`) or with its cleanup unproven, as for a resume.
-         this.s.resumable(w.session_id, id);
+         this.s.resumable(w.session_id, id, confinement(w));
 -        this.s.exclusiveCwd(w.cwd, live);
        },
      );

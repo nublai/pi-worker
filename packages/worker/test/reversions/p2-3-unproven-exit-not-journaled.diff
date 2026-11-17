@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index e45097d..8e9665e 100644
+index 4a2e3cd..d3e6d1f 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -119,12 +119,6 @@ export class Lifecycle {
+@@ -151,12 +151,6 @@ export class Lifecycle {
      if (live.faulted || w.status !== 'cleanup_pending' || w.cleanup !== 'leader_exit_only') return;
      if (gone && this.confirm(live, 'stopped', 'worker.cleaned')) return;
      w.cleanup = gone ? UNRECORDED : 'unresolved';
@@ -14,4 +14,4 @@ index e45097d..8e9665e 100644
 -    }
    }
  
-   sessionDir(live: Live): string {
+   /**
