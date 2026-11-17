@@ -28,3 +28,8 @@ Evidence lands in `docs/evidence/<milestone>/<UTC stamp>-<commit>/`. A failed at
 - `p0-hello`: the daemon runs as a systemd user service with `Delegate=yes`; the TypeScript and Go clients each get
   `hello` (same supervisor epoch and limits) and a `501 no_effect`; the socket is 0600 in a 0700 directory; after stop
   there is no socket, no `piw-*` unit and no service cgroup.
+- `p1-chat`: the P1 daemon as a user service with pi's scripted faux provider in a private agent directory; every
+  step goes through the `pi-worker` CLI (`packages/cli`): grant register, hello, create, prompt, history, a dialog
+  answered over B2, an image staged, sent and read back, an extension command, interrupt with a queued follow-up,
+  new and resume, typed refusals, stop, grant revoke and the refused call after it; then the same cleanup checks as
+  `p0-hello` and no pi child left.
