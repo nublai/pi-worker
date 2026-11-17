@@ -101,3 +101,45 @@ func TestInterruptMarkerAsTheWorkerWritesIt(t *testing.T) {
 	r, stamp, user = prompt("p-3", "thanks")
 	check("p-3", r, stamp, user, "thanks", false)
 }
+
+// Repeated Stop before the execution settles: pi aborts the running turn once, so the session file holds one aborted
+// assistant turn however many cancel or interrupt commands arrive; the execution stays running until it settles.
+func TestRepeatedStopRecordsOneAbortedTurn(t *testing.T) {
+	fake, err := workerfake.Start(workerfake.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fake.Close()
+	ctx := context.Background()
+	c := fake.Client()
+	w := newWorker(t, ctx, c, "create-1")
+	sid := *w.SessionId
+	row, _ := c.WorkersGet(ctx, w.WorkerId)
+	r, err := c.SessionsPrompt(ctx, w.WorkerId, b2.Prompt{CommandId: "p-1", WorkerEpoch: row.WorkerEpoch, SessionId: sid, BindingRevision: row.BindingRevision, Message: "fix the login form"})
+	if err != nil || r.State != "delivered" {
+		t.Fatalf("p-1: %+v %v", r, err)
+	}
+	for _, cmd := range []string{"stop-1", "stop-2"} {
+		row, _ = c.WorkersGet(ctx, w.WorkerId)
+		if _, err := c.ExecutionsInterrupt(ctx, w.WorkerId, b2.Control{CommandId: cmd, WorkerEpoch: row.WorkerEpoch, SessionId: sid, BindingRevision: row.BindingRevision, ExecutionId: r.ExecutionId}); err != nil {
+			t.Fatalf("%s: %v", cmd, err)
+		}
+	}
+	row, _ = c.WorkersGet(ctx, w.WorkerId)
+	if row.Execution == nil || row.Execution.State == "settled" {
+		t.Errorf("a Stop does not settle the execution early: %+v", row.Execution)
+	}
+	aborted, users := 0, 0
+	for _, e := range sessionEntries(t, ctx, c, sid) {
+		message, _ := e["message"].(map[string]any)
+		switch {
+		case e["type"] == "message" && message["role"] == "assistant" && message["stopReason"] == "aborted":
+			aborted++
+		case e["type"] == "message" && message["role"] == "user":
+			users++
+		}
+	}
+	if aborted != 1 || users != 1 {
+		t.Errorf("two Stops for one execution: %d aborted assistant turns and %d user messages, want 1 and 1", aborted, users)
+	}
+}

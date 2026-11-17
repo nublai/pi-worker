@@ -59,6 +59,7 @@ type worker struct {
 	interactions []b2.Interaction          // live: pending cards and consumed approvals that still own a gate
 	closed       map[string]b2.Interaction // closed interactions' durable records, by id
 	timers       map[string]*time.Timer    // pending cards' deadlines
+	aborted      string                    // the execution whose aborted turn is recorded: pi aborts a turn once
 }
 
 type storedReceipt struct {

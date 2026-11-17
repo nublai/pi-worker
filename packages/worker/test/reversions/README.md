@@ -191,6 +191,7 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `p1-19-first-user-line-splits-surrogate.diff` | `first_user_line` is cut at 280 UTF-16 code units never inside a surrogate pair, as the Go fake cuts it (PR #20 GPT 5) | `first_user_line: never cut inside a character, and the schema holds it to 280 code units` (group `first-user-line`) |
 | `p1-19-tool-approval-untyped.diff` | a `tool_approval` card carries exactly the typed `ApprovalBinding` (other fields dropped); one without a valid binding is never shown and its native dialog is cancelled, so the gate denies (P1-19 follow-up 6) | `interactions: a tool_approval card carries exactly the typed approval binding…` (group `interactions`) |
 | `pr20-fake-tool-approval-untyped.diff` | the Go fake opens a `tool_approval` card only with a valid `ApprovalBinding` (`invalid_tool_approval` otherwise) (P1-19 follow-up 6) | `TestToolApprovalCarriesItsTypedBinding` (group `go-workerfake`) |
+| `pr20-fake-abort-turn-repeated.diff` | the Go fake records a running execution's aborted assistant turn at most once, however many cancel or interrupt commands arrive before it settles (PR #20 delta N1) | `TestRepeatedStopRecordsOneAbortedTurn` (group `go-workerfake`) |
 
 The `go-b2-auth` group runs `go test ./b2/` in `clients/go` and turns each `--- FAIL: <name>` line into the `✖ <name>`
 line the runner counts, so a Go build error stays `failed_without_assertion`. The darwin `LOCAL_PEERCRED` layout

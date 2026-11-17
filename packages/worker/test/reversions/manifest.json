@@ -315,7 +315,8 @@
         "pr20-fake-first-prompt-ungranted.diff",
         "pr20-fake-tool-memory-unbounded.diff",
         "pr20-fake-tool-fields-uncut.diff",
-        "pr20-fake-tool-approval-untyped.diff"
+        "pr20-fake-tool-approval-untyped.diff",
+        "pr20-fake-abort-turn-repeated.diff"
       ]
     }
   }

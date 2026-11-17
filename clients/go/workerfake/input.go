@@ -105,12 +105,16 @@ func (s *state) writeUserMessage(w *worker, in promptInput, marked bool, accepte
 }
 
 // abortTurn is pi's record of an aborted run: an assistant turn that ended `aborted` (sdk-child abort). Only a running
-// execution on a live host has one to end.
+// execution on a live host has one to end, and only once: a later Stop before it settles ends nothing new.
 func (s *state) abortTurn(w *worker) {
 	e := w.row.Execution
 	if w.host == nil || w.exited || w.row.Status != "ready" || e == nil || e.State == "settled" || e.State == "outcome_unknown" {
 		return
 	}
+	if w.aborted == e.ExecutionId {
+		return
+	}
+	w.aborted = e.ExecutionId
 	model := map[string]any{"provider": "fixture", "model": "fixture"}
 	if m := w.row.Model; m != nil {
 		model = map[string]any{"provider": m.Provider, "model": m.Id}
