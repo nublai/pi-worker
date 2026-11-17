@@ -136,7 +136,7 @@ under a fence" means `no_effect` naming the uncertain command. After its dispatc
 | `session.configure` | P1-14 | session mutation | yes | refused |
 | `sessions.new`, `sessions.rebind` | P1-7 | session mutation | yes | refused |
 | `sessions.compact`, `resources.reload`, `commands.invoke` | P1-15 | session mutation; also refused while an execution runs | yes | refused |
-| `interactions.answer_if_current` | P1-10 | mutation; needs `answers_for_person` and the interaction's current revision; grant rechecked at release | yes | refused |
+| `interactions.answer_if_current` | P1-10 | mutation; needs `answers_for_person` and the interaction's current revision; grant rechecked at release; `answer_id_conflict` is refused before any record (no effect), but an earlier answer under that `answer_id` may have been recorded and applied: resolve with `interactions.status` and `receipts.get` of the earlier command, never by re-answering | yes | refused |
 | `executions.interrupt` | P1-5 | control | yes | allowed (row 11) |
 | `workers.stop` | P1-4 | control | yes | allowed |
 | `sessions.resolve_unknown` | P1-6 | the fence's own resolution; needs the current `fence_generation` | yes | the only write that clears it |
@@ -167,7 +167,7 @@ One SSE stream per supervisor: `GET /b2/events?worker_id=…&types=…` (both fi
 | `assistant.delta` | text delta (transient; replaces the screen tail) | memory |
 | `tool.started`, `tool.finished` | tool call id, name, short summary (the "pending tool") | memory |
 | `interactions.changed` | live cards for the worker | memory (outcomes journaled) |
-| `fence.set`, `fence.resolved` | `fence_generation`, uncertain command or execution | journal |
+| `fence.set`, `fence.resolved` | `fence_generation`, uncertain command or execution; the `Fence` carries `fenced_at`, the time the fence latched in the journal (set once, kept through restart) | journal |
 | `receipt.updated` | `command_id`, state, effect | journal |
 | `history.appended` | `session_id`, new watermark | memory |
 | `attachment.updated` | attachment id, state | journal |
