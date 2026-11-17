@@ -23,6 +23,8 @@ import { GrantStore } from '../../src/grants/store.js';
 import { SessionIndex } from '../../src/history/session-index.js';
 import { childEnv, sdkChildEntry, SdkHost } from '../../src/host/host.js';
 import { openState } from '../../src/journal/state.js';
+import type { JournalRecord } from '../../src/journal/journal.js';
+import { DEFAULT_RETENTION, goalFor, planCompaction } from '../../src/journal/retention.js';
 import { ReceiptStore } from '../../src/receipts/receipts.js';
 import { inside, locateBwrap, readConfined, sandboxEnv, sandboxLaunch, sandboxRoot, sandboxSessionDir, type SandboxLaunch } from '../../src/sandbox/sandbox.js';
 import type { Create, HostLaunch } from '../../src/supervisor/state.js';
@@ -460,6 +462,23 @@ test('sandbox: the production host runs bwrap inside the join prefix, hands it t
   } finally {
     tmp.cleanup();
   }
+});
+
+test('sandbox: compaction keeps a sandboxed session’s root in the resume catalog, so its reads stay pinned', () => {
+  const records: JournalRecord[] = [
+    { seq: 1, kind: 'supervisor', value: { supervisor_id: 's', supervisor_epoch: 'e', state_version: 3 } },
+    { seq: 2, kind: 'worker', value: { worker: { worker_id: 'boxed', session_id: 'boxed-s', cwd: '/tree/child', status: 'stopped', launch_spec: { environment: { id: 'e', revision: 1, allowed_methods: [], filesystem: 'bwrap', root: '/tree/child' } } }, sessionFile: '/tree/child/.piw-worker/sessions/boxed/s.jsonl', pid: null, token: null } },
+    { seq: 3, kind: 'worker', value: { worker: { worker_id: 'plain', session_id: 'plain-s', cwd: '/plain', status: 'stopped' }, sessionFile: '/state/sessions/plain/s.jsonl', pid: null, token: null } },
+  ];
+  const limits = { ...DEFAULT_RETENTION };
+  const plan = planCompaction(records, { limits, goal: goalFor(limits), now: Date.now(), inFlight: new Set() });
+  assert.deepEqual(
+    plan.entries.filter(e => e.kind === 'session_catalog').map(e => e.value),
+    [
+      { session_id: 'boxed-s', file: '/tree/child/.piw-worker/sessions/boxed/s.jsonl', worker_id: 'boxed', root: '/tree/child' },
+      { session_id: 'plain-s', file: '/state/sessions/plain/s.jsonl', worker_id: 'plain' },
+    ],
+  );
 });
 
 test('sandbox: the daemon refuses to start without a bwrap that runs, and never listens', { timeout: 60_000 }, async () => {
