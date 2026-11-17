@@ -3,6 +3,11 @@
  * `supervisor` start record. The supervisor id persists across starts (it is the first start's id); the epoch is new
  * on every start. A second supervisor on the same state directory is refused before it reads the journal. A journal
  * past half its bound is compacted before anything is appended (journal/retention.ts), so recovery has room to write.
+ *
+ * State format: every start record carries the format it was written in, and a state directory written in any other
+ * format is refused before anything is compacted, appended, recovered or launched. There is no migration and no
+ * compatibility (nubl decisions 2026-11-17): a P1 state's terminal rows claim cleanup a process-group kill could not
+ * prove, and no later evidence can make them safe to release.
  */
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
@@ -19,6 +24,33 @@ export interface SupervisorState {
 }
 
 export const journalPath = (stateDir: string) => join(stateDir, 'journal.jsonl');
+
+/**
+ * The state format this supervisor writes, and the only one it opens. 1: P1 (start records carry no version; cleanup
+ * was a process-group kill). 2: P2-1 (per-epoch cgroup v2 cleanup domains).
+ */
+export const STATE_VERSION = 2;
+
+/** A state directory written in another format: startup fails, naming both versions; nothing in it was changed. */
+export class StateVersionRefused extends Error {
+  readonly code: 'state_from_older_version' | 'state_from_newer_version';
+
+  constructor(
+    readonly found: number,
+    readonly required: number,
+  ) {
+    const code = found < required ? 'state_from_older_version' : 'state_from_newer_version';
+    super(`${code}: the state directory was written in state format ${found}; this supervisor opens only format ${required} and never migrates`);
+    this.code = code;
+  }
+}
+
+/** The format a journal's records were written in: its first start record's, 1 when that carries none. */
+function stateVersion(journal: Journal): number | null {
+  if (journal.records.length === 0) return null;
+  const version = journal.records.find(r => r.kind === 'supervisor')?.value.state_version;
+  return typeof version === 'number' && Number.isInteger(version) ? version : 1;
+}
 
 export interface StateOptions {
   /** The journal's byte bound (the retention default otherwise). */
@@ -38,6 +70,9 @@ export function openState(stateDir: string, options: StateOptions = {}): Supervi
     throw error;
   }
   try {
+    // Before compaction or any append: a refused state is left exactly as it was.
+    const found = stateVersion(journal);
+    if (found !== null && found !== STATE_VERSION) throw new StateVersionRefused(found, STATE_VERSION);
     if (journal.size() >= journal.maxBytes / 2) {
       const limits: RetentionLimits = { ...DEFAULT_RETENTION, ...options.retention, journalBytes: journal.maxBytes };
       try {
@@ -50,7 +85,7 @@ export function openState(stateDir: string, options: StateOptions = {}): Supervi
     const first = journal.records.find(r => r.kind === 'supervisor')?.value.supervisor_id;
     const supervisorId = typeof first === 'string' ? first : randomUUID();
     const supervisorEpoch = randomUUID();
-    journal.append('supervisor', { supervisor_id: supervisorId, supervisor_epoch: supervisorEpoch, started_at: new Date().toISOString() }, 'supervisor.start');
+    journal.append('supervisor', { supervisor_id: supervisorId, supervisor_epoch: supervisorEpoch, state_version: STATE_VERSION, started_at: new Date().toISOString() }, 'supervisor.start');
     return {
       journal,
       supervisorId,
