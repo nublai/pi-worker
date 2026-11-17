@@ -1,12 +1,13 @@
 diff --git a/packages/worker/src/supervisor/state.ts b/packages/worker/src/supervisor/state.ts
+index 5691c0f..9090bde 100644
 --- a/packages/worker/src/supervisor/state.ts
 +++ b/packages/worker/src/supervisor/state.ts
-@@ -137,7 +137,7 @@
-       this.workers.set(persisted.worker.worker_id, { ...persisted, index: new SessionIndex(persisted.sessionFile), completedMessages: 0 });
+@@ -175,7 +175,7 @@ export class SupervisorState {
        this.rowSize.set(persisted.worker.worker_id, recordBytes(record.value));
+       this.journaledFence.set(persisted.worker.worker_id, uncertainOf(persisted.worker.fence));
      }
 -    receipts.budget = (operation, request) => this.budget(operation, request);
 +    receipts.budget = () => null;
-     journal.controlRoom = () => this.controlRoom();
-   }
- 
+     // Every journaled receipt record of a worker's command is a durable `receipt.updated` (P1-19).
+     receipts.onRecord = (receipt, appended) => {
+       if (receipt.worker_id) this.events.publish('receipt.updated', { worker_id: receipt.worker_id, execution_id: receipt.execution_id ?? null, data: { receipt: structuredClone(receipt) }, appended });
