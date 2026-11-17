@@ -355,7 +355,7 @@ func (s *state) event(w *worker, kind string) {
 			if e.Disposition != nil {
 				disposition = *e.Disposition
 			}
-			s.publish("execution.settled", w.row.WorkerId, &e.ExecutionId, "supervisor_journal_fsynced", map[string]any{"disposition": disposition})
+			s.publish("execution.settled", w.row.WorkerId, &e.ExecutionId, "observed_memory", map[string]any{"disposition": disposition})
 		}
 		s.flush(w)
 	case "exit":
