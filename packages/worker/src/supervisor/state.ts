@@ -9,7 +9,8 @@ import { randomUUID } from 'node:crypto';
 import type { components } from '../generated/api.js';
 import { Refusal } from '../b2/errors.js';
 import type { SessionHost } from '../host/host.js';
-import { budgetKey, recordBytes, type Journal } from '../journal/journal.js';
+import { budgetKey, fenceKey, recordBytes, type Journal } from '../journal/journal.js';
+import { SESSION_DIRECTED } from './fence.js';
 import type { DurableLabel } from '../journal/labels.js';
 import { SessionIndex } from '../history/session-index.js';
 import { EventHub } from '../events/hub.js';
@@ -98,6 +99,8 @@ const BUDGET_RECORD_BYTES = 4096;
 const CONTROL_ROWS = 3;
 /** What a new worker's row adds to its create request: the worker fields and pi's resource inventory. */
 const ROW_BASE_BYTES = 8192;
+/** What the row that fences a session adds to the worker's latest row: the fence and the execution's state. */
+const FENCE_ROW_EXTRA_BYTES = 4096;
 
 export class SupervisorState {
   readonly workers = new Map<string, Live>();
@@ -156,16 +159,21 @@ export class SupervisorState {
   /**
    * The room an ordinary command's worker records need, reserved before dispatch with its receipt: a create budgets
    * its new worker's rows (estimated from the request) and leaves its control room free; a worker-directed command
-   * tops its worker's budget up. Other commands have none.
+   * tops its worker's budget up. Other commands have none. A command whose unknown outcome fences a session (fence.ts)
+   * also reserves the row that latches that fence: control traffic may spend every other byte meanwhile (PR #12
+   * review F7).
    */
   budget(operation: Operation, request: Record<string, unknown>): Budget | null {
     if (operation === 'workers.create') {
       const row = 2 * recordBytes(request) + ROW_BASE_BYTES;
-      return { key: `create:${String(request.command_id)}`, bytes: BUDGET_ROWS * row + BUDGET_RECORD_BYTES, control: CONTROL_ROWS * row };
+      const fence = request.resume_session_id ? row + FENCE_ROW_EXTRA_BYTES : 0;
+      return { key: `create:${String(request.command_id)}`, bytes: BUDGET_ROWS * row + BUDGET_RECORD_BYTES, control: CONTROL_ROWS * row, fence };
     }
     const live = typeof request.worker_id === 'string' ? this.workers.get(request.worker_id) : undefined;
     if (!live) return null;
-    return { key: budgetKey(live.worker.worker_id), bytes: BUDGET_ROWS * this.rowBytes(live) + BUDGET_RECORD_BYTES, control: 0 };
+    const row = this.rowBytes(live);
+    const fence = SESSION_DIRECTED.has(operation) ? row + FENCE_ROW_EXTRA_BYTES : 0;
+    return { key: budgetKey(live.worker.worker_id), bytes: BUDGET_ROWS * row + BUDGET_RECORD_BYTES, control: 0, fence };
   }
 
   /** The room every worker that may still be stopped needs for its own control rows; ordinary records leave it free. */
@@ -204,7 +212,11 @@ export class SupervisorState {
     const id = live.worker.worker_id;
     // SAFETY: Persisted is a plain JSON object (no methods, no cycles); the journal stores it as a record value.
     const value = record as unknown as Record<string, unknown>;
-    const { appended } = this.journal.append('worker', value, label, { budget: [budgetKey(id)] });
+    // A row that names uncertain commands in its fence is their fence row: it uses the room each reserved for it, and
+    // once it is durable that room is released (ReceiptStore.run keeps it reserved for an unknown outcome until then).
+    const fenced = (live.worker.fence?.uncertain_command_ids ?? (live.worker.fence ? [live.worker.fence.command_id] : [])).map(fenceKey);
+    const { appended } = this.journal.append('worker', value, label, { budget: [...fenced, budgetKey(id)] });
+    for (const key of fenced) this.journal.release(key);
     this.rowSize.set(id, recordBytes(value));
     if (ENDING_ROW_LABELS.has(label)) this.journal.release(budgetKey(id));
     this.published.set(live.worker.worker_id, JSON.stringify(this.view(live)));
