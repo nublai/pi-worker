@@ -11,14 +11,22 @@ export interface Validator {
   errors?: ValidationError[] | null;
 }
 export declare const error: Validator;
+export declare const event_AssistantDeltaEvent: Validator;
+export declare const event_AttachmentUpdatedEvent: Validator;
 export declare const event_ChildReportedEvent: Validator;
+export declare const event_ExecutionAdmittedEvent: Validator;
 export declare const event_ExecutionSettledEvent: Validator;
+export declare const event_ExecutionStartedEvent: Validator;
 export declare const event_FenceResolvedEvent: Validator;
+export declare const event_FenceSetEvent: Validator;
 export declare const event_HistoryAppendedEvent: Validator;
 export declare const event_InteractionsChangedEvent: Validator;
 export declare const event_OverflowEvent: Validator;
+export declare const event_ReceiptUpdatedEvent: Validator;
 export declare const event_SessionReboundEvent: Validator;
 export declare const event_SnapshotEvent: Validator;
+export declare const event_ToolFinishedEvent: Validator;
+export declare const event_ToolStartedEvent: Validator;
 export declare const event_WorkerUpdatedEvent: Validator;
 export declare const event_frame: Validator;
 export declare const params_attachments_release: Validator;

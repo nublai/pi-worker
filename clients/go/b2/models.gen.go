@@ -26,6 +26,36 @@ func (e AnswerOutcome) Valid() bool {
 	}
 }
 
+// Defines values for AssistantDeltaEventEvidence.
+const (
+	AssistantDeltaEventEvidenceObservedMemory AssistantDeltaEventEvidence = "observed_memory"
+)
+
+// Valid indicates whether the value is a known member of the AssistantDeltaEventEvidence enum.
+func (e AssistantDeltaEventEvidence) Valid() bool {
+	switch e {
+	case AssistantDeltaEventEvidenceObservedMemory:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AssistantDeltaEventType.
+const (
+	AssistantDelta AssistantDeltaEventType = "assistant.delta"
+)
+
+// Valid indicates whether the value is a known member of the AssistantDeltaEventType enum.
+func (e AssistantDeltaEventType) Valid() bool {
+	switch e {
+	case AssistantDelta:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AttachmentStatusContentType.
 const (
 	Imagejpeg AttachmentStatusContentType = "image/jpeg"
@@ -80,6 +110,36 @@ func (e AttachmentStatusState) Valid() bool {
 	case Released:
 		return true
 	case Staged:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AttachmentUpdatedEventEvidence.
+const (
+	AttachmentUpdatedEventEvidenceSupervisorJournalFsynced AttachmentUpdatedEventEvidence = "supervisor_journal_fsynced"
+)
+
+// Valid indicates whether the value is a known member of the AttachmentUpdatedEventEvidence enum.
+func (e AttachmentUpdatedEventEvidence) Valid() bool {
+	switch e {
+	case AttachmentUpdatedEventEvidenceSupervisorJournalFsynced:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AttachmentUpdatedEventType.
+const (
+	AttachmentUpdated AttachmentUpdatedEventType = "attachment.updated"
+)
+
+// Valid indicates whether the value is a known member of the AttachmentUpdatedEventType enum.
+func (e AttachmentUpdatedEventType) Valid() bool {
+	switch e {
+	case AttachmentUpdated:
 		return true
 	default:
 		return false
@@ -305,6 +365,36 @@ func (e ExecutionState) Valid() bool {
 	}
 }
 
+// Defines values for ExecutionAdmittedEventEvidence.
+const (
+	ExecutionAdmittedEventEvidenceSupervisorJournalFsynced ExecutionAdmittedEventEvidence = "supervisor_journal_fsynced"
+)
+
+// Valid indicates whether the value is a known member of the ExecutionAdmittedEventEvidence enum.
+func (e ExecutionAdmittedEventEvidence) Valid() bool {
+	switch e {
+	case ExecutionAdmittedEventEvidenceSupervisorJournalFsynced:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExecutionAdmittedEventType.
+const (
+	ExecutionAdmitted ExecutionAdmittedEventType = "execution.admitted"
+)
+
+// Valid indicates whether the value is a known member of the ExecutionAdmittedEventType enum.
+func (e ExecutionAdmittedEventType) Valid() bool {
+	switch e {
+	case ExecutionAdmitted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ExecutionSettledEventEvidence.
 const (
 	ExecutionSettledEventEvidenceObservedMemory ExecutionSettledEventEvidence = "observed_memory"
@@ -329,6 +419,36 @@ const (
 func (e ExecutionSettledEventType) Valid() bool {
 	switch e {
 	case ExecutionSettled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExecutionStartedEventEvidence.
+const (
+	ExecutionStartedEventEvidenceSupervisorJournalFsynced ExecutionStartedEventEvidence = "supervisor_journal_fsynced"
+)
+
+// Valid indicates whether the value is a known member of the ExecutionStartedEventEvidence enum.
+func (e ExecutionStartedEventEvidence) Valid() bool {
+	switch e {
+	case ExecutionStartedEventEvidenceSupervisorJournalFsynced:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExecutionStartedEventType.
+const (
+	ExecutionStarted ExecutionStartedEventType = "execution.started"
+)
+
+// Valid indicates whether the value is a known member of the ExecutionStartedEventType enum.
+func (e ExecutionStartedEventType) Valid() bool {
+	switch e {
+	case ExecutionStarted:
 		return true
 	default:
 		return false
@@ -395,6 +515,36 @@ const (
 func (e FenceResolvedEventType) Valid() bool {
 	switch e {
 	case FenceResolved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FenceSetEventEvidence.
+const (
+	FenceSetEventEvidenceSupervisorJournalFsynced FenceSetEventEvidence = "supervisor_journal_fsynced"
+)
+
+// Valid indicates whether the value is a known member of the FenceSetEventEvidence enum.
+func (e FenceSetEventEvidence) Valid() bool {
+	switch e {
+	case FenceSetEventEvidenceSupervisorJournalFsynced:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FenceSetEventType.
+const (
+	FenceSet FenceSetEventType = "fence.set"
+)
+
+// Valid indicates whether the value is a known member of the FenceSetEventType enum.
+func (e FenceSetEventType) Valid() bool {
+	switch e {
+	case FenceSet:
 		return true
 	default:
 		return false
@@ -1091,6 +1241,36 @@ func (e ReceiptState) Valid() bool {
 	}
 }
 
+// Defines values for ReceiptUpdatedEventEvidence.
+const (
+	ReceiptUpdatedEventEvidenceSupervisorJournalFsynced ReceiptUpdatedEventEvidence = "supervisor_journal_fsynced"
+)
+
+// Valid indicates whether the value is a known member of the ReceiptUpdatedEventEvidence enum.
+func (e ReceiptUpdatedEventEvidence) Valid() bool {
+	switch e {
+	case ReceiptUpdatedEventEvidenceSupervisorJournalFsynced:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReceiptUpdatedEventType.
+const (
+	ReceiptUpdated ReceiptUpdatedEventType = "receipt.updated"
+)
+
+// Valid indicates whether the value is a known member of the ReceiptUpdatedEventType enum.
+func (e ReceiptUpdatedEventType) Valid() bool {
+	switch e {
+	case ReceiptUpdated:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReportKind.
 const (
 	ReportKindHelp   ReportKind = "help"
@@ -1577,6 +1757,66 @@ func (e Thinking) Valid() bool {
 	}
 }
 
+// Defines values for ToolFinishedEventEvidence.
+const (
+	ToolFinishedEventEvidenceObservedMemory ToolFinishedEventEvidence = "observed_memory"
+)
+
+// Valid indicates whether the value is a known member of the ToolFinishedEventEvidence enum.
+func (e ToolFinishedEventEvidence) Valid() bool {
+	switch e {
+	case ToolFinishedEventEvidenceObservedMemory:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ToolFinishedEventType.
+const (
+	ToolFinished ToolFinishedEventType = "tool.finished"
+)
+
+// Valid indicates whether the value is a known member of the ToolFinishedEventType enum.
+func (e ToolFinishedEventType) Valid() bool {
+	switch e {
+	case ToolFinished:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ToolStartedEventEvidence.
+const (
+	ToolStartedEventEvidenceObservedMemory ToolStartedEventEvidence = "observed_memory"
+)
+
+// Valid indicates whether the value is a known member of the ToolStartedEventEvidence enum.
+func (e ToolStartedEventEvidence) Valid() bool {
+	switch e {
+	case ToolStartedEventEvidenceObservedMemory:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ToolStartedEventType.
+const (
+	ToolStarted ToolStartedEventType = "tool.started"
+)
+
+// Valid indicates whether the value is a known member of the ToolStartedEventType enum.
+func (e ToolStartedEventType) Valid() bool {
+	switch e {
+	case ToolStarted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WorkerForeground.
 const (
 	WorkerForegroundIdle    WorkerForeground = "idle"
@@ -1713,6 +1953,28 @@ type Answer struct {
 // AnswerOutcome defines model for Answer.Outcome.
 type AnswerOutcome string
 
+// AssistantDeltaEvent The assistant text pi is streaming (pi's `message_update` text deltas), memory only and never replayed. `tail` is the last at most 2048 characters of the message's text so far and `length` its full length: a client replaces its screen tail with `tail`, so a lost delta costs nothing. A subscriber whose transport is backpressured holds at most one undelivered delta per worker (a newer one replaces it), so a delta storm cannot overflow its queue.
+type AssistantDeltaEvent struct {
+	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
+	Cursor Cursor `json:"cursor"`
+	Data   struct {
+		Length int    `json:"length"`
+		Tail   string `json:"tail"`
+	} `json:"data"`
+	EventId     Id                          `json:"event_id"`
+	Evidence    AssistantDeltaEventEvidence `json:"evidence"`
+	ExecutionId *string                     `json:"execution_id"`
+	Producer    Producer                    `json:"producer"`
+	Type        AssistantDeltaEventType     `json:"type"`
+	WorkerId    Id                          `json:"worker_id"`
+}
+
+// AssistantDeltaEventEvidence defines model for AssistantDeltaEvent.Evidence.
+type AssistantDeltaEventEvidence string
+
+// AssistantDeltaEventType defines model for AssistantDeltaEvent.Type.
+type AssistantDeltaEventType string
+
 // AttachmentStatus defines model for AttachmentStatus.
 type AttachmentStatus struct {
 	AttachmentId Id `json:"attachment_id"`
@@ -1742,6 +2004,27 @@ type AttachmentStatusEvidence string
 
 // AttachmentStatusState defines model for AttachmentStatus.State.
 type AttachmentStatusState string
+
+// AttachmentUpdatedEvent An attachment's durable record changed (`staged` or `released`).
+type AttachmentUpdatedEvent struct {
+	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
+	Cursor Cursor `json:"cursor"`
+	Data   struct {
+		Attachment AttachmentStatus `json:"attachment"`
+	} `json:"data"`
+	EventId     Id                             `json:"event_id"`
+	Evidence    AttachmentUpdatedEventEvidence `json:"evidence"`
+	ExecutionId any                            `json:"execution_id"`
+	Producer    Producer                       `json:"producer"`
+	Type        AttachmentUpdatedEventType     `json:"type"`
+	WorkerId    Id                             `json:"worker_id"`
+}
+
+// AttachmentUpdatedEventEvidence defines model for AttachmentUpdatedEvent.Evidence.
+type AttachmentUpdatedEventEvidence string
+
+// AttachmentUpdatedEventType defines model for AttachmentUpdatedEvent.Type.
+type AttachmentUpdatedEventType string
 
 // Binding defines model for Binding.
 type Binding struct {
@@ -1922,11 +2205,33 @@ type Execution struct {
 // ExecutionState defines model for Execution.State.
 type ExecutionState string
 
-// ExecutionSettledEvent pi reported agent_settled for the execution.
+// ExecutionAdmittedEvent The supervisor admitted an execution and journaled it, before the prompt reaches pi.
+type ExecutionAdmittedEvent struct {
+	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
+	Cursor Cursor `json:"cursor"`
+	Data   struct {
+		CommandId Id `json:"command_id"`
+	} `json:"data"`
+	EventId     Id                             `json:"event_id"`
+	Evidence    ExecutionAdmittedEventEvidence `json:"evidence"`
+	ExecutionId Id                             `json:"execution_id"`
+	Producer    Producer                       `json:"producer"`
+	Type        ExecutionAdmittedEventType     `json:"type"`
+	WorkerId    Id                             `json:"worker_id"`
+}
+
+// ExecutionAdmittedEventEvidence defines model for ExecutionAdmittedEvent.Evidence.
+type ExecutionAdmittedEventEvidence string
+
+// ExecutionAdmittedEventType defines model for ExecutionAdmittedEvent.Type.
+type ExecutionAdmittedEventType string
+
+// ExecutionSettledEvent pi reported agent_settled for the execution (or pi handled the prompt without a turn). The frame is memory only; the settlement itself is journaled in the worker row's `recent_settlements`, which every snapshot carries.
 type ExecutionSettledEvent struct {
 	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
 	Cursor Cursor `json:"cursor"`
 	Data   struct {
+		CommandId   Id     `json:"command_id"`
 		Disposition string `json:"disposition"`
 	} `json:"data"`
 	EventId     Id                            `json:"event_id"`
@@ -1942,6 +2247,27 @@ type ExecutionSettledEventEvidence string
 
 // ExecutionSettledEventType defines model for ExecutionSettledEvent.Type.
 type ExecutionSettledEventType string
+
+// ExecutionStartedEvent pi reported agent_start for the admitted execution; the row is journaled.
+type ExecutionStartedEvent struct {
+	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
+	Cursor Cursor `json:"cursor"`
+	Data   struct {
+		CommandId Id `json:"command_id"`
+	} `json:"data"`
+	EventId     Id                            `json:"event_id"`
+	Evidence    ExecutionStartedEventEvidence `json:"evidence"`
+	ExecutionId Id                            `json:"execution_id"`
+	Producer    Producer                      `json:"producer"`
+	Type        ExecutionStartedEventType     `json:"type"`
+	WorkerId    Id                            `json:"worker_id"`
+}
+
+// ExecutionStartedEventEvidence defines model for ExecutionStartedEvent.Evidence.
+type ExecutionStartedEventEvidence string
+
+// ExecutionStartedEventType defines model for ExecutionStartedEvent.Type.
+type ExecutionStartedEventType string
 
 // Fence defines model for Fence.
 type Fence struct {
@@ -1980,6 +2306,32 @@ type FenceResolvedEventEvidence string
 
 // FenceResolvedEventType defines model for FenceResolvedEvent.Type.
 type FenceResolvedEventType string
+
+// FenceSetEvent An uncertain command joined the worker's fence (the fence latched or its generation rose), after the fenced row was journaled. Session writes are refused until `sessions.resolve_unknown`.
+type FenceSetEvent struct {
+	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
+	Cursor Cursor `json:"cursor"`
+	Data   struct {
+		// CommandId The uncertain command that joined the fence.
+		CommandId       Id    `json:"command_id"`
+		Fence           Fence `json:"fence"`
+		FenceGeneration int   `json:"fence_generation"`
+	} `json:"data"`
+	EventId  Id                    `json:"event_id"`
+	Evidence FenceSetEventEvidence `json:"evidence"`
+
+	// ExecutionId The uncertain execution, when the uncertain command is the worker's execution.
+	ExecutionId *string           `json:"execution_id"`
+	Producer    Producer          `json:"producer"`
+	Type        FenceSetEventType `json:"type"`
+	WorkerId    Id                `json:"worker_id"`
+}
+
+// FenceSetEventEvidence defines model for FenceSetEvent.Evidence.
+type FenceSetEventEvidence string
+
+// FenceSetEventType defines model for FenceSetEvent.Type.
+type FenceSetEventType string
 
 // FileContent defines model for FileContent.
 type FileContent struct {
@@ -2484,6 +2836,39 @@ type ReceiptStage string
 // ReceiptState defines model for Receipt.State.
 type ReceiptState string
 
+// ReceiptUpdatedEvent A receipt record of a worker's command was journaled (intent, dispatch, result, recovery). `receipt` is that record; read `receipts.get` after a gap.
+type ReceiptUpdatedEvent struct {
+	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
+	Cursor Cursor `json:"cursor"`
+	Data   struct {
+		Receipt Receipt `json:"receipt"`
+	} `json:"data"`
+	EventId     Id                          `json:"event_id"`
+	Evidence    ReceiptUpdatedEventEvidence `json:"evidence"`
+	ExecutionId *string                     `json:"execution_id"`
+	Producer    Producer                    `json:"producer"`
+	Type        ReceiptUpdatedEventType     `json:"type"`
+	WorkerId    Id                          `json:"worker_id"`
+}
+
+// ReceiptUpdatedEventEvidence defines model for ReceiptUpdatedEvent.Evidence.
+type ReceiptUpdatedEventEvidence string
+
+// ReceiptUpdatedEventType defines model for ReceiptUpdatedEvent.Type.
+type ReceiptUpdatedEventType string
+
+// RecentSettlement defines model for RecentSettlement.
+type RecentSettlement struct {
+	CommandId Id `json:"command_id"`
+
+	// Disposition The disposition `execution.settled` carried.
+	Disposition string `json:"disposition"`
+	ExecutionId Id     `json:"execution_id"`
+
+	// SettledAt RFC 3339 time the supervisor recorded the settlement.
+	SettledAt string `json:"settled_at"`
+}
+
 // Release defines model for Release.
 type Release struct {
 	CommandId Id `json:"command_id"`
@@ -2720,6 +3105,73 @@ type Text = string
 // Thinking defines model for Thinking.
 type Thinking string
 
+// ToolCall defines model for ToolCall.
+type ToolCall struct {
+	Name ToolName `json:"name"`
+
+	// Summary One line about the call: the first of the arguments `command`, `path`, `file_path`, `pattern`, `url`, `query` or `description` that is a string, cut to 200 characters; null when there is none.
+	Summary *ToolSummary `json:"summary"`
+
+	// ToolCallId pi's tool call id (a longer one is cut to 512 characters, the same way in both events).
+	ToolCallId ToolCallId `json:"tool_call_id"`
+}
+
+// ToolCallId pi's tool call id (a longer one is cut to 512 characters, the same way in both events).
+type ToolCallId = string
+
+// ToolFinishedEvent pi finished a tool call (`tool_execution_end`). Memory only, never replayed.
+type ToolFinishedEvent struct {
+	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
+	Cursor Cursor `json:"cursor"`
+	Data   struct {
+		IsError bool     `json:"is_error"`
+		Name    ToolName `json:"name"`
+
+		// Summary One line about the call: the first of the arguments `command`, `path`, `file_path`, `pattern`, `url`, `query` or `description` that is a string, cut to 200 characters; null when there is none.
+		Summary *ToolSummary `json:"summary"`
+
+		// ToolCallId pi's tool call id (a longer one is cut to 512 characters, the same way in both events).
+		ToolCallId ToolCallId `json:"tool_call_id"`
+	} `json:"data"`
+	EventId     Id                        `json:"event_id"`
+	Evidence    ToolFinishedEventEvidence `json:"evidence"`
+	ExecutionId *string                   `json:"execution_id"`
+	Producer    Producer                  `json:"producer"`
+	Type        ToolFinishedEventType     `json:"type"`
+	WorkerId    Id                        `json:"worker_id"`
+}
+
+// ToolFinishedEventEvidence defines model for ToolFinishedEvent.Evidence.
+type ToolFinishedEventEvidence string
+
+// ToolFinishedEventType defines model for ToolFinishedEvent.Type.
+type ToolFinishedEventType string
+
+// ToolName defines model for ToolName.
+type ToolName = string
+
+// ToolStartedEvent pi started a tool call (`tool_execution_start`): the pending tool. Memory only, never replayed.
+type ToolStartedEvent struct {
+	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
+	Cursor      Cursor                   `json:"cursor"`
+	Data        ToolCall                 `json:"data"`
+	EventId     Id                       `json:"event_id"`
+	Evidence    ToolStartedEventEvidence `json:"evidence"`
+	ExecutionId *string                  `json:"execution_id"`
+	Producer    Producer                 `json:"producer"`
+	Type        ToolStartedEventType     `json:"type"`
+	WorkerId    Id                       `json:"worker_id"`
+}
+
+// ToolStartedEventEvidence defines model for ToolStartedEvent.Evidence.
+type ToolStartedEventEvidence string
+
+// ToolStartedEventType defines model for ToolStartedEvent.Type.
+type ToolStartedEventType string
+
+// ToolSummary One line about the call: the first of the arguments `command`, `path`, `file_path`, `pattern`, `url`, `query` or `description` that is a string, cut to 200 characters; null when there is none.
+type ToolSummary = string
+
 // Worker defines model for Worker.
 type Worker struct {
 	BindingRevision int           `json:"binding_revision"`
@@ -2756,6 +3208,9 @@ type Worker struct {
 	// Preview The newest user or assistant text in the session file, without the worker's interrupt marker, at most 280 characters.
 	Preview *Preview       `json:"preview,omitempty"`
 	Queued  *[]QueuedInput `json:"queued,omitempty"`
+
+	// RecentSettlements The worker's last settled executions, newest first, at most 8. Journaled with the row, so a subscriber that missed `execution.settled` (a disconnect, an overflow, a supervisor restart) recovers each settlement from the next snapshot. An execution appears once. The cap covers a reconnect gap of eight turns and keeps the row small in every snapshot, `worker.updated` and journal record; a `settle_count` gap larger than the list means some settlements are only in the session history.
+	RecentSettlements *[]RecentSettlement `json:"recent_settlements,omitempty"`
 
 	// RepoLabel The name of the Git work tree holding the cwd, else the cwd's base name.
 	RepoLabel               *string                       `json:"repo_label,omitempty"`

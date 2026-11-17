@@ -20,6 +20,7 @@ import { Features, type Configure, type InventoryFactory } from './features.js';
 import { SessionCommands, type Compact, type Invoke } from './session-commands.js';
 import { Attachments, type StageRequest } from '../attachments/attachments.js';
 import { Lifecycle } from './lifecycle.js';
+import { activity } from './activity.js';
 import { SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker, type ChildLaunch } from './state.js';
 
 export type HistoryItem = components['schemas']['HistoryItem'];
@@ -77,7 +78,11 @@ export class Supervisor {
     if (options.inventory) this.features.inventory = options.inventory;
     this.commands = new SessionCommands(this.state, this.input, this.fence);
     this.attachments = new Attachments(options.journal, options.receipts, options.stateDir);
+    // Every journaled attachment record is a durable `attachment.updated` for its worker (P1-19).
+    this.attachments.onRecord = (value, appended) =>
+      this.state.events.publish('attachment.updated', { worker_id: value.worker_id, execution_id: null, data: { attachment: structuredClone(value) }, appended });
     this.input.attachments = this.attachments;
+    activity(this.state, this.lifecycle);
   }
 
   /**

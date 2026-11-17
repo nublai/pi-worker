@@ -3729,6 +3729,14 @@
             "minimum": 0,
             "description": "Executions pi reported settled on this worker (finished-unseen on the phone)."
           },
+          "recent_settlements": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "$ref": "#/components/schemas/RecentSettlement"
+            },
+            "description": "The worker's last settled executions, newest first, at most 8. Journaled with the row, so a subscriber that missed `execution.settled` (a disconnect, an overflow, a supervisor restart) recovers each settlement from the next snapshot. An execution appears once. The cap covers a reconnect gap of eight turns and keeps the row small in every snapshot, `worker.updated` and journal record; a `settle_count` gap larger than the list means some settlements are only in the session history."
+          },
           "lineage": {
             "$ref": "#/components/schemas/Lineage"
           },
@@ -3778,6 +3786,36 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "RecentSettlement": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "execution_id",
+          "command_id",
+          "disposition",
+          "settled_at"
+        ],
+        "properties": {
+          "execution_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "command_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "disposition": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The disposition `execution.settled` carried."
+          },
+          "settled_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "RFC 3339 time the supervisor recorded the settlement."
           }
         }
       },
@@ -4809,6 +4847,30 @@
           },
           {
             "$ref": "#/components/schemas/ChildReportedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ExecutionAdmittedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ExecutionStartedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/AssistantDeltaEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ToolStartedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ToolFinishedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ReceiptUpdatedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/FenceSetEvent"
+          },
+          {
+            "$ref": "#/components/schemas/AttachmentUpdatedEvent"
           }
         ]
       },
@@ -5077,7 +5139,7 @@
       "ExecutionSettledEvent": {
         "type": "object",
         "additionalProperties": false,
-        "description": "pi reported agent_settled for the execution.",
+        "description": "pi reported agent_settled for the execution (or pi handled the prompt without a turn). The frame is memory only; the settlement itself is journaled in the worker row's `recent_settlements`, which every snapshot carries.",
         "x-piw-event": {
           "type": "execution.settled",
           "producer": "supervisor",
@@ -5122,9 +5184,13 @@
             "type": "object",
             "additionalProperties": false,
             "required": [
+              "command_id",
               "disposition"
             ],
             "properties": {
+              "command_id": {
+                "$ref": "#/components/schemas/Id"
+              },
               "disposition": {
                 "type": "string",
                 "minLength": 1,
@@ -5454,6 +5520,554 @@
                 ],
                 "minLength": 1,
                 "maxLength": 128
+              }
+            }
+          }
+        }
+      },
+      "ExecutionAdmittedEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The supervisor admitted an execution and journaled it, before the prompt reaches pi.",
+        "x-piw-event": {
+          "type": "execution.admitted",
+          "producer": "supervisor",
+          "durability": "journal",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "execution.admitted"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "evidence": {
+            "type": "string",
+            "const": "supervisor_journal_fsynced"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "command_id"
+            ],
+            "properties": {
+              "command_id": {
+                "$ref": "#/components/schemas/Id"
+              }
+            }
+          }
+        }
+      },
+      "ExecutionStartedEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "pi reported agent_start for the admitted execution; the row is journaled.",
+        "x-piw-event": {
+          "type": "execution.started",
+          "producer": "supervisor",
+          "durability": "journal",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "execution.started"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "evidence": {
+            "type": "string",
+            "const": "supervisor_journal_fsynced"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "command_id"
+            ],
+            "properties": {
+              "command_id": {
+                "$ref": "#/components/schemas/Id"
+              }
+            }
+          }
+        }
+      },
+      "AssistantDeltaEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The assistant text pi is streaming (pi's `message_update` text deltas), memory only and never replayed. `tail` is the last at most 2048 characters of the message's text so far and `length` its full length: a client replaces its screen tail with `tail`, so a lost delta costs nothing. A subscriber whose transport is backpressured holds at most one undelivered delta per worker (a newer one replaces it), so a delta storm cannot overflow its queue.",
+        "x-piw-event": {
+          "type": "assistant.delta",
+          "producer": "pi",
+          "durability": "memory",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "assistant.delta"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidence": {
+            "type": "string",
+            "const": "observed_memory"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "tail",
+              "length"
+            ],
+            "properties": {
+              "tail": {
+                "type": "string",
+                "maxLength": 2048
+              },
+              "length": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      },
+      "ToolStartedEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "pi started a tool call (`tool_execution_start`): the pending tool. Memory only, never replayed.",
+        "x-piw-event": {
+          "type": "tool.started",
+          "producer": "pi",
+          "durability": "memory",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "tool.started"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidence": {
+            "type": "string",
+            "const": "observed_memory"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ToolCall"
+          }
+        }
+      },
+      "ToolFinishedEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "pi finished a tool call (`tool_execution_end`). Memory only, never replayed.",
+        "x-piw-event": {
+          "type": "tool.finished",
+          "producer": "pi",
+          "durability": "memory",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "tool.finished"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidence": {
+            "type": "string",
+            "const": "observed_memory"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "tool_call_id",
+              "name",
+              "summary",
+              "is_error"
+            ],
+            "properties": {
+              "tool_call_id": {
+                "$ref": "#/components/schemas/ToolCallId"
+              },
+              "name": {
+                "$ref": "#/components/schemas/ToolName"
+              },
+              "summary": {
+                "$ref": "#/components/schemas/ToolSummary"
+              },
+              "is_error": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "ToolCall": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tool_call_id",
+          "name",
+          "summary"
+        ],
+        "properties": {
+          "tool_call_id": {
+            "$ref": "#/components/schemas/ToolCallId"
+          },
+          "name": {
+            "$ref": "#/components/schemas/ToolName"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ToolSummary"
+          }
+        }
+      },
+      "ToolCallId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512,
+        "description": "pi's tool call id (a longer one is cut to 512 characters, the same way in both events)."
+      },
+      "ToolName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "ToolSummary": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200,
+        "description": "One line about the call: the first of the arguments `command`, `path`, `file_path`, `pattern`, `url`, `query` or `description` that is a string, cut to 200 characters; null when there is none."
+      },
+      "ReceiptUpdatedEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A receipt record of a worker's command was journaled (intent, dispatch, result, recovery). `receipt` is that record; read `receipts.get` after a gap.",
+        "x-piw-event": {
+          "type": "receipt.updated",
+          "producer": "supervisor",
+          "durability": "journal",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "receipt.updated"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidence": {
+            "type": "string",
+            "const": "supervisor_journal_fsynced"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "receipt"
+            ],
+            "properties": {
+              "receipt": {
+                "$ref": "#/components/schemas/Receipt"
+              }
+            }
+          }
+        }
+      },
+      "FenceSetEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "An uncertain command joined the worker's fence (the fence latched or its generation rose), after the fenced row was journaled. Session writes are refused until `sessions.resolve_unknown`.",
+        "x-piw-event": {
+          "type": "fence.set",
+          "producer": "supervisor",
+          "durability": "journal",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "fence.set"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The uncertain execution, when the uncertain command is the worker's execution."
+          },
+          "evidence": {
+            "type": "string",
+            "const": "supervisor_journal_fsynced"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "command_id",
+              "fence_generation",
+              "fence"
+            ],
+            "properties": {
+              "command_id": {
+                "$ref": "#/components/schemas/Id",
+                "description": "The uncertain command that joined the fence."
+              },
+              "fence_generation": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "fence": {
+                "$ref": "#/components/schemas/Fence"
+              }
+            }
+          }
+        }
+      },
+      "AttachmentUpdatedEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "An attachment's durable record changed (`staged` or `released`).",
+        "x-piw-event": {
+          "type": "attachment.updated",
+          "producer": "supervisor",
+          "durability": "journal",
+          "visibility": "worker"
+        },
+        "required": [
+          "type",
+          "cursor",
+          "event_id",
+          "producer",
+          "execution_id",
+          "evidence",
+          "worker_id",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "attachment.updated"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "execution_id": {
+            "type": "null"
+          },
+          "evidence": {
+            "type": "string",
+            "const": "supervisor_journal_fsynced"
+          },
+          "worker_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "attachment"
+            ],
+            "properties": {
+              "attachment": {
+                "$ref": "#/components/schemas/AttachmentStatus"
               }
             }
           }

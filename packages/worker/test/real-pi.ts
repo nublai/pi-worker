@@ -22,10 +22,13 @@ export interface FakeProvider {
   readonly requests: Record<string, unknown>[];
   /** While true, a request is held open (never answered) until the client goes away. */
   hold: boolean;
+  /** Streams to answer the next requests with, in order (`sse(...)` bodies); the canned reply once they run out. */
+  readonly responses: string[];
   close(): Promise<void>;
 }
 
-function sse(events: [string, unknown][]): string {
+/** An Anthropic Messages SSE body from its events. */
+export function sse(events: [string, unknown][]): string {
   return events.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join('');
 }
 
@@ -40,6 +43,7 @@ const CANNED = sse([
 
 export async function fakeProvider(): Promise<FakeProvider> {
   const requests: Record<string, unknown>[] = [];
+  const responses: string[] = [];
   const state = { hold: false };
   const server: Server = createServer((req: IncomingMessage, res) => {
     const chunks: Buffer[] = [];
@@ -56,7 +60,7 @@ export async function fakeProvider(): Promise<FakeProvider> {
         return; // held until the run is aborted
       }
       res.writeHead(200, { 'content-type': 'text/event-stream' });
-      res.end(CANNED);
+      res.end(responses.shift() ?? CANNED);
     });
   });
   await new Promise<void>(r => server.listen(0, '127.0.0.1', () => r()));
@@ -64,6 +68,7 @@ export async function fakeProvider(): Promise<FakeProvider> {
   return {
     url: `http://127.0.0.1:${port}`,
     requests,
+    responses,
     get hold() {
       return state.hold;
     },
