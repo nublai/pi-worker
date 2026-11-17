@@ -1,0 +1,15 @@
+diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
+index 714dc6f..63ee6c2 100644
+--- a/packages/worker/src/containment/containment.ts
++++ b/packages/worker/src/containment/containment.ts
+@@ -95,8 +95,8 @@ export class CgroupContainment implements Containment {
+           return true;
+         }
+       } catch (error) {
+-        if ((error as NodeJS.ErrnoException).code === 'ENOENT' && !existsSync(path)) return true;
+-        // A busy, removal or permission error never becomes confirmed cleanup.
++        void error;
++        return true;
+       }
+       await delay(10);
+     } while (Date.now() < deadline);

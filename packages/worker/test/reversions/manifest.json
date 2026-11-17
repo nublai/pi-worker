@@ -60,7 +60,8 @@
       "diffs": [
         "p1-7-rebind-keeps-revision.diff",
         "p1-7-no-native-move-refusal.diff",
-        "p1-fix-f4-sessions-new-not-session-directed.diff"
+        "p1-fix-f4-sessions-new-not-session-directed.diff",
+        "p2-1-issue6-unknown-rebind-releases-target.diff"
       ]
     },
     "resume": {
@@ -68,7 +69,8 @@
       "diffs": [
         "p1-fix2-create-resume-target-not-durable.diff",
         "p1-fix3-create-resume-unknown-not-recovered.diff",
-        "p1-fix3-create-not-binding-existing-session.diff"
+        "p1-fix3-create-not-binding-existing-session.diff",
+        "p2-1-issue6-rebind-target-not-durable.diff"
       ]
     },
     "events": {
@@ -317,6 +319,23 @@
         "pr20-fake-tool-fields-uncut.diff",
         "pr20-fake-tool-approval-untyped.diff",
         "pr20-fake-abort-turn-repeated.diff"
+      ]
+    },
+    "containment": {
+      "command": "npm test -- containment lifecycle",
+      "diffs": [
+        "p2-1-domain-after-spawn.diff",
+        "p2-1-stop-kills-before-pending.diff",
+        "p2-1-recover-kills-before-pending.diff",
+        "p2-1-unproven-stop-confirms.diff",
+        "p2-1-recover-confirms-unproven.diff",
+        "p2-1-exit-not-cleaned.diff",
+        "p2-1-unrecorded-cleanup-confirms.diff",
+        "p2-1-domain-reused.diff",
+        "p2-1-join-runs-outside-domain.diff",
+        "p2-1-clean-any-delegation.diff",
+        "p2-1-clean-error-confirms.diff",
+        "p2-1-no-delegation-check.diff"
       ]
     }
   }

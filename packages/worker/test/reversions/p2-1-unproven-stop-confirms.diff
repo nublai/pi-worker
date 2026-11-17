@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 99ae39a..762551d 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -433,7 +433,7 @@ export class Lifecycle {
+         w.status = 'cleanup_pending';
+         w.cleanup = 'stop_requested';
+         this.s.persist(live, 'worker.stop');
+-        const gone = (await this.terminate(live)) && this.confirm(live, 'stopped', 'worker.stopped');
++        const gone = (await this.terminate(live), true) && this.confirm(live, 'stopped', 'worker.stopped');
+         if (!gone) {
+           w.status = 'cleanup_pending';
+           if (w.cleanup !== UNRECORDED) w.cleanup = 'unresolved';

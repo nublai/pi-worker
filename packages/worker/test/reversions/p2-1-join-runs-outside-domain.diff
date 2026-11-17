@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/containment/containment.ts b/packages/worker/src/containment/containment.ts
+index 714dc6f..5ec4135 100644
+--- a/packages/worker/src/containment/containment.ts
++++ b/packages/worker/src/containment/containment.ts
+@@ -36,7 +36,7 @@ export interface Containment {
+ 
+ const NAME = /^w-[a-zA-Z0-9-]+$/;
+ /** The fixed program that runs before any payload: it moves itself into the domain, then executes the payload. */
+-const JOIN = 'printf "%s\\n" "$$" > "$1/cgroup.procs" || exit 125; shift; exec "$@"';
++const JOIN = 'printf "%s\\n" "$$" > "$1/cgroup.procs"; shift; exec "$@"';
+ 
+ export class CgroupContainment implements Containment {
+   readonly profile = 'cgroup_v2_user_delegation: cgroup.kill, populated 0, removed; cleanup, not isolation from same-user code';

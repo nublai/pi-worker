@@ -1,0 +1,17 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 99ae39a..7dfaa7c 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -96,10 +96,8 @@ export class Lifecycle {
+       this.s.persist(live, label);
+       return true;
+     } catch {
+-      w.status = 'cleanup_pending';
+-      w.cleanup = UNRECORDED;
+-      live.pid = pid;
+-      return false;
++      void pid;
++      return true;
+     }
+   }
+ 
