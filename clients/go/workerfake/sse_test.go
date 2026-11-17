@@ -5,10 +5,16 @@ package workerfake_test
 // with Since (Last-Event-ID); an overflow or a supervisor restart ends the watch with ResyncRequired.
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -222,6 +228,32 @@ func TestSSESlowSubscriberOverflows(t *testing.T) {
 	}
 }
 
+// rawSubscribe opens events.subscribe with a raw Last-Event-ID header, which the Go client never sends malformed.
+func rawSubscribe(t *testing.T, fake *workerfake.Fake, lastEventID string) (int, string) {
+	t.Helper()
+	grant, err := os.ReadFile(fake.GrantFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var g struct{ Token string }
+	json.Unmarshal(grant, &g)
+	hc := &http.Client{Transport: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", fake.SocketPath())
+	}}}
+	req, _ := http.NewRequest("GET", "http://worker/b2/events", nil)
+	req.Header.Set("Authorization", "Bearer "+g.Token)
+	req.Header["Last-Event-Id"] = []string{lastEventID}
+	resp, err := hc.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	line, _ := bufio.NewReader(resp.Body).ReadString('\n')
+	return resp.StatusCode, line
+}
+
+// A malformed Last-Event-ID and an unknown event type are 400 before the stream opens; a well-formed cursor of an
+// unknown epoch, the empty one included, is a resync, as app.ts cursorOf takes it (PR #16 Grok 5).
 func TestSSERefusesAnInvalidLastEventIDAndAnUnknownType(t *testing.T) {
 	fake, err := workerfake.Start(workerfake.Options{})
 	if err != nil {
@@ -233,6 +265,18 @@ func TestSSERefusesAnInvalidLastEventIDAndAnUnknownType(t *testing.T) {
 	err = c.Watch(context.Background(), b2.WatchOptions{Types: []string{"no.such"}}, func(b2.Frame) bool { return true })
 	if !errors.As(err, &resync) || resync.Status != 400 {
 		t.Fatalf("unknown type: %v", err)
+	}
+	for _, bad := range []string{"", "not json", "null", "[]", `{"seq":1}`, `{"transport_epoch":1,"seq":1}`, `{"transport_epoch":"e"}`, `{"transport_epoch":"e","seq":-1}`, `{"transport_epoch":"e","seq":1.5}`, `{"transport_epoch":"e","seq":"1"}`} {
+		if status, body := rawSubscribe(t, fake, bad); status != 400 || !strings.Contains(body, "invalid_last_event_id") {
+			t.Errorf("Last-Event-ID %q: %d %s, want 400 invalid_last_event_id", bad, status, body)
+		}
+	}
+	if status, _ := rawSubscribe(t, fake, `{"transport_epoch":"","seq":0}`); status != 200 {
+		t.Fatalf("an empty epoch: %d", status)
+	}
+	w := startWatch(t, c, b2.WatchOptions{Since: &b2.Cursor{}})
+	if s := snapshotOf(t, w.next(t)); s.ResyncReason != "epoch" {
+		t.Fatalf("a zero cursor: %+v", s)
 	}
 }
 

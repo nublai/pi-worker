@@ -3,6 +3,7 @@ package workerfake
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 
@@ -108,14 +109,36 @@ func (f *Fake) Streams() int {
 	return len(f.st.subs)
 }
 
+// cursorOf parses Last-Event-ID as packages/worker/src/b2/app.ts does: a JSON object whose transport_epoch is a
+// string (any string, the empty one included: an unknown epoch is a resync, not an error) and whose seq is a
+// non-negative safe integer.
+func cursorOf(raw string) (*b2.Cursor, bool) {
+	var v struct {
+		TransportEpoch *string          `json:"transport_epoch"`
+		Seq            *json.RawMessage `json:"seq"`
+	}
+	if err := json.Unmarshal([]byte(raw), &v); err != nil || v.TransportEpoch == nil || v.Seq == nil {
+		return nil, false
+	}
+	// A JSON number (never a string) with an integral value: JSON.parse then Number.isSafeInteger.
+	var seq float64
+	if first := (*v.Seq)[0]; (first != '-' && (first < '0' || first > '9')) || json.Unmarshal(*v.Seq, &seq) != nil {
+		return nil, false
+	}
+	if seq != math.Trunc(seq) || seq < 0 || seq > 1<<53-1 {
+		return nil, false
+	}
+	return &b2.Cursor{TransportEpoch: *v.TransportEpoch, Seq: int(seq)}, true
+}
+
 func subscribe(f *Fake, c *call) (any, error) {
 	var since *b2.Cursor
-	if raw := c.header.Get("Last-Event-ID"); raw != "" {
-		var cur b2.Cursor
-		if err := json.Unmarshal([]byte(raw), &cur); err != nil || cur.TransportEpoch == "" || cur.Seq < 0 {
+	if values := c.header.Values("Last-Event-ID"); len(values) > 0 {
+		cur, ok := cursorOf(values[0])
+		if !ok {
 			return nil, badRequest("invalid_last_event_id")
 		}
-		since = &cur
+		since = cur
 	}
 	sub := &subscriber{frames: make(chan []byte, queueEvents+1)}
 	if v := c.query.Get("types"); v != "" {
