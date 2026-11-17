@@ -1,0 +1,31 @@
+{
+  "request": {
+    "path": {
+      "session_id": "session-1"
+    },
+    "query": {
+      "format": "jsonl",
+      "offset": "471",
+      "max_bytes": "1048576",
+      "identity": "c0542a5886d8d0e8a5a469c0fb8a76a782c28dce3065649d4b1e9a3af210e0cf",
+      "tail": "406bd4e4d9c2d87fb8501495db55da42389198bd302ac3da24beca16b53568f0",
+      "prefix": "b6f0ed32893973273ebb5efa8a6a3041e1f94e34dea95aeaca2cbb61c486dff6"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Piw-Session-Id": "session-1",
+      "Piw-File-Identity": "c0542a5886d8d0e8a5a469c0fb8a76a782c28dce3065649d4b1e9a3af210e0cf",
+      "Piw-Offset": "0",
+      "Piw-Next-Offset": "471",
+      "Piw-Watermark": "471",
+      "Piw-Reset": "true",
+      "Piw-Tail-Sha256": "406bd4e4d9c2d87fb8501495db55da42389198bd302ac3da24beca16b53568f0",
+      "Piw-Prefix-Sha256": "8264dbe5fef801f7fed2c6c3f34707c2a1855683fbd6ccda43ac8a77fb3b4d08",
+      "Piw-History-Line-Max": "67108864"
+    },
+    "contentType": "application/x-ndjson",
+    "bodyText": "{\"type\":\"session\",\"version\":3,\"id\":\"session-1\",\"timestamp\":\"2026-11-16T04:00:00Z\",\"cwd\":\"/home/u/project\"}\n{\"type\":\"custom\",\"customType\":\"pi-worker.input\",\"id\":\"e1\",\"parentId\":null,\"timestamp\":\"2026-11-16T04:00:01Z\",\"data\":{\"command_id\":\"cmd-1\",\"execution_id\":\"exec-1\",\"interrupt_marker\":false}}\n{\"type\":\"message\",\"id\":\"e2\",\"parentId\":\"e1\",\"timestamp\":\"2026-11-16T04:00:01Z\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Fix the login bug\"}],\"timestamp\":0}}\n"
+  }
+}

@@ -626,13 +626,16 @@ export interface paths {
          *     Headers: `Piw-File-Identity` is stable across appends and changes when the file is replaced;
          *     `Piw-Watermark` is the file's complete size (the byte after its last complete line), the value
          *     `history.appended` carries; `Piw-Next-Offset` is where the next read starts; `Piw-Tail-Sha256` is the
-         *     SHA-256 of the last line read (with its line feed), to send back as `tail`.
+         *     SHA-256 of the last line read (with its line feed), to send back as `tail`; `Piw-Prefix-Sha256` is the
+         *     SHA-256 of every byte before `Piw-Next-Offset`, to send back as `prefix`.
          *
-         *     Reset: send back `identity` and `tail` with the next `offset`. When the identity differs, or the line
-         *     ending at `offset` is not the one `tail` names (the file was replaced, shrank or was rewritten in place),
-         *     the worker reads from byte 0 and sets `Piw-Reset: true`. Without `tail`, an offset past the watermark
-         *     is `history_offset_past_watermark` and one not on a line start `history_offset_not_line_start`, both
-         *     `400 no_effect`: a bad offset never reads as an empty page.
+         *     Reset: send back `identity`, `tail` and `prefix` with the next `offset`. When the identity differs, the
+         *     line ending at `offset` is not the one `tail` names, or the bytes before `offset` are not the ones
+         *     `prefix` names (the file was replaced, shrank or was rewritten in place, including a rewrite followed by
+         *     an append, or one made while the supervisor was down), the worker reads from byte 0 and sets
+         *     `Piw-Reset: true`. The prefix is the check that survives a supervisor restart. Without `tail` or
+         *     `prefix`, an offset past the watermark is `history_offset_past_watermark` and one not on a line start
+         *     `history_offset_not_line_start`, both `400 no_effect`: a bad offset never reads as an empty page.
          */
         get: operations["sessions.history"];
         put?: never;
@@ -2453,6 +2456,8 @@ export interface operations {
                 max_bytes?: number;
                 identity?: components["schemas"]["FileIdentity"];
                 tail?: components["schemas"]["Sha256"];
+                /** @description The `Piw-Prefix-Sha256` of the read that returned this `offset`. */
+                prefix?: components["schemas"]["Sha256"];
             };
             header?: never;
             path: {
@@ -2474,6 +2479,8 @@ export interface operations {
                     "Piw-Reset": boolean;
                     /** @description Absent when nothing precedes `Piw-Next-Offset`. */
                     "Piw-Tail-Sha256"?: components["schemas"]["Sha256"];
+                    /** @description The SHA-256 of the bytes before `Piw-Next-Offset` (of no bytes when it is 0). */
+                    "Piw-Prefix-Sha256": components["schemas"]["Sha256"];
                     "Piw-History-Line-Max": number;
                     [name: string]: unknown;
                 };

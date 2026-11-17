@@ -249,6 +249,19 @@ test('inventory: sessions.history resets on a replaced, shrunk or rewritten file
     // Without a tail: past the watermark or inside a line is a caller error.
     refused(await history(memory, w.session_id!, { offset: next + 10 }), 'history_offset_past_watermark');
     refused(await history(memory, w.session_id!, { offset: 3 }), 'history_offset_not_line_start');
+    // Nothing changed, but the caller's tail names another line than the one before its offset: it resets, by the tail
+    // alone (same identity, the offset on a line start).
+    const otherLine = sha(`${readFileSync(file, 'utf8').split('\n')[0]}\n`);
+    let named = await history(memory, w.session_id!, { offset: next, identity, tail: otherLine });
+    assert.deepEqual([named.headers!['piw-reset'], named.headers!['piw-offset'], named.headers!['piw-file-identity']], ['true', '0', identity], 'a tail that is not the line before the offset resets');
+    named = await history(memory, w.session_id!, { offset: next, identity, tail });
+    assert.deepEqual([named.headers!['piw-reset'], named.headers!['piw-offset']], ['false', String(next)], 'the right tail does not');
+    // The same for a prefix that is not the SHA-256 of the bytes before the offset.
+    named = await history(memory, w.session_id!, { offset: next, identity, tail, prefix: sha('another prefix') });
+    assert.deepEqual([named.headers!['piw-reset'], named.headers!['piw-offset'], named.headers!['piw-file-identity']], ['true', '0', identity], 'a prefix that is not the bytes before the offset resets');
+    named = await history(memory, w.session_id!, { offset: next, identity, tail, prefix: first.headers!['piw-prefix-sha256']! });
+    assert.deepEqual([named.headers!['piw-reset'], named.headers!['piw-offset']], ['false', String(next)], 'the right prefix does not');
+    assert.equal(first.headers!['piw-prefix-sha256'], sha(readFileSync(file).subarray(0, next)), 'Piw-Prefix-Sha256 is the SHA-256 of the bytes before Piw-Next-Offset');
     // Rewritten in place (same inode, same header): the line before the offset is not the caller's tail.
     const lines = readFileSync(file, 'utf8').split('\n');
     writeFileSync(file, `${lines[0]}\n${user('z1', null, 'rewritten so the same offset sits elsewhere', '2026-11-16T03:00:00.000Z')}`);
@@ -324,6 +337,84 @@ test('inventory: a same-size rewrite in place that keeps the header and the last
   }
 });
 
+/** A session with a user entry and a custom tail, read once (the reader's cursor) and summarized (the summary cache). */
+async function rewriteFixture(f: Fixture, memory: ReturnType<typeof api>['memory']) {
+  const w = await f.create();
+  const file = f.supervisor.state.require(w.worker_id).sessionFile!;
+  appendFileSync(file, user('u1', null, 'aaaaaa first', '2026-11-16T01:00:00.000Z'));
+  appendFileSync(file, at('2026-11-16T01:00:01.000Z', { type: 'custom', id: 'c1', parentId: 'u1', customType: 'x' }));
+  const first = await history(memory, w.session_id!);
+  assert.equal(first.headers!['piw-reset'], 'false');
+  assert.equal(((await memory.request('GET', `/b2/sessions/${w.session_id}`)).body as { preview: string }).preview, 'aaaaaa first');
+  const cursor = { identity: first.headers!['piw-file-identity']!, offset: Number(first.headers!['piw-next-offset']), tail: first.headers!['piw-tail-sha256']!, prefix: first.headers!['piw-prefix-sha256']! };
+  /** Six bytes of the earlier user text change in place: same inode, same size, same header, same last line. */
+  const rewrite = () => {
+    const before = statSync(file);
+    const bytes = readFileSync(file);
+    bytes.write('bbbbbb', bytes.indexOf('aaaaaa'));
+    writeFileSync(file, bytes);
+    utimesSync(file, before.atime, new Date(before.mtimeMs + 5000));
+    const after = statSync(file);
+    assert.deepEqual([after.ino, after.size], [before.ino, before.size], 'same inode, same size');
+    assert.equal(sha(`${readFileSync(file, 'utf8').trimEnd().split('\n').at(-1)}\n`), cursor.tail, 'the line before the cursor is unchanged');
+  };
+  return { w, file, cursor, rewrite };
+}
+
+test('inventory: a rewrite in place followed by an append before any read resets sessions.history (identity and tail alone) and refreshes the summary', async () => {
+  const f = fixture();
+  try {
+    const { memory } = api(f);
+    const { w, file, cursor, rewrite } = await rewriteFixture(f, memory);
+    rewrite();
+    // pi appends before any reader looks: the file grew, but the bytes the reader has were rewritten.
+    appendFileSync(file, at('2026-11-16T01:00:02.000Z', { type: 'custom', id: 'c2', parentId: 'c1', customType: 'x' }));
+    const r = await history(memory, w.session_id!, { identity: cursor.identity, offset: cursor.offset, tail: cursor.tail });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual([r.headers!['piw-reset'], r.headers!['piw-offset']], ['true', '0'], 'a rewrite before an append is not an append');
+    assert.notEqual(r.headers!['piw-file-identity'], cursor.identity, 'the rewrite changes the identity');
+    assert.deepEqual(r.body, readFileSync(file), 'the rewritten entry is sent again');
+    const row = (await memory.request('GET', `/b2/sessions/${w.session_id}`)).body as { preview: string; message_count: number };
+    assert.deepEqual([row.preview, row.message_count], ['bbbbbb first', 1], 'the summary follows the rewrite');
+    // A genuine append after that keeps the new identity and serves only the new line.
+    const settled = { identity: r.headers!['piw-file-identity']!, offset: Number(r.headers!['piw-next-offset']), tail: r.headers!['piw-tail-sha256']!, prefix: r.headers!['piw-prefix-sha256']! };
+    const line = at('2026-11-16T01:00:03.000Z', { type: 'custom', id: 'c3', parentId: 'c2', customType: 'x' });
+    appendFileSync(file, line);
+    const next = await history(memory, w.session_id!, settled);
+    assert.deepEqual([next.headers!['piw-reset'], next.headers!['piw-file-identity'], (next.body as Buffer).toString()], ['false', settled.identity, line]);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('inventory: a rewrite in place while the supervisor is down resets sessions.history by the cursor prefix; a restart alone does not', async () => {
+  const f = fixture();
+  try {
+    const { memory } = api(f);
+    const { w, cursor, rewrite } = await rewriteFixture(f, memory);
+    await f.restart();
+    // Each restarted supervisor gets a fresh API over the same state directory (a new grant id: ids are unique).
+    const reopen = (id: string) => {
+      const g = ownerGrant(f.dir, id);
+      return api(f, g.grants, g.headers).memory;
+    };
+    let b2 = reopen('owner-1');
+    const kept = await history(b2, w.session_id!, cursor);
+    assert.equal(kept.status, 200, JSON.stringify(kept.body));
+    assert.deepEqual([kept.headers!['piw-reset'], kept.headers!['piw-file-identity'], (kept.body as Buffer).length], ['false', cursor.identity, 0], 'a restart alone keeps the cursor');
+    rewrite();
+    await f.restart();
+    b2 = reopen('owner-2');
+    const r = await history(b2, w.session_id!, cursor);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual([r.headers!['piw-reset'], r.headers!['piw-offset']], ['true', '0'], 'the bytes before the offset are not the ones the reader has');
+    assert.ok((r.body as Buffer).includes('bbbbbb first'), 'the rewritten entry is sent again');
+    assert.equal(((await b2.request('GET', `/b2/sessions/${w.session_id}`)).body as { preview: string }).preview, 'bbbbbb first');
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('inventory: a user message with four photos over the summary line limit still counts, with its caption as the preview and its activity', async () => {
   const f = fixture();
   try {
@@ -391,7 +482,7 @@ test('inventory: an ndjson reply that is not complete JSON lines, or whose heade
   // SAFETY: a deliberately wrong handler, to prove the router checks a byte reply before sending it.
   const handlers = { 'sessions.history': () => reply } as unknown as Handlers;
   const memory = createMemoryTransport(createRouter({ handlers }));
-  const headers = { 'piw-session-id': 's', 'piw-file-identity': 'a'.repeat(64), 'piw-offset': 0, 'piw-next-offset': 3, 'piw-watermark': 3, 'piw-reset': false, 'piw-history-line-max': 1 };
+  const headers = { 'piw-session-id': 's', 'piw-file-identity': 'a'.repeat(64), 'piw-offset': 0, 'piw-next-offset': 3, 'piw-watermark': 3, 'piw-reset': false, 'piw-prefix-sha256': sha('{}\n'), 'piw-history-line-max': 1 };
   reply = { contentType: 'application/x-ndjson', headers, body: Buffer.from('{}\n') };
   assert.equal((await memory.request('GET', '/b2/sessions/s/history')).status, 200, 'the valid reply passes');
   const cases: [string, unknown][] = [

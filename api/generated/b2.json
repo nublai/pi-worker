@@ -1560,7 +1560,7 @@
       "get": {
         "operationId": "sessions.history",
         "summary": "Read a session file's complete lines by byte range, with or without a worker",
-        "description": "Shep's shape (a) of `history.page` (question S-1): pi's session-file lines from byte `offset`, complete\nlines only, ending on a line boundary, at most `max_bytes` unless one line alone is longer (then that one\nline, up to `Piw-History-Line-Max`). It reads any session of the catalog, so an archived session reads by\n`session_id` with no worker bound to it; scope is as for `sessions.get`.\n\nHeaders: `Piw-File-Identity` is stable across appends and changes when the file is replaced;\n`Piw-Watermark` is the file's complete size (the byte after its last complete line), the value\n`history.appended` carries; `Piw-Next-Offset` is where the next read starts; `Piw-Tail-Sha256` is the\nSHA-256 of the last line read (with its line feed), to send back as `tail`.\n\nReset: send back `identity` and `tail` with the next `offset`. When the identity differs, or the line\nending at `offset` is not the one `tail` names (the file was replaced, shrank or was rewritten in place),\nthe worker reads from byte 0 and sets `Piw-Reset: true`. Without `tail`, an offset past the watermark\nis `history_offset_past_watermark` and one not on a line start `history_offset_not_line_start`, both\n`400 no_effect`: a bad offset never reads as an empty page.\n",
+        "description": "Shep's shape (a) of `history.page` (question S-1): pi's session-file lines from byte `offset`, complete\nlines only, ending on a line boundary, at most `max_bytes` unless one line alone is longer (then that one\nline, up to `Piw-History-Line-Max`). It reads any session of the catalog, so an archived session reads by\n`session_id` with no worker bound to it; scope is as for `sessions.get`.\n\nHeaders: `Piw-File-Identity` is stable across appends and changes when the file is replaced;\n`Piw-Watermark` is the file's complete size (the byte after its last complete line), the value\n`history.appended` carries; `Piw-Next-Offset` is where the next read starts; `Piw-Tail-Sha256` is the\nSHA-256 of the last line read (with its line feed), to send back as `tail`; `Piw-Prefix-Sha256` is the\nSHA-256 of every byte before `Piw-Next-Offset`, to send back as `prefix`.\n\nReset: send back `identity`, `tail` and `prefix` with the next `offset`. When the identity differs, the\nline ending at `offset` is not the one `tail` names, or the bytes before `offset` are not the ones\n`prefix` names (the file was replaced, shrank or was rewritten in place, including a rewrite followed by\nan append, or one made while the supervisor was down), the worker reads from byte 0 and sets\n`Piw-Reset: true`. The prefix is the check that survives a supervisor restart. Without `tail` or\n`prefix`, an offset past the watermark is `history_offset_past_watermark` and one not on a line start\n`history_offset_not_line_start`, both `400 no_effect`: a bad offset never reads as an empty page.\n",
         "tags": [
           "readback"
         ],
@@ -1607,6 +1607,14 @@
           {
             "name": "tail",
             "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Sha256"
+            }
+          },
+          {
+            "name": "prefix",
+            "in": "query",
+            "description": "The `Piw-Prefix-Sha256` of the read that returned this `offset`.",
             "schema": {
               "$ref": "#/components/schemas/Sha256"
             }
@@ -1660,6 +1668,13 @@
               },
               "Piw-Tail-Sha256": {
                 "description": "Absent when nothing precedes `Piw-Next-Offset`.",
+                "schema": {
+                  "$ref": "#/components/schemas/Sha256"
+                }
+              },
+              "Piw-Prefix-Sha256": {
+                "required": true,
+                "description": "The SHA-256 of the bytes before `Piw-Next-Offset` (of no bytes when it is 0).",
                 "schema": {
                   "$ref": "#/components/schemas/Sha256"
                 }

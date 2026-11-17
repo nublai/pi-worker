@@ -2949,6 +2949,9 @@ type SessionsHistoryParams struct {
 	MaxBytes *int                         `form:"max_bytes,omitempty" json:"max_bytes,omitempty"`
 	Identity *FileIdentity                `form:"identity,omitempty" json:"identity,omitempty"`
 	Tail     *Sha256                      `form:"tail,omitempty" json:"tail,omitempty"`
+
+	// Prefix The `Piw-Prefix-Sha256` of the read that returned this `offset`.
+	Prefix *Sha256 `form:"prefix,omitempty" json:"prefix,omitempty"`
 }
 
 // SessionsHistoryParamsFormat defines parameters for SessionsHistory.

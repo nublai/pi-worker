@@ -179,7 +179,7 @@ export class Features {
   }
 
   /** A session file's complete lines by byte range (sessions.history); a bad offset is a typed 400, never empty. */
-  history(sessionId: string, q: { offset?: number; max_bytes?: number; identity?: string; tail?: string }): RawReply {
+  history(sessionId: string, q: { offset?: number; max_bytes?: number; identity?: string; tail?: string; prefix?: string }): RawReply {
     const known = this.s.sessionFiles.get(sessionId);
     if (!known) throw new Refusal('unknown_session');
     const read = readHistory(known.file, {
@@ -187,6 +187,7 @@ export class Features {
       maxBytes: q.max_bytes ?? 1024 * 1024,
       ...(q.identity !== undefined ? { identity: q.identity } : {}),
       ...(q.tail !== undefined ? { tail: q.tail } : {}),
+      ...(q.prefix !== undefined ? { prefix: q.prefix } : {}),
     }, this.s.summaries.generations);
     if ('error' in read) throw new Refusal(read.error, 'no_effect', undefined, {}, read.error === 'history_line_too_large' || read.error === 'session_file_not_regular' ? 409 : 400);
     return {
@@ -200,6 +201,7 @@ export class Features {
         'piw-watermark': read.watermark,
         'piw-reset': read.reset,
         ...(read.tail ? { 'piw-tail-sha256': read.tail } : {}),
+        'piw-prefix-sha256': read.prefix,
         'piw-history-line-max': HISTORY_LINE_MAX_BYTES,
       },
     };
