@@ -197,7 +197,9 @@
         "p1-14-history-bad-offset-reads-empty.diff",
         "p1-14-history-ignores-tail.diff",
         "p1-14-ndjson-unchecked.diff",
-        "p1-14-socket-group-any-mode.diff"
+        "p1-14-socket-group-any-mode.diff",
+        "p1d-fix-f1-same-size-rewrite-kept.diff",
+        "p1d-fix-f4-image-line-not-summarized.diff"
       ]
     },
     "features": {

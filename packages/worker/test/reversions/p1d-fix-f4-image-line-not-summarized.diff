@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
+index e115e0f..6f9a898 100644
+--- a/packages/worker/src/history/session-file.ts
++++ b/packages/worker/src/history/session-file.ts
+@@ -370,7 +370,7 @@ export class Summaries {
+             }
+             end += more.length;
+           }
+-          const line = end - pos <= SUMMARY_LINE_BYTES ? readAt(fd, pos, end - pos) : withoutData(fd, pos, end);
++          const line = end - pos <= SUMMARY_LINE_BYTES ? readAt(fd, pos, end - pos) : (void withoutData, null);
+           if (line) this.foldLine(s, line);
+           pos = end;
+           continue;
