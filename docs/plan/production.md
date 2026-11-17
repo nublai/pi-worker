@@ -507,6 +507,15 @@ startup sweep; Claude and Grok security reviews.
 | **P2-8** Parent channel and sandboxed child launch | P2-5, P2-6, P2-7 | Per-generation socket, its own grant, method whitelist, O_NOFOLLOW child root under the parent root, Git dirs inside the parent root; a sandboxed parent launches P1-11's typed children through it | Ported `gate1-parent` (including PROBE A and the literal project-extension fixture), `gate1-fix` `kernel D1`, and the remaining `security-fix` cases (B1, m1, live topology) green; old B1 reversions fail | `harness/ci/kernel.sh -- channel` |
 | **P2-9** Security reviews and fixes | P2-8 | Claude and Grok reviews of the P2 head; reversion runner over every guard | Both reviews' blockers fixed with regressions; every listed guard's reversion fails by assertion | `node harness/lib/reversions.mjs --all` |
 
+**P2-4 as built.** The bwrap profile applies to typed children only: a sandboxed root worker (a parent) is refused
+`sandboxed_parent_requires_parent_channel` until P2-8 gives it a channel. A sandbox's root is its cwd; its sessions live
+in `ROOT/.piw-worker/sessions/<worker_id>` and pi's agent directory is `ROOT/.piw-agent` (an owner-staged `auth.json` or
+`models.json` there is bound read-only). Inside, the environment is the typed child's allowlist (model API keys
+included) with its own HOME, TMPDIR and PATH. A session moves only between workers of the same confinement
+(`session_confinement_mismatch`), and the resume catalog keeps a sandboxed session's root so compaction never unpins its
+reads. `files.read` serves sandboxed workers only. The daemon refuses to start without a bwrap that runs
+(`bwrap_unavailable`) and names the B2 socket's directory as a control path no sandbox root may overlap.
+
 **P2 live journey (`p2-containment`):** sandboxed SDK parent on a real model; it cannot read the grant, journal
 or socket; a detached tool survives a pi crash only until domain cleanup; SIGKILL the supervisor, restart sweeps,
 cleanup is confirmed and recorded, `relaunch` opens history without prompting; owner verification through
