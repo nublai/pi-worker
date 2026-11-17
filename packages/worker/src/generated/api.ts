@@ -1273,7 +1273,7 @@ export interface components {
             /** @description The session's display name (pi's session_info), set by `session.configure` or natively. */
             title?: string | null;
             preview?: components["schemas"]["Preview"];
-            /** @description The first line of the session's first user text, without the worker's interrupt marker and trimmed, at most 280 UTF-16 code units and never cut inside a character, read from the session file as `preview` is (a title fallback). Null before pi wrote a user message with text. */
+            /** @description The first line of the session's first user text, without the worker's interrupt marker and trimmed, read from the session file as `preview` is (a title fallback). Null before pi wrote a user message with text. The worker cuts it to at most 280 UTF-16 code units, never inside a character. The schema's `maxLength` counts characters (Unicode code points), so it checks only the looser bound of 280 characters; a client must not rely on validation for the code-unit bound. */
             first_user_line?: string | null;
             /** @description RFC 3339 time of the newest entry in the session file. */
             last_activity_at?: string | null;
