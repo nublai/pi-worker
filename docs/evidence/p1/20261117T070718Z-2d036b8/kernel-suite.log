@@ -1,0 +1,17 @@
+kernel: platform: kernel 6.12.115; bubblewrap 0.9.0; systemd 255 (255.4-1ubuntu8.18)
+kernel: platform: user manager controllers: cpu memory pids
+kernel: platform: kernel.apparmor_restrict_unprivileged_userns=absent
+kernel: unit: piw-kernel-1794899839-23500 (Delegate=yes)
+✔ kernel: a delegated cgroup v2 domain is created, gets memory and pids, is killed with a setsid descendant, and removed (53.267418ms)
+ℹ cgroup: /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/piw-kernel-1794899839-23500.service/piw-smoke-23537
+✔ kernel: bwrap --unshare-user runs a command in a new user namespace with a cleared environment (15.137034ms)
+ℹ bubblewrap 0.9.0
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 122.92488
+kernel: PASS: 2 tests, 0 skips, 0 piw-* units left
