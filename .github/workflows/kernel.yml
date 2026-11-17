@@ -1,7 +1,8 @@
-# Kernel tier (plan P0-8): cgroup v2 delegation and bwrap tests inside a delegated systemd user service, on a
-# GitHub-hosted ubuntu-24.04 runner. Runs on PRs that touch containment, sandbox, owner Git, B2 or the kernel tests,
-# nightly, and on demand. harness/ci/kernel.sh names any missing host facility and fails on a skip or a leftover
-# piw-* unit. Fallback if the hosted runner ever cannot: harness/ci/README.md. Actions pinned by full SHA. No secrets.
+# Kernel tier (plan P0-8): cgroup v2 delegation and bwrap tests inside a delegated systemd user service, on a GitHub-
+# hosted ubuntu-24.04 runner. Runs on PRs that touch containment, sandbox, owner Git, B2 (worker side or the Go
+# client's auth in clients/go/b2) or the kernel tests, nightly, and on demand. harness/ci/kernel.sh names any missing
+# host facility and fails on a skip or a leftover piw-* unit. Fallback if the hosted runner ever cannot:
+# harness/ci/README.md. Actions pinned by full SHA. No secrets.
 name: kernel
 on:
   pull_request:
@@ -10,6 +11,7 @@ on:
       - 'packages/worker/src/sandbox/**'
       - 'packages/worker/src/owner-git/**'
       - 'packages/worker/src/b2/**'
+      - 'clients/go/b2/**'
       - 'packages/worker/test/security/**'
       - 'harness/ci/**'
       - '.github/workflows/kernel.yml'
