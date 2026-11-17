@@ -211,7 +211,9 @@ export class Supervisor {
 
   /**
    * Answers an interaction if it is current. The worker must be live and writable (no fence, no move in flight);
-   * `actor` is the bridge's opaque device reference and the answering grant, journaled with the outcome.
+   * `actor` is the bridge's opaque device reference and the answering grant, journaled with the outcome. A session
+   * command in flight does not refuse it: an extension command may wait on its own dialog, and the answer is the only
+   * way that command finishes. Each request to pi is one whole line on its stdin, so the two never interleave.
    */
   answer(id: string, a: Answer, actor: { caller?: string; grant_id?: string } = {}): Promise<Receipt> {
     const live = this.state.require(id);

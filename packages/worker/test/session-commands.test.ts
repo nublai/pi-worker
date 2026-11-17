@@ -242,6 +242,15 @@ for (const held of ['invoke', 'configure'] as const) {
       await assert.rejects(f.supervisor.newSession(w.worker_id, bind(w, 'new-during')), refusal('binding_change_requires_idle'));
       assert.equal(f.supervisor.get(w.worker_id).foreground, 'idle');
       assert.deepEqual(host.commands.filter(c => c.type === 'prompt' || c.type === 'new_session'), [], 'no second write reached pi');
+      if (held === 'invoke') {
+        // An extension command may ask the person (ctx.ui.confirm) and waits for the answer before pi replies: its
+        // dialog stays answerable while the command holds the worker, or the command could never finish.
+        host.emit('event', { type: 'extension_ui_request', id: 'asked-by-command', method: 'confirm' });
+        const i = f.supervisor.interactionList(w.worker_id).find(x => x.native_id === 'asked-by-command')!;
+        const answered = await f.supervisor.answer(w.worker_id, { ...bind(w, 'answer-during'), answer_id: 'answer-during', interaction_id: i.interaction_id, revision: i.revision, kind: i.kind, outcome: 'answer', value: true } as never);
+        assert.equal(answered.state, 'delivered', JSON.stringify(answered));
+        assert.equal(host.commands.filter(c => c.type === 'answer_ui').length, 1, 'the answer reached the command waiting for it');
+      }
       release();
       assert.equal((await deadline(running)).state, 'delivered');
       assert.equal((await f.supervisor.prompt(w.worker_id, { ...bind(w, 'prompt-after'), message: 'hi' })).state, 'delivered', 'free again after the reply');
