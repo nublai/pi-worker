@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
+index 2b1f17f..a4acd8a 100644
+--- a/packages/worker/src/attachments/attachments.ts
++++ b/packages/worker/src/attachments/attachments.ts
+@@ -263,7 +263,7 @@ export class Attachments {
+             // No record without a durable name. The file goes again, so the quota (records and streaming uploads) never
+             // misses bytes on disk, and once it is verified absent nothing was staged. A file the removal cannot take
+             // stays outcome_unknown, and the startup sweep removes it (no record, no attachment).
+-            unlinkSync(this.file(id));
++            if (error) throw error;
+             if (exists(this.file(id))) throw error;
+             kept = false;
+             throw new ProvenNoEffect(`attachment_directory_not_durable: ${String((error as NodeJS.ErrnoException).code ?? 'error')}`, 'file_removed_and_verified_absent_before_any_record');

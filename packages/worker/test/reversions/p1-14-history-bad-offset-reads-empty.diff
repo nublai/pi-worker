@@ -1,14 +1,14 @@
 diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
-index 408dcc9..8f9e7b6 100644
+index 66870e5..f50d399 100644
 --- a/packages/worker/src/history/session-file.ts
 +++ b/packages/worker/src/history/session-file.ts
-@@ -114,8 +114,7 @@ export function readHistory(file: string | null, q: { offset: number; maxBytes:
-       if (q.tail !== undefined) {
-         // The caller names the line it read last: a different one means the file changed under it.
-         if (!onLine || sha256(readAt(fd, lineStartBefore(fd, start), start - lineStartBefore(fd, start))) !== q.tail) reset = true;
+@@ -234,8 +234,7 @@ export function readHistory(
+       } else if (q.prefix !== undefined) {
+         // The caller names the bytes it read: an offset no longer on a line start means the file changed under it.
+         if (!onLine) reset = true;
 -      } else if (start > watermark) return { error: 'history_offset_past_watermark' };
 -      else if (!onLine) return { error: 'history_offset_not_line_start' };
 +      } else if (start > watermark || !onLine) start = watermark;
      }
-     if (reset) start = 0;
-     let end = Math.min(watermark, start + q.maxBytes);
+     // The caller names every byte before its offset: another byte there (an earlier line rewritten in place, before an
+     // append or while the supervisor was down) means the file changed under it.
