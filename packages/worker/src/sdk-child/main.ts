@@ -5,7 +5,7 @@
  *
  * It keeps from A0: the headless UI context whose dialogs go through exact resolvers (resolvers.ts); the native
  * binding observer (`host_identity` once, then `host_binding` for every native move, `host_binding_changing` before
- * the old session is invalidated, `host_leaf` after appends and settlement); and admission replies from pi's
+ * the old session is invalidated, `host_leaf` after appends and before settlement); and admission replies from pi's
  * prompt preflight (`started`, `handled`, `queued`), which are not settlement (`agent_settled` is an event).
  *
  * The tool gate (stage 4), opt-in per extension: an extension that wants a tool call approved holds it in its own
@@ -382,9 +382,13 @@ async function bind(session: AgentSession): Promise<void> {
       session.sessionManager.appendCustomEntry('agent_settled', { execution_id: running.execution_id, command_id: running.command_id });
       running = null;
     }
+    // pi's leaf after the turn goes BEFORE its settlement: the supervisor settles the execution on `agent_settled`,
+    // and a caller that reads history then must get the turn, not the leaf pi had selected before it (pi emits no
+    // `entry_appended` for its message entries, so this is the first leaf report of the turn).
+    if (event.type === 'agent_settled') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
     // SAFETY: sanitize keeps an event's own fields, so the result is still a record with its string `type`.
     emit(sanitize(event) as unknown as PiEvent);
-    if (event.type === 'entry_appended' || event.type === 'agent_settled') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+    if (event.type === 'entry_appended') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
   });
   await session.bindExtensions({
     uiContext: ui,
