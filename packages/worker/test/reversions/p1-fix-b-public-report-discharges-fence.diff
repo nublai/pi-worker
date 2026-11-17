@@ -1,17 +1,19 @@
+diff --git a/packages/worker/src/journal/retention.ts b/packages/worker/src/journal/retention.ts
+--- a/packages/worker/src/journal/retention.ts
++++ b/packages/worker/src/journal/retention.ts
+@@ -148,7 +148,7 @@
+     task !== undefined &&
+     result?.task_id === task &&
+     result?.kind !== 'help' &&
+-    (!typed || result?.channel === 'fd3')
++    (typed || true)
+   );
+ }
+ 
 diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
-index e380f37..22004c9 100644
 --- a/packages/worker/src/supervisor/children.ts
 +++ b/packages/worker/src/supervisor/children.ts
-@@ -91,7 +91,7 @@ export class Children {
-         r.state === 'delivered' &&
-         r.result?.task_id === task &&
-         r.result?.kind !== 'help' &&
--        (!typed || r.result?.channel === 'fd3'),
-+        (typed || true),
-     );
-     return reported ? null : launch;
-   }
-@@ -167,7 +167,6 @@ export class Children {
+@@ -194,7 +194,6 @@
          if (w.parent && r.task_id !== w.parent.task_id) throw new Refusal('wrong_child_task');
          if (r.kind && (typeof r.message !== 'string' || Buffer.byteLength(r.message) > 8192)) throw new Refusal('report_message_invalid');
          // A typed child's only report authority is its own FD 3: no grant may report (or discharge a fence) for it.

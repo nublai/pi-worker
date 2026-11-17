@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/journal/retention.ts b/packages/worker/src/journal/retention.ts
+--- a/packages/worker/src/journal/retention.ts
++++ b/packages/worker/src/journal/retention.ts
+@@ -225,7 +225,7 @@
+   // recovery's missing-report check reads it (supervisor/children.ts).
+   for (const child of rows.map(row => row.worker ?? {}).filter(w => typeof w.parent_launch_command_id === 'string')) {
+     let latest: string | undefined;
+-    for (const [id, r] of receipts) if (dischargesLaunch(child, r)) latest = id;
++    for (const [id, r] of receipts) if (r.operation === 'children.report' && r.worker_id === child.worker_id && r.state === 'delivered') latest = id;
+     if (latest) pins.add(latest);
+   }
+   // Interactions a live pi process may still touch (its gate, its resolver) are kept, with the receipts they name.

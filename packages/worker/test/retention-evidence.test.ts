@@ -2,10 +2,14 @@
  * Retention evidence (PR #12 review fixes): what a compaction must keep so that nothing it forgets changes a decision.
  * - F1: a command id the worker may have admitted never runs again, also after its `receipt_expired` id rolled over:
  *   the forgotten-ids horizon refuses it `command_id_beyond_retention` (`no_effect`).
+ * - F3: the report that discharges a child's launch (its task, its channel) is kept with the launch it discharges, so
+ *   recovery from a compacted journal reaches the same fence decision as from the journal it replaced.
+ * - F4: the resume catalog (every session a worker ever bound, with its file and owner) survives compaction.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createApp } from '../src/b2/app.js';
 import { createMemoryTransport } from '../src/b2/memory.js';
@@ -111,3 +115,62 @@ test('retention: at the default receipt_expired_ids_max an exact retry of a roll
     tmp.cleanup();
   }
 });
+
+for (const compacted of [false, true]) {
+  test(`retention: an untyped child's discharging report survives a later report for another task${compacted ? ' and a compaction' : ''}; recovery adds no parent fence (review F3)`, async () => {
+    const f = fixture();
+    try {
+      const owner = ownerGrant(f.dir);
+      const b2 = createMemoryTransport(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle, owner.headers);
+      const parent = await f.create();
+      await f.supervisor.prompt(parent.worker_id, { ...bind(parent, 'run'), message: 'x' });
+      const running = f.supervisor.get(parent.worker_id);
+      const cwd = join(f.dir, 'child');
+      mkdirSync(cwd);
+      await f.supervisor.launchChild(parent.worker_id, { ...bind(running, 'launch'), execution_id: running.execution!.execution_id, launch: { command_id: 'child-create', cwd, provider: 'p', model: 'm', thinking: 'off' } });
+      f.hosts[0]!.emit('event', { type: 'agent_settled' });
+      for (let i = 0; i < 6; i++) await tick();
+      const child = f.supervisor.list().find(w => w.parent_worker_id === parent.worker_id)!;
+      assert.ok(child, 'the child launched');
+      const report = (id: string, task: string) =>
+        b2.request('POST', `/b2/workers/${child.worker_id}/report`, { json: { ...bind(f.supervisor.get(child.worker_id), id), task_id: task, result_digest: 'sha256:claim', kind: 'result', message: 'done' } });
+      assert.equal((await report('valid-report', 'launch')).status, 200, 'the report for the launch task');
+      assert.equal((await report('other-report', 'another-task')).status, 200, 'a later report for another task');
+      if (compacted) {
+        const later = Date.now() + 2 * HOUR;
+        f.supervisor.receipts.now = () => later;
+        f.supervisor.receipts.compact({ goal: { receipts: 0, bytes: 0 } });
+      }
+      assert.ok(f.supervisor.receipts.all.has('valid-report'), 'the discharging report is retained');
+      const recovered = await f.restart();
+      assert.deepEqual(recovered.get(parent.worker_id).fence?.uncertain_command_ids ?? [], [], 'recovery adds no parent fence');
+    } finally {
+      f.cleanup();
+    }
+  });
+}
+
+for (const compacted of [false, true]) {
+  test(`retention: the resume catalog keeps every session a worker bound across a restart${compacted ? ' and a compaction' : ''} (review F4)`, async () => {
+    const f = fixture();
+    try {
+      const w = await f.create();
+      const first = w.session_id!;
+      await f.supervisor.newSession(w.worker_id, bind(w, 'fresh'));
+      const second = f.supervisor.get(w.worker_id).session_id!;
+      assert.notEqual(first, second);
+      if (compacted) f.supervisor.receipts.compact({ rewrite: true });
+      const recovered = await f.restart();
+      assert.deepEqual(
+        [...recovered.state.sessionFiles.entries()].map(([id, e]) => [id, e.worker_id]).sort(),
+        [
+          [first, w.worker_id],
+          [second, w.worker_id],
+        ].sort(),
+        'both sessions are known resume targets, owned by the worker that bound them',
+      );
+    } finally {
+      f.cleanup();
+    }
+  });
+}

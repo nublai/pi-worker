@@ -167,7 +167,9 @@
         "p1c-fix-f1-rollover-forgets.diff",
         "p1c-fix-f2-ordinary-record-spends-reserve.diff",
         "p1c-fix-f2-no-worker-budget.diff",
-        "p1c-fix-f2-no-control-room.diff"
+        "p1c-fix-f2-no-control-room.diff",
+        "p1c-fix-f3-pin-any-child-report.diff",
+        "p1c-fix-f4-catalog-dropped.diff"
       ]
     },
     "compaction": {

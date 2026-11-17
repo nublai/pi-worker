@@ -129,6 +129,12 @@ export class SupervisorState {
   ) {
     this.events = new EventHub(supervisorEpoch);
     for (const record of journal.records) {
+      if (record.kind === 'session_catalog') {
+        // A catalog entry a compaction kept (journal/retention.ts): a session a dropped worker row bound.
+        const { session_id, file, worker_id } = record.value;
+        if (typeof session_id === 'string' && typeof file === 'string' && typeof worker_id === 'string') this.sessionFiles.set(session_id, { file, worker_id });
+        continue;
+      }
       if (record.kind !== 'worker') continue;
       // SAFETY: every `worker` record is written by persist() below from a Persisted value, and the journal
       // checksums each record, so a parsed `worker` record is that Persisted value.
