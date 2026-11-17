@@ -338,8 +338,9 @@ test('lifecycle: an outcome_unknown create-with-resume fences its target durably
     const failed = await f.supervisor.create({ ...create(dir('resume-fails'), 'resume-fails'), resume_session_id: target });
     assert.deepEqual([failed.state, failed.effect], ['outcome_unknown', 'unknown']);
     const id = failed.worker_id!;
-    const fence = { command_id: 'resume-fails', fence_generation: 1, uncertain_command_ids: ['resume-fails'] };
     let row = f.supervisor.get(id);
+    const fence = { command_id: 'resume-fails', fence_generation: 1, fenced_at: row.fence?.fenced_at, uncertain_command_ids: ['resume-fails'] };
+    assert.ok(fence.fenced_at, 'the fence is stamped');
     assert.equal(row.session_id, target, 'the worker holds the target pi may have touched');
     assert.deepEqual(row.fence, fence, 'the unknown create-with-resume fences its target, naming the create');
     assert.deepEqual(latestWorker(f.journalFile, id).fence, fence, 'the fence is durable before the reply');
@@ -450,8 +451,9 @@ test('lifecycle (real pi): a session_before_switch hook that ran and cancelled a
     assert.equal(existsSync(`${targetFile}.switch-effect`), true, 'the switch hook ran: an effect happened before pi cancelled');
     assert.deepEqual([failed.state, failed.effect, failed.error], ['outcome_unknown', 'unknown', 'resume_session_open_failed'], JSON.stringify(failed));
     const id = failed.worker_id!;
-    const fence = { command_id: 'resume-fails', fence_generation: 1, uncertain_command_ids: ['resume-fails'] };
     let row = s.get(id);
+    const fence = { command_id: 'resume-fails', fence_generation: 1, fenced_at: row.fence?.fenced_at, uncertain_command_ids: ['resume-fails'] };
+    assert.ok(fence.fenced_at, 'the fence is stamped');
     assert.equal(row.session_id, target);
     assert.deepEqual(row.fence, fence, 'the unknown create-with-resume fences its target');
     assert.deepEqual(latestWorker(opened.journal.file, id).fence, fence, 'durable');
