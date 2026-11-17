@@ -10,6 +10,9 @@ import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { routes } from '@nublai/pi-worker-client';
+// The worker's own request validators, generated from api/b2.openapi.yaml: what the daemon accepts, not the CLI's table.
+import * as schema from '@nublai/pi-worker/src/generated/validators.js';
 import { run } from '../src/run.js';
 
 interface Seen {
@@ -109,8 +112,10 @@ test('cli run: a refusal prints its typed name and exits 1; a lost reply after t
     assert.equal(unknown.code, 3);
     assert.deepEqual(unknown.error, { error: 'dispatch_lost', status: 500, effect: 'unknown', command_id: 'minted' });
     mode = 'drop';
+    const posts = f.seen.filter(s => s.method === 'POST').length;
     const dropped = await f.cli('sessions.prompt', 'w1', '--message', 'hi', '--worker-epoch', 'e', '--session-id', 's', '--binding-revision', '1');
     assert.equal(dropped.code, 3);
+    assert.equal(f.seen.filter(s => s.method === 'POST').length, posts + 1, 'a lost reply is never retried: one POST');
     assert.equal(dropped.error?.error, 'transport_after_write');
     assert.equal(dropped.error?.command_id, 'minted');
     const before = f.seen.length;
@@ -120,6 +125,61 @@ test('cli run: a refusal prints its typed name and exits 1; a lost reply after t
     assert.equal(f.seen.length, before, 'nothing sent');
     const noSocket = await run(['hello'], { out: () => {}, err: () => {}, env: {} });
     assert.equal(noSocket, 2);
+  } finally {
+    await f.close();
+  }
+});
+
+test('cli run: every x-piw-mutation operation sends one request the worker accepts, with a minted command id and the current binding', async () => {
+  const f = await fake((req, res) => (req.method === 'GET' ? json(res, 200, worker) : json(res, 200, receipt())));
+  try {
+    const launch = join(f.dir, 'launch.json');
+    writeFileSync(launch, JSON.stringify({ command_id: 'child-1', cwd: '/w', provider: 'p', model: 'm', thinking: 'off' }));
+    const image = join(f.dir, 'photo.png');
+    writeFileSync(image, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7]));
+    // The required flags each operation needs; nothing about its command id or binding.
+    const required: Record<string, string[]> = {
+      'workers.create': ['--cwd', '/w', '--provider', 'p', '--model', 'm', '--thinking', 'off'],
+      'session.configure': ['--name', 'n'],
+      'commands.invoke': ['--name', 'mark'],
+      'sessions.prompt': ['--message', 'hi'],
+      'sessions.follow_up': ['--execution-id', 'x1', '--message', 'hi'],
+      'sessions.steer': ['--execution-id', 'x1', '--message', 'hi'],
+      'sessions.rebind': ['--action', 'new'],
+      'sessions.resolve_unknown': ['--disposition', 'keep', '--fence-generation', '1', '--uncertain-command-id', 'c0'],
+      'children.launch': ['--execution-id', 'x1', '--launch', launch],
+      'children.report': ['--task-id', 't1', '--result-digest', 'd1'],
+      'interactions.answer_if_current': ['--interaction-id', 'i1', '--revision', '1', '--kind', 'confirm', '--outcome', 'answer', '--confirm', 'yes'],
+    };
+    const binding = { worker_epoch: worker.worker_epoch, session_id: worker.session_id, binding_revision: worker.binding_revision };
+    const mutations = Object.entries(routes).filter(([, r]) => r.mutation);
+    assert.ok(mutations.length >= 20);
+    for (const [op, route] of mutations) {
+      f.seen.length = 0;
+      const args = route.body === 'binary' ? ['w1', image] : route.path.includes('{worker_id}') ? ['w1'] : route.path.includes('{attachment_id}') ? ['a1'] : [];
+      const sent = await f.cli(op, ...args, ...(required[op] ?? []));
+      assert.equal(sent.code, 0, `${op}: ${JSON.stringify(sent.err)}`);
+      const writes = f.seen.filter(s => s.method !== 'GET');
+      assert.equal(writes.length, 1, `${op}: one write`);
+      const write = writes[0]!;
+      assert.equal(`${write.method} ${new URL(write.url, 'http://x').pathname}`, `${route.method} ${route.path.replace('{worker_id}', 'w1').replace('{attachment_id}', route.body === 'binary' ? 'minted' : 'a1')}`, op);
+      if (route.body === 'binary') {
+        const h = write.headers;
+        assert.deepEqual([h['piw-command-id'], h['piw-worker-epoch'], h['piw-session-id'], h['piw-binding-revision']], ['minted', binding.worker_epoch, binding.session_id, String(binding.binding_revision)], `${op}: the command id and binding headers`);
+        continue;
+      }
+      const body = JSON.parse(write.body.toString()) as Record<string, unknown>;
+      assert.equal(body.command_id, 'minted', `${op}: the minted command id`);
+      const validate = (schema as unknown as Record<string, schema.Validator>)[`request_${op.replace('.', '_')}`]!;
+      assert.ok(validate(body), `${op}: the worker accepts the body: ${JSON.stringify(validate.errors)}`);
+      if (route.path.includes('{worker_id}')) {
+        assert.deepEqual({ worker_epoch: body.worker_epoch, session_id: body.session_id, binding_revision: body.binding_revision }, binding, `${op}: the current binding`);
+        for (const field of ['command_id', 'worker_epoch', 'session_id', 'binding_revision']) {
+          const { [field]: _, ...without } = body;
+          assert.equal(validate(without), false, `${op}: the worker requires ${field}`);
+        }
+      }
+    }
   } finally {
     await f.close();
   }
