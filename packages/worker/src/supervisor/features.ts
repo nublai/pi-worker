@@ -297,9 +297,17 @@ export class Features {
       { ...c, worker_id: id },
       async () => {
         const w = live.worker;
-        const response = await this.s.receipts.dispatchThen(c.command_id, { worker_id: id }, () =>
-          live.host!.request({ type: 'configure', ...(c.model ? { model: c.model } : {}), ...(c.thinking ? { thinking: c.thinking } : {}), ...(c.name !== undefined ? { name: c.name } : {}) }),
-        );
+        // Synchronous with the checks below: the worker is occupied by this write until pi's reply.
+        live.command = c.command_id;
+        let response;
+        try {
+          response = await this.s.receipts.dispatchThen(c.command_id, { worker_id: id }, () =>
+            live.host!.request({ type: 'configure', ...(c.model ? { model: c.model } : {}), ...(c.thinking ? { thinking: c.thinking } : {}), ...(c.name !== undefined ? { name: c.name } : {}) }),
+          );
+        } finally {
+          live.command = undefined;
+          setImmediate(() => void this.input.flush(live));
+        }
         // Only the child's explicit refusal before its first change proves nothing happened.
         if (!response.success && response.refused === 'before_input') throw new ProvenNoEffect(`pi_refused_configure: ${String(response.error).slice(0, 64)}`, 'host_refused_before_any_change');
         if (!response.success) throw new Error(`pi_configure_failed_after_dispatch: ${String(response.error ?? 'negative_reply').slice(0, 64)}`);
@@ -318,7 +326,7 @@ export class Features {
         this.input.writable(live);
         if (live.worker.status !== 'ready' || !live.host || live.faulted) throw new Refusal('worker_not_ready');
         if (c.model === undefined && c.thinking === undefined && c.name === undefined) throw new Refusal('nothing_to_configure', 'no_effect', undefined, {}, 400);
-        if (live.worker.foreground !== 'idle') throw new Refusal('worker_busy');
+        if (live.worker.foreground !== 'idle' || live.command) throw new Refusal('worker_busy');
       },
     );
     if (fresh && receipt.state === 'outcome_unknown') {

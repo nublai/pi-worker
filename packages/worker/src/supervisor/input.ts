@@ -191,6 +191,8 @@ export class Input {
           if (!this.attachments) throw new Refusal('attachments_unavailable');
           images = this.attachments.forPrompt(id, p.attachments.map(a => a.attachment_id), { count: ATTACHMENTS_PER_MESSAGE, bytes: ATTACHMENTS_TOTAL_BYTES });
         }
+        // A session command or configure in flight occupies the worker: no second session write meanwhile.
+        if (live.command) throw new Refusal('worker_busy');
         if (live.worker.foreground !== 'idle') {
           const mode = operation === 'sessions.follow_up' ? 'reject' : (p.if_busy ?? 'reject');
           if (mode === 'reject' || !live.worker.execution) throw new Refusal('worker_busy');
@@ -353,9 +355,9 @@ export class Input {
   /** Dispatches due queued input one at a time; every item rechecks fence, binding and readiness at dispatch. */
   async flush(live: Live): Promise<void> {
     const w = live.worker;
-    if (w.fence || live.rebinding || live.nativeRebinding || live.faulted || w.status !== 'ready' || w.foreground !== 'idle') return;
+    if (w.fence || live.rebinding || live.nativeRebinding || live.command || live.faulted || w.status !== 'ready' || w.foreground !== 'idle') return;
     for (const [id, item] of live.pending ?? []) {
-      if (w.fence || w.foreground !== 'idle') return;
+      if (w.fence || w.foreground !== 'idle' || live.command) return;
       if (this.s.receipts.all.get(id)?.state !== 'queued') continue;
       live.pending!.delete(id);
       const q = w.queued?.find(x => x.command_id === id);

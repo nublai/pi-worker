@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/session-commands.ts b/packages/worker/src/supervisor/session-commands.ts
+index a1d4659..2feacb6 100644
+--- a/packages/worker/src/supervisor/session-commands.ts
++++ b/packages/worker/src/supervisor/session-commands.ts
+@@ -87,7 +87,6 @@ export class SessionCommands {
+       { ...request, worker_id: id },
+       async (): Promise<ReceiptPatch> => {
+         // Synchronous with the checks below: from here until pi's reply the worker is occupied by this command.
+-        live.command = request.command_id;
+         try {
+           this.s.receipts.dispatch(request.command_id, { worker_id: id });
+           let cancelled = 0;

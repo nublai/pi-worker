@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { createApp } from '../src/b2/app.js';
 import { createMemoryTransport } from '../src/b2/memory.js';
 import { parseJournal } from '../src/journal/journal.js';
-import { bind, fixture, tick } from './supervisor-fixture.js';
+import { bind, fixture, tick, type Host } from './supervisor-fixture.js';
 import { ownerGrant } from './helpers.js';
 import { fakeProvider, providerExtension, realPiSupervisor, until } from './real-pi.js';
 
@@ -153,6 +153,150 @@ test('session-commands: pi refusing before any change is no_effect; a lost reply
     host.commandFailure = false;
     await f.restart();
     assert.ok(f.supervisor.get(w.worker_id).fence?.uncertain_command_ids?.includes('reload-restart'), 'the fence survives a restart');
+  } finally {
+    f.cleanup();
+  }
+});
+
+/** Holds the host's acknowledgement of every `cancel_ui` until `release()`; `seen` resolves at the first one. */
+function holdCancel(host: Host) {
+  let release!: () => void;
+  const gate = new Promise<void>(r => (release = r));
+  let seen!: () => void;
+  const first = new Promise<void>(r => (seen = r));
+  const original = host.request.bind(host);
+  host.request = async c => {
+    if (c.type === 'cancel_ui') {
+      seen();
+      await gate;
+    }
+    return original(c);
+  };
+  return { release, seen: first };
+}
+
+const deadline = <T>(p: Promise<T>, ms = 5000) => Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out')), ms).unref())]);
+
+test('session-commands: while a compaction waits on its dialog cancellation, sessions.new, a prompt, configure and another command are refused busy; the compaction reaches the session it named', { timeout: 20_000 }, async () => {
+  const f = fixture();
+  try {
+    const owner = ownerGrant(f.dir);
+    const memory = createMemoryTransport(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle, owner.headers);
+    const w = await f.create();
+    const host = f.hosts[0]!;
+    host.emit('event', { type: 'extension_ui_request', id: 'native', method: 'confirm' });
+    assert.equal(f.supervisor.interactionList(w.worker_id).length, 1, 'a live dialog');
+    const held = holdCancel(host);
+    const named = bind(f.supervisor.get(w.worker_id), 'compact-held');
+    const compacting = memory.request('POST', `/b2/workers/${w.worker_id}/compact`, { json: named });
+    await deadline(held.seen);
+    const current = f.supervisor.get(w.worker_id);
+    const moved = await memory.request('POST', `/b2/workers/${w.worker_id}/new`, { json: bind(current, 'new-during') });
+    assert.deepEqual([moved.status, moved.body], [409, { error: 'binding_change_requires_idle', effect: 'no_effect' }], 'no binding move while a session command owns the binding');
+    const prompt = await memory.request('POST', `/b2/workers/${w.worker_id}/prompt`, { json: { ...bind(current, 'prompt-during'), message: 'hi' } });
+    assert.deepEqual(prompt.body, { error: 'worker_busy', effect: 'no_effect' }, 'no prompt while a session command runs');
+    const configure = await memory.request('POST', `/b2/workers/${w.worker_id}/configure`, { json: { ...bind(current, 'configure-during'), name: 'x' } });
+    assert.deepEqual(configure.body, { error: 'worker_busy', effect: 'no_effect' });
+    const reload = await memory.request('POST', `/b2/workers/${w.worker_id}/reload`, { json: bind(current, 'reload-during') });
+    assert.deepEqual(reload.body, { error: 'worker_busy', effect: 'no_effect' });
+    for (const k of ['new-during', 'prompt-during', 'configure-during', 'reload-during']) assert.equal(f.supervisor.receipts.all.has(k), false, `${k} left no record`);
+    held.release();
+    const r = await deadline(compacting);
+    assert.equal((r.body as { state: string }).state, 'delivered', JSON.stringify(r.body));
+    const types = host.commands.map(c => c.type);
+    assert.equal(types.includes('new_session'), false, 'the move never reached pi');
+    assert.equal(types.includes('prompt'), false, 'the prompt never reached pi');
+    assert.equal(types.at(-1), 'compact');
+    const after = f.supervisor.get(w.worker_id);
+    assert.deepEqual([after.session_id, after.binding_revision], [named.session_id, named.binding_revision], 'the compaction ran on the session and revision it named');
+    // Once it has ended, the worker takes writes again.
+    const fresh = await f.supervisor.newSession(w.worker_id, bind(after, 'new-after'));
+    assert.equal(fresh.state, 'delivered');
+  } finally {
+    f.cleanup();
+  }
+});
+
+for (const held of ['invoke', 'configure'] as const) {
+  test(`session-commands: a prompt or a binding move while ${held === 'invoke' ? 'commands.invoke' : 'session.configure'} waits for its reply is refused busy and never reaches pi`, { timeout: 20_000 }, async () => {
+    const f = fixture();
+    try {
+      const w = await f.create();
+      const host = f.hosts[0]!;
+      let release!: () => void;
+      const gate = new Promise<void>(r => (release = r));
+      let seen!: () => void;
+      const reached = new Promise<void>(r => (seen = r));
+      const original = host.request.bind(host);
+      host.request = async c => {
+        if (c.type === held) {
+          seen();
+          await gate;
+        }
+        return original(c);
+      };
+      const running = held === 'invoke' ? f.supervisor.invoke(w.worker_id, { ...bind(w, 'held'), name: 'deploy' }) : f.supervisor.configure(w.worker_id, { ...bind(w, 'held'), name: 'renamed' });
+      await deadline(reached);
+      const refusal = (code: string) => (e: Error & { effect?: string }) => e.message === code && e.effect === 'no_effect';
+      await assert.rejects(f.supervisor.prompt(w.worker_id, { ...bind(w, 'prompt-during'), message: 'hi' }), refusal('worker_busy'));
+      await assert.rejects(f.supervisor.newSession(w.worker_id, bind(w, 'new-during')), refusal('binding_change_requires_idle'));
+      assert.equal(f.supervisor.get(w.worker_id).foreground, 'idle');
+      assert.deepEqual(host.commands.filter(c => c.type === 'prompt' || c.type === 'new_session'), [], 'no second write reached pi');
+      release();
+      assert.equal((await deadline(running)).state, 'delivered');
+      assert.equal((await f.supervisor.prompt(w.worker_id, { ...bind(w, 'prompt-after'), message: 'hi' })).state, 'delivered', 'free again after the reply');
+    } finally {
+      f.cleanup();
+    }
+  });
+}
+
+test('session-commands: pi refusing a compaction or reload after the command cancelled a live dialog is outcome_unknown and fences; with no dialog it stays no_effect', async () => {
+  const f = fixture();
+  try {
+    const w = await f.create();
+    const host = f.hosts[0]!;
+    for (const op of ['compact', 'reload'] as const) {
+      const call = (cmd: string) => (op === 'compact' ? f.supervisor.compact(w.worker_id, bind(f.supervisor.get(w.worker_id), cmd)) : f.supervisor.reload(w.worker_id, bind(f.supervisor.get(w.worker_id), cmd)));
+      host.commandRefusal = 'nothing_to_compact';
+      const plain = await call(`${op}-no-dialog`);
+      assert.deepEqual([plain.state, plain.effect], ['rejected', 'no_effect'], `${op}: no dialog, pi's refusal is proof`);
+      host.emit('event', { type: 'extension_ui_request', id: `native-${op}`, method: 'confirm' });
+      assert.equal(f.supervisor.interactionList(w.worker_id).length, 1);
+      const refused = await call(`${op}-dialog`);
+      host.commandRefusal = null;
+      assert.ok(host.cancelled.includes(`native-${op}`), `${op}: the command cancelled the dialog at its resolver`);
+      assert.deepEqual([refused.state, refused.effect], ['outcome_unknown', 'unknown'], `${op}: a cancelled dialog is an effect pi's refusal does not cover`);
+      const fenced = f.supervisor.get(w.worker_id);
+      assert.ok(fenced.fence?.uncertain_command_ids?.includes(`${op}-dialog`), `${op}: fenced`);
+      const records = parseJournal(readFileSync(f.journalFile)).records;
+      assert.ok(records.some(r => r.kind === 'worker' && ((r.value.worker as { fence?: { uncertain_command_ids?: string[] } }).fence?.uncertain_command_ids ?? []).includes(`${op}-dialog`)), `${op}: the fence is durable`);
+      await f.supervisor.resolveUnknown(w.worker_id, { ...bind(fenced, `resolve-${op}`), uncertain_command_id: `${op}-dialog`, fence_generation: fenced.fence!.fence_generation, disposition: 'keep' });
+    }
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('session-commands: a native move while a compaction cancels its dialogs keeps the compaction from pi; outcome_unknown, fenced', { timeout: 20_000 }, async () => {
+  const f = fixture();
+  try {
+    const w = await f.create();
+    const host = f.hosts[0]!;
+    host.emit('event', { type: 'extension_ui_request', id: 'native', method: 'confirm' });
+    const held = holdCancel(host);
+    const compacting = f.supervisor.compact(w.worker_id, bind(w, 'compact-native'));
+    await deadline(held.seen);
+    // The dialog's continuation moves pi to another session.
+    host.emit('event', { type: 'host_binding_changing' });
+    const file = join(f.dir, 'native.jsonl');
+    writeFileSync(file, `${JSON.stringify({ type: 'session', id: 'native-session' })}\n`);
+    host.emit('event', { type: 'host_binding', action: 'replace', sessionId: 'native-session', sessionFile: file, leafId: null });
+    held.release();
+    const r = await deadline(compacting);
+    assert.deepEqual([r.state, r.effect], ['outcome_unknown', 'unknown'], JSON.stringify(r));
+    assert.equal(host.commands.filter(c => c.type === 'compact').length, 0, 'the compaction never reached the session the request did not name');
+    assert.ok(f.supervisor.get(w.worker_id).fence?.uncertain_command_ids?.includes('compact-native'));
   } finally {
     f.cleanup();
   }

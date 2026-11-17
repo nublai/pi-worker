@@ -223,7 +223,15 @@
         "p1-15-negative-reply-no-effect.diff",
         "p1-15-invoke-builtin-passes.diff",
         "p1-15-dispatch-after-write.diff",
-        "p1-15-child-invokes-any-name.diff"
+        "p1-15-child-invokes-any-name.diff",
+        "p1d-fix-f2-command-not-occupying.diff",
+        "p1d-fix-f2-move-ignores-command.diff",
+        "p1d-fix-f2-native-move-during-cancel.diff",
+        "p1d-fix-f3-refusal-after-cancel-no-effect.diff",
+        "p1d-fix-grok-f4-prompt-ignores-command.diff",
+        "p1d-fix-grok-f4-commands-ignore-command.diff",
+        "p1d-fix-grok-f4-configure-not-occupying.diff",
+        "p1d-fix-grok-f4-configure-ignores-command.diff"
       ]
     },
     "attachments": {

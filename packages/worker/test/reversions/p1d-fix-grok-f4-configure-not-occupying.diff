@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/features.ts b/packages/worker/src/supervisor/features.ts
+index ad2af0e..7cff79e 100644
+--- a/packages/worker/src/supervisor/features.ts
++++ b/packages/worker/src/supervisor/features.ts
+@@ -298,7 +298,6 @@ export class Features {
+       async () => {
+         const w = live.worker;
+         // Synchronous with the checks below: the worker is occupied by this write until pi's reply.
+-        live.command = c.command_id;
+         let response;
+         try {
+           response = await this.s.receipts.dispatchThen(c.command_id, { worker_id: id }, () =>
