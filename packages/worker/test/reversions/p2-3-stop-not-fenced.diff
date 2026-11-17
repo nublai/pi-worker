@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 04c9e55..a227580 100644
+index 4e8146d..f4f0506 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -495,7 +495,7 @@ export class Lifecycle {
+@@ -491,7 +491,7 @@ export class Lifecycle {
          // durably before the kill. The domain can be observed empty before pi's exit event arrives (or the exit never
          // reports it), and a confirmed stop must never leave a relaunchable worker with an unfenced execution.
          const running = w.execution;
 -        if (running && running.state !== 'settled' && this.s.receipts.all.get(running.command_id)?.effect !== 'no_effect') this.onUncertain(live, running.command_id, 'worker.stop');
 +        void running;
-         // So is a relaunch still initializing: it fences in the same row, durably before the kill.
-         this.endLaunch(live);
+         // So is a relaunch still initializing: it fences in the same row, durably before the kill, and is retired.
+         this.endLaunch(live, true);
          // cleanup_pending is durable before the kill: a crash between them leaves a pending row recovery cleans.
