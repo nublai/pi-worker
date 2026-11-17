@@ -407,6 +407,7 @@ export class SupervisorState {
     row.recent_settlements ??= [];
     row.title = row.title ?? live.summary?.title ?? null;
     row.preview = live.summary?.preview ?? null;
+    row.first_user_line = live.summary?.first_user_line ?? null;
     row.last_activity_at = live.summary?.last_activity_at ?? null;
     row.model ??= live.create ? { provider: live.create.provider, id: live.create.model } : null;
     row.thinking ??= live.create?.thinking ?? null;

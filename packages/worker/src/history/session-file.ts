@@ -285,6 +285,8 @@ export interface Summary {
   last_activity_at: string | null;
   title: string | null;
   preview: string | null;
+  /** The first line of the first user text (marker stripped, trimmed), at most PREVIEW_CHARS: a title fallback. */
+  first_user_line: string | null;
   message_count: number;
   stats: SessionStats;
   model: { provider: string; id: string } | null;
@@ -307,6 +309,7 @@ const emptySummary = (identity: string): Summary => ({
   last_activity_at: null,
   title: null,
   preview: null,
+  first_user_line: null,
   message_count: 0,
   stats: emptyStats(),
   model: null,
@@ -329,6 +332,9 @@ function textOf(content: unknown): string {
     .join('\n');
 }
 
+/** The first non-blank line of a trimmed text, trimmed. */
+const firstLine = (text: string): string => text.split('\n', 1)[0]!.trim();
+
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
 
 /** Folds one parsed session-file line into a summary. */
@@ -349,6 +355,7 @@ function fold(s: Summary, entry: Record<string, unknown>): void {
     s.stats.user_messages++;
     const text = stripMarker(textOf(message.content)).trim();
     if (text) s.preview = text.slice(0, PREVIEW_CHARS);
+    if (text && s.first_user_line === null) s.first_user_line = firstLine(text).slice(0, PREVIEW_CHARS);
   }
   if (entry.type === 'message' && message.role === 'assistant') {
     s.stats.assistant_messages++;

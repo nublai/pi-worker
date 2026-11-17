@@ -290,6 +290,28 @@ func summarize(data []byte) (int, b2.SessionStats, *string) {
 	return count, stats, preview
 }
 
+// firstUserLine is the first line of the first user text (history/session-file.ts fold): marker stripped, trimmed,
+// at most previewChars; nil before a user message with text.
+func firstUserLine(data []byte) *string {
+	for _, line := range bytes.Split(data, []byte("\n")) {
+		var e struct {
+			Type    string
+			Message struct {
+				Role    string
+				Content any
+			}
+		}
+		if json.Unmarshal(line, &e) != nil || e.Type != "message" || e.Message.Role != "user" {
+			continue
+		}
+		if text := strings.TrimSpace(stripMarker(textOf(e.Message.Content))); text != "" {
+			first, _, _ := strings.Cut(text, "\n")
+			return ptr(utf16Prefix(strings.TrimSpace(first), previewChars))
+		}
+	}
+	return nil
+}
+
 // textOf is a message's text: a string content, or its text parts joined by line feeds.
 func textOf(content any) string {
 	if s, ok := content.(string); ok {
