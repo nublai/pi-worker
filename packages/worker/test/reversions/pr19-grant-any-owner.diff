@@ -1,0 +1,13 @@
+diff --git a/clients/go/b2/grant_unix.go b/clients/go/b2/grant_unix.go
+index 7b8babd..1ec7f73 100644
+--- a/clients/go/b2/grant_unix.go
++++ b/clients/go/b2/grant_unix.go
+@@ -40,7 +40,7 @@ func validateGrantFile(info os.FileInfo, bridgeUID int) error {
+ 		return errors.New("grant must be a regular 0600 file")
+ 	}
+ 	stat, ok := info.Sys().(*syscall.Stat_t)
+-	if !ok || stat.Uid != uint32(bridgeUID) {
++	if !ok || stat == nil {
+ 		return errors.New("grant must be owned by the bridge user")
+ 	}
+ 	return nil

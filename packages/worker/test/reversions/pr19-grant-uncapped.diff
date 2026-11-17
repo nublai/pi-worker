@@ -1,0 +1,19 @@
+diff --git a/clients/go/b2/grant_unix.go b/clients/go/b2/grant_unix.go
+index 7b8babd..5b5e545 100644
+--- a/clients/go/b2/grant_unix.go
++++ b/clients/go/b2/grant_unix.go
+@@ -24,13 +24,10 @@ func readGrantFile(path string) ([]byte, error) {
+ 		return nil, err
+ 	}
+ 	const maxGrantBytes = 64 << 10
+-	data, err := io.ReadAll(io.LimitReader(f, maxGrantBytes+1))
++	data, err := io.ReadAll(f)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	if len(data) > maxGrantBytes {
+-		return nil, errors.New("grant file too large")
+-	}
+ 	return data, nil
+ }
+ 

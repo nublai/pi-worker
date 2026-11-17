@@ -1,0 +1,13 @@
+diff --git a/clients/go/b2/grant_unix.go b/clients/go/b2/grant_unix.go
+index 7b8babd..d21a6f1 100644
+--- a/clients/go/b2/grant_unix.go
++++ b/clients/go/b2/grant_unix.go
+@@ -36,7 +36,7 @@ func readGrantFile(path string) ([]byte, error) {
+ 
+ func validateGrantFile(info os.FileInfo, bridgeUID int) error {
+ 	// Hard links are accepted: ownership and the exact regular 0600 mode belong to the inode.
+-	if info.Mode() != 0o600 {
++	if !info.Mode().IsRegular() {
+ 		return errors.New("grant must be a regular 0600 file")
+ 	}
+ 	stat, ok := info.Sys().(*syscall.Stat_t)

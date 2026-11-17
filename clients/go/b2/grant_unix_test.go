@@ -12,7 +12,7 @@ import (
 )
 
 func TestGrantFileRefusals(t *testing.T) {
-	for _, kind := range []string{"fifo", "symlink", "setuid", "setgid", "sticky", "oversize"} {
+	for _, kind := range []string{"fifo", "symlink", "setuid", "setgid", "sticky", "group-readable", "oversize"} {
 		t.Run(kind, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "grant.json")
 			body := []byte(`{"token":"synthetic"}`)
@@ -37,13 +37,13 @@ func TestGrantFileRefusals(t *testing.T) {
 				if err := os.WriteFile(path, body, 0o600); err != nil {
 					t.Fatal(err)
 				}
-				bits := map[string]os.FileMode{"setuid": os.ModeSetuid, "setgid": os.ModeSetgid, "sticky": os.ModeSticky}
-				if bit := bits[kind]; bit != 0 {
-					if err := os.Chmod(path, 0o600|bit); err != nil {
+				modes := map[string]os.FileMode{"setuid": 0o600 | os.ModeSetuid, "setgid": 0o600 | os.ModeSetgid, "sticky": 0o600 | os.ModeSticky, "group-readable": 0o640}
+				if mode := modes[kind]; mode != 0 {
+					if err := os.Chmod(path, mode); err != nil {
 						t.Fatal(err)
 					}
 					info, err := os.Stat(path)
-					if err != nil || info.Mode() != 0o600|bit {
+					if err != nil || info.Mode() != mode {
 						t.Fatalf("special mode was not set: %v, %v", info, err)
 					}
 				}
@@ -59,6 +59,9 @@ func TestGrantFileRefusals(t *testing.T) {
 				}
 				if kind == "oversize" && !strings.Contains(err.Error(), "too large") {
 					t.Fatalf("not a size refusal: %v", err)
+				}
+				if kind != "oversize" && kind != "symlink" && !strings.Contains(err.Error(), "regular 0600") {
+					t.Fatalf("not a mode refusal: %v", err)
 				}
 			case <-deadline.C:
 				t.Fatal("grant read did not return before deadline")
