@@ -12,12 +12,23 @@ import (
 
 // The supervisor-wide event stream, as packages/worker/src/events/hub.ts serves it: a snapshot first on every
 // attach (resync_reason fresh, current, gap, epoch, ahead or overflow), then later events only, never a replay. A
-// subscriber holds at most queueEvents undelivered frames; past that it gets one overflow frame and is closed.
+// subscriber holds at most queueEvents undelivered frames and queueBytes of them (the frames its writer has not taken
+// yet, while the transport is backpressured); past either it gets one overflow frame and is closed.
 
-const queueEvents = 64
+const (
+	queueEvents = 64
+	queueBytes  = 256 << 10
+)
+
+// queued is one SSE record; counted ones (events, not the snapshot or the overflow frame) hold queue room.
+type queued struct {
+	data    []byte
+	counted bool
+}
 
 type subscriber struct {
-	frames    chan []byte // SSE records; capacity queueEvents+1 so the overflow record always fits
+	frames    chan queued // capacity queueEvents+2 so the snapshot and the overflow record always fit
+	bytes     int         // bytes of the counted records not yet taken by the writer (f.mu)
 	workerIDs map[string]bool
 	types     map[string]bool
 	closed    bool
@@ -51,11 +62,14 @@ func (s *state) publish(eventType, workerID string, executionID *string, evidenc
 		if !sub.wants(eventType, workerID) {
 			continue
 		}
-		if len(sub.frames) >= queueEvents {
+		// A frame alone in an empty queue goes straight to the writer, as the hub sends to a transport that is not
+		// backpressured.
+		if len(sub.frames) >= queueEvents || (sub.bytes > 0 && sub.bytes+len(rec) > queueBytes) {
 			s.overflow(sub, "subscriber_queue_overflow")
 			continue
 		}
-		sub.frames <- rec
+		sub.bytes += len(rec)
+		sub.frames <- queued{data: rec, counted: true}
 	}
 }
 
@@ -73,7 +87,7 @@ func (s *state) overflow(sub *subscriber, reason string) {
 		"type": "overflow", "cursor": s.cursor(), "event_id": s.id("ev"), "producer": "supervisor", "execution_id": nil,
 		"evidence": "observed_memory", "data": map[string]any{"resync_required": true, "reason": reason},
 	}
-	sub.frames <- record("overflow", s.cursor(), frame)
+	sub.frames <- queued{data: record("overflow", s.cursor(), frame)}
 	s.end(sub)
 }
 
@@ -140,7 +154,7 @@ func subscribe(f *Fake, c *call) (any, error) {
 		}
 		since = cur
 	}
-	sub := &subscriber{frames: make(chan []byte, queueEvents+1)}
+	sub := &subscriber{frames: make(chan queued, queueEvents+2)}
 	if v := c.query.Get("types"); v != "" {
 		sub.types = map[string]bool{}
 		for _, t := range strings.Split(v, ",") {
@@ -184,7 +198,7 @@ func subscribe(f *Fake, c *call) (any, error) {
 		reason = "gap"
 	}
 	cursor := s.cursor()
-	sub.frames <- record("snapshot", cursor, map[string]any{"type": "snapshot", "workers": workers, "cursor": cursor, "resync_reason": reason})
+	sub.frames <- queued{data: record("snapshot", cursor, map[string]any{"type": "snapshot", "workers": workers, "cursor": cursor, "resync_reason": reason})}
 	s.subs[sub] = true
 	f.mu.Unlock()
 
@@ -199,7 +213,12 @@ func subscribe(f *Fake, c *call) (any, error) {
 			if !ok {
 				return written{}, nil
 			}
-			if _, err := w.Write(rec); err != nil {
+			if rec.counted {
+				f.mu.Lock()
+				sub.bytes -= len(rec.data)
+				f.mu.Unlock()
+			}
+			if _, err := w.Write(rec.data); err != nil {
 				f.mu.Lock()
 				s.end(sub)
 				f.mu.Unlock()
