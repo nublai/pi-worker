@@ -8,9 +8,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -103,9 +108,6 @@ func TestCreateWithFirstPromptRefusedAtAdmissionStillCreatesTheWorker(t *testing
 		fp    b2.FirstPrompt
 		error string
 	}{
-		{"photo-chat", b2.FirstPrompt{Message: "look", Attachments: &[]struct {
-			AttachmentId b2.Id `json:"attachment_id"`
-		}{{AttachmentId: "photo-expired"}}}, "unknown_attachment"},
 		{"slash-chat", b2.FirstPrompt{Message: "/compact"}, "slash_commands_use_typed_methods"},
 	}
 	for _, tc := range cases {
@@ -249,5 +251,40 @@ func TestFirstPromptNeedsTheSessionsPromptGrant(t *testing.T) {
 	}
 	if n := fake.Hosts(); n != 1 {
 		t.Fatalf("hosts %d, want the parent only", n)
+	}
+}
+
+// A first prompt is text only (nubl decision 2026-11-17): one that names attachments is outside the schema and the
+// create is refused before anything exists (P1-19 follow-up 4).
+func TestFirstPromptIsTextOnly(t *testing.T) {
+	fake, err := workerfake.Start(workerfake.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fake.Close()
+	grant, err := os.ReadFile(fake.GrantFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var g struct{ Token string }
+	json.Unmarshal(grant, &g)
+	hc := &http.Client{Transport: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", fake.SocketPath())
+	}}}
+	body := fmt.Sprintf(`{"command_id":"photo-chat","cwd":%q,"provider":"fixture","model":"fixture","thinking":"off","first_prompt":{"message":"look","attachments":[{"attachment_id":"photo-1"}]}}`, filepath.Join(t.TempDir(), "photo-chat"))
+	req, _ := http.NewRequest("POST", "http://worker/b2/workers", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+g.Token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := hc.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	reply, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(reply), `"no_effect"`) {
+		t.Fatalf("create with first_prompt attachments: %d %s", resp.StatusCode, reply)
+	}
+	if n := fake.Hosts(); n != 0 {
+		t.Fatalf("hosts %d", n)
 	}
 }

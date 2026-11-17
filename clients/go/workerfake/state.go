@@ -549,9 +549,6 @@ func (s *state) firstPrompt(w *worker, r *b2.Receipt, fp b2.FirstPrompt, created
 		if strings.HasPrefix(strings.TrimLeft(fp.Message, " \t\n"), "/") {
 			return refuse("slash_commands_use_typed_methods")
 		}
-		if fp.Attachments != nil && len(*fp.Attachments) > 0 {
-			return s.forPrompt(id, *fp.Attachments)
-		}
 		return nil
 	})
 	var ref *refusal
@@ -570,9 +567,8 @@ func (s *state) firstPrompt(w *worker, r *b2.Receipt, fp b2.FirstPrompt, created
 	r.ExecutionId = &execution.ExecutionId
 	r.Result = &created
 	s.receiptUpdated(*r)
-	ids := attachmentIDs(fp.Attachments)
-	images := len(ids)
-	accepted, marked, err := w.host.prompt(promptInput{commandID: r.CommandId, executionID: execution.ExecutionId, text: fp.Message, attachments: ids})
+	// Text only (FirstPrompt): images go with sessions.prompt once the worker exists.
+	_, marked, err := w.host.prompt(promptInput{commandID: r.CommandId, executionID: execution.ExecutionId, text: fp.Message})
 	if err != nil {
 		latch(w, r.CommandId)
 		s.persist(w)
@@ -582,12 +578,6 @@ func (s *state) firstPrompt(w *worker, r *b2.Receipt, fp b2.FirstPrompt, created
 	s.persist(w)
 	result := maps.Clone(created)
 	result["interrupt_marker"] = marked
-	if images > 0 {
-		result["accepted_images"] = accepted
-		for _, a := range *fp.Attachments {
-			s.releaseNow(a.AttachmentId, r.CommandId)
-		}
-	}
 	deliver(r, "forwarded", result)
 	r.Admission, r.Disposition = ptr(b2.ReceiptAdmission("accepted")), ptr("started")
 	r.HistoryLag = ptr(false)

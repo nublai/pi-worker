@@ -2150,16 +2150,17 @@ type Create struct {
 	CommandId Id           `json:"command_id"`
 	Cwd       AbsolutePath `json:"cwd"`
 
-	// FirstPrompt A new worker's first input (`workers.create`). It has no command of its
-	// own: the first execution's `command_id` is the create's, and the
-	// create's receipt reports it.
+	// FirstPrompt A new worker's first input (`workers.create`): text only. Images go
+	// with `sessions.prompt` once the worker exists (an attachment is staged
+	// for a live worker). It has no command of its own: the first
+	// execution's `command_id` is the create's, and the create's receipt
+	// reports it.
 	//
 	// - Admitted: the receipt is `delivered` with the worker (`worker_id`,
 	//   `result`) and the execution (`admission: accepted`, `execution_id`,
 	//   `disposition` as `sessions.prompt` reports it).
 	// - Refused at admission by a check of `sessions.prompt` (a slash
-	//   command, an unknown or released attachment, too many or too large
-	//   images): the receipt is still `delivered` with the worker, which is
+	//   command): the receipt is still `delivered` with the worker, which is
 	//   created, ready and idle, plus `admission: rejected` and the refusal
 	//   code in `error`. No execution exists and nothing reached pi; the
 	//   caller keeps the draft and may send it with `sessions.prompt`.
@@ -2382,16 +2383,17 @@ type FileRead struct {
 	Roots []AbsolutePath `json:"roots"`
 }
 
-// FirstPrompt A new worker's first input (`workers.create`). It has no command of its
-// own: the first execution's `command_id` is the create's, and the
-// create's receipt reports it.
+// FirstPrompt A new worker's first input (`workers.create`): text only. Images go
+// with `sessions.prompt` once the worker exists (an attachment is staged
+// for a live worker). It has no command of its own: the first
+// execution's `command_id` is the create's, and the create's receipt
+// reports it.
 //
 //   - Admitted: the receipt is `delivered` with the worker (`worker_id`,
 //     `result`) and the execution (`admission: accepted`, `execution_id`,
 //     `disposition` as `sessions.prompt` reports it).
 //   - Refused at admission by a check of `sessions.prompt` (a slash
-//     command, an unknown or released attachment, too many or too large
-//     images): the receipt is still `delivered` with the worker, which is
+//     command): the receipt is still `delivered` with the worker, which is
 //     created, ready and idle, plus `admission: rejected` and the refusal
 //     code in `error`. No execution exists and nothing reached pi; the
 //     caller keeps the draft and may send it with `sessions.prompt`.
@@ -2410,10 +2412,6 @@ type FileRead struct {
 //
 // The text is never journaled (the receipt keeps only the request hash).
 type FirstPrompt struct {
-	// Attachments Staged images, checked as `sessions.prompt` checks them. An attachment is staged for a live worker (`attachments.stage` names it), so one staged before the create names another worker and is refused `unknown_attachment` here; send images with `sessions.prompt` once the worker exists.
-	Attachments *[]struct {
-		AttachmentId Id `json:"attachment_id"`
-	} `json:"attachments,omitempty"`
 	Message Text `json:"message"`
 }
 

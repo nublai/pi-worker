@@ -189,20 +189,19 @@ worker row carries `recent_settlements`, newest first, at most 8 (`execution_id`
 `settled_at`), journaled with the row, so a reconnect snapshot, also after a supervisor restart, shows the
 settlements a subscriber missed; a `settle_count` gap larger than the list means the rest are only in history.
 
-**First prompt (P1-19, Shep P5-3).** `workers.create {first_prompt: {message, attachments?}}` starts a chat in one
-command. Once the worker is ready the supervisor admits the prompt as its first execution under the create's own
+**First prompt (P1-19, Shep P5-3).** `workers.create {first_prompt: {message}}` starts a chat in one
+command; the first prompt is text only (nubl decision 2026-11-17). Once the worker is ready the supervisor admits the prompt as its first execution under the create's own
 `command_id` (so `execution.admitted`, `recent_settlements` and the receipt all name the create). The create's
 receipt is the only receipt: `delivered` with the worker (`worker_id`, `result` with its epoch, session and binding)
 and either `admission: accepted`, `execution_id`, `disposition`, or `admission: rejected` and the refusal code in
-`error` (the checks of `sessions.prompt`: a slash command, an unknown or released attachment, image limits). On a
+`error` (the checks of `sessions.prompt`: a slash command; or pi refused it before any input hook). On a
 refusal the worker is created, ready and idle, nothing reached pi, and the bridge keeps the draft and may send it with
 `sessions.prompt`. The execution id is in the receipt, durably, before any byte of the prompt reaches pi, so a create
 whose reply was lost reconciles through `receipts.get` and is never sent again (a duplicate `command_id` returns the
 receipt and never prompts twice). A lost pi reply makes the create `outcome_unknown`, still naming the worker and the
 execution, and fences the new session on the create until `sessions.resolve_unknown`, also after a restart. The text
-is never journaled. Attachments are staged for a live worker, so one staged before the create is refused
-`unknown_attachment` here: a New Chat with a photo creates the worker, stages the photo on it, then sends
-`sessions.prompt` (or the bridge keeps the photo and sends text first).
+is never journaled. Attachments are staged for a live worker, so a New Chat with a photo creates the worker (with its
+text as `first_prompt`, or none), stages the photo on it, then sends `sessions.prompt`.
 
 **Reconnect.** The bridge reconnects with `Last-Event-ID`. The worker never replays: it answers with a fresh
 `snapshot` whose `resync_reason` is `current`, `gap`, `epoch` (supervisor restarted) or `overflow`. Controls stay
