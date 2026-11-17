@@ -566,12 +566,22 @@ func (s *state) prompt(id string, p b2.Prompt, op string, request any) (*b2.Rece
 		s.persist(w)
 		dispatch(r)
 		r.ExecutionId = &execution.ExecutionId
-		if err := w.host.prompt(); err != nil {
+		images := 0
+		if p.Attachments != nil {
+			images = len(*p.Attachments)
+		}
+		accepted, err := w.host.prompt(images)
+		if err != nil {
 			return err
 		}
 		execution.Disposition = ptr("started")
 		s.persist(w)
-		deliver(r, "forwarded", map[string]any{"interrupt_marker": false})
+		result := map[string]any{"interrupt_marker": false}
+		if images > 0 {
+			// With attachments, the number of images pi put in the message (input.ts).
+			result["accepted_images"] = accepted
+		}
+		deliver(r, "forwarded", result)
 		r.Admission, r.Disposition = ptr(b2.ReceiptAdmission("accepted")), ptr("started")
 		r.HistoryLag = ptr(false)
 		return nil
