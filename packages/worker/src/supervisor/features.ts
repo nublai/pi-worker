@@ -187,7 +187,7 @@ export class Features {
       maxBytes: q.max_bytes ?? 1024 * 1024,
       ...(q.identity !== undefined ? { identity: q.identity } : {}),
       ...(q.tail !== undefined ? { tail: q.tail } : {}),
-    });
+    }, this.s.summaries.generations);
     if ('error' in read) throw new Refusal(read.error, 'no_effect', undefined, {}, read.error === 'history_line_too_large' ? 409 : 400);
     return {
       contentType: 'application/x-ndjson',

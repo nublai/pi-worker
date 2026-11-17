@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
+index e115e0f..b565fd9 100644
+--- a/packages/worker/src/history/session-file.ts
++++ b/packages/worker/src/history/session-file.ts
+@@ -56,7 +56,7 @@ export class FileGenerations {
+     const key = `${st.dev}:${st.ino}`;
+     const prior = this.seen.get(key);
+     let generation = prior?.generation ?? 0;
+-    if (prior && (st.size < prior.size || (st.size === prior.size && (st.mtimeNs !== prior.mtimeNs || st.ctimeNs !== prior.ctimeNs)))) generation++;
++    if (prior && st.size < prior.size) generation++;
+     this.seen.set(key, { size: st.size, mtimeNs: st.mtimeNs, ctimeNs: st.ctimeNs, generation });
+     return generation;
+   }

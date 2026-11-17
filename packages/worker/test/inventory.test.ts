@@ -6,7 +6,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync, chmodSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, mkdirSync, readFileSync, renameSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { Client, ClientFailure } from '@nublai/pi-worker-client';
@@ -266,6 +266,83 @@ test('inventory: sessions.history resets on a replaced, shrunk or rewritten file
     r = await history(memory, w.session_id!, { offset: 0, identity: now.identity });
     assert.equal(r.headers!['piw-reset'], 'true', 'a replaced file has another identity');
     assert.notEqual(r.headers!['piw-file-identity'], now.identity);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('inventory: a same-size rewrite in place that keeps the header and the last line resets sessions.history and refreshes the summary; appends keep the identity', async () => {
+  const f = fixture();
+  try {
+    const { memory } = api(f);
+    const w = await f.create();
+    const file = f.supervisor.state.require(w.worker_id).sessionFile!;
+    const frames: EventFrame[] = [];
+    const sub = f.supervisor.subscribe(frame => void frames.push(frame), { types: ['history.appended'] });
+    appendFileSync(file, user('u1', null, 'aaaaaa first', '2026-11-16T01:00:00.000Z'));
+    appendFileSync(file, at('2026-11-16T01:00:01.000Z', { type: 'custom', id: 'c1', parentId: 'u1', customType: 'x' }));
+    const first = await history(memory, w.session_id!);
+    const cursor = { identity: first.headers!['piw-file-identity']!, offset: Number(first.headers!['piw-next-offset']), tail: first.headers!['piw-tail-sha256']! };
+    assert.equal((await memory.request('GET', `/b2/sessions/${w.session_id}`) as MemoryResponse & { body: { preview: string } }).body.preview, 'aaaaaa first');
+    // An append keeps the identity and serves only the new line.
+    appendFileSync(file, at('2026-11-16T01:00:02.000Z', { type: 'custom', id: 'c2', parentId: 'c1', customType: 'x' }));
+    const appended = await history(memory, w.session_id!, cursor);
+    assert.deepEqual([appended.headers!['piw-reset'], appended.headers!['piw-file-identity']], ['false', cursor.identity], 'an append is not a rewrite');
+    const now = { identity: cursor.identity, offset: Number(appended.headers!['piw-next-offset']), tail: appended.headers!['piw-tail-sha256']! };
+    // Six bytes of user text change in place: same inode, same size, same header, same last line, another mtime.
+    const before = statSync(file);
+    const bytes = readFileSync(file);
+    const at6 = bytes.indexOf('aaaaaa');
+    bytes.write('bbbbbb', at6);
+    writeFileSync(file, bytes);
+    utimesSync(file, before.atime, new Date(before.mtimeMs + 5000));
+    const after = statSync(file);
+    assert.deepEqual([after.ino, after.size], [before.ino, before.size], 'same inode, same size');
+    assert.notEqual(after.mtimeMs, before.mtimeMs, 'another mtime');
+    const r = await history(memory, w.session_id!, now);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.headers!['piw-reset'], 'true', 'a same-size rewrite in place resets');
+    assert.notEqual(r.headers!['piw-file-identity'], now.identity, 'a rewrite changes the identity');
+    assert.equal(Number(r.headers!['piw-offset']), 0);
+    assert.deepEqual(r.body, readFileSync(file));
+    const row = (await memory.request('GET', `/b2/sessions/${w.session_id}`)).body as { preview: string };
+    assert.equal(row.preview, 'bbbbbb first', 'the summary cache follows the rewrite');
+    // history.appended announces the rewritten file under its new identity.
+    f.hosts[0]!.emit('event', { type: 'host_leaf', leafId: 'c2' });
+    sub.close();
+    const announced = frames.filter((e): e is Extract<EventFrame, { type: 'history.appended' }> => e.type === 'history.appended').at(-1);
+    assert.equal(announced?.data.file_identity, r.headers!['piw-file-identity'], 'history.appended carries the new identity');
+    // The new identity is stable across the next append.
+    const settled = { identity: r.headers!['piw-file-identity']!, offset: Number(r.headers!['piw-next-offset']), tail: r.headers!['piw-tail-sha256']! };
+    appendFileSync(file, at('2026-11-16T01:00:03.000Z', { type: 'custom', id: 'c3', parentId: 'c2', customType: 'x' }));
+    const next = await history(memory, w.session_id!, settled);
+    assert.deepEqual([next.headers!['piw-reset'], next.headers!['piw-file-identity']], ['false', settled.identity]);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('inventory: a user message with four photos over the summary line limit still counts, with its caption as the preview and its activity', async () => {
+  const f = fixture();
+  try {
+    const { memory } = api(f);
+    const w = await f.create();
+    const live = f.supervisor.state.require(w.worker_id);
+    appendFileSync(live.sessionFile!, user('u0', null, 'earlier', '2026-11-16T01:00:00.000Z'));
+    // Four photos of 1.5 MiB each (base64 in pi's line): one user entry of about 8 MiB.
+    const photo = Buffer.alloc(1536 * 1024, 7).toString('base64');
+    const content = [{ type: 'text', text: 'four photos of the bug' }, ...[1, 2, 3, 4].map(() => ({ type: 'image', data: photo, mimeType: 'image/jpeg' }))];
+    const line = at('2026-11-16T01:00:09.000Z', { type: 'message', id: 'u1', parentId: 'u0', message: { role: 'user', content } });
+    assert.ok(line.length > 4 * 1024 * 1024 + 1024 * 1024, 'over the summary line limit and longer than one read chunk');
+    appendFileSync(live.sessionFile!, line);
+    f.hosts[0]!.emit('event', { type: 'host_leaf', leafId: 'u1' });
+    const row = (await memory.request('GET', `/b2/sessions/${w.session_id}`)).body as { preview: string; last_activity_at: string; message_count: number; stats: { user_messages: number } };
+    assert.equal(row.stats.user_messages, 2, 'the photo message counts');
+    assert.equal(row.message_count, 2);
+    assert.equal(row.preview, 'four photos of the bug');
+    assert.equal(row.last_activity_at, '2026-11-16T01:00:09.000Z');
+    const worker = f.supervisor.get(w.worker_id);
+    assert.deepEqual([worker.preview, worker.last_activity_at], ['four photos of the bug', '2026-11-16T01:00:09.000Z'], 'the worker row too');
   } finally {
     f.cleanup();
   }
