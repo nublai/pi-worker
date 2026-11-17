@@ -1,0 +1,13 @@
+diff --git a/clients/go/workerfake/host.go b/clients/go/workerfake/host.go
+index 5f3d0af..12efd59 100644
+--- a/clients/go/workerfake/host.go
++++ b/clients/go/workerfake/host.go
+@@ -186,7 +186,7 @@ func (h *Host) EmitToolStart(toolCallID, name string, summary *string) {
+ 	}
+ 	h.tools[id] = summary
+ 	// A tool that never reported its end is forgotten first: the memory stays bounded.
+-	if len(h.order) > toolsPerWorker {
++	if len(h.order) > toolsPerWorker && toolCallID == "\x00never" {
+ 		delete(h.tools, h.order[0])
+ 		h.order = h.order[1:]
+ 	}

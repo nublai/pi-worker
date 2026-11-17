@@ -2,6 +2,8 @@ package workerfake
 
 import (
 	"errors"
+	"slices"
+	"strings"
 	"unicode/utf16"
 )
 
@@ -16,7 +18,8 @@ type Host struct {
 	held    chan struct{}
 	starts  []chan struct{}
 	accept  *int               // images the next prompt with images reports accepted; nil: all of them
-	tools   map[string]*string // summaries of tool calls started and not finished
+	tools   map[string]*string // summaries of tool calls started and not finished, at most toolsPerWorker
+	order   []string           // their ids, oldest first: the oldest is forgotten first
 }
 
 var errDroppedReply = errors.New("fixture_dropped_reply")
@@ -143,28 +146,66 @@ func (h *Host) EmitText(text string) {
 	}
 }
 
-// EmitToolStart injects pi's tool_execution_start: tool.started with the call id, name and summary (nil for none).
+// Tool event bounds (activity.ts): ids, names and summaries are cut to the schema's bounds in UTF-16 code units, a
+// summary is one line, and at most toolsPerWorker unfinished calls are remembered.
+const (
+	toolIDChars    = 512
+	toolNameChars  = 128
+	summaryChars   = 200
+	toolsPerWorker = 64
+)
+
+// toolSummary is a summary as activity.ts summaryOf makes it: trimmed, its whitespace runs one space, cut to
+// summaryChars; nil when nothing is left.
+func toolSummary(summary *string) *string {
+	if summary == nil {
+		return nil
+	}
+	line := strings.Join(strings.Fields(*summary), " ")
+	if line == "" {
+		return nil
+	}
+	return ptr(utf16Prefix(line, summaryChars))
+}
+
+// EmitToolStart injects pi's tool_execution_start: tool.started with the call id, name and summary (nil for none),
+// bounded and normalized as the worker does. A call without an id or name is ignored, as the worker ignores it.
 func (h *Host) EmitToolStart(toolCallID, name string, summary *string) {
 	h.f.mu.Lock()
 	defer h.f.mu.Unlock()
-	if h.live() {
-		if h.tools == nil {
-			h.tools = map[string]*string{}
-		}
-		h.tools[toolCallID] = summary
-		h.f.st.publish("tool.started", h.w.row.WorkerId, executionOf(h.w), "observed_memory", map[string]any{"tool_call_id": toolCallID, "name": name, "summary": summary})
+	if !h.live() || toolCallID == "" || name == "" {
+		return
 	}
+	id, summary := utf16Prefix(toolCallID, toolIDChars), toolSummary(summary)
+	if h.tools == nil {
+		h.tools = map[string]*string{}
+	}
+	// A call id started again keeps its place (a JavaScript Map's set).
+	if _, ok := h.tools[id]; !ok {
+		h.order = append(h.order, id)
+	}
+	h.tools[id] = summary
+	// A tool that never reported its end is forgotten first: the memory stays bounded.
+	if len(h.order) > toolsPerWorker {
+		delete(h.tools, h.order[0])
+		h.order = h.order[1:]
+	}
+	h.f.st.publish("tool.started", h.w.row.WorkerId, executionOf(h.w), "observed_memory", map[string]any{"tool_call_id": id, "name": utf16Prefix(name, toolNameChars), "summary": summary})
 }
 
-// EmitToolEnd injects pi's tool_execution_end: tool.finished, repeating the summary its start carried.
+// EmitToolEnd injects pi's tool_execution_end: tool.finished, repeating the summary its start carried (nil once the
+// call was forgotten).
 func (h *Host) EmitToolEnd(toolCallID, name string, isError bool) {
 	h.f.mu.Lock()
 	defer h.f.mu.Unlock()
-	if h.live() {
-		summary := h.tools[toolCallID]
-		delete(h.tools, toolCallID)
-		h.f.st.publish("tool.finished", h.w.row.WorkerId, executionOf(h.w), "observed_memory", map[string]any{"tool_call_id": toolCallID, "name": name, "summary": summary, "is_error": isError})
+	if !h.live() || toolCallID == "" || name == "" {
+		return
 	}
+	id := utf16Prefix(toolCallID, toolIDChars)
+	summary := h.tools[id]
+	delete(h.tools, id)
+	h.order = slices.DeleteFunc(h.order, func(x string) bool { return x == id })
+	h.f.st.publish("tool.finished", h.w.row.WorkerId, executionOf(h.w), "observed_memory", map[string]any{"tool_call_id": id, "name": utf16Prefix(name, toolNameChars), "summary": summary, "is_error": isError})
 }
 
 // live: this host is its worker's current one (a retired generation's events are ignored).
