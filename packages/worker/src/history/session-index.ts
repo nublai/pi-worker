@@ -55,14 +55,18 @@ export class SessionIndex {
   file: string | null;
   headerId: string | null = null;
 
-  constructor(file: string | null, rawLimit: number = SIZE_LIMITS.rawLineBytes) {
+  /** A sandboxed worker's root: every open is pinned below it, with no symlink at any component (P2-4). */
+  readonly root: string | undefined;
+
+  constructor(file: string | null, rawLimit: number = SIZE_LIMITS.rawLineBytes, root?: string) {
     this.file = file;
     this.rawLimit = rawLimit;
+    this.root = root;
   }
 
-  /** Never through a symlink at the path, and only a regular file (see `openSessionFile`). */
+  /** Never through a symlink at the path (at any component under a root), and only a regular file (`openSessionFile`). */
   private openFile(): number {
-    return openSessionFile(this.file!);
+    return openSessionFile(this.file!, this.root);
   }
 
   /** pi's selected leaf (memory): it may run ahead of the file, which pi writes only once there is a conversation. */

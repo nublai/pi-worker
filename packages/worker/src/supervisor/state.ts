@@ -23,6 +23,7 @@ import type { GrantStore } from '../grants/store.js';
 import type { Budget, Operation, ReceiptStore } from '../receipts/receipts.js';
 import type { Guard } from '../grants/authority.js';
 import type { Domain } from '../containment/containment.js';
+import { sandboxed } from '../sandbox/sandbox.js';
 
 export type Worker = components['schemas']['Worker'];
 export type Create = components['schemas']['Create'];
@@ -114,6 +115,11 @@ export interface HostLaunch {
   readonly domain: Domain;
   /** The argv prefix that runs the host's program inside the domain (`Containment.enter`). */
   readonly prefix: readonly string[];
+  /**
+   * A sandboxed worker's root (its real cwd, P2-4): the host runs pi in the bwrap profile of this root, inside the
+   * domain (the prefix stays the outermost wrapper). Never unsandboxed when set: no fallback.
+   */
+  readonly sandbox?: string;
 }
 
 export type HostFactory = (launch: HostLaunch) => SessionHost;
@@ -125,6 +131,12 @@ export function repoLabel(cwd: string): string {
     if (dirname(dir) === dir) return basename(cwd) || cwd;
   }
 }
+
+/**
+ * A sandboxed worker's root (P2-4): its cwd, which a bwrap launch spec's root must equal. Every read of a file the
+ * sandbox can write is pinned below it (history, session rows, files.read). Undefined for an unsandboxed worker.
+ */
+export const confinement = (w: Worker): string | undefined => (sandboxed(w.launch_spec) ? w.cwd : undefined);
 
 /** Statuses that hold a session and an environment. */
 export const HOLDING = new Set<Worker['status']>(['starting', 'ready', 'cleanup_pending']);
@@ -152,7 +164,7 @@ const FENCE_ROW_EXTRA_BYTES = 4096;
 export class SupervisorState {
   readonly workers = new Map<string, Live>();
   /** session id → the file and the worker that last bound it (the resume catalog). */
-  readonly sessionFiles = new Map<string, { file: string; worker_id: string }>();
+  readonly sessionFiles = new Map<string, { file: string; worker_id: string; root?: string }>();
   /** Sessions a binding change is moving to, before pi reports them. */
   readonly sessionReservations = new Map<string, string>();
   /** Incremental session-file summaries (session rows, worker previews). */
@@ -165,6 +177,8 @@ export class SupervisorState {
   interactions?: Interactions;
   /** The grant registry, to recheck the grant that created a worker (children, reports). */
   grants?: GrantStore;
+  /** Control paths besides the state directory that no sandbox root may overlap (the B2 socket's directory). */
+  sandboxControls: readonly string[] = [];
   /**
    * Parents with a child whose process ended and whose live missing-report check has not run yet (it waits for the
    * child's report channel to drain): a new child launch under such a parent is refused `child_end_unsettled`.
@@ -188,8 +202,9 @@ export class SupervisorState {
     for (const record of journal.records) {
       if (record.kind === 'session_catalog') {
         // A catalog entry a compaction kept (journal/retention.ts): a session a dropped worker row bound.
-        const { session_id, file, worker_id } = record.value;
-        if (typeof session_id === 'string' && typeof file === 'string' && typeof worker_id === 'string') this.sessionFiles.set(session_id, { file, worker_id });
+        // A sandboxed session's root (P2-4) stays with it: its file is read pinned below that root even without the row.
+        const { session_id, file, worker_id, root } = record.value;
+        if (typeof session_id === 'string' && typeof file === 'string' && typeof worker_id === 'string') this.sessionFiles.set(session_id, { file, worker_id, ...(typeof root === 'string' ? { root } : {}) });
         continue;
       }
       if (record.kind !== 'worker') continue;
@@ -198,7 +213,7 @@ export class SupervisorState {
       const persisted = structuredClone(record.value) as unknown as Persisted;
       this.catalog(persisted);
       this.journaledStatus.set(persisted.worker.worker_id, persisted.worker.status);
-      this.workers.set(persisted.worker.worker_id, { ...persisted, index: new SessionIndex(persisted.sessionFile), completedMessages: 0 });
+      this.workers.set(persisted.worker.worker_id, { ...persisted, index: new SessionIndex(persisted.sessionFile, undefined, confinement(persisted.worker)), completedMessages: 0 });
       this.rowSize.set(persisted.worker.worker_id, recordBytes(record.value));
       this.journaledFence.set(persisted.worker.worker_id, uncertainOf(persisted.worker.fence));
     }
@@ -264,7 +279,8 @@ export class SupervisorState {
   }
 
   private catalog(p: Persisted): void {
-    if (p.worker.session_id && p.sessionFile) this.sessionFiles.set(p.worker.session_id, { file: p.sessionFile, worker_id: p.worker.worker_id });
+    const root = confinement(p.worker);
+    if (p.worker.session_id && p.sessionFile) this.sessionFiles.set(p.worker.session_id, { file: p.sessionFile, worker_id: p.worker.worker_id, ...(root ? { root } : {}) });
   }
 
   /**
@@ -317,6 +333,11 @@ export class SupervisorState {
     if (this.published.get(live.worker.worker_id) === row) return;
     this.published.set(live.worker.worker_id, row);
     this.events.publish('worker.updated', { worker_id: live.worker.worker_id, execution_id: live.worker.execution?.execution_id ?? null, data: { worker: this.view(live) } });
+  }
+
+  /** The history index of `file` for this worker: pinned below its root when it is sandboxed. */
+  index(live: Live, file: string | null): SessionIndex {
+    return new SessionIndex(file, undefined, confinement(live.worker));
   }
 
   require(id: string): Live {
@@ -375,7 +396,7 @@ export class SupervisorState {
     };
     // The file's identity and complete size, published once per change as `history.appended` (sessions.history's
     // Piw-Watermark for the same bytes).
-    live.summary = this.summaries.get(live.sessionFile);
+    live.summary = this.summaries.get(live.sessionFile, confinement(live.worker));
     const appended = `${live.summary.identity}:${live.summary.watermark}`;
     if (live.worker.session_id && live.appended !== appended) {
       live.appended = appended;
@@ -410,12 +431,17 @@ export class SupervisorState {
    * The gates every resume passes (create-with-resume and `sessions.rebind` resume), before anything is spawned or
    * opened: no other live writer, a known session, its last owner's cleanup proven (its domain removed and recorded;
    * invariant 2) and its fence resolved (invariant 3). Returns the session file.
+   *
+   * A session moves only between workers of the same confinement (P2-4): `root` is the requester's sandbox root (none
+   * when unsandboxed). An unsandboxed pi never opens a file a sandbox can write (its path could lead anywhere), and a
+   * sandbox never gets a session outside its root.
    */
-  resumable(sessionId: string, except: string): string {
+  resumable(sessionId: string, except: string, root?: string): string {
     this.noOtherWriter(sessionId, except);
     const known = this.sessionFiles.get(sessionId);
     if (!known) throw new Refusal('unknown_session');
     const owner = this.require(known.worker_id).worker;
+    if (known.root !== root) throw new Refusal('session_confinement_mismatch');
     if (known.worker_id !== except && owner.status === 'cleanup_pending') {
       throw new Refusal('target_cleanup_unproven');
     }

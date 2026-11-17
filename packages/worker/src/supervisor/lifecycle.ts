@@ -1,6 +1,7 @@
 /**
  * Worker lifecycle: create, stop, pi exit, worker faults, restart recovery and shutdown. Rewritten from A0
- * `src/supervisor.ts` (`create`, `stop`, `onExit`, `fault`, `cleanup`, `recover`) without sandboxes.
+ * `src/supervisor.ts` (`create`, `stop`, `onExit`, `fault`, `cleanup`, `recover`). A sandboxed worker (P2-4) has its
+ * session directory inside its root and its history read through opens pinned below it (state.ts `confinement`).
  *
  * Rules kept from A0: one live writer per session and one worker per cwd, refused naming the holder; the starting
  * row (with the worker's cleanup domain) and the dispatch record are durable before pi is spawned, and the process
@@ -18,13 +19,13 @@ import { existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { ProvenNoEffect, Refusal } from '../b2/errors.js';
 import { processGone } from '../host/process.js';
-import { SessionIndex } from '../history/session-index.js';
 import type { ChildReport, PiRecord, SessionHost } from '../host/host.js';
 import type { Containment, Domain } from '../containment/containment.js';
 import type { DurableLabel } from '../journal/labels.js';
 import { budgetKey } from '../journal/journal.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
-import { HOLDING, type Binding, type Create, type KeptBinding, type Live, type SupervisorState } from './state.js';
+import { sandboxed, sandboxSessionDir } from '../sandbox/sandbox.js';
+import { confinement, HOLDING, type Binding, type Create, type KeptBinding, type Live, type SupervisorState } from './state.js';
 import { currentGuard } from '../grants/authority.js';
 
 /** A domain observed gone (`populated 0`, removed) and recorded: the only confirmed cleanup. */
@@ -158,7 +159,13 @@ export class Lifecycle {
     }
   }
 
+  /**
+   * Where pi writes the worker's session files: below the state directory, or for a sandboxed worker inside its root
+   * (`ROOT/.piw-worker/sessions/<id>`, made through pinned opens), the only tree its pi can write.
+   */
   sessionDir(live: Live): string {
+    const root = confinement(live.worker);
+    if (root) return sandboxSessionDir(root, live.worker.worker_id);
     const dir = join(this.s.stateDir, 'sessions', live.worker.worker_id);
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     return dir;
@@ -195,7 +202,7 @@ export class Lifecycle {
         this.s.noOtherWriter(event.sessionId, w.worker_id);
         w.session_id = event.sessionId;
         live.sessionFile = event.sessionFile;
-        live.index = new SessionIndex(live.sessionFile);
+        live.index = this.s.index(live, live.sessionFile);
         live.index.setActiveLeaf(typeof event.leafId === 'string' ? event.leafId : null);
         this.s.persist(live, 'worker.identity');
       }
@@ -345,7 +352,7 @@ export class Lifecycle {
         }
         this.s.exclusiveCwd(cwd);
         // The same session gates as every other resume: a new worker identity never erases session uncertainty.
-        if (c.resume_session_id) resumeFile = this.s.resumable(c.resume_session_id, '');
+        if (c.resume_session_id) resumeFile = this.s.resumable(c.resume_session_id, '', sandboxed(c.launch_spec) ? cwd : undefined);
       },
     );
     // A typed child whose launch may have run fences its parent: the parent cannot simply launch a replacement.
@@ -380,7 +387,8 @@ export class Lifecycle {
     try {
       const domain = live.domain;
       const prefix = this.containment.enter(domain);
-      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix });
+      const root = confinement(w);
+      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root } : {}) });
     } catch (error) {
       // No host was constructed: the domain (if it was created) is cleaned and the row ends with its reason; the
       // receipt stays unknown, so a resume target is held and fenced like any other unknown create-with-resume.
@@ -414,7 +422,7 @@ export class Lifecycle {
       this.s.noOtherWriter(sessionId, w.worker_id);
       w.session_id = sessionId;
       live.sessionFile = String(state.data!.sessionFile);
-      live.index = new SessionIndex(live.sessionFile);
+      live.index = this.s.index(live, live.sessionFile);
       live.index.setActiveLeaf(typeof state.data!.leafId === 'string' ? state.data!.leafId : null);
       this.s.refresh(live);
       // Readiness: resources loaded with no loader errors.
@@ -469,7 +477,7 @@ export class Lifecycle {
     w.session_id = c.resume_session_id;
     w.leaf_id = null;
     live.sessionFile = resumeFile;
-    live.index = new SessionIndex(resumeFile);
+    live.index = this.s.index(live, resumeFile);
     this.latch(live, c.command_id);
   }
 
@@ -554,7 +562,7 @@ export class Lifecycle {
         if (!live.create || !w.session_id || !live.sessionFile || !existsSync(live.sessionFile)) throw new Refusal('relaunch_session_unavailable');
         // The session's gates, not only this worker's (GPT PR #27 finding 1): the resume gate refuses a session another
         // worker bound since and left fenced (`target_session_fenced`) or with its cleanup unproven, as for a resume.
-        this.s.resumable(w.session_id, id);
+        this.s.resumable(w.session_id, id, confinement(w));
         this.s.exclusiveCwd(w.cwd, live);
       },
     );
@@ -618,7 +626,8 @@ export class Lifecycle {
     let host: SessionHost;
     try {
       const domain = live.domain!;
-      host = this.s.factory({ workerId: w.worker_id, commandId, create, cwd: w.cwd, sessionDir: this.sessionDir(live), domain, prefix: this.containment.enter(domain) });
+      const root = confinement(w);
+      host = this.s.factory({ workerId: w.worker_id, commandId, create, cwd: w.cwd, sessionDir: this.sessionDir(live), domain, prefix: this.containment.enter(domain), ...(root ? { sandbox: root } : {}) });
     } catch (error) {
       live.launching = undefined;
       await this.launchFailed(live, commandId, error);
@@ -647,7 +656,7 @@ export class Lifecycle {
       if (!state.success || state.data?.sessionId !== sessionId || state.data?.sessionFile !== file || live.faulted) throw new Error('fresh_host_session_identity_mismatch');
       live.rebinding = false;
       this.s.noOtherWriter(sessionId, w.worker_id);
-      live.index = new SessionIndex(file);
+      live.index = this.s.index(live, file);
       live.index.setActiveLeaf(typeof state.data.leafId === 'string' ? state.data.leafId : null);
       live.completedMessages = 0;
       this.s.refresh(live);
@@ -732,7 +741,7 @@ export class Lifecycle {
     live.worker.session_id = target.session_id;
     live.worker.leaf_id = null;
     live.sessionFile = target.file;
-    live.index = new SessionIndex(live.sessionFile);
+    live.index = this.s.index(live, live.sessionFile);
     return true;
   }
 

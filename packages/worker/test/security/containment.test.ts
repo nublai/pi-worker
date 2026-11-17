@@ -288,7 +288,7 @@ test('containment: compaction keeps every inventory probe record whose cleanup i
 test('containment: every pi process the production daemon starts, a worker or an inventory probe, runs through its domain join prefix', { timeout: 30_000 }, async () => {
   const tmp = privateTmp();
   try {
-    const hosts = productionHosts({ PATH: process.env.PATH, HOME: tmp.dir, PI_CODING_AGENT_DIR: join(tmp.dir, 'agent') });
+    const hosts = productionHosts('bwrap', { PATH: process.env.PATH, HOME: tmp.dir, PI_CODING_AGENT_DIR: join(tmp.dir, 'agent') });
     const domain: Domain = { root: '/test-domains', name: 'w-prefix', boot: 'test' };
     // A join stand-in that records what it would run inside the domain, then exits without running it.
     const prefix = (marker: string) => ['/bin/sh', '-c', 'printf "%s\\n" "$@" > "$0.tmp" && mv "$0.tmp" "$0"', marker];

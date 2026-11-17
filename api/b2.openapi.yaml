@@ -928,10 +928,20 @@ paths:
     post:
       operationId: files.read
       summary: Read a file inside explicit confinement roots (sandboxed environments)
+      description: |
+        A file of a sandboxed worker's root
+        (`launch_spec.environment.filesystem: bwrap`, P2-4), read through
+        opens pinned at that root with no symlink at any component. `path`
+        must lie inside one of `roots`, each inside the worker's root; no
+        component may be hidden (`.name`), `.` or `..`. Only a regular
+        UTF-8 file of at most 1 MiB. Refusals, all `no_effect`:
+        `files_read_requires_sandbox_environment` (an unsandboxed worker),
+        `explicit_roots_required`, `hidden_or_traversal_path_refused`,
+        `file_outside_explicit_roots`, `file_symlink_or_unavailable`,
+        `file_not_regular_or_over_1MiB`, `file_over_1MiB`, `file_not_utf8`.
       tags: [readback]
       x-piw-mutation: false
       x-piw-body: json
-      x-piw-status: unsupported
       requestBody:
         required: true
         content:

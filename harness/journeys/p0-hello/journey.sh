@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # p0-hello, run ON the test VM after harness/vm/remote-setup.sh: the daemon runs as a systemd user service with
-# Delegate=yes, both clients (TypeScript and Go) say hello and get a 501 no_effect, then the service stops and leaves
+# Delegate=yes, both clients (TypeScript and Go) say hello and get a typed 409 no_effect, then the service stops and leaves
 # no socket, no piw-* unit and no cgroup behind. Writes $PIW_RUN_DIR/journey.json; exits non-zero on any failed check.
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/../../.." && pwd)
@@ -57,9 +57,9 @@ const checks = {
   socket_dir_0700: '$dir_mode' === '700',
   service_cgroup_present: $cgroup_present,
   ts_hello: tsr.hello === 'ok' && tsr.protocol_major === 0,
-  ts_501_no_effect: tsr.prompt_status === 501 && tsr.prompt_effect === 'no_effect',
+  ts_refused_no_effect: tsr.prompt_status === 409 && tsr.prompt_effect === 'no_effect',
   go_hello: gor.hello === 'ok' && gor.protocol_major === 0,
-  go_501_no_effect: gor.prompt_status === 501 && gor.prompt_effect === 'no_effect',
+  go_refused_no_effect: gor.prompt_status === 409 && gor.prompt_effect === 'no_effect',
   same_supervisor: tsr.supervisor_epoch === gor.supervisor_epoch && tsr.supervisor_epoch.length > 0,
   limits_agree: sorted(tsr.limits) === sorted(gor.limits),
   no_piw_units_left: '$left_units' === '',

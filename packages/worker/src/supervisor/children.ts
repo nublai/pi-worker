@@ -1,7 +1,8 @@
 /**
  * Children core, unsandboxed (P1-11): typed launch specs, child reports and the missing-report parent fence.
- * Rewritten from A0 `src/supervisor.ts` (`validateLaunch`, `onReport`, `report`, the child part of `recover`); P2 adds
- * bwrap and the parent channel on top, so a sandboxed launch spec is refused here.
+ * Rewritten from A0 `src/supervisor.ts` (`validateLaunch`, `onReport`, `report`, the child part of `recover`). P2-4
+ * adds the bwrap profile for typed children (sandbox/); the parent channel (P2-8) is still to come, so a sandboxed
+ * root worker is refused.
  *
  * - A typed child (`workers.create` with `parent` and `launch_spec`) has a launch spec that is a subset of its
  *   environment's methods, of the creating caller's grant, and of its parent's spec (methods, environment methods,
@@ -33,6 +34,7 @@ import type { Fence } from './fence.js';
 import type { Input } from './input.js';
 import type { Lifecycle } from './lifecycle.js';
 import type { Create, Live, SupervisorState, Worker } from './state.js';
+import { sandboxed, sandboxRoot } from '../sandbox/sandbox.js';
 
 export type Report = import('../generated/api.js').components['schemas']['Report'];
 export type ChildClaim = import('../generated/api.js').components['schemas']['ChildClaim'];
@@ -127,8 +129,13 @@ export class Children {
     const spec = c.launch_spec;
     if (c.parent && !spec) throw new Refusal('child_launch_spec_required');
     if (!spec) return;
-    // P1 children run unsandboxed (plan D5); bwrap and the parent channel land in P2-4 and P2-8.
-    if (spec.environment.filesystem === 'bwrap') throw new Refusal('sandboxed_children_not_supported_before_p2');
+    // A sandboxed child (P2-4): its root equals its cwd and overlaps no control path (sandbox.ts). A sandboxed root
+    // worker (a parent) needs the parent channel, which lands in P2-8: until then it is refused.
+    if (sandboxed(spec)) {
+      if (!c.parent) throw new Refusal('sandboxed_parent_requires_parent_channel');
+      if (c.resume_session_id) throw new Refusal('sandboxed_child_resume_unsupported');
+      sandboxRoot(c, { stateDir: this.s.stateDir, paths: this.s.sandboxControls });
+    }
     const caller = currentGuard();
     if (!subset(spec.grant_methods, spec.environment.allowed_methods) || (caller?.methods && !subset(spec.grant_methods, caller.methods))) throw new Refusal('child_grant_not_subset');
     if (spec.tools.some(t => !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(t)) || spec.tools.some(t => spec.denied_tools.includes(t))) throw new Refusal('invalid_tool_allowlist');
@@ -142,6 +149,8 @@ export class Children {
       throw new Refusal('stale_parent_execution');
     }
     const p = parent.worker.launch_spec;
+    // A sandboxed parent's children are sandboxed too: a child never runs with more filesystem than its parent.
+    if (sandboxed(p) && !sandboxed(spec)) throw new Refusal('child_filesystem_cannot_widen');
     if (
       !p ||
       !subset(spec.grant_methods, p.grant_methods) ||

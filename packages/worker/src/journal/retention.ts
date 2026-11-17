@@ -195,7 +195,10 @@ export function planCompaction(records: readonly JournalRecord[], options: { lim
       const id = str(row.worker?.worker_id);
       if (id) workers.set(id, row);
       const session = str(row.worker?.session_id);
-      if (id && session && str(row.sessionFile)) catalog.set(session, { session_id: session, file: row.sessionFile, worker_id: id });
+      // A sandboxed worker's root (P2-4) is kept with its sessions (supervisor/state.ts `catalog`).
+      const environment = (row.worker?.launch_spec as { environment?: { filesystem?: unknown } } | undefined)?.environment;
+      const root = environment?.filesystem === 'bwrap' ? str(row.worker?.cwd) : undefined;
+      if (id && session && str(row.sessionFile)) catalog.set(session, { session_id: session, file: row.sessionFile, worker_id: id, ...(root ? { root } : {}) });
     } else if (r.kind === 'session_catalog') catalog.set(str(v.session_id)!, v);
     else if (r.kind === 'receipt') {
       const id = str(v.command_id)!;

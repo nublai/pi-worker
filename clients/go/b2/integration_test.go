@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-func TestIntegrationHelloAnd501(t *testing.T) {
+func TestIntegrationHelloAndRefusals(t *testing.T) {
 	dist, err := filepath.Abs(filepath.Join("..", "..", "..", "packages", "worker", "dist"))
 	if err != nil {
 		t.Fatal(err)
@@ -96,10 +96,10 @@ func TestIntegrationHelloAnd501(t *testing.T) {
 		hello.Limits.AttachmentMaxBytes != int(OpAttachmentsStage.MaxBodyBytes) || hello.Limits.EventFrameBytes != frameLimit {
 		t.Fatalf("hello = %+v", hello)
 	}
-	// files.read stays unsupported until P2-4.
+	// files.read is served from P2-4: a worker that does not exist is a typed 409 no_effect refusal.
 	_, err = c.FilesRead(ctx, "w1", FileRead{Path: "/r/file", Roots: []string{"/r"}})
 	var f *ClientFailure
-	if !errors.As(err, &f) || f.Phase != PhaseHTTP || f.Status != 501 || f.Effect != NoEffect || f.Body == nil || f.Body.Error != "operation_not_implemented" {
+	if !errors.As(err, &f) || f.Phase != PhaseHTTP || f.Status != 409 || f.Effect != NoEffect || f.Body == nil || f.Body.Error != "unknown_worker" {
 		t.Fatalf("files.read: %v", err)
 	}
 	_, err = c.SessionsPrompt(ctx, "w1", Prompt{CommandId: "c1", WorkerEpoch: "e1", SessionId: "s1", BindingRevision: 0, Message: "m"})

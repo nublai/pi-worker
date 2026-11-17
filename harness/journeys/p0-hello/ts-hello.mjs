@@ -1,4 +1,4 @@
-// p0-hello, TypeScript side: hello and one unsupported mutation through @nublai/pi-worker-client (built dist).
+// p0-hello, TypeScript side: hello and one typed refusal through @nublai/pi-worker-client (built dist).
 // Prints one JSON line with what the journey checks; no secrets, no request text.
 import { Client, ClientFailure } from '../../../packages/client-ts/dist/src/index.js';
 
@@ -8,7 +8,7 @@ const hello = await client.hello();
 let status = null;
 let effect = null;
 try {
-  // files.read stays unsupported until P2-4 (sessions.prompt is served from P1-5).
+  // files.read of a worker that does not exist: a typed 409 no_effect refusal (served from P2-4; 501 before).
   await client.call('files.read', { path: { worker_id: 'w1' }, body: { path: '/r/file', roots: ['/r'] } });
 } catch (error) {
   if (!(error instanceof ClientFailure)) throw error;

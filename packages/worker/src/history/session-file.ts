@@ -7,6 +7,7 @@
 import { createHash, type Hash } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync, readSync, type BigIntStats } from 'node:fs';
 import type { components } from '../generated/api.js';
+import { openRooted } from '../sandbox/sandbox.js';
 
 export type SessionStats = components['schemas']['SessionStats'];
 
@@ -38,11 +39,12 @@ export function headOf(text: string, n: number): string {
 
 /**
  * Opens a session file for reading: never through a symlink at its path (`O_NOFOLLOW`, `ELOOP`), without blocking on
- * a FIFO, and only a regular file (`ENOTREG` otherwise). The path's parent directories are trusted here; P2 pins opens
- * to a root for sandboxed workers.
+ * a FIFO, and only a regular file (`ENOTREG` otherwise). Without `root` the path's parent directories are trusted.
+ * With `root` (a sandboxed worker's, P2-4) the file must lie below it and is opened from `/` with no symlink at any
+ * component (sandbox.ts `openRooted`; `ELOOP` otherwise): the sandbox can write every directory below its root.
  */
-export function openSessionFile(file: string): number {
-  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+export function openSessionFile(file: string, root?: string): number {
+  const fd = root === undefined ? openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK) : openRooted(root, file);
   if (!fstatSync(fd).isFile()) {
     closeSync(fd);
     throw Object.assign(new Error('session file is not a regular file'), { code: 'ENOTREG' });
@@ -211,11 +213,12 @@ export function readHistory(
   file: string | null,
   q: { offset: number; maxBytes: number; identity?: string; tail?: string; prefix?: string },
   generations: FileGenerations,
+  root?: string,
 ): HistoryRead | { error: HistoryReadError } {
   let fd: number;
   try {
     if (file === null) throw Object.assign(new Error('no file'), { code: 'ENOENT' });
-    fd = openSessionFile(file);
+    fd = openSessionFile(file, root);
   } catch (error) {
     // A symlink or a special file at the catalog path is never read, nor followed to another file.
     if (notRegular(error)) return { error: 'session_file_not_regular' };
@@ -444,11 +447,12 @@ export class Summaries {
   /** The rewrite generations every session-file reader observes through (sessions.history included). */
   readonly generations = new FileGenerations();
 
-  get(file: string | null): Summary {
+  /** `root`: a sandboxed worker's root, every open pinned below it (openSessionFile). */
+  get(file: string | null, root?: string): Summary {
     if (file === null) return emptySummary(ABSENT_IDENTITY);
     let fd: number;
     try {
-      fd = openSessionFile(file);
+      fd = openSessionFile(file, root);
     } catch (error) {
       // Nothing is summarized from a symlink or a special file at the catalog path, as if it were absent.
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !notRegular(error)) throw error;

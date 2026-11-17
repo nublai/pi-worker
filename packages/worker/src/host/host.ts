@@ -17,6 +17,7 @@ import { dirname, join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 import { killGroup, processToken } from './process.js';
+import { sandboxEnv, sandboxLaunch } from '../sandbox/sandbox.js';
 
 export type PiRecord = Record<string, unknown> & { type: string };
 /**
@@ -64,6 +65,11 @@ export interface LineHostOptions {
   readonly report?: boolean;
   /** An argv prefix that runs the program inside the worker's cleanup domain (`Containment.enter`). */
   readonly prefix?: readonly string[];
+  /**
+   * Descriptors the child inherits from FD 4 on, in order (a sandbox's mount sources, sandbox.ts SANDBOX_FD_BASE).
+   * The caller keeps and closes its own copies.
+   */
+  readonly fds?: readonly number[];
 }
 
 /** A subprocess speaking the host protocol. Its own process group, so `stop` can kill what it started. */
@@ -84,7 +90,8 @@ export class LineHost extends EventEmitter implements SessionHost {
     this.timeoutMs = options.timeoutMs ?? 30_000;
     // SAFETY: stdio 0 to 2 are pipes in both forms, which is all ChildProcessWithoutNullStreams promises.
     const [command, ...argv] = [...(options.prefix ?? []), executable, ...args] as [string, ...string[]];
-    this.child = spawn(command, argv, { cwd: options.cwd, env: options.env, detached: true, stdio: options.report ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'] }) as ChildProcessWithoutNullStreams;
+    const extra = options.fds?.length ? [options.report ? 'pipe' : 'ignore', ...options.fds] : options.report ? ['pipe'] : [];
+    this.child = spawn(command, argv, { cwd: options.cwd, env: options.env, detached: true, stdio: ['pipe', 'pipe', 'pipe', ...extra] as never }) as ChildProcessWithoutNullStreams;
     if (options.report) {
       const channel = this.child.stdio[3] as Readable;
       this.reportsClosed = new Promise(resolve => channel.once('close', () => resolve()));
@@ -269,7 +276,8 @@ const TYPED_CHILD_ENV_PATTERN = /^(LC_[A-Z]+|XDG_[A-Z_]+_(HOME|DIR|DIRS)|PI_[A-Z
  * The child's environment. A root worker gets the supervisor's, without its own PIW_* configuration or any
  * PI_WORKER_* channel a caller set (socket, grant file, report descriptor). A typed child gets only the allowlisted
  * subset of that (so never NODE_OPTIONS, NODE_PATH, LD_PRELOAD or anything else that loads code its launch spec did
- * not name), then exactly its report descriptor and task id. P2-4's bwrap `--clearenv` applies the same list.
+ * not name), then exactly its report descriptor and task id. A sandboxed child's bwrap `--clearenv` sets exactly this
+ * list inside, with its own HOME, TMPDIR, PATH and agent directory (sandbox.ts `sandboxEnv`).
  */
 export function childEnv(env: NodeJS.ProcessEnv = process.env, taskId?: string | null): NodeJS.ProcessEnv {
   const out = Object.fromEntries(
@@ -279,15 +287,36 @@ export function childEnv(env: NodeJS.ProcessEnv = process.env, taskId?: string |
   return out;
 }
 
-/** The production host: pi's SDK in a dedicated Node process (`sdk-child/main.ts`), run by this Node binary. */
+/**
+ * A sandboxed typed child (P2-4): its root (the real path of its cwd) and the bwrap executable the daemon located.
+ */
+export interface SdkSandbox {
+  readonly root: string;
+  readonly bwrap: string;
+}
+
+/**
+ * The production host: pi's SDK in a dedicated Node process (`sdk-child/main.ts`), run by this Node binary. With
+ * `sandbox`, pi runs in the bwrap profile of its root (sandbox.ts): the join prefix stays the outermost wrapper, so
+ * bwrap and everything in it run inside the worker's cleanup domain, and the report pipe is FD 3 inside.
+ */
 export class SdkHost extends LineHost {
-  constructor(launch: SdkLaunch, options: { env?: NodeJS.ProcessEnv; timeoutMs?: number; prefix?: readonly string[] } = {}) {
-    super(process.execPath, [sdkChildEntry, JSON.stringify(launch)], {
-      cwd: launch.cwd,
-      env: childEnv(options.env, launch.taskId),
-      report: !!launch.taskId,
-      ...(options.prefix ? { prefix: options.prefix } : {}),
-      ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
-    });
+  constructor(launch: SdkLaunch, options: { env?: NodeJS.ProcessEnv; timeoutMs?: number; prefix?: readonly string[]; sandbox?: SdkSandbox } = {}) {
+    const args = [sdkChildEntry, JSON.stringify(launch)];
+    const env = childEnv(options.env, launch.taskId);
+    const box = options.sandbox ? sandboxLaunch(options.sandbox.root, process.execPath, args, { env: sandboxEnv(env, options.sandbox.root), bwrap: options.sandbox.bwrap }) : undefined;
+    try {
+      super(box ? box.command : process.execPath, box ? box.args : args, {
+        cwd: launch.cwd,
+        env: box ? box.env : env,
+        report: !!launch.taskId,
+        ...(box ? { fds: box.fds } : {}),
+        ...(options.prefix ? { prefix: options.prefix } : {}),
+        ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+      });
+    } finally {
+      // The child has its own copies of the mount sources now (or there is no child): the supervisor keeps none open.
+      box?.close();
+    }
   }
 }
