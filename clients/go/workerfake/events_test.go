@@ -255,3 +255,72 @@ func TestReceiptUpdatedCarriesEveryReceiptRecord(t *testing.T) {
 		t.Fatalf("p-2 records %v", got)
 	}
 }
+
+// Tool events stay inside their schemas as the worker's do (activity.ts): the call id cut to 512 and the name to 128
+// UTF-16 code units, the summary one line of at most 200, the same cut id and summary on the finish, and at most 64
+// unfinished calls remembered, the oldest forgotten first (PR #20 GPT 4).
+func TestToolEventsAreBoundedAsTheWorkerBoundsThem(t *testing.T) {
+	fake, err := workerfake.Start(workerfake.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fake.Close()
+	ctx := context.Background()
+	c := fake.Client()
+	w := newWorker(t, ctx, c, "create-1")
+	events := startWatch(t, c, b2.WatchOptions{WorkerIDs: []string{w.WorkerId}})
+	snapshotOf(t, events.next(t))
+	host := fake.Host(w.WorkerId)
+	longID := "call-" + strings.Repeat("x", 600)
+	longName := strings.Repeat("n", 200)
+	host.EmitToolStart("t1", "bash", ptr("  ls  -la\n /tmp "))
+	host.EmitToolStart(longID, longName, ptr(strings.Repeat("p", 235)+"\nsecond line"))
+	host.EmitToolEnd("t1", "bash", true)
+	host.EmitToolEnd(longID, longName, false)
+	host.EmitToolStart("blank", "read", ptr(" \n\t "))
+	var started []b2.ToolStartedEvent
+	var finished []b2.ToolFinishedEvent
+	read := func(n int) {
+		for want := len(started) + len(finished) + n; len(started)+len(finished) < want; {
+			switch e := events.next(t).Event.(type) {
+			case *b2.ToolStartedEvent:
+				started = append(started, *e)
+			case *b2.ToolFinishedEvent:
+				finished = append(finished, *e)
+			}
+		}
+	}
+	read(5)
+	// One call at a time, read as it goes: 65 frames at once would overflow the subscriber's 64-event queue.
+	for i := 0; i <= 64; i++ {
+		host.EmitToolStart(fmt.Sprintf("s%d", i), "bash", ptr(fmt.Sprintf("step %d", i)))
+		read(1)
+	}
+	host.EmitToolEnd("s0", "bash", false)
+	host.EmitToolEnd("s64", "bash", false)
+	read(2)
+	summary := func(p *string) string {
+		if p == nil {
+			return "<nil>"
+		}
+		return *p
+	}
+	if d := started[0].Data; d.ToolCallId != "t1" || d.Name != "bash" || summary(d.Summary) != "ls -la /tmp" {
+		t.Errorf("t1 started %+v %s", d, summary(d.Summary))
+	}
+	if d := started[1].Data; len(d.ToolCallId) != 512 || !strings.HasPrefix(longID, d.ToolCallId) || len(d.Name) != 128 || summary(d.Summary) != strings.Repeat("p", 200) {
+		t.Errorf("long call started: id %d name %d summary %q", len(d.ToolCallId), len(d.Name), summary(d.Summary))
+	}
+	if d := finished[0].Data; d.ToolCallId != "t1" || summary(d.Summary) != "ls -la /tmp" || !d.IsError {
+		t.Errorf("t1 finished %+v %s", d, summary(d.Summary))
+	}
+	if d := finished[1].Data; d.ToolCallId != started[1].Data.ToolCallId || len(d.Name) != 128 || summary(d.Summary) != strings.Repeat("p", 200) {
+		t.Errorf("long call finished: id %d name %d summary %q", len(d.ToolCallId), len(d.Name), summary(d.Summary))
+	}
+	if d := started[2].Data; d.ToolCallId != "blank" || d.Summary != nil {
+		t.Errorf("a blank summary is none: %+v", d)
+	}
+	if got := [2][2]string{{finished[2].Data.ToolCallId, summary(finished[2].Data.Summary)}, {finished[3].Data.ToolCallId, summary(finished[3].Data.Summary)}}; got != [2][2]string{{"s0", "<nil>"}, {"s64", "step 64"}} {
+		t.Errorf("the oldest of 65 unfinished calls is forgotten: %v", got)
+	}
+}

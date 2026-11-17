@@ -1,0 +1,36 @@
+diff --git a/clients/go/workerfake/host.go b/clients/go/workerfake/host.go
+index 5f3d0af..036040a 100644
+--- a/clients/go/workerfake/host.go
++++ b/clients/go/workerfake/host.go
+@@ -176,7 +176,7 @@ func (h *Host) EmitToolStart(toolCallID, name string, summary *string) {
+ 	if !h.live() || toolCallID == "" || name == "" {
+ 		return
+ 	}
+-	id, summary := utf16Prefix(toolCallID, toolIDChars), toolSummary(summary)
++	id := toolCallID
+ 	if h.tools == nil {
+ 		h.tools = map[string]*string{}
+ 	}
+@@ -190,7 +190,7 @@ func (h *Host) EmitToolStart(toolCallID, name string, summary *string) {
+ 		delete(h.tools, h.order[0])
+ 		h.order = h.order[1:]
+ 	}
+-	h.f.st.publish("tool.started", h.w.row.WorkerId, executionOf(h.w), "observed_memory", map[string]any{"tool_call_id": id, "name": utf16Prefix(name, toolNameChars), "summary": summary})
++	h.f.st.publish("tool.started", h.w.row.WorkerId, executionOf(h.w), "observed_memory", map[string]any{"tool_call_id": id, "name": name, "summary": summary})
+ }
+ 
+ // EmitToolEnd injects pi's tool_execution_end: tool.finished, repeating the summary its start carried (nil once the
+@@ -201,11 +201,11 @@ func (h *Host) EmitToolEnd(toolCallID, name string, isError bool) {
+ 	if !h.live() || toolCallID == "" || name == "" {
+ 		return
+ 	}
+-	id := utf16Prefix(toolCallID, toolIDChars)
++	id := toolCallID
+ 	summary := h.tools[id]
+ 	delete(h.tools, id)
+ 	h.order = slices.DeleteFunc(h.order, func(x string) bool { return x == id })
+-	h.f.st.publish("tool.finished", h.w.row.WorkerId, executionOf(h.w), "observed_memory", map[string]any{"tool_call_id": id, "name": utf16Prefix(name, toolNameChars), "summary": summary, "is_error": isError})
++	h.f.st.publish("tool.finished", h.w.row.WorkerId, executionOf(h.w), "observed_memory", map[string]any{"tool_call_id": id, "name": name, "summary": summary, "is_error": isError})
+ }
+ 
+ // live: this host is its worker's current one (a retired generation's events are ignored).
