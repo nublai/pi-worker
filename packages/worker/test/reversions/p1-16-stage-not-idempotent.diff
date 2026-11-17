@@ -1,10 +1,10 @@
 diff --git a/packages/worker/src/attachments/attachments.ts b/packages/worker/src/attachments/attachments.ts
-index 0c649e1..0e41feb 100644
+index a2a761a..89ce260 100644
 --- a/packages/worker/src/attachments/attachments.ts
 +++ b/packages/worker/src/attachments/attachments.ts
-@@ -169,7 +169,7 @@ export class Attachments {
-     checks();
-     if (prior && prior.sha256 !== request.sha256) throw new Refusal('attachment_id_conflict');
+@@ -188,7 +188,7 @@ export class Attachments {
+     // An id another worker staged is never this worker's duplicate: its command id stays with that worker.
+     if (prior && (prior.worker_id !== request.worker_id || prior.sha256 !== request.sha256)) throw new Refusal('attachment_id_conflict');
      if (prior && prior.state === 'released') throw new Refusal('attachment_released');
 -    if (prior) {
 +    if (prior && request.sha256 === 'never') {
