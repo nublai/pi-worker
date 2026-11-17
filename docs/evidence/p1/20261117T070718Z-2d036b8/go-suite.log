@@ -1,0 +1,5 @@
+ok  	github.com/nublai/pi-worker/clients/go/b2	5.044s
+ok  	github.com/nublai/pi-worker/clients/go/workerfake	2.612s
+ok  	github.com/nublai/pi-worker/clients/go/b2	1.557s
+ok  	github.com/nublai/pi-worker/clients/go/workerfake	0.513s
+stdlib only: github.com/nublai/pi-worker/clients/go
