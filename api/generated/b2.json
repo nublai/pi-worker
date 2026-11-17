@@ -1748,7 +1748,7 @@
       "get": {
         "operationId": "models.list",
         "summary": "The model catalog pi reports, for a worker or for a cwd before any worker exists",
-        "description": "Name exactly one of `worker_id` (the worker's pi process answers, with its current model and thinking\nlevel) or `cwd` (a short-lived pi process loads that cwd's settings and resources, opens no session and\nexits). `project_trusted` applies to `cwd` as it does to `workers.create`.\n",
+        "description": "Name exactly one of `worker_id` (the worker's pi process answers, with its current model and thinking\nlevel) or `cwd` (a short-lived pi process loads that cwd's settings and resources, opens no session and\nexits). `project_trusted` applies to `cwd` as it does to `workers.create`.\nAt most `hello.limits.inventory_probes_max` such processes run at\nonce, supervisor-wide; past it the call is refused\n`inventory_probes_busy` (`no_effect`, retry later) before anything is\nrecorded or started.\n",
         "tags": [
           "features"
         ],
@@ -2465,6 +2465,11 @@
             "type": "integer",
             "minimum": 1,
             "description": "The largest image `blobs.read` returns."
+          },
+          "inventory_probes_max": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The most inventory processes (`models.list` and `commands.list`\nfor a `cwd`) the supervisor runs at once, across every caller. A\nprocess holds its slot until its cleanup domain is observed removed\nand recorded: neither a client that disconnects nor a cleanup that\nis not proven frees it (an unproven one frees it when recovery\nconfirms it). Past the bound the call is refused\n`inventory_probes_busy` (`no_effect`) before anything is recorded\nor started; the caller retries later.\n"
           }
         }
       },

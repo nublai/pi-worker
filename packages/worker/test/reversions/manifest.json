@@ -341,7 +341,8 @@
         "p2-1-inventory-unproven-confirms.diff",
         "p2-1-inventory-not-recovered.diff",
         "p2-1-inventory-outside-domain.diff",
-        "p2-1-inventory-compaction-drops-pending.diff"
+        "p2-1-inventory-compaction-drops-pending.diff",
+        "p2-1-inventory-probes-uncapped.diff"
       ]
     },
     "state-version": {

@@ -2704,6 +2704,16 @@ type Limits struct {
 	// HistoryMaxBytes The largest `max_bytes` one `sessions.history` read accepts.
 	HistoryMaxBytes *int `json:"history_max_bytes,omitempty"`
 
+	// InventoryProbesMax The most inventory processes (`models.list` and `commands.list`
+	// for a `cwd`) the supervisor runs at once, across every caller. A
+	// process holds its slot until its cleanup domain is observed removed
+	// and recorded: neither a client that disconnects nor a cleanup that
+	// is not proven frees it (an unproven one frees it when recovery
+	// confirms it). Past the bound the call is refused
+	// `inventory_probes_busy` (`no_effect`) before anything is recorded
+	// or started; the caller retries later.
+	InventoryProbesMax *int `json:"inventory_probes_max,omitempty"`
+
 	// JournalControlReserveBytes Journal room only control records may use: quota-exempt commands
 	// (`workers.stop`, `executions.cancel`, `executions.interrupt`,
 	// `sessions.resolve_unknown`, `children.report`,

@@ -5,6 +5,7 @@ import type { components } from '../generated/api.js';
 import { jsonBodyLimit, routes } from '../generated/routes.js';
 import { DEFAULT_RETENTION, type RetentionLimits } from '../journal/retention.js';
 import { HISTORY_LINE_MAX_BYTES, HISTORY_MAX_BYTES } from '../history/session-file.js';
+import { INVENTORY_PROBES_MAX } from '../supervisor/features.js';
 
 export type Hello = components['schemas']['Hello'];
 
@@ -54,6 +55,7 @@ export const LIMITS: Hello['limits'] = {
   history_max_bytes: HISTORY_MAX_BYTES,
   history_line_max_bytes: HISTORY_LINE_MAX_BYTES,
   blob_max_bytes: routes['blobs.read'].responses['200'].maxBytes,
+  inventory_probes_max: INVENTORY_PROBES_MAX,
 };
 
 /**
