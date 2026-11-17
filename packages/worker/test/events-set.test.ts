@@ -295,6 +295,51 @@ test('fence: fenced_at is the latch time on the receipts clock, in the row and f
   }
 });
 
+test('fence: a later uncertainty and a partial resolve_unknown keep the original fenced_at, in the row, fence.set, fence.resolved, the result and after a restart', async () => {
+  const f = fixture();
+  try {
+    const w = await f.create();
+    const events = watch(f, w);
+    const latchedAt = Date.parse('2026-11-17T09:00:00.000Z');
+    const expected = '2026-11-17T09:00:00.000Z';
+    f.supervisor.state.receipts.now = () => latchedAt;
+    f.hosts[0]!.failure = true;
+    const lost = await f.supervisor.prompt(w.worker_id, { ...bind(w, 'lost'), message: 'run' });
+    assert.equal(lost.state, 'outcome_unknown');
+    // A second uncertainty a minute later joins the fence without restamping it.
+    f.supervisor.state.receipts.now = () => latchedAt + 60_000;
+    f.supervisor.receipts.put(
+      { command_id: 'second', worker_id: w.worker_id, operation: 'sessions.prompt', request_hash: 'second', state: 'outcome_unknown', stage: 'unknown', effect: 'unknown', evidence: 'supervisor_journal_fsynced', created_at: 'fixture' },
+      'receipt.result',
+    );
+    events.close();
+    for (const set of events.of('fence.set')) assert.equal(set.data.fence.fenced_at, expected, 'fence.set keeps the first stamp');
+    const s = await f.restart(() => assert.fail());
+    const joined = s.get(w.worker_id).fence!;
+    assert.deepEqual(joined.uncertain_command_ids, ['lost', 'second']);
+    assert.equal(joined.fenced_at, expected, 'a later uncertainty keeps fenced_at');
+    // Resolve only the first, later still: the remaining fence keeps the original stamp.
+    s.state.receipts.now = () => latchedAt + 120_000;
+    const after = watch(f, w);
+    const resolved = await s.resolveUnknown(w.worker_id, { ...bind(s.get(w.worker_id), 'resolve-lost'), uncertain_command_id: 'lost', fence_generation: joined.fence_generation, disposition: 'abandon' });
+    after.close();
+    assert.equal(resolved.state, 'delivered');
+    assert.equal((resolved.result as { fence: { fenced_at: string } }).fence.fenced_at, expected, 'the resolution result carries the original stamp');
+    const remaining = s.get(w.worker_id).fence!;
+    assert.equal(remaining.command_id, 'second');
+    assert.equal(remaining.fenced_at, expected, 'the remaining fence keeps fenced_at');
+    const done = after.of('fence.resolved');
+    assert.equal(done.length, 1);
+    assert.equal(done[0]!.data.fence?.fenced_at, expected, 'fence.resolved carries the original stamp');
+    const rows = f.state.journal.records.filter(r => r.kind === 'worker').map(r => (r.value as { worker: Worker }).worker);
+    assert.ok(rows.filter(x => x.fence).every(x => x.fence!.fenced_at === expected), 'every fenced worker row keeps fenced_at');
+    await f.restart();
+    assert.equal(f.supervisor.get(w.worker_id).fence?.fenced_at, expected, 'a restart after partial resolution keeps fenced_at');
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('events: attachment.updated follows the attachment record from staged to released, durable', async () => {
   const f = fixture();
   try {
