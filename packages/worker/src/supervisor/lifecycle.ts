@@ -13,7 +13,8 @@
  * not resumable (invariant 2). A pi exit is leader evidence only; its domain is cleaned at once, so a detached tool
  * dies with it.
  */
-import { mkdirSync, realpathSync, statSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refusal } from '../b2/errors.js';
 import { SessionIndex } from '../history/session-index.js';
@@ -22,7 +23,7 @@ import type { Containment, Domain } from '../containment/containment.js';
 import type { DurableLabel } from '../journal/labels.js';
 import { budgetKey } from '../journal/journal.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
-import { HOLDING, type Binding, type Create, type Live, type SupervisorState } from './state.js';
+import { HOLDING, type Binding, type Create, type KeptBinding, type Live, type SupervisorState } from './state.js';
 import { currentGuard } from '../grants/authority.js';
 
 /** A domain observed gone (`populated 0`, removed) and recorded: the only confirmed cleanup. */
@@ -39,7 +40,7 @@ export class Lifecycle {
   /** Per-domain recovery steps, run for every worker before its cleanup is recorded (input, fence). */
   readonly recoverers: ((live: Live) => void)[] = [];
   /** Called when a worker's execution can no longer settle (exit, fault, restart): the input module records it. */
-  onUncertain: (live: Live, commandId: string, label: 'worker.exit' | 'worker.fault' | 'worker.recover') => void = () => {};
+  onUncertain: (live: Live, commandId: string, label: 'worker.exit' | 'worker.fault' | 'worker.recover' | 'worker.stop') => void = () => {};
   /** Typed launch checks (children module), run in create's validation before any record. */
   typedLaunch: (c: Create) => void = c => {
     if (c.parent || c.launch_spec) throw new Refusal('typed_child_launch_unsupported');
@@ -110,10 +111,20 @@ export class Lifecycle {
 
   /** After a pi exit: the leader is gone, its domain may not be. Records the confirmation unless a stop or fault took over. */
   private async cleanAfterExit(live: Live): Promise<void> {
+    const domain = live.domain;
     const gone = await this.terminate(live);
     const w = live.worker;
+    // Evidence about a superseded generation's domain never retires the generation a relaunch brought up since.
+    if (live.domain !== domain) return;
     if (live.faulted || w.status !== 'cleanup_pending' || w.cleanup !== 'leader_exit_only') return;
-    if (!gone || !this.confirm(live, 'stopped', 'worker.cleaned')) w.cleanup = gone ? UNRECORDED : 'unresolved';
+    if (gone && this.confirm(live, 'stopped', 'worker.cleaned')) return;
+    w.cleanup = gone ? UNRECORDED : 'unresolved';
+    // The durable row says what is known: the leader is gone and its domain is not proven gone (A0 review 5).
+    try {
+      this.s.persist(live, 'worker.exit');
+    } catch {
+      /* the journal may have failed; the row still says cleanup_pending */
+    }
   }
 
   sessionDir(live: Live): string {
@@ -336,12 +347,12 @@ export class Lifecycle {
     try {
       const domain = live.domain;
       const prefix = this.containment.enter(domain);
-      host = this.s.factory({ workerId: w.worker_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix });
+      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix });
     } catch (error) {
       // No host was constructed: the domain (if it was created) is cleaned and the row ends with its reason; the
       // receipt stays unknown, so a resume target is held and fenced like any other unknown create-with-resume.
       this.holdUnknownResume(live, c, resumeFile);
-      await this.launchFailed(live, c, error);
+      await this.launchFailed(live, c.command_id, error);
       throw error;
     }
     live.host = host;
@@ -396,15 +407,15 @@ export class Lifecycle {
       // pi may have run the target's switch hooks or opened it: the failed worker holds it (or blocks it as unproven
       // cleanup) after the reservation ends, never releasing it to another writer, and the unknown fences it.
       this.holdUnknownResume(live, c, resumeFile);
-      await this.launchFailed(live, c, error);
+      await this.launchFailed(live, c.command_id, error);
       throw error;
     }
   }
 
   /** A launch that failed after its dispatch record: the domain is cleaned; `failed` only once that is recorded. */
-  private async launchFailed(live: Live, c: Create, error: unknown): Promise<void> {
+  private async launchFailed(live: Live, commandId: string, error: unknown): Promise<void> {
     const w = live.worker;
-    w.failure = { command_id: c.command_id, reason: reasonOf(error) };
+    w.failure = { command_id: commandId, reason: reasonOf(error) };
     const gone = await this.terminate(live);
     if (gone && this.confirm(live, 'failed', 'worker.failed')) return;
     w.status = 'cleanup_pending';
@@ -443,11 +454,25 @@ export class Lifecycle {
         if ((w.status === 'stopped' || w.status === 'failed') && live.pid === null) {
           return { state: 'delivered', stage: 'termination_observed', effect: 'observed', result: result('observed_stopped') };
         }
+        // The kill ends whatever runs: an unsettled execution's outcome is unknown and fences the session in this row,
+        // durably before the kill. The domain can be observed empty before pi's exit event arrives (or the exit never
+        // reports it), and a confirmed stop must never leave a relaunchable worker with an unfenced execution.
+        const running = w.execution;
+        if (running && running.state !== 'settled' && this.s.receipts.all.get(running.command_id)?.effect !== 'no_effect') this.onUncertain(live, running.command_id, 'worker.stop');
         // cleanup_pending is durable before the kill: a crash between them leaves a pending row recovery cleans.
         w.status = 'cleanup_pending';
         w.cleanup = 'stop_requested';
         this.s.persist(live, 'worker.stop');
-        const gone = (await this.terminate(live)) && this.confirm(live, 'stopped', 'worker.stopped');
+        const domain = live.domain;
+        const cleaned = await this.terminate(live);
+        // A relaunch brought up a new generation meanwhile: this stop's outcome is about the old domain only. It is
+        // reported as that, and the live generation's row, process and domain stay untouched (A0 issue #1).
+        if (live.domain !== domain) {
+          return cleaned
+            ? { state: 'delivered', stage: 'termination_observed', effect: 'observed', result: result('superseded_generation_stopped') }
+            : { state: 'outcome_unknown', stage: 'unknown', effect: 'unknown', result: result('superseded_generation_unknown') };
+        }
+        const gone = cleaned && this.confirm(live, 'stopped', 'worker.stopped');
         if (!gone) {
           w.status = 'cleanup_pending';
           if (w.cleanup !== UNRECORDED) w.cleanup = 'unresolved';
@@ -462,6 +487,139 @@ export class Lifecycle {
         this.s.binding(live, b);
       },
     );
+  }
+
+  /**
+   * `workers.relaunch` (P2-3): a fresh pi process for a stopped or failed worker, in a new domain at a new epoch, on
+   * the worker's own session file, without prompting. Refused `no_effect` before any record unless the previous
+   * epoch's domain was observed removed and that is recorded, the session is not fenced, and no other worker holds the
+   * session or the cwd. The new epoch's starting row (its domain, and the binding every recovered prompt intent was
+   * admitted with) is durable before the dispatch record and before anything is spawned. A launch that fails after the
+   * dispatch record is `outcome_unknown` and cleans its domain like a failed create; it does not fence the session.
+   */
+  async relaunch(id: string, b: Binding): Promise<Receipt> {
+    let live!: Live;
+    return this.s.receipts.run(
+      b.command_id,
+      'workers.relaunch',
+      { ...b, worker_id: id },
+      async () => this.relaunched(live, b.command_id),
+      () => {
+        live = this.s.require(id);
+        this.s.binding(live, b);
+        const w = live.worker;
+        if (w.parent_worker_id) throw new Refusal('child_relaunch_unsupported');
+        // Only a recorded, observed removal of the last epoch's domain: a live, starting or pending worker is refused.
+        if ((w.status !== 'stopped' && w.status !== 'failed') || w.cleanup !== CLEANED || !live.domain || live.pid !== null) {
+          throw new Refusal('cleanup_pending_or_cleanup_unproven');
+        }
+        this.writable(live);
+        if (!live.create || !w.session_id || !live.sessionFile || !existsSync(live.sessionFile)) throw new Refusal('relaunch_session_unavailable');
+        this.s.noOtherWriter(w.session_id, id);
+        this.s.exclusiveCwd(w.cwd, live);
+      },
+    );
+  }
+
+  /** The dispatched part of a relaunch; its first part, up to the spawn, runs atomically with the validation. */
+  private async relaunched(live: Live, commandId: string): Promise<ReceiptPatch> {
+    const w = live.worker;
+    const sessionId = w.session_id!;
+    const file = live.sessionFile!;
+    const before = { worker: structuredClone(w), domain: live.domain, kept: live.kept };
+    // The previous generation is retired before the new epoch exists: its host's callbacks and any cleanup still
+    // running for its domain (each checks live.host or live.domain) no longer touch this worker.
+    live.host = undefined;
+    live.cleaning = undefined;
+    // Every prompt intent a restart recovered keeps the binding it was admitted with (this generation's, which a
+    // stopped worker still has); the first successful relaunch on that session and revision becomes its one epoch.
+    const kept: Record<string, KeptBinding> = {};
+    for (const r of this.s.receipts.all.values()) {
+      if (r.worker_id !== w.worker_id || r.operation !== 'sessions.prompt' || !['intent_recovered', 'intent_ready'].includes(r.state)) continue;
+      kept[r.command_id] = live.kept?.[r.command_id] ?? { worker_epoch: w.worker_epoch, session_id: sessionId, binding_revision: w.binding_revision };
+    }
+    live.kept = kept;
+    w.worker_epoch = randomUUID();
+    w.supervisor_epoch = this.s.supervisorEpoch;
+    w.status = 'starting';
+    w.cleanup = 'not_started';
+    w.execution = null;
+    w.foreground = 'idle';
+    delete w.failure;
+    live.exited = false;
+    live.faulted = false;
+    live.nativeRebinding = false;
+    live.pid = null;
+    live.token = null;
+    live.domain = this.containment.reserve(w.worker_epoch);
+    try {
+      this.s.persist(live, 'worker.relaunch');
+    } catch (error) {
+      // No starting row, no dispatch: nothing ran, and the worker is the stopped one it was.
+      Object.assign(w, before.worker);
+      if (!('failure' in before.worker)) delete w.failure;
+      live.domain = before.domain;
+      live.kept = before.kept;
+      throw error;
+    }
+    this.s.receipts.dispatch(commandId, { worker_id: w.worker_id });
+    // The model and thinking level the worker has now (session.configure may have changed them since the create).
+    const create: Create = { ...live.create!, ...(w.model ? { provider: w.model.provider, model: w.model.id } : {}), ...(w.thinking ? { thinking: w.thinking } : {}) };
+    let host: SessionHost;
+    try {
+      const domain = live.domain;
+      host = this.s.factory({ workerId: w.worker_id, commandId, create, cwd: w.cwd, sessionDir: this.sessionDir(live), domain, prefix: this.containment.enter(domain) });
+    } catch (error) {
+      await this.launchFailed(live, commandId, error);
+      throw error;
+    }
+    live.host = host;
+    live.pid = host.pid ?? null;
+    live.token = host.token;
+    this.s.persist(live, 'worker.spawned');
+    this.wireHost(live, host);
+    // pi starts on a new session of its own, then switches to the worker's: a B2-owned move, not a native one.
+    live.rebinding = true;
+    try {
+      const init = await host.request({ type: 'get_state' });
+      if (live.faulted) throw new Error('worker fault during initialization');
+      if (!init.success) throw new Error('fresh_host_initialization_failed');
+      const opened = await host.request({ type: 'switch_session', sessionPath: file });
+      if (!opened.success || opened.data?.cancelled) throw new Error('fresh_host_session_open_failed');
+      const state = await host.request({ type: 'get_state' });
+      // The exact session and file, not only a successful switch.
+      if (!state.success || state.data?.sessionId !== sessionId || state.data?.sessionFile !== file || live.faulted) throw new Error('fresh_host_session_identity_mismatch');
+      live.rebinding = false;
+      this.s.noOtherWriter(sessionId, w.worker_id);
+      live.index = new SessionIndex(file);
+      live.index.setActiveLeaf(typeof state.data.leafId === 'string' ? state.data.leafId : null);
+      live.completedMessages = 0;
+      this.s.refresh(live);
+      const inventory = await host.request({ type: 'inventory' });
+      if (!inventory.success || ((inventory.data?.extension_errors as unknown[] | undefined)?.length ?? 1) > 0) throw new Error('resource_inventory_failed');
+      if (live.faulted) throw new Error('worker fault during initialization');
+      w.resources = inventory.data!;
+      w.status = 'ready';
+      w.cleanup = 'live_cgroup';
+      live.observedIdle = true;
+      // A failed attempt binds no kept intent: only this verified launch does, and only one that has no epoch yet.
+      for (const k of Object.values(live.kept)) {
+        if (!k.relaunch_epoch && k.session_id === w.session_id && k.binding_revision === w.binding_revision) k.relaunch_epoch = w.worker_epoch;
+      }
+      this.s.persist(live, 'worker.ready');
+      return {
+        state: 'delivered',
+        stage: 'forwarded',
+        effect: 'observed',
+        worker_id: w.worker_id,
+        result: { worker_id: w.worker_id, worker_epoch: w.worker_epoch, session_id: w.session_id, binding_revision: w.binding_revision },
+        history_lag: w.history.lag,
+      };
+    } catch (error) {
+      live.rebinding = false;
+      await this.launchFailed(live, commandId, error);
+      throw error;
+    }
   }
 
   /** The recorded domains recovery cleans and records itself: every holding worker's (the startup sweep skips them). */

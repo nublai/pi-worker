@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index e45097d..3133474 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -516,7 +516,6 @@ export class Lifecycle {
+         this.writable(live);
+         if (!live.create || !w.session_id || !live.sessionFile || !existsSync(live.sessionFile)) throw new Refusal('relaunch_session_unavailable');
+         this.s.noOtherWriter(w.session_id, id);
+-        this.s.exclusiveCwd(w.cwd, live);
+       },
+     );
+   }

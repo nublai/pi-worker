@@ -120,6 +120,25 @@ export const CUT_SCENARIOS: readonly CutScenario[] = [
     ],
   },
   {
+    scenario: 'relaunch',
+    file: 'relaunch.test.ts',
+    labels: [
+      ...OPEN,
+      'receipt.intent',
+      'receipt.dispatch',
+      'receipt.result',
+      'worker.create',
+      'worker.spawned',
+      'worker.identity',
+      'worker.ready',
+      'worker.stop',
+      'worker.exit',
+      'worker.stopped',
+      'worker.relaunch',
+      'worker.recover',
+    ],
+  },
+  {
     scenario: 'resume',
     file: 'resume.test.ts',
     labels: [

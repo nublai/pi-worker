@@ -159,9 +159,10 @@ export function openWorld(root: string, scenario: boolean): World {
       const id = `native-${n}`;
       const file = join(root, `${id}.jsonl`);
       writeFileSync(file, `${JSON.stringify({ type: 'session', id })}\n`);
-      effect(root, { kind: 'create', command_id: launch.create.command_id, session_file: file, session_id: id });
+      // A relaunch (P2-3) spawns under its own command and reopens the worker's session: both are its native effects.
+      effect(root, { kind: 'create', command_id: launch.commandId, session_file: file, session_id: id });
       const host = new EffectHost(root, id, file);
-      if (launch.create.resume_session_id) host.openCommand = launch.create.command_id;
+      if (launch.create.resume_session_id || launch.commandId !== launch.create.command_id) host.openCommand = launch.commandId;
       if (launch.create.provider === 'cancel-open') {
         // pi ran the switch hooks and opened the target (the native effect is recorded), then reports the switch
         // cancelled, as an extension's `session_before_switch` returning `{ cancel: true }` does.
@@ -211,6 +212,8 @@ export function openWorld(root: string, scenario: boolean): World {
         return supervisor.followUp(id!, b);
       case 'resolve':
         return supervisor.resolveUnknown(id!, b);
+      case 'relaunch':
+        return supervisor.relaunch(id!, b);
       case 'launch_child':
         return supervisor.launchChild(id!, b);
       case 'report':
@@ -237,7 +240,9 @@ export function openWorld(root: string, scenario: boolean): World {
       case 'interrupt':
       case 'rebind':
       case 'new': {
-        const h = hosts.find(x => x.file === supervisor.state.require(id!).sessionFile);
+        // The worker's current host; a relaunched worker's earlier host has the same session file (P2-3).
+        const live = supervisor.state.require(id!);
+        const h = hosts.find(x => x === live.host) ?? hosts.find(x => x.file === live.sessionFile);
         if (h) h.effectCommand = String(body.command_id);
         try {
           if (op === 'rebind') return await supervisor.rebind(id!, b);

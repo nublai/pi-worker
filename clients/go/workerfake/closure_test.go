@@ -304,7 +304,7 @@ func TestBridgeProfileClosure(t *testing.T) {
 		operation(t, m)
 	}
 	// The bridge profile excludes the agent-side and owner methods (b2-for-shep.md 2.1, "Not in the bridge profile").
-	for _, m := range []string{"children.launch", "children.report", "workers.relaunch", "sessions.steer", "sessions.follow_up", "executions.cancel"} {
+	for _, m := range []string{"children.launch", "children.report", "sessions.steer", "sessions.follow_up", "executions.cancel"} {
 		if slices.Contains(bridge, m) {
 			t.Errorf("%s must not be in the bridge profile", m)
 		}
@@ -385,7 +385,7 @@ func TestStatefulFakeAnswersEveryBridgeMethod(t *testing.T) {
 		}
 		checkReply(t, fx, got, err)
 	}
-	for _, m := range []string{"sessions.steer", "sessions.follow_up", "executions.cancel", "children.launch", "children.report", "workers.relaunch"} {
+	for _, m := range []string{"sessions.steer", "sessions.follow_up", "executions.cancel", "children.launch", "children.report"} {
 		fx := workerfake.WireFixtures(m)[0]
 		if _, err := callFixture(t, ctx, c, fx, true); !isRefusal(err, http.StatusConflict, "grant_method_denied") {
 			t.Errorf("%s with a bridge grant: %v, want grant_method_denied", m, err)

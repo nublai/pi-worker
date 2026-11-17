@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index e45097d..582fbea 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -530,7 +530,6 @@ export class Lifecycle {
+     // The previous generation is retired before the new epoch exists: its host's callbacks and any cleanup still
+     // running for its domain (each checks live.host or live.domain) no longer touch this worker.
+     live.host = undefined;
+-    live.cleaning = undefined;
+     // Every prompt intent a restart recovered keeps the binding it was admitted with (this generation's, which a
+     // stopped worker still has); the first successful relaunch on that session and revision becomes its one epoch.
+     const kept: Record<string, KeptBinding> = {};

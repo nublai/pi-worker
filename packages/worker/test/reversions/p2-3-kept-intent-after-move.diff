@@ -1,0 +1,15 @@
+diff --git a/packages/worker/src/supervisor/input.ts b/packages/worker/src/supervisor/input.ts
+index 804a9ef..0fc7f47 100644
+--- a/packages/worker/src/supervisor/input.ts
++++ b/packages/worker/src/supervisor/input.ts
+@@ -137,9 +137,7 @@ export class Input {
+       kept.relaunch_epoch === w.worker_epoch &&
+       kept.worker_epoch === p.worker_epoch &&
+       kept.session_id === p.session_id &&
+-      kept.binding_revision === p.binding_revision &&
+-      w.session_id === kept.session_id &&
+-      w.binding_revision === kept.binding_revision
++      kept.binding_revision === p.binding_revision
+     );
+   }
+ 

@@ -1,0 +1,21 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "command_id": "cmd-3",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "session_fenced",
+      "effect": "no_effect",
+      "uncertain_command_id": "cmd-0"
+    }
+  }
+}

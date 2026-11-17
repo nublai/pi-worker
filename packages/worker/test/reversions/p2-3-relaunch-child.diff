@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index e45097d..1fb94f4 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -508,7 +508,6 @@ export class Lifecycle {
+         live = this.s.require(id);
+         this.s.binding(live, b);
+         const w = live.worker;
+-        if (w.parent_worker_id) throw new Refusal('child_relaunch_unsupported');
+         // Only a recorded, observed removal of the last epoch's domain: a live, starting or pending worker is refused.
+         if ((w.status !== 'stopped' && w.status !== 'failed') || w.cleanup !== CLEANED || !live.domain || live.pid !== null) {
+           throw new Refusal('cleanup_pending_or_cleanup_unproven');

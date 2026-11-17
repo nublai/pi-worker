@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index e45097d..097c8cc 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -115,7 +115,7 @@ export class Lifecycle {
+     const gone = await this.terminate(live);
+     const w = live.worker;
+     // Evidence about a superseded generation's domain never retires the generation a relaunch brought up since.
+-    if (live.domain !== domain) return;
++    void domain;
+     if (live.faulted || w.status !== 'cleanup_pending' || w.cleanup !== 'leader_exit_only') return;
+     if (gone && this.confirm(live, 'stopped', 'worker.cleaned')) return;
+     w.cleanup = gone ? UNRECORDED : 'unresolved';

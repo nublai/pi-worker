@@ -47,7 +47,8 @@ func init() {
 			}
 			return s.create(b, nil)
 		}),
-		"workers.stop": body(func(s *state, c *call, b b2.Binding) (any, error) { return s.stop(c.path["worker_id"], b) }),
+		"workers.stop":     body(func(s *state, c *call, b b2.Binding) (any, error) { return s.stop(c.path["worker_id"], b) }),
+		"workers.relaunch": body(func(s *state, c *call, b b2.Binding) (any, error) { return s.relaunch(c.path["worker_id"], b) }),
 		"sessions.prompt": body(func(s *state, c *call, b b2.Prompt) (any, error) {
 			return s.prompt(c.path["worker_id"], b, "sessions.prompt", b)
 		}),

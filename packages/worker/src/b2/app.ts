@@ -147,6 +147,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
       return s.create(body);
     },
     'workers.stop': ({ path, body }) => supervisor().stop(path.worker_id, body),
+    'workers.relaunch': ({ path, body }) => supervisor().relaunch(path.worker_id, body),
     'sessions.prompt': ({ path, body }) => supervisor().prompt(path.worker_id, body),
     'sessions.steer': ({ path, body }) => supervisor().steer(path.worker_id, body),
     'sessions.follow_up': ({ path, body }) => supervisor().followUp(path.worker_id, body),

@@ -162,6 +162,7 @@ var GrantProfiles = map[string][]string{
 		"interactions.answer_if_current",
 		"executions.interrupt",
 		"workers.stop",
+		"workers.relaunch",
 		"sessions.resolve_unknown",
 		"attachments.stage",
 		"attachments.release",

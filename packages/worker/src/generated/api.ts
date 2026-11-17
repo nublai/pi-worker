@@ -319,7 +319,28 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Relaunch pi on the same session after confirmed cleanup */
+        /**
+         * Relaunch pi on the same session after confirmed cleanup
+         * @description Starts a fresh pi process for a stopped or failed worker, in a new
+         *     cleanup domain at a new `worker_epoch`, and reopens the worker's
+         *     session file without prompting. The binding names the worker's last
+         *     generation. Refused `no_effect`, before anything is recorded or
+         *     started: `stale_binding`; `cleanup_pending_or_cleanup_unproven` unless
+         *     the previous epoch's domain was observed removed and that is recorded
+         *     (`cleanup: cgroup_empty_removed`), so a live or pending worker is
+         *     refused too; `session_fenced`, naming the uncertain command, until
+         *     `sessions.resolve_unknown`; `session_already_bound` or
+         *     `exclusive_environment_already_bound`, naming the holder, while another
+         *     worker holds the session or the cwd; `relaunch_session_unavailable`
+         *     without a bound session or its file; `child_relaunch_unsupported` for
+         *     a child worker. The receipt names the new binding. A launch that fails
+         *     after the dispatch record is `outcome_unknown` with the new domain
+         *     cleaned; it does not fence the session, and a later relaunch may retry.
+         *     Every earlier binding is stale afterwards, except the exact retry of a
+         *     `sessions.prompt` intent that a restart recovered and the owner kept
+         *     before this relaunch: it dispatches once on the first epoch a relaunch
+         *     brought up, until the binding moves or another relaunch runs.
+         */
         post: operations["workers.relaunch"];
         delete?: never;
         options?: never;

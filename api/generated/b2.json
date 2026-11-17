@@ -40,6 +40,7 @@
         "interactions.answer_if_current",
         "executions.interrupt",
         "workers.stop",
+        "workers.relaunch",
         "sessions.resolve_unknown",
         "attachments.stage",
         "attachments.release"
@@ -798,12 +799,12 @@
       "post": {
         "operationId": "workers.relaunch",
         "summary": "Relaunch pi on the same session after confirmed cleanup",
+        "description": "Starts a fresh pi process for a stopped or failed worker, in a new\ncleanup domain at a new `worker_epoch`, and reopens the worker's\nsession file without prompting. The binding names the worker's last\ngeneration. Refused `no_effect`, before anything is recorded or\nstarted: `stale_binding`; `cleanup_pending_or_cleanup_unproven` unless\nthe previous epoch's domain was observed removed and that is recorded\n(`cleanup: cgroup_empty_removed`), so a live or pending worker is\nrefused too; `session_fenced`, naming the uncertain command, until\n`sessions.resolve_unknown`; `session_already_bound` or\n`exclusive_environment_already_bound`, naming the holder, while another\nworker holds the session or the cwd; `relaunch_session_unavailable`\nwithout a bound session or its file; `child_relaunch_unsupported` for\na child worker. The receipt names the new binding. A launch that fails\nafter the dispatch record is `outcome_unknown` with the new domain\ncleaned; it does not fence the session, and a later relaunch may retry.\nEvery earlier binding is stale afterwards, except the exact retry of a\n`sessions.prompt` intent that a restart recovered and the owner kept\nbefore this relaunch: it dispatches once on the first epoch a relaunch\nbrought up, until the binding moves or another relaunch runs.\n",
         "tags": [
           "lifecycle"
         ],
         "x-piw-mutation": true,
         "x-piw-body": "json",
-        "x-piw-status": "unsupported",
         "requestBody": {
           "required": true,
           "content": {
