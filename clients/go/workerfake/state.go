@@ -991,7 +991,9 @@ func (s *state) stop(id string, b b2.Binding) (*b2.Receipt, error) {
 
 // --- session writes: configure, compact, reload, commands.invoke ---
 
-func (s *state) sessionWrite(id, op, commandID, epoch, sessionID string, revision int, request any, apply func(w *worker) map[string]any) (*b2.Receipt, error) {
+// check, when given, runs after the binding, fence and readiness checks and before the busy check, as the worker's
+// per-command checks do.
+func (s *state) sessionWrite(id, op, commandID, epoch, sessionID string, revision int, request any, check func(w *worker) error, apply func(w *worker) map[string]any) (*b2.Receipt, error) {
 	var w *worker
 	return s.run(id, commandID, op, map[string]any{"body": request, "worker_id": id}, func() error {
 		var err error
@@ -1000,6 +1002,11 @@ func (s *state) sessionWrite(id, op, commandID, epoch, sessionID string, revisio
 		}
 		if err := all(func() error { return binding(w, epoch, sessionID, revision) }, func() error { return writable(w) }, func() error { return ready(w) }); err != nil {
 			return err
+		}
+		if check != nil {
+			if err := check(w); err != nil {
+				return err
+			}
 		}
 		if w.row.Foreground != "idle" {
 			return refuse("worker_busy")

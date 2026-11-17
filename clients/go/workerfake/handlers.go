@@ -2,6 +2,8 @@ package workerfake
 
 import (
 	"encoding/json"
+	"net/http"
+	"strings"
 
 	"github.com/nublai/pi-worker/clients/go/b2"
 )
@@ -135,7 +137,7 @@ func sessionsNew(s *state, c *call, b b2.Binding) (any, error) {
 }
 
 func configure(s *state, c *call, b b2.Configure) (any, error) {
-	return s.sessionWrite(c.path["worker_id"], "session.configure", b.CommandId, b.WorkerEpoch, b.SessionId, b.BindingRevision, b, func(w *worker) map[string]any {
+	return s.sessionWrite(c.path["worker_id"], "session.configure", b.CommandId, b.WorkerEpoch, b.SessionId, b.BindingRevision, b, nil, func(w *worker) map[string]any {
 		result := map[string]any{}
 		if b.Model != nil {
 			w.row.Model = b.Model
@@ -155,21 +157,64 @@ func configure(s *state, c *call, b b2.Configure) (any, error) {
 
 // compact, like reload, cancels every live dialog at its resolver before pi compacts (session-commands.ts).
 func compact(s *state, c *call, b b2.Compact) (any, error) {
-	return s.sessionWrite(c.path["worker_id"], "sessions.compact", b.CommandId, b.WorkerEpoch, b.SessionId, b.BindingRevision, b, func(w *worker) map[string]any {
+	return s.sessionWrite(c.path["worker_id"], "sessions.compact", b.CommandId, b.WorkerEpoch, b.SessionId, b.BindingRevision, b, nil, func(w *worker) map[string]any {
 		s.interrupt(w)
 		return okResult("sessions.compact")
 	})
 }
 
 func reload(s *state, c *call, b b2.Binding) (any, error) {
-	return s.sessionWrite(c.path["worker_id"], "resources.reload", b.CommandId, b.WorkerEpoch, b.SessionId, b.BindingRevision, b, func(w *worker) map[string]any {
+	return s.sessionWrite(c.path["worker_id"], "resources.reload", b.CommandId, b.WorkerEpoch, b.SessionId, b.BindingRevision, b, nil, func(w *worker) map[string]any {
 		s.interrupt(w)
 		return okResult("resources.reload")
 	})
 }
 
+// builtinCommands is pi 1.5.2's built-in slash commands and the typed method that serves each, "" for none
+// (packages/worker/src/supervisor/features.ts, BUILTIN_COMMANDS).
+var builtinCommands = map[string]string{
+	"settings": "", "model": "session.configure", "tree": "sessions.rebind", "thinking": "session.configure",
+	"scoped-models": "", "export": "", "import": "", "share": "", "bug": "", "copy": "", "name": "session.configure",
+	"session": "sessions.get", "changelog": "", "hotkeys": "", "fork": "sessions.rebind", "clone": "sessions.rebind",
+	"trust": "", "login": "", "logout": "", "new": "sessions.new", "compact": "sessions.compact",
+	"resume": "sessions.rebind", "reload": "resources.reload", "quit": "",
+}
+
+// extensionCommands are the extension commands the fixture pi reports: the "extension" rows of commands.list's
+// "ok" wire fixture.
+func extensionCommands() map[string]bool {
+	out := map[string]bool{}
+	for _, fx := range WireFixtures("commands.list") {
+		if fx.Response.Status != http.StatusOK {
+			continue
+		}
+		var list b2.CommandList
+		json.Unmarshal(fx.Response.Body, &list)
+		for _, c := range list.Commands {
+			if c.Source == "extension" {
+				out[c.Name] = true
+			}
+		}
+	}
+	return out
+}
+
+// invoke runs an extension command; a built-in with its own method is refused use_method naming it, any other
+// built-in or a skill unsupported_command, and a name pi does not report unknown_command, all before any record.
 func invoke(s *state, c *call, b b2.Invoke) (any, error) {
-	return s.sessionWrite(c.path["worker_id"], "commands.invoke", b.CommandId, b.WorkerEpoch, b.SessionId, b.BindingRevision, b, func(*worker) map[string]any { return okResult("commands.invoke") })
+	return s.sessionWrite(c.path["worker_id"], "commands.invoke", b.CommandId, b.WorkerEpoch, b.SessionId, b.BindingRevision, b, func(*worker) error {
+		if method, ok := builtinCommands[b.Name]; ok && method != "" {
+			r := refuse("use_method")
+			r.body.Detail = ptr(method)
+			return r
+		} else if ok || strings.HasPrefix(b.Name, "skill:") {
+			return refuse("unsupported_command")
+		}
+		if !extensionCommands()[b.Name] {
+			return refuse("unknown_command")
+		}
+		return nil
+	}, func(*worker) map[string]any { return okResult("commands.invoke") })
 }
 
 func receiptsGet(s *state, c *call) (any, error) {
