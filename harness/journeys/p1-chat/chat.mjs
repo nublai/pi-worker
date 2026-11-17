@@ -50,7 +50,22 @@ async function until(read, ms = 30_000) {
     await sleep(250);
   }
 }
-const settled = (label, worker, execution) => pw(label, ['events.subscribe', '--worker', worker, '--type', 'execution.settled', '--until-settled', '--execution-id', execution], { timeout: 45_000 });
+/**
+ * `events.subscribe --until-settled` for one execution. Proven only when the stream printed nothing but the snapshot
+ * and `execution.settled` frames (the type filter held), and its last frame, the one that ended the watch, shows that
+ * execution of that worker settled: its `execution.settled` event, or a snapshot whose worker row has it settled.
+ * Exit 0 alone proves nothing (a CLI that prints the first snapshot and exits 0 would pass).
+ */
+function settled(label, worker, execution) {
+  const r = pw(label, ['events.subscribe', '--worker', worker, '--type', 'execution.settled', '--until-settled', '--execution-id', execution], { timeout: 45_000 });
+  const last = r.frames.at(-1);
+  const event = last?.type === 'execution.settled' && last.worker_id === worker && last.execution_id === execution;
+  const snapshot = last?.type === 'snapshot' && last.workers?.some(w => w.worker_id === worker && w.execution?.execution_id === execution && w.execution.state === 'settled') === true;
+  const filtered = r.frames.length > 0 && r.frames.every(f => f?.type === 'snapshot' || f?.type === 'execution.settled');
+  const ok = typeof execution === 'string' && r.code === 0 && filtered && (event || snapshot);
+  steps.at(-1).settled_by = ok ? (event ? 'event' : 'snapshot') : null;
+  return { ...r, settled: ok, disposition: event ? last.data?.disposition : undefined };
+}
 const text = entry => (Array.isArray(entry?.message?.content) ? entry.message.content.filter(c => c.type === 'text').map(c => c.text).join('') : '');
 
 /** A small valid PNG (RGB gradient), so the worker's magic and hash checks see a real image. */
@@ -117,7 +132,7 @@ check('models_list_worker', pw('models.list for the worker', ['models.list', '--
 const p1 = pw('sessions.prompt', ['sessions.prompt', W, '--message', 'hello from p1-chat']);
 check('prompt_delivered', p1.code === 0 && p1.out?.state === 'delivered' && typeof p1.out?.execution_id === 'string');
 const s1 = settled('events.subscribe until settled', W, p1.out?.execution_id);
-check('prompt_settled_event', s1.code === 0 && s1.frames.some(f => f?.type === 'execution.settled' || f?.type === 'snapshot'));
+check('prompt_settled_event', s1.settled);
 check('receipts_get', pw('receipts.get', ['receipts.get', p1.out?.command_id]).out?.state === 'delivered');
 const page = pw('history.page', ['history.page', W]);
 const reply = page.out?.entries?.find(e => e.message?.role === 'assistant' && text(e) === 'scripted reply');
@@ -131,7 +146,7 @@ check('dialog_pending', card !== undefined && !existsSync(join(work, 'dialog.txt
 check('interactions_status_pending', card !== undefined && pw('interactions.status', ['interactions.status', W, '--interaction-id', card.interaction_id]).out?.status === 'pending');
 const answered = card && pw('interactions.answer_if_current', ['interactions.answer_if_current', W, '--interaction-id', card.interaction_id, '--revision', String(card.revision), '--kind', 'confirm', '--outcome', 'answer', '--confirm', 'yes']);
 check('dialog_answered', answered?.code === 0 && answered.out?.state === 'delivered' && answered.out?.answer_stage === 3);
-check('dialog_settled', settled('events.subscribe until settled (dialog)', W, p2.out?.execution_id).code === 0);
+check('dialog_settled', settled('events.subscribe until settled (dialog)', W, p2.out?.execution_id).settled);
 check('dialog_tool_ran', existsSync(join(work, 'dialog.txt')));
 check('interaction_closed', card !== undefined && pw('interactions.status (after)', ['interactions.status', W, '--interaction-id', card.interaction_id]).out?.status !== 'pending');
 
@@ -146,7 +161,7 @@ const status = pw('attachments.status', ['attachments.status', A]).out;
 check('attachment_status', status?.state === 'staged' && status?.sha256 === sha(image) && status?.content_type === 'image/png');
 const p3 = pw('sessions.prompt (image)', ['sessions.prompt', W, '--message', 'what is in this picture?', '--attachment', A]);
 check('image_prompt_accepted', p3.code === 0 && p3.out?.result?.accepted_images === 1);
-check('image_settled', settled('events.subscribe until settled (image)', W, p3.out?.execution_id).code === 0);
+check('image_settled', settled('events.subscribe until settled (image)', W, p3.out?.execution_id).settled);
 check('attachment_released_by_prompt', pw('attachments.status (after)', ['attachments.status', A]).out?.state === 'released');
 const lines = pw('sessions.history', ['sessions.history', S1]).out;
 const withImage = lines?.lines?.find(l => l?.message?.role === 'user' && Array.isArray(l.message.content) && l.message.content.some(c => c.type === 'image'));
@@ -181,7 +196,7 @@ check('follow_up_queued', follow.out?.state === 'queued');
 const t0 = Date.now();
 const interrupted = pw('executions.interrupt', ['executions.interrupt', W, '--execution-id', E]);
 check('interrupt_delivered', interrupted.code === 0 && interrupted.out?.state === 'delivered');
-check('interrupt_settled', settled('events.subscribe until settled (interrupt)', W, E).code === 0);
+check('interrupt_settled', settled('events.subscribe until settled (interrupt)', W, E).settled);
 facts.interrupt_to_settled_ms = Date.now() - t0;
 check('interrupt_fast', facts.interrupt_to_settled_ms < 30_000);
 check('sleep_stopped', (await until(() => !sleepRunning(), 10_000)) === true);
