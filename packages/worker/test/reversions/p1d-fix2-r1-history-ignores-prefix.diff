@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
+index 66870e5..e709135 100644
+--- a/packages/worker/src/history/session-file.ts
++++ b/packages/worker/src/history/session-file.ts
+@@ -239,7 +239,7 @@ export function readHistory(
+     }
+     // The caller names every byte before its offset: another byte there (an earlier line rewritten in place, before an
+     // append or while the supervisor was down) means the file changed under it.
+-    if (!reset && q.prefix !== undefined && view.prefix(start) !== q.prefix) reset = true;
++    if (!reset && q.prefix !== undefined && view.prefix(start) !== q.prefix && q.prefix === 'never') reset = true;
+     if (reset) start = 0;
+     let end = Math.min(watermark, start + q.maxBytes);
+     if (end > start) {

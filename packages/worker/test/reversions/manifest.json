@@ -204,7 +204,9 @@
         "p1d-fix-grok-f3-session-open-any-file-type.diff",
         "p1d-fix-grok-f3-history-plain-open.diff",
         "p1d-fix-grok-f3-summary-plain-open.diff",
-        "p1d-fix-grok-f3-index-plain-open.diff"
+        "p1d-fix-grok-f3-index-plain-open.diff",
+        "p1d-fix2-r1-growth-is-append.diff",
+        "p1d-fix2-r1-history-ignores-prefix.diff"
       ]
     },
     "features": {
@@ -260,7 +262,8 @@
         "p1d-fix-f5-inflight-uploads-not-counted.diff",
         "p1d-fix-f5-chunk-bytes-unreserved.diff",
         "p1d-fix-grok-f2-stage-skips-attachment-scope.diff",
-        "p1d-fix-grok-f2-duplicate-across-workers.diff"
+        "p1d-fix-grok-f2-duplicate-across-workers.diff",
+        "p1d-fix2-n1-dir-fsync-keeps-file.diff"
       ]
     }
   }

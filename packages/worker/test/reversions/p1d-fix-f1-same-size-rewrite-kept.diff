@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/history/session-file.ts b/packages/worker/src/history/session-file.ts
-index e115e0f..b565fd9 100644
+index 66870e5..48325b8 100644
 --- a/packages/worker/src/history/session-file.ts
 +++ b/packages/worker/src/history/session-file.ts
-@@ -56,7 +56,7 @@ export class FileGenerations {
-     const key = `${st.dev}:${st.ino}`;
-     const prior = this.seen.get(key);
-     let generation = prior?.generation ?? 0;
--    if (prior && (st.size < prior.size || (st.size === prior.size && (st.mtimeNs !== prior.mtimeNs || st.ctimeNs !== prior.ctimeNs)))) generation++;
-+    if (prior && st.size < prior.size) generation++;
-     this.seen.set(key, { size: st.size, mtimeNs: st.mtimeNs, ctimeNs: st.ctimeNs, generation });
-     return generation;
-   }
+@@ -111,7 +111,7 @@ export class FileGenerations {
+       this.seen.set(key, s);
+     } else if (s.size !== st.size || s.mtimeNs !== st.mtimeNs || s.ctimeNs !== st.ctimeNs) {
+       // Changed: the bytes before the last watermark must be the ones served, or this is not an append.
+-      const kept = watermark >= s.end && feed(fd, createHash('sha256'), 0, s.end).digest('hex') === s.marks.get(s.end)!.copy().digest('hex');
++      const kept = watermark >= s.end;
+       if (!kept) {
+         s.generation++;
+         s.end = 0;
