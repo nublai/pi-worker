@@ -124,9 +124,26 @@ export interface Fixture {
   /** The cleanup domains of the current supervisor (one per open unless the fixture shares them). */
   domains: TestDomains;
   create(): Promise<Worker>;
-  /** Discards the supervisor without stopping its hosts, then recovers a new one over the same state. */
+  /**
+   * Discards the supervisor without stopping its hosts, as a killed supervisor leaves them, then recovers a new one over
+   * the same state. The discarded instance is retired first (`retire`): it runs nothing more.
+   */
   restart(factory?: HostFactory): Promise<Supervisor>;
   cleanup(): void;
+}
+
+/**
+ * Retires a supervisor the way SIGKILL does, for an in-process restart: a killed supervisor never runs another callback.
+ * Its host callbacks (exit, event, report) are detached (each checks `live.host === host`) and its move timers cleared,
+ * so a host the successor's recovery kills cannot fault, clean or record through the retired instance (GPT and Grok
+ * PR #21 finding 2: a late exit of the old host cleaned a shared domain a second time).
+ */
+export function retire(supervisor: Supervisor): void {
+  for (const live of supervisor.state.workers.values()) {
+    live.host = undefined;
+    if (live.moveTimer) clearTimeout(live.moveTimer);
+    live.moveTimer = undefined;
+  }
 }
 
 export function fixture(
@@ -192,6 +209,7 @@ export function fixture(
     async restart(next = () => {
       throw new Error('restart must not adopt or relaunch a host');
     }) {
+      retire(f.supervisor);
       f.state.close();
       const opened = open(next);
       f.state = opened.state;

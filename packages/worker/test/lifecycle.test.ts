@@ -569,6 +569,21 @@ test('lifecycle: a restart records cleanup_pending, then cleans every recorded d
             ? { type: 'response', id: 'x', success: true, data: { extensions: [], extension_errors: [] } }
             : request(c);
       real = host;
+      // The ordering that raced in CI (PR #21 finding 2), forced: the first stop (recovery's domain clean) returns only
+      // after the host's exit was delivered and one more turn passed, so a retired instance still wired to the host
+      // would fault and clean the shared domain again before recovery records the real one.
+      const stopNative = host.stop.bind(host);
+      let firstStop = true;
+      host.stop = async () => {
+        const exited = new Promise<void>(resolve => host.once('exit', () => resolve()));
+        const result = await stopNative();
+        if (firstStop) {
+          firstStop = false;
+          await exited;
+          await new Promise<void>(resolve => setImmediate(resolve));
+        }
+        return result;
+      };
       return host;
     },
   });
