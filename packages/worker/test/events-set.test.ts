@@ -207,7 +207,19 @@ test('events: receipt.updated publishes each journaled receipt record of a worke
     const w = await f.create();
     const events = watch(f, w);
     const receipt = await f.supervisor.prompt(w.worker_id, { ...bind(w, 'turn'), message: 'hello' });
+    // A follow-up queues while the turn runs, then runs once from queue_ready (the Go fake streams the same trace).
+    await f.supervisor.prompt(w.worker_id, { ...bind(w, 'later'), message: 'and then', if_busy: 'follow_up' });
+    f.hosts[0]!.emit('event', { type: 'agent_settled' });
+    await tick();
+    await tick();
     events.close();
+    assert.deepEqual(
+      events
+        .of('receipt.updated')
+        .filter(x => x.data.receipt.command_id === 'later')
+        .map(x => x.data.receipt.state),
+      ['intent', 'queued', 'queue_ready', 'intent', 'accepted', 'delivered'],
+    );
     const updates = events.of('receipt.updated').filter(x => x.data.receipt.command_id === 'turn');
     assert.deepEqual(
       updates.map(x => x.data.receipt.state),

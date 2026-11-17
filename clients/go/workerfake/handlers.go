@@ -149,8 +149,8 @@ func steer(s *state, c *call, b b2.Steer) (any, error) {
 		}
 		return nil
 	}, func(r *b2.Receipt) error {
-		dispatch(r)
 		r.ExecutionId = &b.ExecutionId
+		s.dispatch(r)
 		deliver(r, "forwarded", nil)
 		r.Admission, r.Disposition = ptr(b2.ReceiptAdmission("accepted")), ptr("queued")
 		return nil

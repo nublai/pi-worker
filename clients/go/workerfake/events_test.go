@@ -208,3 +208,50 @@ func TestDeltaStormNeverOverflowsASlowSubscriber(t *testing.T) {
 		t.Fatalf("last delta %+v, want the tail of %d characters", last, len(text))
 	}
 }
+
+// receipt.updated carries every journaled receipt record of a worker command, in order, as the worker publishes
+// them (receipts.ts put → state.ts onRecord): a prompt's intent, its dispatch record and its result; a queued
+// follow-up's queued record, then queue_ready and its run (PR #20 GPT 3).
+func TestReceiptUpdatedCarriesEveryReceiptRecord(t *testing.T) {
+	fake, err := workerfake.Start(workerfake.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fake.Close()
+	ctx := context.Background()
+	c := fake.Client()
+	w := newWorker(t, ctx, c, "create-1")
+	events := startWatch(t, c, b2.WatchOptions{WorkerIDs: []string{w.WorkerId}})
+	snapshotOf(t, events.next(t))
+	states := func(cmd string, until b2.ReceiptState) []b2.ReceiptState {
+		var out []b2.ReceiptState
+		for {
+			f := events.next(t)
+			r, ok := f.Event.(*b2.ReceiptUpdatedEvent)
+			if !ok || r.Data.Receipt.CommandId != cmd {
+				continue
+			}
+			if r.Evidence != "supervisor_journal_fsynced" || r.WorkerId != w.WorkerId {
+				t.Fatalf("receipt.updated %+v", r)
+			}
+			out = append(out, r.Data.Receipt.State)
+			if r.Data.Receipt.State == until {
+				return out
+			}
+		}
+	}
+	if _, err := c.SessionsPrompt(ctx, w.WorkerId, promptOf(w, "p-1", nil)); err != nil {
+		t.Fatal(err)
+	}
+	if got := states("p-1", "delivered"); !slices.Equal(got, []b2.ReceiptState{"intent", "accepted", "delivered"}) {
+		t.Fatalf("p-1 records %v, want intent, accepted, delivered", got)
+	}
+	// While p-1 runs, a follow-up queues; when p-1 settles it runs once from queue_ready.
+	if _, err := c.SessionsPrompt(ctx, w.WorkerId, promptOf(w, "p-2", ptr(b2.PromptIfBusy("follow_up")))); err != nil {
+		t.Fatal(err)
+	}
+	fake.Host(w.WorkerId).Emit("agent_settled")
+	if got := states("p-2", "delivered"); !slices.Equal(got, []b2.ReceiptState{"intent", "queued", "queue_ready", "intent", "accepted", "delivered"}) {
+		t.Fatalf("p-2 records %v", got)
+	}
+}

@@ -267,7 +267,7 @@ func answer(s *state, c *call, a b2.Answer) (any, error) {
 		}
 		return nil
 	}, func(r *b2.Receipt) error {
-		dispatch(r)
+		s.dispatch(r)
 		s.answerSigs[a.AnswerId] = answerSig{a.CommandId, signature}
 		in := w.interactions[index]
 		if t := w.timers[in.InteractionId]; t != nil {

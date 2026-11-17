@@ -252,6 +252,7 @@ func (s *state) run(workerID, commandID, op string, request any, validate func()
 		s.receiptOrder = append(s.receiptOrder, commandID)
 	}
 	s.receipts[commandID] = rec
+	s.receiptUpdated(rec.Receipt)
 	gen := s.gen
 	err := effect(&rec.Receipt)
 	if gen != s.gen {
@@ -272,9 +273,11 @@ func (s *state) run(workerID, commandID, op string, request any, validate func()
 	return &r, nil
 }
 
-// dispatch records the dispatch marker: from here a lost reply is outcome_unknown.
-func dispatch(r *b2.Receipt) {
+// dispatch records the dispatch marker (receipts.ts dispatch, with what the caller set on r first): from here a
+// lost reply is outcome_unknown. Like every receipt record of a worker command, it is a receipt.updated.
+func (s *state) dispatch(r *b2.Receipt) {
 	r.State, r.Stage, r.Effect = stAccepted, "dispatch_recorded", "unknown"
+	s.receiptUpdated(*r)
 }
 
 func deliver(r *b2.Receipt, stage string, result map[string]any) {
@@ -490,8 +493,8 @@ func (s *state) create(c b2.Create, parent *createOpts) (*b2.Receipt, error) {
 		return nil
 	}, func(r *b2.Receipt) error {
 		id := s.id("w")
-		dispatch(r)
 		r.WorkerId = &id
+		s.dispatch(r)
 		session := s.id("s")
 		if c.ResumeSessionId != nil {
 			session = *c.ResumeSessionId
@@ -623,7 +626,7 @@ func (s *state) resumable(sessionID, except string, holder **worker) error {
 
 func (s *state) dispatchChild(w *worker, item queuedItem) (*b2.Receipt, error) {
 	rec := s.receipts[item.commandID]
-	dispatch(&rec.Receipt)
+	s.dispatch(&rec.Receipt)
 	child, err := s.create(item.child.Launch, &createOpts{parentWorkerID: w.row.WorkerId, parentCommandID: item.commandID})
 	var ref *refusal
 	switch {
@@ -635,6 +638,7 @@ func (s *state) dispatchChild(w *worker, item queuedItem) (*b2.Receipt, error) {
 	default:
 		deliver(&rec.Receipt, "forwarded", map[string]any{"child_command_id": child.CommandId, "child_worker_id": derefString(child.WorkerId)})
 	}
+	s.receiptUpdated(rec.Receipt)
 	r := rec.Receipt
 	return &r, nil
 }
@@ -687,8 +691,8 @@ func (s *state) prompt(id string, p b2.Prompt, op string, request any) (*b2.Rece
 			s.enqueue(w, r, queuedItem{commandID: p.CommandId, op: op, prompt: &p, request: request})
 			return nil
 		case "steer":
-			dispatch(r)
 			r.ExecutionId = &w.row.Execution.ExecutionId
+			s.dispatch(r)
 			deliver(r, "forwarded", nil)
 			r.Admission, r.Disposition = ptr(b2.ReceiptAdmission("accepted")), ptr("queued")
 			return nil
@@ -699,8 +703,8 @@ func (s *state) prompt(id string, p b2.Prompt, op string, request any) (*b2.Rece
 		w.observedIdle = false
 		s.persist(w)
 		s.publish("execution.admitted", id, &execution.ExecutionId, "supervisor_journal_fsynced", map[string]any{"command_id": p.CommandId})
-		dispatch(r)
 		r.ExecutionId = &execution.ExecutionId
+		s.dispatch(r)
 		images := 0
 		if p.Attachments != nil {
 			images = len(*p.Attachments)
@@ -830,6 +834,7 @@ func (s *state) flush(w *worker) {
 		q := queuedRow(w, item.commandID)
 		rec := s.receipts[item.commandID]
 		rec.State, rec.Stage, rec.Effect = stQueueReady, "reserved", "no_effect"
+		s.receiptUpdated(rec.Receipt)
 		var r *b2.Receipt
 		var err error
 		if item.op == "children.launch" {
@@ -844,6 +849,7 @@ func (s *state) flush(w *worker) {
 		if err != nil {
 			if rec.State == stQueued || rec.State == stQueueReady {
 				rec.State, rec.Stage, rec.Effect, rec.Error = stRejected, "refused", "no_effect", ptr(err.Error())
+				s.receiptUpdated(rec.Receipt)
 			}
 			if q != nil {
 				q.State = "dropped"
@@ -869,6 +875,7 @@ func (s *state) dropQueued(w *worker) {
 		q.State = "dropped"
 		if r := s.receipts[q.CommandId]; r != nil && slices.Contains([]b2.ReceiptState{stQueued, stQueueReady, stIntentReady, stIntentRecovered}, r.State) {
 			r.State, r.Stage, r.Effect, r.Disposition = stRejected, "refused", "no_effect", ptr("abandoned_without_dispatch")
+			s.receiptUpdated(r.Receipt)
 		}
 	}
 	w.pending = nil
@@ -890,8 +897,8 @@ func (s *state) control(id string, b b2.Control, op string) (*b2.Receipt, error)
 		}
 		return nil
 	}, func(r *b2.Receipt) error {
-		dispatch(r)
 		r.ExecutionId = executionOf(w)
+		s.dispatch(r)
 		s.dropQueued(w)
 		s.interrupt(w)
 		s.persist(w)
@@ -979,7 +986,7 @@ func (s *state) resolve(id string, rv b2.Resolve) (*b2.Receipt, error) {
 		}
 		return nil
 	}, func(r *b2.Receipt) error {
-		dispatch(r)
+		s.dispatch(r)
 		resolution := b2.Resolution{CommandId: uncertain, Disposition: b2.ResolutionDisposition(rv.Disposition), FenceGeneration: rv.FenceGeneration}
 		w.row.Resolutions = ptr(append(deref(w.row.Resolutions), resolution))
 		var remaining []string
@@ -1023,8 +1030,10 @@ func (s *state) resolve(id string, rv b2.Resolve) (*b2.Receipt, error) {
 		if t := s.receipts[uncertain]; t != nil && (t.State == stIntentRecovered || t.State == stIntentReady) {
 			if rv.Disposition == "keep" {
 				t.State, t.Stage, t.Effect = stIntentReady, "recovery_pending", "no_effect"
+				s.receiptUpdated(t.Receipt)
 			} else if rv.Disposition == "abandon" {
 				t.State, t.Stage, t.Effect, t.Disposition = stRejected, "refused", "no_effect", ptr("abandoned_without_dispatch")
+				s.receiptUpdated(t.Receipt)
 			}
 		}
 		deliver(r, "resolved", map[string]any{"command_id": uncertain, "disposition": rv.Disposition, "fence_generation": rv.FenceGeneration, "external_effects_undone": false, "fence": fence})
@@ -1071,7 +1080,7 @@ func (s *state) move(id string, b b2.Rebind, op string, request any) (*b2.Receip
 		}
 		return nil
 	}, func(r *b2.Receipt) error {
-		dispatch(r)
+		s.dispatch(r)
 		s.interrupt(w)
 		s.dropQueued(w)
 		session := derefString(w.row.SessionId)
@@ -1106,7 +1115,7 @@ func (s *state) stop(id string, b b2.Binding) (*b2.Receipt, error) {
 		}
 		return binding(w, b.WorkerEpoch, b.SessionId, b.BindingRevision)
 	}, func(r *b2.Receipt) error {
-		dispatch(r)
+		s.dispatch(r)
 		epoch := w.row.WorkerEpoch
 		result := func(termination string) map[string]any {
 			return map[string]any{"termination": termination, "stopped_worker_epoch": epoch, "current_worker_epoch": w.row.WorkerEpoch}
@@ -1165,7 +1174,7 @@ func (s *state) sessionWrite(id, op, commandID, epoch, sessionID string, revisio
 		}
 		return nil
 	}, func(r *b2.Receipt) error {
-		dispatch(r)
+		s.dispatch(r)
 		result := apply(w)
 		s.persist(w)
 		deliver(r, "forwarded", result)
@@ -1201,8 +1210,10 @@ func (s *state) restart() {
 		case stIntent, stQueued, stQueueReady, stIntentReady:
 			r.State, r.Stage, r.Effect = stIntentRecovered, "recovery_pending", "no_effect"
 			r.Error = ptr("restart before dispatch; eligible once after owner resolution, never auto-replayed")
+			s.receiptUpdated(r.Receipt)
 		case stAccepted:
 			r.State, r.Stage, r.Effect = stOutcomeUnknown, "unknown", "unknown"
+			s.receiptUpdated(r.Receipt)
 		}
 	}
 	s.receiving = map[string]*attachment{}
