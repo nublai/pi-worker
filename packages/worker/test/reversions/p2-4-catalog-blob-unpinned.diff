@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/features.ts b/packages/worker/src/supervisor/features.ts
+index 7540bbd..1d30d78 100644
+--- a/packages/worker/src/supervisor/features.ts
++++ b/packages/worker/src/supervisor/features.ts
+@@ -283,7 +283,7 @@ export class Features {
+   blob(sessionId: string, entryId: string, index: number): RawReply {
+     const known = this.s.sessionFiles.get(sessionId);
+     if (!known) throw new Refusal('unknown_session');
+-    const line = new SessionIndex(known.file, undefined, known.root).raw(entryId, BLOB_LINE_MAX_BYTES);
++    const line = new SessionIndex(known.file).raw(entryId, BLOB_LINE_MAX_BYTES);
+     if (line === null) throw new Refusal('unknown_entry');
+     if ('error' in line) throw new Refusal('entry_too_large');
+     let entry: unknown;

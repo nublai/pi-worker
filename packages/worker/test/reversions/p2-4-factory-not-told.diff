@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 4a2e3cd..4dcf8eb 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -388,7 +388,8 @@ export class Lifecycle {
+       const domain = live.domain;
+       const prefix = this.containment.enter(domain);
+       const root = confinement(w);
+-      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root } : {}) });
++      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix });
++      void root;
+     } catch (error) {
+       // No host was constructed: the domain (if it was created) is cleaned and the row ends with its reason; the
+       // receipt stays unknown, so a resume target is held and fenced like any other unknown create-with-resume.

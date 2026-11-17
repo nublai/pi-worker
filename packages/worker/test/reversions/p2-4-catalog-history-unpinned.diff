@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/features.ts b/packages/worker/src/supervisor/features.ts
+index 7540bbd..3ca9d47 100644
+--- a/packages/worker/src/supervisor/features.ts
++++ b/packages/worker/src/supervisor/features.ts
+@@ -260,7 +260,7 @@ export class Features {
+       ...(q.identity !== undefined ? { identity: q.identity } : {}),
+       ...(q.tail !== undefined ? { tail: q.tail } : {}),
+       ...(q.prefix !== undefined ? { prefix: q.prefix } : {}),
+-    }, this.s.summaries.generations, known.root);
++    }, this.s.summaries.generations);
+     if ('error' in read) throw new Refusal(read.error, 'no_effect', undefined, {}, read.error === 'history_line_too_large' || read.error === 'session_file_not_regular' ? 409 : 400);
+     return {
+       contentType: 'application/x-ndjson',

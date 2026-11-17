@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
+index b070f53..371b3cd 100644
+--- a/packages/worker/src/supervisor/children.ts
++++ b/packages/worker/src/supervisor/children.ts
+@@ -150,7 +150,6 @@ export class Children {
+     }
+     const p = parent.worker.launch_spec;
+     // A sandboxed parent's children are sandboxed too: a child never runs with more filesystem than its parent.
+-    if (sandboxed(p) && !sandboxed(spec)) throw new Refusal('child_filesystem_cannot_widen');
+     if (
+       !p ||
+       !subset(spec.grant_methods, p.grant_methods) ||

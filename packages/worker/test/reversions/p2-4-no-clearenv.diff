@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 0e87846..c18792c 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -166,7 +166,7 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
+     };
+     const env = options.env;
+     // --clearenv: the allowlist below is the whole environment inside, whatever the spawn passes to bwrap itself.
+-    const argv = ['--die-with-parent', '--clearenv', ...Object.entries(env).flatMap(([k, v]) => ['--setenv', k, v])];
++    const argv = ['--die-with-parent', ...Object.entries(env).flatMap(([k, v]) => ['--setenv', k, v])];
+     argv.push('--unshare-user', '--unshare-pid', '--unshare-ipc', '--unshare-uts', '--new-session', '--cap-drop', 'ALL', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--tmpfs', '/run');
+     // System and worker runtime paths are owner-controlled, never sandbox-writable.
+     for (const path of [...SYSTEM_PATHS, ...runtimePaths()]) if (existsSync(path)) argv.push('--ro-bind', path, path);

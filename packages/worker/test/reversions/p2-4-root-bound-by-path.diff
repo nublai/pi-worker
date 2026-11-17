@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 0e87846..50d563f 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -170,7 +170,7 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
+     argv.push('--unshare-user', '--unshare-pid', '--unshare-ipc', '--unshare-uts', '--new-session', '--cap-drop', 'ALL', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--tmpfs', '/run');
+     // System and worker runtime paths are owner-controlled, never sandbox-writable.
+     for (const path of [...SYSTEM_PATHS, ...runtimePaths()]) if (existsSync(path)) argv.push('--ro-bind', path, path);
+-    bind('bind', rootFd, root);
++    argv.push('--bind', root, root);
+     // pi may read the credential stores the owner staged in its agent directory, read-only. A link there refuses
+     // rather than letting bwrap resolve it on the host.
+     for (const name of ['auth.json', 'models.json']) {

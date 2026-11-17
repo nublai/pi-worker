@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 0e87846..9953d51 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -87,7 +87,7 @@ export function sandboxRoot(c: Create, controls: SandboxControls): string {
+   }
+   if (root === '/') throw new Refusal('sandbox_root_is_host_root');
+   const state = real(controls.stateDir);
+-  if (inside(root, state) || inside(state, root)) throw new Refusal('sandbox_overlaps_supervisor_state');
++  if (inside(state, root)) throw new Refusal('sandbox_overlaps_supervisor_state');
+   const userRuntime = [`/run/user/${process.getuid!()}`, ...(process.env.XDG_RUNTIME_DIR ? [process.env.XDG_RUNTIME_DIR] : [])];
+   const protectedPaths = ['/sys/fs/cgroup', '/proc', '/dev', ...userRuntime.flatMap(path => [path, join(path, 'bus')]), ...controls.paths].map(real);
+   if (protectedPaths.some(path => inside(root, path) || inside(path, root))) throw new Refusal('sandbox_overlaps_protected_control_path');

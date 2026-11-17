@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/host/host.ts b/packages/worker/src/host/host.ts
+index b40095e..612621a 100644
+--- a/packages/worker/src/host/host.ts
++++ b/packages/worker/src/host/host.ts
+@@ -90,7 +90,7 @@ export class LineHost extends EventEmitter implements SessionHost {
+     this.timeoutMs = options.timeoutMs ?? 30_000;
+     // SAFETY: stdio 0 to 2 are pipes in both forms, which is all ChildProcessWithoutNullStreams promises.
+     const [command, ...argv] = [...(options.prefix ?? []), executable, ...args] as [string, ...string[]];
+-    const extra = options.fds?.length ? [options.report ? 'pipe' : 'ignore', ...options.fds] : options.report ? ['pipe'] : [];
++    const extra = options.report ? ['pipe'] : [];
+     this.child = spawn(command, argv, { cwd: options.cwd, env: options.env, detached: true, stdio: ['pipe', 'pipe', 'pipe', ...extra] as never }) as ChildProcessWithoutNullStreams;
+     if (options.report) {
+       const channel = this.child.stdio[3] as Readable;

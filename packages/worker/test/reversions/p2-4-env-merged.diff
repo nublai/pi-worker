@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/host/host.ts b/packages/worker/src/host/host.ts
+index b40095e..251c69a 100644
+--- a/packages/worker/src/host/host.ts
++++ b/packages/worker/src/host/host.ts
+@@ -308,7 +308,7 @@ export class SdkHost extends LineHost {
+     try {
+       super(box ? box.command : process.execPath, box ? box.args : args, {
+         cwd: launch.cwd,
+-        env: box ? box.env : env,
++        env: box ? { ...process.env, ...box.env } : env,
+         report: !!launch.taskId,
+         ...(box ? { fds: box.fds } : {}),
+         ...(options.prefix ? { prefix: options.prefix } : {}),
