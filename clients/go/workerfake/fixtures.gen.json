@@ -413,6 +413,384 @@
    }
   },
   "events.subscribe": {
+   "every-type": {
+    "request": {
+     "query": {
+      "worker_id": "worker-1"
+     }
+    },
+    "response": {
+     "status": 200,
+     "frames": [
+      {
+       "type": "snapshot",
+       "workers": [
+        {
+         "worker_id": "worker-1",
+         "worker_epoch": "epoch-1",
+         "supervisor_epoch": "sup-epoch-1",
+         "session_id": "session-1",
+         "session_identity_evidence": "pi_session_file",
+         "binding_revision": 1,
+         "leaf_id": "entry-9",
+         "cwd": "/home/u/project",
+         "status": "ready",
+         "foreground": "idle",
+         "execution": null,
+         "fence": null,
+         "history": {
+          "last_entry_id": "entry-9",
+          "lag": false,
+          "evidence": "pi_session_file"
+         },
+         "cleanup": "none",
+         "pending_interactions": [],
+         "queued": [],
+         "fence_generation": 0,
+         "host": "sdk"
+        }
+       ],
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 0
+       },
+       "resync_reason": "fresh"
+      },
+      {
+       "type": "attachment.updated",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 1
+       },
+       "event_id": "ev-1",
+       "producer": "supervisor",
+       "execution_id": null,
+       "evidence": "supervisor_journal_fsynced",
+       "worker_id": "worker-1",
+       "data": {
+        "attachment": {
+         "attachment_id": "photo-1",
+         "worker_id": "worker-1",
+         "state": "staged",
+         "content_type": "image/jpeg",
+         "bytes": 1536,
+         "sha256": "5d41402abc4b2a76b9719d911017c592ae0e5a8f4c5d1f2e3a4b5c6d7e8f9a0b",
+         "command_id": "stage-1",
+         "staged_at": "2026-11-16T04:29:10Z",
+         "released_at": null,
+         "released_by": null,
+         "evidence": "supervisor_journal_fsynced"
+        }
+       }
+      },
+      {
+       "type": "execution.admitted",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 2
+       },
+       "event_id": "ev-2",
+       "producer": "supervisor",
+       "execution_id": "exec-1",
+       "evidence": "supervisor_journal_fsynced",
+       "worker_id": "worker-1",
+       "data": {
+        "command_id": "cmd-1"
+       }
+      },
+      {
+       "type": "receipt.updated",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 3
+       },
+       "event_id": "ev-3",
+       "producer": "supervisor",
+       "execution_id": "exec-1",
+       "evidence": "supervisor_journal_fsynced",
+       "worker_id": "worker-1",
+       "data": {
+        "receipt": {
+         "command_id": "cmd-1",
+         "operation": "sessions.prompt",
+         "request_hash": "6f1c0e7a",
+         "state": "delivered",
+         "stage": "forwarded",
+         "effect": "observed",
+         "evidence": "supervisor_journal_fsynced",
+         "created_at": "2026-11-16T04:29:30Z",
+         "worker_id": "worker-1",
+         "execution_id": "exec-1",
+         "admission": "accepted",
+         "disposition": "started"
+        }
+       }
+      },
+      {
+       "type": "execution.started",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 4
+       },
+       "event_id": "ev-4",
+       "producer": "supervisor",
+       "execution_id": "exec-1",
+       "evidence": "supervisor_journal_fsynced",
+       "worker_id": "worker-1",
+       "data": {
+        "command_id": "cmd-1"
+       }
+      },
+      {
+       "type": "tool.started",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 5
+       },
+       "event_id": "ev-5",
+       "producer": "pi",
+       "execution_id": "exec-1",
+       "evidence": "observed_memory",
+       "worker_id": "worker-1",
+       "data": {
+        "tool_call_id": "toolu_1",
+        "name": "read",
+        "summary": "src/login.ts"
+       }
+      },
+      {
+       "type": "tool.finished",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 6
+       },
+       "event_id": "ev-6",
+       "producer": "pi",
+       "execution_id": "exec-1",
+       "evidence": "observed_memory",
+       "worker_id": "worker-1",
+       "data": {
+        "tool_call_id": "toolu_1",
+        "name": "read",
+        "summary": "src/login.ts",
+        "is_error": false
+       }
+      },
+      {
+       "type": "assistant.delta",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 7
+       },
+       "event_id": "ev-7",
+       "producer": "pi",
+       "execution_id": "exec-1",
+       "evidence": "observed_memory",
+       "worker_id": "worker-1",
+       "data": {
+        "tail": "Done: the login form now",
+        "length": 24
+       }
+      },
+      {
+       "type": "assistant.delta",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 8
+       },
+       "event_id": "ev-8",
+       "producer": "pi",
+       "execution_id": "exec-1",
+       "evidence": "observed_memory",
+       "worker_id": "worker-1",
+       "data": {
+        "tail": "Done: the login form now validates the email.",
+        "length": 45
+       }
+      },
+      {
+       "type": "history.appended",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 9
+       },
+       "event_id": "ev-9",
+       "producer": "supervisor",
+       "execution_id": "exec-1",
+       "evidence": "observed_memory",
+       "worker_id": "worker-1",
+       "data": {
+        "session_id": "session-1",
+        "file_identity": "9b74c9897bac770ffc029102a200c5de9b74c9897bac770ffc029102a200c5de",
+        "watermark": 4096,
+        "last_entry_id": "entry-10"
+       }
+      },
+      {
+       "type": "execution.settled",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 10
+       },
+       "event_id": "ev-10",
+       "producer": "supervisor",
+       "execution_id": "exec-1",
+       "evidence": "observed_memory",
+       "worker_id": "worker-1",
+       "data": {
+        "command_id": "cmd-1",
+        "disposition": "started"
+       }
+      },
+      {
+       "type": "interactions.changed",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 11
+       },
+       "event_id": "ev-11",
+       "producer": "supervisor",
+       "execution_id": null,
+       "evidence": "observed_memory",
+       "worker_id": "worker-1",
+       "data": {
+        "interactions": []
+       }
+      },
+      {
+       "type": "fence.set",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 12
+       },
+       "event_id": "ev-12",
+       "producer": "supervisor",
+       "execution_id": "exec-2",
+       "evidence": "supervisor_journal_fsynced",
+       "worker_id": "worker-1",
+       "data": {
+        "command_id": "cmd-2",
+        "fence_generation": 1,
+        "fence": {
+         "command_id": "cmd-2",
+         "fence_generation": 1,
+         "uncertain_command_ids": [
+          "cmd-2"
+         ]
+        }
+       }
+      },
+      {
+       "type": "fence.resolved",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 13
+       },
+       "event_id": "ev-13",
+       "producer": "supervisor",
+       "execution_id": "exec-2",
+       "evidence": "supervisor_journal_fsynced",
+       "worker_id": "worker-1",
+       "data": {
+        "command_id": "cmd-2",
+        "disposition": "abandon",
+        "fence_generation": 1,
+        "external_effects_undone": false,
+        "fence": null
+       }
+      },
+      {
+       "type": "session.rebound",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 14
+       },
+       "event_id": "ev-14",
+       "producer": "supervisor",
+       "execution_id": null,
+       "evidence": "supervisor_journal_fsynced",
+       "worker_id": "worker-1",
+       "data": {
+        "session_id": "session-2",
+        "binding_revision": 2,
+        "action": "new"
+       }
+      },
+      {
+       "type": "worker.updated",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 15
+       },
+       "event_id": "ev-15",
+       "producer": "supervisor",
+       "execution_id": null,
+       "evidence": "supervisor_journal_fsynced",
+       "worker_id": "worker-1",
+       "data": {
+        "worker": {
+         "worker_id": "worker-1",
+         "worker_epoch": "epoch-1",
+         "supervisor_epoch": "sup-epoch-1",
+         "session_id": "session-1",
+         "session_identity_evidence": "pi_session_file",
+         "binding_revision": 1,
+         "leaf_id": "entry-9",
+         "cwd": "/home/u/project",
+         "status": "ready",
+         "foreground": "idle",
+         "execution": null,
+         "fence": null,
+         "history": {
+          "last_entry_id": "entry-9",
+          "lag": false,
+          "evidence": "pi_session_file"
+         },
+         "cleanup": "none",
+         "pending_interactions": [],
+         "queued": [],
+         "fence_generation": 0,
+         "host": "sdk"
+        }
+       }
+      },
+      {
+       "type": "child.reported",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 16
+       },
+       "event_id": "ev-16",
+       "producer": "supervisor",
+       "execution_id": null,
+       "evidence": "supervisor_journal_fsynced",
+       "worker_id": "worker-1",
+       "data": {
+        "report_command_id": "report-1",
+        "task_id": "job-1",
+        "parent_worker_id": "worker-1",
+        "kind": "result",
+        "claim_not_verified": true
+       }
+      },
+      {
+       "type": "overflow",
+       "cursor": {
+        "transport_epoch": "t-1",
+        "seq": 16
+       },
+       "event_id": "ev-17",
+       "producer": "supervisor",
+       "execution_id": null,
+       "evidence": "observed_memory",
+       "data": {
+        "resync_required": true,
+        "reason": "subscriber_queue_overflow"
+       }
+      }
+     ]
+    }
+   },
    "ok": {
     "request": {
      "query": {
@@ -1839,7 +2217,28 @@
        "pending_interactions": [],
        "queued": [],
        "fence_generation": 0,
-       "host": "sdk"
+       "host": "sdk",
+       "status_since": "2026-11-16T04:29:00Z",
+       "settle_count": 2,
+       "recent_settlements": [
+        {
+         "execution_id": "exec-2",
+         "command_id": "cmd-2",
+         "disposition": "started",
+         "settled_at": "2026-11-16T04:30:01Z"
+        },
+        {
+         "execution_id": "exec-1",
+         "command_id": "cmd-1",
+         "disposition": "started",
+         "settled_at": "2026-11-16T04:20:00Z"
+        }
+       ],
+       "lineage": "root",
+       "repo_label": "project",
+       "title": null,
+       "preview": "Done: the login form now validates the email.",
+       "last_activity_at": "2026-11-16T04:30:00Z"
       }
      ]
     }

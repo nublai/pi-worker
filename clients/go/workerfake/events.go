@@ -20,15 +20,18 @@ const (
 	queueBytes  = 256 << 10
 )
 
-// queued is one SSE record; counted ones (events, not the snapshot or the overflow frame) hold queue room.
+// queued is one SSE record; counted ones (events, not the snapshot or the overflow frame) hold queue room. delta
+// names the worker of an assistant.delta record: a newer delta of that worker supersedes it while it waits.
 type queued struct {
 	data    []byte
 	counted bool
+	delta   string
 }
 
 type subscriber struct {
-	frames    chan queued // capacity queueEvents+2 so the snapshot and the overflow record always fit
-	bytes     int         // bytes of the counted records not yet taken by the writer (f.mu)
+	queue     []queued      // records the writer has not taken yet (f.mu)
+	wake      chan struct{} // capacity 1: something was queued or the subscription ended
+	bytes     int           // bytes of the counted records in queue (f.mu)
 	workerIDs map[string]bool
 	types     map[string]bool
 	closed    bool
@@ -41,6 +44,29 @@ func (sub *subscriber) wants(eventType, workerID string) bool {
 	return sub.types == nil || sub.types[eventType]
 }
 
+func (sub *subscriber) push(rec queued) {
+	sub.queue = append(sub.queue, rec)
+	if rec.counted {
+		sub.bytes += len(rec.data)
+	}
+	select {
+	case sub.wake <- struct{}{}:
+	default:
+	}
+}
+
+// supersede drops the subscriber's waiting assistant.delta of this worker: the newer one carries the whole tail
+// (packages/worker/src/events/hub.ts), so a delta storm holds one record per worker and never overflows the queue.
+func (sub *subscriber) supersede(workerID string) {
+	for i, rec := range sub.queue {
+		if rec.delta == workerID {
+			sub.bytes -= len(rec.data)
+			sub.queue = append(sub.queue[:i:i], sub.queue[i+1:]...)
+			return
+		}
+	}
+}
+
 func record(eventType string, cursor b2.Cursor, frame any) []byte {
 	id, _ := json.Marshal(cursor)
 	data, _ := json.Marshal(frame)
@@ -49,27 +75,39 @@ func record(eventType string, cursor b2.Cursor, frame any) []byte {
 
 func (s *state) cursor() b2.Cursor { return b2.Cursor{TransportEpoch: s.supervisorEpoch, Seq: s.seq} }
 
+// fromPi lists the events whose producer is pi (its own SDK events); the supervisor produces every other one.
+var fromPi = map[string]bool{"assistant.delta": true, "tool.started": true, "tool.finished": true}
+
 // publish sends one worker event to every subscriber that wants it (f.mu held).
 func (s *state) publish(eventType, workerID string, executionID *string, evidence string, data any) {
 	s.seq++
 	cursor := s.cursor()
+	producer := "supervisor"
+	if fromPi[eventType] {
+		producer = "pi"
+	}
 	frame := map[string]any{
-		"type": eventType, "cursor": cursor, "event_id": s.id("ev"), "producer": "supervisor",
+		"type": eventType, "cursor": cursor, "event_id": s.id("ev"), "producer": producer,
 		"execution_id": executionID, "evidence": evidence, "worker_id": workerID, "data": data,
 	}
-	rec := record(eventType, cursor, frame)
+	rec := queued{data: record(eventType, cursor, frame), counted: true}
+	if eventType == "assistant.delta" {
+		rec.delta = workerID
+	}
 	for sub := range s.subs {
 		if !sub.wants(eventType, workerID) {
 			continue
 		}
+		if rec.delta != "" {
+			sub.supersede(workerID)
+		}
 		// A frame alone in an empty queue goes straight to the writer, as the hub sends to a transport that is not
 		// backpressured.
-		if len(sub.frames) >= queueEvents || (sub.bytes > 0 && sub.bytes+len(rec) > queueBytes) {
+		if len(sub.queue) >= queueEvents || (sub.bytes > 0 && sub.bytes+len(rec.data) > queueBytes) {
 			s.overflow(sub, "subscriber_queue_overflow")
 			continue
 		}
-		sub.bytes += len(rec)
-		sub.frames <- queued{data: rec, counted: true}
+		sub.push(rec)
 	}
 }
 
@@ -87,7 +125,7 @@ func (s *state) overflow(sub *subscriber, reason string) {
 		"type": "overflow", "cursor": s.cursor(), "event_id": s.id("ev"), "producer": "supervisor", "execution_id": nil,
 		"evidence": "observed_memory", "data": map[string]any{"resync_required": true, "reason": reason},
 	}
-	sub.frames <- queued{data: record("overflow", s.cursor(), frame)}
+	sub.push(queued{data: record("overflow", s.cursor(), frame)})
 	s.end(sub)
 }
 
@@ -96,8 +134,11 @@ func (s *state) end(sub *subscriber) {
 		return
 	}
 	sub.closed = true
-	close(sub.frames)
 	delete(s.subs, sub)
+	select {
+	case sub.wake <- struct{}{}:
+	default:
+	}
 }
 
 // endStreams closes every stream without a frame (a supervisor restart or Close): readers see a disconnect.
@@ -154,7 +195,7 @@ func subscribe(f *Fake, c *call) (any, error) {
 		}
 		since = cur
 	}
-	sub := &subscriber{frames: make(chan queued, queueEvents+2)}
+	sub := &subscriber{wake: make(chan struct{}, 1)}
 	if v := c.query.Get("types"); v != "" {
 		sub.types = map[string]bool{}
 		for _, t := range strings.Split(v, ",") {
@@ -198,7 +239,7 @@ func subscribe(f *Fake, c *call) (any, error) {
 		reason = "gap"
 	}
 	cursor := s.cursor()
-	sub.frames <- queued{data: record("snapshot", cursor, map[string]any{"type": "snapshot", "workers": workers, "cursor": cursor, "resync_reason": reason})}
+	sub.push(queued{data: record("snapshot", cursor, map[string]any{"type": "snapshot", "workers": workers, "cursor": cursor, "resync_reason": reason})})
 	s.subs[sub] = true
 	f.mu.Unlock()
 
@@ -207,31 +248,40 @@ func subscribe(f *Fake, c *call) (any, error) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
+	// The writer takes queued records in order; an ended subscription still writes what it queued (an overflow
+	// frame), then the stream ends.
 	for {
-		select {
-		case rec, ok := <-sub.frames:
-			if !ok {
+		f.mu.Lock()
+		if len(sub.queue) == 0 {
+			closed := sub.closed
+			f.mu.Unlock()
+			if closed {
 				return written{}, nil
 			}
-			if rec.counted {
-				f.mu.Lock()
-				sub.bytes -= len(rec.data)
-				f.mu.Unlock()
-			}
-			if _, err := w.Write(rec.data); err != nil {
+			select {
+			case <-sub.wake:
+				continue
+			case <-c.r.Context().Done():
 				f.mu.Lock()
 				s.end(sub)
 				f.mu.Unlock()
 				return written{}, nil
 			}
-			if flusher != nil {
-				flusher.Flush()
-			}
-		case <-c.r.Context().Done():
+		}
+		rec := sub.queue[0]
+		sub.queue = sub.queue[1:]
+		if rec.counted {
+			sub.bytes -= len(rec.data)
+		}
+		f.mu.Unlock()
+		if _, err := w.Write(rec.data); err != nil {
 			f.mu.Lock()
 			s.end(sub)
 			f.mu.Unlock()
 			return written{}, nil
+		}
+		if flusher != nil {
+			flusher.Flush()
 		}
 	}
 }
