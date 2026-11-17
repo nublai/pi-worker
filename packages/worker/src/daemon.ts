@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 import { createApp } from './b2/app.js';
 import { createB2Server, listenPrivate } from './b2/server.js';
 import { resolvePaths, resolveSocketAccess, socketModes, type SocketAccess } from './config.js';
-import type { Containment } from './containment/containment.js';
+import { SweepUnproven, type Containment } from './containment/containment.js';
 import { pinnedPiVersion, SdkHost } from './host/host.js';
 import type { InventoryFactory } from './supervisor/features.js';
 import type { HostFactory } from './supervisor/state.js';
@@ -105,9 +105,17 @@ export async function runDaemon(containment: (stateDir: string) => Containment):
     ...productionHosts(),
     grants,
   });
-  // Recovery before the socket listens: undispatched intents become intent_recovered, dispatched ones outcome_unknown,
-  // and every worker that held a session is recorded cleanup_pending, then its domain is killed and removed. No replay.
-  await supervisor.recover();
+  // Recovery before the socket listens. It awaits the startup sweep (every domain of this installation the journal does
+  // not account for is killed and removed; one not proven gone refuses the start, P2-2); then undispatched intents
+  // become intent_recovered, dispatched ones outcome_unknown, and every worker that held a session is recorded
+  // cleanup_pending, then its domain is killed and removed. No replay.
+  try {
+    await supervisor.recover();
+  } catch (error) {
+    if (!(error instanceof SweepUnproven)) throw error;
+    console.error(JSON.stringify({ event: 'refused', reason: error.code, domains: error.domains, detail: error.message }));
+    process.exit(1);
+  }
   const app = createApp({
     supervisorId: state.supervisorId,
     supervisorEpoch: state.supervisorEpoch,

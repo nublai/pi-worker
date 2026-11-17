@@ -120,8 +120,14 @@ export class Supervisor {
     return this.state.receipts;
   }
 
-  /** Recovery after a restart, before the socket listens. Never adopts or relaunches a host; never replays. */
+  /**
+   * Recovery after a restart, before the socket listens. Never adopts or relaunches a host; never replays. It awaits the
+   * startup sweep first: every domain of this installation that no journal record accounts for (a holding worker's, a
+   * probe's whose cleanup is unconfirmed) is killed and removed, and one not proven gone throws `SweepUnproven` before
+   * anything is recovered or recorded, so the daemon fails to start (P2-2).
+   */
   async recover(): Promise<void> {
+    await this.lifecycle.containment.sweep([...this.lifecycle.pendingDomains(), ...this.features.pendingDomains()]);
     // The owner's durable `keep` of a recovered intent survives restarts; any other intent_ready does not.
     const kept = (r: Receipt) => !!r.worker_id && (this.state.workers.get(r.worker_id)?.worker.resolutions ?? []).some(x => x.command_id === r.command_id && x.disposition === 'keep');
     this.state.receipts.recover(kept);
