@@ -12,8 +12,6 @@ import { createApp } from '../src/b2/app.js';
 import { createB2Server, listenPrivate } from '../src/b2/server.js';
 import { type Snapshot } from '../src/events/hub.js';
 import { validateEventFrame, type EventFrame, type EventOf } from '../src/generated/events.js';
-import { RECENT_SETTLEMENTS } from '../src/supervisor/input.js';
-import { TAIL_CHARS } from '../src/supervisor/activity.js';
 import type { Worker } from '../src/supervisor/state.js';
 import { bind, fixture, tick, type Fixture } from './supervisor-fixture.js';
 import { ownerGrant, sseRecords } from './helpers.js';
@@ -21,6 +19,12 @@ import { jpegBytes, sha256 } from './images.js';
 import { fakeProvider, providerExtension, realPiSupervisor, sse, until } from './real-pi.js';
 
 type Frame = EventFrame;
+
+// The spec's bounds, stated here rather than imported from the worker so that this file also loads on the revision
+// before P1-19 and fails there by assertion (PR #20 GPT 6): AssistantDeltaEvent `tail` maxLength (activity.ts
+// TAIL_CHARS) and Worker `recent_settlements` maxItems (input.ts RECENT_SETTLEMENTS).
+const TAIL_CHARS = 2048;
+const RECENT_SETTLEMENTS = 8;
 
 /** Every frame the supervisor publishes for `worker`, after its snapshot, validated against its schema. */
 function watch(f: Fixture, worker: Worker): { frames: Frame[]; of: <T extends Frame['type']>(type: T) => EventOf<T>[]; close: () => void } {
@@ -164,6 +168,7 @@ test('events: tool.started and tool.finished carry the call id, name and a one-l
     events.close();
     const started = events.of('tool.started');
     const finished = events.of('tool.finished');
+    assert.deepEqual([started.length, finished.length], [3, 2], `types: ${events.frames.map(x => x.type)}`);
     assert.deepEqual(started[0]!.data, { tool_call_id: 't1', name: 'bash', summary: 'ls -la /tmp' });
     assert.equal(started[0]!.producer, 'pi');
     assert.equal(started[0]!.evidence, 'observed_memory');
@@ -327,6 +332,7 @@ test('recent_settlements: two executions settled while a subscriber is away are 
     await tick();
     const checkRow = (row: Worker) => {
       assert.equal(row.settle_count, 2);
+      assert.ok(Array.isArray(row.recent_settlements), 'the row carries recent_settlements');
       assert.deepEqual(
         row.recent_settlements!.map(x => [x.execution_id, x.command_id]),
         [
@@ -374,6 +380,7 @@ test(`recent_settlements: at most ${RECENT_SETTLEMENTS}, newest first, one entry
     await tick();
     const row = (await snapshotOver(s.socket, s.headers)).workers.find(x => x.worker_id === id)!;
     assert.equal(row.settle_count, RECENT_SETTLEMENTS + 3);
+    assert.ok(Array.isArray(row.recent_settlements), 'the row carries recent_settlements');
     assert.deepEqual(
       row.recent_settlements!.map(x => x.execution_id),
       executions.slice(-RECENT_SETTLEMENTS).reverse(),
