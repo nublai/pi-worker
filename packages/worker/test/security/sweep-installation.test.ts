@@ -190,6 +190,11 @@ test('installation: a recorded domain this cleanup would not accept fails startu
   }
 });
 
+/** Removes the production installation lock a kernel test's daemon left (its file and SQLite's journal beside it). */
+const dropLock = (installation: string) => {
+  for (const file of [`${installation}.lock`, `${installation}.lock-journal`]) rmSync(join(installationLocks(), file), { force: true });
+};
+
 const testDaemon = fileURLToPath(new URL('../fixtures/daemon.js', import.meta.url));
 const productionDaemon = fileURLToPath(new URL('../../src/main.js', import.meta.url));
 const gcHook = new URL('../fixtures/gc.js', import.meta.url).href;
@@ -371,7 +376,7 @@ test('kernel: a daemon on a copy of a running daemon\'s state is refused before 
   } finally {
     for (const child of children) await stop(child);
     if (owned) await owned.jail.clean(owned.domain);
-    rmSync(join(installationLocks(), `${String(id)}.lock`), { force: true });
+    dropLock(String(id));
     tmp.cleanup();
   }
 });
