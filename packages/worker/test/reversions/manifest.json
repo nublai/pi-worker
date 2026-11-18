@@ -434,6 +434,8 @@
         "p2-4-files-read-hidden.diff",
         "p2-4-files-read-any-root.diff",
         "p2-4-files-read-unsandboxed.diff",
+        "p2-4-files-read-root-resolved.diff",
+        "p2-4-root-tmpfs-writable.diff",
         "p2-4-env-merged.diff",
         "p2-4-mount-fds-kept.diff",
         "p2-4-mount-fds-not-placed.diff",
