@@ -15,12 +15,14 @@ import {
   readdirSync,
   readFileSync,
   readlinkSync,
+  realpathSync,
   renameSync,
+  rmdirSync,
   rmSync,
   chmodSync,
-  statSync,
   symlinkSync,
   writeFileSync,
+  type Stats,
 } from 'node:fs';
 import { connect } from 'node:net';
 import { userInfo } from 'node:os';
@@ -35,6 +37,36 @@ export const UNIT = 'pi-worker.service';
 const TARBALL = /^pi-worker-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)-linux-(x64|arm64)\.tar\.gz$/;
 /** What a unit file may hold literally: no spaces, quotes, `%` specifiers or `$` expansions. */
 const SAFE_PATH = /^\/[A-Za-z0-9._/@+-]*$/;
+
+/**
+ * A configured path a unit file may hold and purge may act on: `SAFE_PATH` characters, absolute and canonical (no
+ * empty, `.` or `..` component, no trailing slash), so string comparisons with HOME mean what they say.
+ */
+export function canonicalPath(path: string | undefined): path is string {
+  if (path === undefined || !SAFE_PATH.test(path)) return false;
+  return path === '/' || path.slice(1).split('/').every(c => c !== '' && c !== '.' && c !== '..');
+}
+
+function unsafe(which: string, detail?: string): LocalFailure {
+  return new LocalFailure('pi_worker_unsafe_path', 'no_effect', { which, ...(detail ? { detail } : {}) });
+}
+
+/** `path` is `/`, HOME or a directory holding HOME, as written or once symlinks are resolved (native realpath). */
+function holdsHome(path: string, home: string): boolean {
+  const holds = (p: string, h: string) => p === '/' || p === h || h.startsWith(`${p}/`);
+  if (holds(path, home)) return true;
+  try {
+    return holds(realpathSync.native(path), realpathSync.native(home));
+  } catch {
+    return false;
+  }
+}
+
+/** The environment a user-manager command (systemctl, the grant command) runs with: `XDG_RUNTIME_DIR` defaults to `/run/user/<uid>`. */
+export function userEnv(env: NodeJS.ProcessEnv, uid: number): NodeJS.ProcessEnv {
+  const runtime = env.XDG_RUNTIME_DIR || `/run/user/${uid}`;
+  return { ...env, XDG_RUNTIME_DIR: runtime, DBUS_SESSION_BUS_ADDRESS: env.DBUS_SESSION_BUS_ADDRESS ?? `unix:path=${runtime}/bus` };
+}
 
 export interface ExecResult {
   readonly status: number | null;
@@ -62,7 +94,8 @@ export interface System {
 export function realSystem(): System {
   return {
     exec(file, args, { env, inherit, timeoutMs }) {
-      const result = spawnSync(file, args, { env, encoding: 'utf8', stdio: inherit ? 'inherit' : 'pipe', ...(timeoutMs ? { timeout: timeoutMs } : {}) });
+      // `tar -t` of a release lists every node_modules file: well over spawnSync's default 1 MiB.
+      const result = spawnSync(file, args, { env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: inherit ? 'inherit' : 'pipe', ...(timeoutMs ? { timeout: timeoutMs } : {}) });
       return { status: result.error ? null : result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? (result.error ? String(result.error.message) : '') };
     },
     uid: process.getuid!(),
@@ -96,12 +129,11 @@ export interface Layout {
  */
 export function layout(env: NodeJS.ProcessEnv, system: System): Layout {
   const home = env.HOME;
-  if (!home || !SAFE_PATH.test(home)) throw new LocalFailure('pi_worker_unsafe_path', 'no_effect', { which: 'HOME' });
-  const runtime = env.XDG_RUNTIME_DIR || `/run/user/${system.uid}`;
-  const userEnv = { ...env, XDG_RUNTIME_DIR: runtime, DBUS_SESSION_BUS_ADDRESS: env.DBUS_SESSION_BUS_ADDRESS ?? `unix:path=${runtime}/bus` };
+  if (!canonicalPath(home) || home === '/') throw unsafe('HOME');
+  const runEnv = userEnv(env, system.uid);
   let paths: { stateDir: string; socketPath: string };
   try {
-    paths = resolvePaths(userEnv);
+    paths = resolvePaths(runEnv);
   } catch {
     throw new LocalFailure('pi_worker_unsafe_path', 'no_effect', { which: 'state or socket' });
   }
@@ -116,7 +148,7 @@ export function layout(env: NodeJS.ProcessEnv, system: System): Layout {
     doctorGrant: join(data, 'doctor.grant.json'),
     stateDir: paths.stateDir,
     socket: paths.socketPath,
-    env: userEnv,
+    env: runEnv,
   };
 }
 
@@ -254,34 +286,90 @@ async function hello(l: Layout, timeoutMs: number): Promise<{ ok: true; version:
   }
 }
 
-/** Unpacks the tarball through a staging directory renamed into `versions/<version>`; refuses a wrong layout. */
+/**
+ * Reads the tarball without writing anything: every member name (as stored, `tar -tP`) lies under `pi-worker-<version>/`
+ * with no absolute path and no `.` or `..` component, and its `release.json` names this version. Returns that release.
+ */
+function inspectTarball(system: System, l: Layout, tarball: string, version: string): Release {
+  const invalid = (detail: string) => new LocalFailure('pi_worker_tarball_invalid', 'no_effect', { detail });
+  const top = `pi-worker-${version}`;
+  const list = system.exec('tar', ['-tzPf', tarball, '--quoting-style=escape'], { env: l.env, timeoutMs: 300_000 });
+  if (list.status !== 0) throw invalid('tar could not list it');
+  for (const name of list.stdout.split('\n')) {
+    if (name === '') continue;
+    const parts = name.replace(/\/$/, '').split('/');
+    if (parts[0] !== top || parts.some(p => p === '' || p === '.' || p === '..')) throw invalid(`a member outside ${top}/, absolute or with a . or .. component`);
+  }
+  const read = system.exec('tar', ['-xzOf', tarball, `${top}/release.json`], { env: l.env, timeoutMs: 300_000 });
+  let release: Release | undefined;
+  try {
+    release = read.status === 0 ? (JSON.parse(read.stdout) as Release) : undefined;
+  } catch {
+    release = undefined;
+  }
+  if (release?.version !== version || typeof release.node_engine !== 'string') throw invalid('release.json does not name this version');
+  return release;
+}
+
+/**
+ * What an unpacked tree may not hold: a symlink that does not resolve inside `root` (followed as the kernel would), a
+ * hard link, or a device, FIFO or socket. Returns the first problem found.
+ */
+function unconfined(root: string): string | undefined {
+  // The native realpath: Node's own resolves `..` after a link lexically, which is not where the kernel goes.
+  const base = realpathSync.native(root);
+  const walk = (dir: string): string | undefined => {
+    for (const name of readdirSync(dir)) {
+      const path = join(dir, name);
+      const st = lstatSync(path);
+      if (st.isSymbolicLink()) {
+        let target: string;
+        try {
+          target = realpathSync.native(path);
+        } catch {
+          return 'a symlink that resolves to nothing';
+        }
+        if (target !== base && !target.startsWith(`${base}/`)) return 'a symlink out of the version directory';
+      } else if (st.isDirectory()) {
+        const inner = walk(path);
+        if (inner) return inner;
+      } else if (!st.isFile()) return 'a device, FIFO or socket';
+      else if (st.nlink > 1) return 'a hard link';
+    }
+    return undefined;
+  };
+  return walk(root);
+}
+
+/**
+ * Unpacks the inspected tarball through a staging directory renamed into `versions/<version>`. It writes first, so its
+ * refusals are effect `unknown` (the staging directory is removed; `versions/` may remain).
+ */
 function unpack(system: System, l: Layout, tarball: string, version: string): void {
+  const invalid = (detail: string) => new LocalFailure('pi_worker_tarball_invalid', 'unknown', { detail });
   const target = join(l.versions, version);
   mkdirSync(l.versions, { recursive: true, mode: 0o755 });
   const staging = join(l.versions, `.staging-${randomBytes(6).toString('hex')}`);
   mkdirSync(staging, { mode: 0o700 });
   try {
     const result = system.exec('tar', ['-xzf', tarball, '-C', staging, '--no-same-owner', '--no-same-permissions'], { env: l.env, timeoutMs: 300_000 });
-    if (result.status !== 0) throw new LocalFailure('pi_worker_tarball_invalid', 'no_effect', { detail: 'tar could not unpack it' });
+    if (result.status !== 0) throw invalid('tar could not unpack it');
     const top = `pi-worker-${version}`;
     const entries = readdirSync(staging);
-    if (entries.length !== 1 || entries[0] !== top || !lstatSync(join(staging, top)).isDirectory()) {
-      throw new LocalFailure('pi_worker_tarball_invalid', 'no_effect', { detail: `expected one top directory ${top}` });
-    }
-    const release = readRelease(join(staging, top));
-    if (release?.version !== version) throw new LocalFailure('pi_worker_tarball_invalid', 'no_effect', { detail: 'release.json does not name this version' });
+    if (entries.length !== 1 || entries[0] !== top || !lstatSync(join(staging, top)).isDirectory()) throw invalid(`expected one top directory ${top}`);
+    const problem = unconfined(join(staging, top));
+    if (problem) throw invalid(problem);
+    if (readRelease(join(staging, top))?.version !== version) throw invalid('release.json does not name this version');
     try {
+      // Followed: a link here already resolves inside the version directory.
       accessSync(join(staging, top, 'bin', 'pi-worker'), constants.X_OK);
     } catch {
-      throw new LocalFailure('pi_worker_tarball_invalid', 'no_effect', { detail: 'no executable bin/pi-worker' });
-    }
-    if (!meetsFloor(system.nodeVersion, release.node_engine)) {
-      throw new LocalFailure('pi_worker_node_unsupported', 'no_effect', { required: release.node_engine, found: system.nodeVersion });
+      throw invalid('no executable bin/pi-worker');
     }
     chmodSync(join(staging, top), 0o755);
     renameSync(join(staging, top), target);
   } finally {
-    rmSync(staging, { recursive: true, force: true });
+    removeTree(staging);
   }
 }
 
@@ -301,8 +389,10 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
   const l = layout(env, system);
   const nodeDir = dirname(system.nodePath);
   for (const [which, path] of [['node', nodeDir], ['state', l.stateDir], ['socket', l.socket]] as const) {
-    if (!SAFE_PATH.test(path)) throw new LocalFailure('pi_worker_unsafe_path', 'no_effect', { which });
+    if (!canonicalPath(path)) throw unsafe(which);
   }
+  // A state directory purge could never remove is not pinned in the first place.
+  if (holdsHome(l.stateDir, l.home)) throw unsafe('state', 'the state directory is /, HOME or holds HOME');
 
   // Refusals, before anything is written.
   await verifyChecksum(tarball);
@@ -322,6 +412,11 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
       throw new LocalFailure('pi_worker_node_unsupported', 'no_effect', { required: release.node_engine, found: system.nodeVersion });
     }
   } else {
+    const release = inspectTarball(system, l, tarball, version);
+    if (!meetsFloor(system.nodeVersion, release.node_engine)) {
+      throw new LocalFailure('pi_worker_node_unsupported', 'no_effect', { required: release.node_engine, found: system.nodeVersion });
+    }
+    // The first write.
     unpack(system, l, tarball, version);
   }
 
@@ -468,24 +563,85 @@ export function logs(follow: boolean, env: NodeJS.ProcessEnv, system: System): n
   return result.status ?? 1;
 }
 
-/** Removes a tree, making read-only directories in it writable first when a plain removal is refused. */
-function removeTree(path: string): void {
+/**
+ * Removes a tree without following links: a link (or any non-directory) at `path` is unlinked, never entered. When a
+ * plain removal is refused, real directories inside (never a link's target) are made writable first.
+ */
+export function removeTree(path: string): void {
+  let top;
+  try {
+    top = lstatSync(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw error;
+  }
+  if (!top.isDirectory()) {
+    rmSync(path, { force: true });
+    return;
+  }
   try {
     rmSync(path, { recursive: true, force: true });
   } catch {
+    // Dirent types come from the directory itself (lstat semantics): a link is never a directory here.
     const writable = (dir: string): void => {
       chmodSync(dir, 0o700);
       for (const entry of readdirSync(dir, { withFileTypes: true })) if (entry.isDirectory()) writable(join(dir, entry.name));
     };
-    if (statSync(path).isDirectory()) writable(path);
+    writable(path);
     rmSync(path, { recursive: true, force: true });
   }
+}
+
+type Kind = 'dir' | 'file' | 'socket';
+
+interface Removal {
+  readonly which: string;
+  readonly path: string;
+  readonly kind: Kind;
+  /** Checked but not removed (the data directory is removed only when empty). */
+  readonly keep?: boolean;
+}
+
+/**
+ * What purge removes: only the paths install and the daemon create (`versions/`, the doctor grant, the state directory,
+ * the socket's `pi-worker` directory or the socket), never `/`, HOME or a directory holding it. Each that exists must
+ * be a real directory, file or socket of this user, not a symlink. Any doubt refuses before anything is removed.
+ */
+function purgePlan(l: Layout, pin: { stateDir?: string; socket?: string }, uid: number): Removal[] {
+  const stateDir = pin.stateDir ?? l.stateDir;
+  if (!canonicalPath(stateDir)) throw unsafe('state');
+  if (holdsHome(stateDir, l.home)) throw unsafe('state', 'the state directory is /, HOME or holds HOME');
+  const socket = pin.socket ?? l.socket;
+  if (!canonicalPath(socket)) throw unsafe('socket');
+  const own = basename(dirname(socket)) === 'pi-worker';
+  if (own && holdsHome(dirname(socket), l.home)) throw unsafe('socket', 'the socket directory holds HOME');
+  const plan: Removal[] = [
+    { which: 'data', path: l.data, kind: 'dir', keep: true },
+    { which: 'data', path: l.versions, kind: 'dir' },
+    { which: 'data', path: l.doctorGrant, kind: 'file' },
+    { which: 'state', path: stateDir, kind: 'dir' },
+    own ? { which: 'socket', path: dirname(socket), kind: 'dir' } : { which: 'socket', path: socket, kind: 'socket' },
+  ];
+  const is: Record<Kind, (s: Stats) => boolean> = { dir: s => s.isDirectory(), file: s => s.isFile(), socket: s => s.isSocket() };
+  return plan.filter(r => {
+    let st;
+    try {
+      st = lstatSync(r.path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+      throw unsafe(r.which, 'cannot be inspected');
+    }
+    if (st.uid !== uid || !is[r.kind](st)) throw unsafe(r.which, `not a ${r.kind === 'dir' ? 'directory' : r.kind} of this user (a symlink?)`);
+    return !r.keep;
+  });
 }
 
 /** `pi-worker uninstall [--purge]`. */
 export function uninstall(purge: boolean, env: NodeJS.ProcessEnv, system: System): Record<string, unknown> {
   const l = layout(env, system);
   const pin = pinned(l);
+  // A purge is planned and checked before anything is stopped or removed.
+  const removals = purge ? purgePlan(l, pin, system.uid) : [];
   if (existsSync(l.unitFile)) {
     systemctl(system, l, 'disable', 'disable', '--now', UNIT);
     rmSync(l.unitFile, { force: true });
@@ -494,14 +650,14 @@ export function uninstall(purge: boolean, env: NodeJS.ProcessEnv, system: System
   system.exec('systemctl', ['--user', 'reset-failed', UNIT], { env: l.env, timeoutMs: 30_000 });
   if (lstatExists(l.bin) && lstatSync(l.bin).isSymbolicLink() && readlinkSync(l.bin).startsWith(`${l.data}/`)) rmSync(l.bin, { force: true });
   if (lstatExists(l.current)) rmSync(l.current, { force: true });
+  for (const r of removals) removeTree(r.path);
   if (purge) {
-    removeTree(l.data);
-    // A configured state directory is removed whole, but never `/`, HOME or a directory that holds HOME.
-    const stateDir = pin.stateDir ?? l.stateDir;
-    if (stateDir !== '/' && !`${l.home}/`.startsWith(`${stateDir.replace(/\/+$/, '')}/`)) removeTree(stateDir);
-    // The socket's own `pi-worker` directory; a socket configured elsewhere (PIW_SOCKET) loses only its file.
-    const socket = pin.socket ?? l.socket;
-    removeTree(basename(dirname(socket)) === 'pi-worker' ? dirname(socket) : socket);
+    // The data directory goes only when nothing but what install made was in it.
+    try {
+      rmdirSync(l.data);
+    } catch {
+      // ENOENT or ENOTEMPTY: a file of the owner's stays.
+    }
   }
   return { uninstalled: true, purged: purge };
 }

@@ -6,13 +6,17 @@
 # (state and versions kept), install again (the grant still works), uninstall --purge (nothing left).
 # Writes <run-dir>/journey.json (named checks) and <run-dir>/transcript.log (commands and their output; bearers only
 # ever live in their 0600 files outside the run directory). Exits non-zero on any failed check.
+# The pi-worker commands run as Shep's installer would, with neither XDG_RUNTIME_DIR nor PIW_SOCKET in the environment
+# (install, grant and the host commands fall back to /run/user/<uid>; B2 calls get --socket from install's output).
+# Only this script's own systemctl probes are given XDG_RUNTIME_DIR.
 set -uo pipefail
 tarball=$(readlink -f "${1:?tarball}")
 run=${2:?run dir}
 mkdir -p "$run"
 transcript="$run/transcript.log"
 : >"$transcript"
-export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+unset XDG_RUNTIME_DIR PIW_SOCKET
+runtime="/run/user/$(id -u)"
 export PATH="$HOME/.local/bin:$PATH"
 name=$(basename "$tarball")
 version=${name#pi-worker-}
@@ -21,7 +25,7 @@ uid=$(id -u)
 data="$HOME/.local/share/pi-worker"
 state="$HOME/.local/state/pi-worker"
 unit_file="$HOME/.config/systemd/user/pi-worker.service"
-socket="$XDG_RUNTIME_DIR/pi-worker/b2.sock"
+socket="$runtime/pi-worker/b2.sock"
 unit_cg="/sys/fs/cgroup/user.slice/user-$uid.slice/user@$uid.service/app.slice/pi-worker.service"
 bridge_grant="$HOME/p4-bridge.grant.json"
 boot=$(mktemp -d)
@@ -41,6 +45,7 @@ say() {
 }
 json() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const v=JSON.parse(s.trim().split("\n").at(-1));const r=new Function("v","return ("+process.argv[1]+")")(v);process.stdout.write(String(r))})' "$1"; }
 is() { [ "$1" = "$2" ] && echo true || echo false; }
+userctl() { env XDG_RUNTIME_DIR="$runtime" systemctl --user "$@"; }
 gone() { [ ! -e "$1" ] && [ ! -L "$1" ] && echo true || echo false; }
 
 echo "# p4-install on $(uname -n): $name" >>"$transcript"
@@ -73,7 +78,7 @@ check upgrade_refused "$(is "$rc:$(printf '%s' "$said" | json 'v.error + "|" + v
 check upgrade_left_nothing "$(gone "$data/versions/9.9.9")"
 
 # 5. The unit: Delegate=yes, active, the supervisor in its leaf; socket 0600 in a 0700 directory.
-say systemctl --user show pi-worker.service -p Delegate -p ActiveState -p MainPID -p ControlGroup
+say userctl show pi-worker.service -p Delegate -p ActiveState -p MainPID -p ControlGroup
 props=$said
 check unit_delegated "$(printf '%s' "$props" | grep -qx 'Delegate=yes' && echo true || echo false)"
 check unit_active "$(printf '%s' "$props" | grep -qx 'ActiveState=active' && echo true || echo false)"
@@ -84,15 +89,17 @@ say ls "$unit_cg"
 check socket_0600 "$(is "$(stat -c %a "$socket")" 600)"
 check socket_dir_0700 "$(is "$(stat -c %a "$(dirname "$socket")")" 700)"
 
-# 6. hello, a grant, one granted read, an ungranted method refused.
-say pi-worker --grant-file "$data/doctor.grant.json" hello
+# 6. hello, a grant (install.md section 7 step 2, no runtime variable), one granted read, an ungranted method refused.
+sock=$(printf '%s' "$install_out" | json 'v.socket')
+say pi-worker --socket "$sock" --grant-file "$data/doctor.grant.json" hello
 check hello "$(is "$rc:$(printf '%s' "$said" | json 'v.protocol.major + "|" + v.worker_version')" "0:0|$version")"
 rm -f "$bridge_grant"
+check grant_env_has_no_runtime "$(is "${XDG_RUNTIME_DIR-unset}:${PIW_SOCKET-unset}" unset:unset)"
 say pi-worker grant register --caller p4-journey --out "$bridge_grant" --method hello --method workers.list
 check grant_registered "$(is "$rc:$(printf '%s' "$said" | json 'v.caller')" 0:p4-journey)"
-say pi-worker --grant-file "$bridge_grant" workers.list
+say pi-worker --socket "$sock" --grant-file "$bridge_grant" workers.list
 check granted_read "$(is "$rc:$(printf '%s' "$said" | json 'Array.isArray(v)')" 0:true)"
-say pi-worker --grant-file "$bridge_grant" sessions.list
+say pi-worker --socket "$sock" --grant-file "$bridge_grant" sessions.list
 check ungranted_refused "$(is "$rc:$(printf '%s' "$said" | json 'v.effect')" 1:no_effect)"
 
 # 7. Logs: the supervisor's typed events.
@@ -102,7 +109,7 @@ check logs_listening "$(printf '%s' "$said" | grep -q '"event":"listening"' && e
 # 8. Uninstall: unit and links gone, state and versions kept.
 say pi-worker uninstall
 check uninstall_ok "$(is "$rc:$said" '0:{"uninstalled":true,"purged":false}')"
-say systemctl --user is-active pi-worker.service
+say userctl is-active pi-worker.service
 check uninstall_unit_stopped "$(is "$said" inactive)"
 check uninstall_unit_file_gone "$(gone "$unit_file")"
 check uninstall_bin_gone "$(gone "$HOME/.local/bin/pi-worker")"
@@ -116,7 +123,7 @@ say "$cli" install --from "$tarball"
 check reinstall_ok "$(is "$rc:$said" "0:$install_out")"
 say pi-worker doctor --json
 check reinstall_doctor_green "$(is "$rc" 0)"
-say pi-worker --grant-file "$bridge_grant" workers.list
+say pi-worker --socket "$sock" --grant-file "$bridge_grant" workers.list
 check reinstall_grant_kept "$(is "$rc" 0)"
 
 # 10. Uninstall --purge: nothing left.
@@ -131,7 +138,7 @@ check purge_unit_file_gone "$(gone "$unit_file")"
 check purge_bin_gone "$(gone "$HOME/.local/bin/pi-worker")"
 check socket_removed "$(gone "$(dirname "$socket")")"
 check cgroup_removed "$(gone "$unit_cg")"
-say systemctl --user list-units --all --plain --no-legend 'pi-worker*' 'piw-*'
+say userctl list-units --all --plain --no-legend 'pi-worker*' 'piw-*'
 check no_piw_units_left "$(is "$said" '')"
 say pgrep -u "$uid" -f "pi-worker/versions/"
 check no_process_left "$(is "$rc" 1)"

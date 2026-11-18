@@ -9,15 +9,17 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { realSystem, type ExecResult, type System } from '../src/host.js';
+import { realSystem, removeTree, type ExecResult, type System } from '../src/host.js';
 import { run } from '../src/run.js';
 
 const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64';
 const OTHER_ARCH = ARCH === 'x64' ? 'arm64' : 'x64';
 const ok = (stdout = ''): ExecResult => ({ status: 0, stdout, stderr: '' });
+// The real uid: purge only removes what this user owns.
+const UID = process.getuid!();
 
 interface Host {
   dir: string;
@@ -29,29 +31,44 @@ interface Host {
   unitFile: string;
   bin: string;
   calls: string[][];
-  unit: { active: boolean; delegate: string; linger: string; serveVersion: string | undefined; journalStatus: number };
+  /** `uid` is the uid the commands see (default: this process's). */
+  unit: { active: boolean; delegate: string; linger: string; serveVersion: string | undefined; journalStatus: number; uid: number };
   cli(...argv: string[]): Promise<{ code: number; out: string[]; err: string[]; json?: Record<string, unknown>; error?: Record<string, unknown> }>;
-  tarball(version: string, options?: { arch?: string; release?: Record<string, unknown>; extraTop?: boolean; badSha?: boolean; noSha?: boolean }): string;
+  tarball(version: string, options?: TarballOptions): string;
   close(): Promise<void>;
 }
 
-async function host(configure: (dirs: { home: string; runtime: string }) => NodeJS.ProcessEnv = () => ({})): Promise<Host> {
+interface TarballOptions {
+  arch?: string;
+  release?: Record<string, unknown>;
+  extraTop?: boolean;
+  badSha?: boolean;
+  noSha?: boolean;
+  /** Changes the unpacked tree (`top` is `pi-worker-<version>/`) before it is packed. */
+  edit?: (top: string, src: string) => void;
+  /** Extra `tar -c` arguments (members added after the top directory, `--transform`, `-P`). */
+  tarArgs?: string[];
+}
+
+/** `configure` returns environment overrides; an `undefined` value removes the variable. */
+async function host(configure: (dirs: { dir: string; home: string; runtime: string }) => NodeJS.ProcessEnv = () => ({})): Promise<Host> {
   const dir = mkdtempSync(join(tmpdir(), 'piw-host-'));
   const home = join(dir, 'home');
   const runtime = join(dir, 'run');
   mkdirSync(home);
   mkdirSync(runtime, { mode: 0o700 });
-  const env: NodeJS.ProcessEnv = { HOME: home, XDG_RUNTIME_DIR: runtime, PATH: '/usr/bin:/bin', ...configure({ home, runtime }) };
+  const env: NodeJS.ProcessEnv = { HOME: home, XDG_RUNTIME_DIR: runtime, PATH: '/usr/bin:/bin', ...configure({ dir, home, runtime }) };
+  for (const [key, value] of Object.entries(env)) if (value === undefined) delete env[key];
   const socket = env.PIW_SOCKET ?? join(runtime, 'pi-worker', 'b2.sock');
   // A fake cgroupfs: the user manager's delegation and the unit's cgroup, both offering memory and pids.
   const cgroupMount = join(dir, 'cgroupfs');
-  const unitCg = '/user.slice/user-1000.slice/user@1000.service/app.slice/pi-worker.service';
-  for (const cg of ['/user.slice/user-1000.slice/user@1000.service', unitCg]) {
+  const unitCg = `/user.slice/user-${UID}.slice/user@${UID}.service/app.slice/pi-worker.service`;
+  for (const cg of [`/user.slice/user-${UID}.slice/user@${UID}.service`, unitCg]) {
     mkdirSync(join(cgroupMount, cg), { recursive: true });
     for (const [file, text] of [['cgroup.controllers', 'cpu memory pids\n'], ['cgroup.kill', ''], ['cgroup.procs', '']]) writeFileSync(join(cgroupMount, cg, file!), text!);
   }
   writeFileSync(join(cgroupMount, 'cgroup.controllers'), 'cpu memory pids\n');
-  const unit = { active: false, delegate: 'yes', linger: 'yes', serveVersion: undefined as string | undefined, journalStatus: 0 };
+  const unit = { active: false, delegate: 'yes', linger: 'yes', serveVersion: undefined as string | undefined, journalStatus: 0, uid: UID };
   const calls: string[][] = [];
   let server: Server | undefined;
   const start = () => {
@@ -110,7 +127,9 @@ async function host(configure: (dirs: { home: string; runtime: string }) => Node
       const result = spawnSync(file, args, { env: options.env, encoding: 'utf8' });
       return { status: result.status, stdout: result.stdout, stderr: result.stderr };
     },
-    uid: 1000,
+    get uid() {
+      return unit.uid;
+    },
     user: 'tester',
     arch: ARCH,
     nodeVersion: '26.13.1',
@@ -143,12 +162,16 @@ async function host(configure: (dirs: { home: string; runtime: string }) => Node
       const top = join(src, `pi-worker-${version}`);
       mkdirSync(join(top, 'bin'), { recursive: true });
       writeFileSync(join(top, 'bin', 'pi-worker'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+      // A link inside the version directory, as node_modules/.bin has: allowed.
+      mkdirSync(join(top, 'lib'));
+      symlinkSync(join('..', 'bin', 'pi-worker'), join(top, 'lib', 'entry'));
       const release = { version, commit: '0'.repeat(40), node_engine: '>=26.12.1', b2_protocol: { major: 0, minor: 1 }, ...options.release };
       writeFileSync(join(top, 'release.json'), JSON.stringify(release));
       if (options.extraTop) mkdirSync(join(src, 'stray'));
+      options.edit?.(top, src);
       const name = `pi-worker-${version}-linux-${arch}.tar.gz`;
       const file = join(downloads, name);
-      const tar = spawnSync('tar', ['-czf', file, '-C', src, ...readdirSync(src)], { env: { PATH: '/usr/bin:/bin' } });
+      const tar = spawnSync('tar', ['-czf', file, '-C', src, ...readdirSync(src), ...(options.tarArgs ?? [])], { env: { PATH: '/usr/bin:/bin' }, encoding: 'utf8' });
       assert.equal(tar.status, 0, 'the test tarball was packed');
       const digest = createHash('sha256').update(readFileSync(file)).digest('hex');
       if (!options.noSha) writeFileSync(`${file}.sha256`, `${options.badSha ? digest.replace(/^./, c => (c === '0' ? '1' : '0')) : digest}  ${name}\n`);
@@ -278,7 +301,7 @@ test("install: a release whose node floor is above the host's node is refused an
     const r = await h.cli('install', '--from', h.tarball('1.2.3', { release: { node_engine: '>=27.0.0' } }), '--wait-ms', '200');
     assert.equal(r.code, 1, 'refused, no effect');
     assert.deepEqual(r.error, { error: 'pi_worker_node_unsupported', required: '>=27.0.0', found: '26.13.1', effect: 'no_effect' });
-    assert.deepEqual(readdirSync(join(h.data, 'versions')), [], 'no version and no staging directory left');
+    assert.equal(existsSync(h.data), false, 'checked before anything is written: no versions directory was created');
     assert.equal(existsSync(h.unitFile), false, 'no unit written');
   } finally {
     await h.close();
@@ -293,7 +316,7 @@ test('install: a tarball without exactly one matching top directory and release.
     assert.deepEqual([stray.code, stray.error?.error], [1, 'pi_worker_tarball_invalid']);
     const wrong = await h.cli('install', '--from', h.tarball('1.2.4', { release: { version: '9.9.9' } }), '--wait-ms', '200');
     assert.deepEqual([wrong.code, wrong.error?.error], [1, 'pi_worker_tarball_invalid']);
-    assert.deepEqual(readdirSync(join(h.data, 'versions')), [], 'nothing left behind');
+    assert.equal(existsSync(h.data), false, 'refused before anything is written');
   } finally {
     await h.close();
   }
@@ -418,8 +441,8 @@ test('uninstall: stops and removes the unit and links, keeps versions and state;
   }
 });
 
-test('uninstall --purge never removes HOME, a directory holding it, or a runtime directory a configured socket sits in', async () => {
-  const h = await host(({ home, runtime }) => ({ PIW_STATE_DIR: home, PIW_SOCKET: join(runtime, 'b2.sock') }));
+test('uninstall --purge with a socket configured outside a pi-worker directory keeps that directory and removes only the socket', async () => {
+  const h = await host(({ runtime }) => ({ PIW_SOCKET: join(runtime, 'b2.sock') }));
   try {
     h.unit.serveVersion = '1.2.3';
     assert.equal((await h.cli('install', '--from', h.tarball('1.2.3'))).code, 0, 'install');
@@ -427,10 +450,249 @@ test('uninstall --purge never removes HOME, a directory holding it, or a runtime
     assert.ok(unit.includes(`Environment=PIW_SOCKET=${h.socket}`), 'the configured socket is pinned');
     const purge = await h.cli('uninstall', '--purge');
     assert.equal(purge.code, 0, 'purge');
-    assert.ok(existsSync(h.home), 'HOME (the configured state directory) is kept');
     assert.ok(existsSync(h.env.XDG_RUNTIME_DIR!), 'the runtime directory is kept');
     assert.equal(lstatExists(h.socket), false, 'the socket itself is removed');
     assert.equal(existsSync(h.data), false, 'the versions are removed');
+  } finally {
+    await h.close();
+  }
+});
+
+/** Every file and directory under `root` (relative paths), to show a refused purge deleted nothing. */
+function tree(root: string): string[] {
+  const out: string[] = [];
+  const walk = (dir: string, rel: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      out.push(join(rel, entry.name));
+      if (entry.isDirectory()) walk(join(dir, entry.name), join(rel, entry.name));
+    }
+  };
+  walk(root, '');
+  return out.sort();
+}
+
+/** Replaces the installed unit's pinned state directory or socket, as an older or hand-edited unit would hold it. */
+function pin(h: Host, key: 'PIW_STATE_DIR' | 'PIW_SOCKET', value: string): void {
+  const text = readFileSync(h.unitFile, 'utf8').replace(new RegExp(`^Environment=${key}=.*$`, 'm'), `Environment=${key}=${value}`);
+  writeFileSync(h.unitFile, text);
+}
+
+test('uninstall --purge refuses a state directory that is HOME, holds HOME, or has a . or .. component; nothing is deleted', async () => {
+  for (const bad of [(home: string) => `${home}/..`, (home: string) => `${home}/.`, (home: string) => `${home}/foo/..`, (home: string) => home, (home: string) => `${home}/`]) {
+    const h = await host();
+    try {
+      h.unit.serveVersion = '1.2.3';
+      assert.equal((await h.cli('install', '--from', h.tarball('1.2.3'))).code, 0, 'install');
+      mkdirSync(join(h.home, 'foo'));
+      writeFileSync(join(h.home, 'keep.txt'), 'mine');
+      writeFileSync(join(h.dir, 'beside-home.txt'), 'mine');
+      const value = bad(h.home);
+      pin(h, 'PIW_STATE_DIR', value);
+      const before = tree(h.dir);
+      h.calls.length = 0;
+      const purge = await h.cli('uninstall', '--purge');
+      const label = value.slice(h.home.length) || '(HOME)';
+      assert.deepEqual([purge.code, purge.error?.error, purge.error?.effect, purge.error?.which], [1, 'pi_worker_unsafe_path', 'no_effect', 'state'], `HOME${label} is refused`);
+      assert.deepEqual(tree(h.dir), before, `HOME${label}: nothing was deleted`);
+      assert.deepEqual(systemctlCalls(h), [], `HOME${label}: the unit was not touched`);
+    } finally {
+      await h.close();
+    }
+  }
+});
+
+test('install refuses a state directory or socket with a . or .. component, or a state directory holding HOME, before anything is written', async () => {
+  const cases: [string, (home: string, runtime: string) => NodeJS.ProcessEnv][] = [
+    ['state', home => ({ PIW_STATE_DIR: `${home}/foo/../state` })],
+    ['state', home => ({ PIW_STATE_DIR: `${home}/./state` })],
+    ['state', home => ({ PIW_STATE_DIR: `${home}/..` })],
+    ['state', home => ({ PIW_STATE_DIR: home })],
+    ['state', () => ({ PIW_STATE_DIR: '/' })],
+    ['socket', (_home, runtime) => ({ PIW_SOCKET: `${runtime}/pi-worker/../b2.sock` })],
+  ];
+  for (const [which, configure] of cases) {
+    const h = await host(({ home, runtime }) => configure(home, runtime));
+    try {
+      h.unit.serveVersion = '1.2.3';
+      const r = await h.cli('install', '--from', h.tarball('1.2.3'), '--wait-ms', '200');
+      assert.deepEqual([r.code, r.error?.error, r.error?.effect, r.error?.which], [1, 'pi_worker_unsafe_path', 'no_effect', which], `a ${which} path is refused`);
+      assert.equal(existsSync(h.data), false, 'nothing written');
+      assert.deepEqual(systemctlCalls(h), [], 'systemctl never ran');
+    } finally {
+      await h.close();
+    }
+  }
+});
+
+test('uninstall --purge refuses a symlinked state directory, data directory or socket directory, and a socket path that is not a socket; nothing is deleted', async () => {
+  const cases: [string, (dirs: { dir: string; home: string; runtime: string }) => NodeJS.ProcessEnv, (h: Host, outside: string) => void][] = [
+    ['state', ({ dir }) => ({ PIW_STATE_DIR: join(dir, 'state-link') }), (h, outside) => symlinkSync(outside, join(h.dir, 'state-link'))],
+    ['data', () => ({}), (h, outside) => {
+      // A symlinked ~/.local/share/pi-worker in a read-only parent: a removal that followed the link would chmod the target.
+      rmSync(h.data, { recursive: true, force: true });
+      symlinkSync(outside, h.data);
+      chmodSync(join(h.data, '..'), 0o500);
+    }],
+    ['socket', ({ dir }) => ({ PIW_SOCKET: join(dir, 'sock-link', 'pi-worker', 'b2.sock') }), (h, outside) => {
+      rmSync(join(h.dir, 'sock-link', 'pi-worker'), { recursive: true, force: true });
+      symlinkSync(outside, join(h.dir, 'sock-link', 'pi-worker'));
+    }],
+    ['socket', ({ home }) => ({ PIW_SOCKET: join(home, 'notes.txt') }), h => writeFileSync(join(h.home, 'notes.txt'), 'mine')],
+  ];
+  for (const [which, configure, arrange] of cases) {
+    const h = await host(configure);
+    try {
+      const outside = join(h.dir, 'outside');
+      mkdirSync(outside, { mode: 0o500 });
+      if (which !== 'state') {
+        h.unit.serveVersion = '1.2.3';
+        assert.equal((await h.cli('install', '--from', h.tarball('1.2.3'))).code, 0, `install (${which})`);
+        assert.equal((await h.cli('uninstall')).code, 0, `uninstall (${which})`);
+      }
+      arrange(h, outside);
+      chmodSync(outside, 0o500);
+      const before = tree(h.dir);
+      const purge = await h.cli('uninstall', '--purge');
+      assert.deepEqual([purge.code, purge.error?.error, purge.error?.effect, purge.error?.which], [1, 'pi_worker_unsafe_path', 'no_effect', which], `the ${which} path is refused`);
+      assert.deepEqual(tree(h.dir), before, `${which}: nothing was deleted`);
+      assert.equal(statSync(outside).mode & 0o777, 0o500, `${which}: the link's target was not chmodded`);
+    } finally {
+      if (which === 'data') chmodSync(join(h.home, '.local', 'share'), 0o700);
+      chmodSync(join(h.dir, 'outside'), 0o700);
+      await h.close();
+    }
+  }
+});
+
+test("uninstall --purge refuses paths another user owns, and a socket whose pi-worker directory is HOME; nothing is deleted", async () => {
+  const h = await host();
+  try {
+    h.unit.serveVersion = '1.2.3';
+    assert.equal((await h.cli('install', '--from', h.tarball('1.2.3'))).code, 0, 'install');
+    const before = tree(h.dir);
+    h.unit.uid = UID + 1;
+    h.calls.length = 0;
+    const purge = await h.cli('uninstall', '--purge');
+    assert.deepEqual([purge.code, purge.error?.error, purge.error?.effect, purge.error?.which], [1, 'pi_worker_unsafe_path', 'no_effect', 'data'], 'files of another uid are refused');
+    assert.deepEqual(tree(h.dir), before, 'nothing was deleted');
+    assert.deepEqual(systemctlCalls(h), [], 'the unit was not touched');
+  } finally {
+    await h.close();
+  }
+  // HOME named pi-worker, with the socket directly in it: the socket's "pi-worker directory" is HOME.
+  const h2 = await host(({ dir }) => {
+    mkdirSync(join(dir, 'pi-worker'));
+    return { HOME: join(dir, 'pi-worker'), PIW_SOCKET: join(dir, 'pi-worker', 'b2.sock') };
+  });
+  try {
+    writeFileSync(join(h2.dir, 'pi-worker', 'keep.txt'), 'mine');
+    const before = tree(h2.dir);
+    const purge = await h2.cli('uninstall', '--purge');
+    assert.deepEqual([purge.code, purge.error?.error, purge.error?.which], [1, 'pi_worker_unsafe_path', 'socket'], 'a socket directory that is HOME is refused');
+    assert.deepEqual(tree(h2.dir), before, 'nothing was deleted');
+  } finally {
+    await h2.close();
+  }
+});
+
+test('uninstall --purge removes only what install created: a file of the owner\'s in ~/.local/share/pi-worker is kept', async () => {
+  const h = await host();
+  try {
+    h.unit.serveVersion = '1.2.3';
+    assert.equal((await h.cli('install', '--from', h.tarball('1.2.3'))).code, 0, 'install');
+    writeFileSync(join(h.data, 'notes.txt'), 'mine');
+    const purge = await h.cli('uninstall', '--purge');
+    assert.deepEqual([purge.code, purge.json], [0, { uninstalled: true, purged: true }]);
+    assert.deepEqual(readdirSync(h.data), ['notes.txt'], 'versions, current and the doctor grant are gone; the foreign file stays');
+    for (const path of [h.state, h.unitFile, h.bin]) assert.equal(lstatExists(path), false, 'removed');
+  } finally {
+    await h.close();
+  }
+});
+
+test('removeTree removes a top-level link only, never chmods or enters its target, even when the link cannot be removed', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'piw-rmtree-'));
+  try {
+    const outside = join(dir, 'outside');
+    mkdirSync(join(outside, 'inner'), { recursive: true });
+    chmodSync(outside, 0o500);
+    const parent = join(dir, 'parent');
+    mkdirSync(parent);
+    symlinkSync(outside, join(parent, 'link'));
+    chmodSync(parent, 0o500);
+    assert.throws(() => removeTree(join(parent, 'link')), 'a link in a read-only directory cannot be removed');
+    assert.equal(statSync(outside).mode & 0o777, 0o500, 'the target was not chmodded');
+    assert.ok(existsSync(join(outside, 'inner')), 'the target was not entered');
+    chmodSync(parent, 0o700);
+    removeTree(join(parent, 'link'));
+    assert.equal(lstatExists(join(parent, 'link')), false, 'the link is removed');
+    assert.ok(existsSync(join(outside, 'inner')), 'its target is kept');
+  } finally {
+    chmodSync(join(dir, 'outside'), 0o700);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install refuses an absolute or .. member before anything is written', async () => {
+  const h = await host();
+  try {
+    h.unit.serveVersion = '1.2.3';
+    for (const tarArgs of [
+      // An absolute member that tar would strip into the top directory.
+      ['-P', '--transform=s,^extra,/pi-worker-1.2.3/extra,', 'extra'],
+      ['-P', '--transform=s,^extra,pi-worker-1.2.3/../pi-worker-1.2.3/extra,', 'extra'],
+    ]) {
+      const r = await h.cli('install', '--from', h.tarball('1.2.3', { edit: (_top, src) => writeFileSync(join(src, 'extra'), 'x'), tarArgs }), '--wait-ms', '200');
+      assert.deepEqual([r.code, r.error?.error, r.error?.effect], [1, 'pi_worker_tarball_invalid', 'no_effect'], 'refused before unpacking');
+      assert.equal(existsSync(h.data), false, 'nothing written');
+    }
+  } finally {
+    await h.close();
+  }
+});
+
+test('install refuses a link out of the version directory, a hard link, or a FIFO in the tarball; effect unknown, nothing installed', async () => {
+  const cases: [string, (top: string) => void][] = [
+    ['bin/pi-worker linked to /bin/true', top => {
+      rmSync(join(top, 'bin', 'pi-worker'));
+      symlinkSync('/bin/true', join(top, 'bin', 'pi-worker'));
+    }],
+    ['a relative link out of the version directory', top => symlinkSync('../../..', join(top, 'lib', 'up'))],
+    ['a link chain that leaves through an inner link', top => {
+      symlinkSync('..', join(top, 'lib', 'self'));
+      // Lexically inside (lib/self/../.. normalizes to .), but self is the top, so the kernel lands in its parent.
+      symlinkSync('lib/self/../..', join(top, 'escape'));
+    }],
+    ['a hard link', top => linkSync(join(top, 'release.json'), join(top, 'lib', 'release-copy.json'))],
+    ['a FIFO', top => assert.equal(spawnSync('mkfifo', [join(top, 'lib', 'pipe')]).status, 0, 'mkfifo')],
+  ];
+  for (const [label, edit] of cases) {
+    const h = await host();
+    try {
+      h.unit.serveVersion = '1.2.3';
+      const r = await h.cli('install', '--from', h.tarball('1.2.3', { edit }), '--wait-ms', '200');
+      assert.deepEqual([r.code, r.error?.error, r.error?.effect], [3, 'pi_worker_tarball_invalid', 'unknown'], `${label} is refused after unpacking (effect unknown)`);
+      assert.deepEqual(readdirSync(join(h.data, 'versions')), [], `${label}: no version and no staging directory left`);
+      assert.equal(lstatExists(join(h.data, 'current')), false, `${label}: nothing is current`);
+      assert.deepEqual(systemctlCalls(h), [], `${label}: systemctl never ran`);
+    } finally {
+      await h.close();
+    }
+  }
+});
+
+test('grant register works with neither XDG_RUNTIME_DIR nor PIW_SOCKET set, as docs/plan/install.md section 7 runs it', async () => {
+  const h = await host(() => ({ XDG_RUNTIME_DIR: undefined }));
+  try {
+    assert.equal(h.env.XDG_RUNTIME_DIR ?? h.env.PIW_SOCKET, undefined, 'no runtime directory and no socket in the environment');
+    const out = join(h.dir, 'bridge.grant.json');
+    const r = await h.cli('grant', 'register', '--caller', 'shep-bridge', '--out', out, '--method', 'hello');
+    assert.equal(r.code, 0, `grant register exit code (error: ${String(r.error?.error)})`);
+    assert.equal(r.json?.caller, 'shep-bridge');
+    assert.equal(statSync(out).mode & 0o777, 0o600, 'the bearer file is 0600');
+    assert.equal(readdirSync(join(h.state, 'grants')).length, 1, 'registered in the default state directory');
+    const list = await h.cli('grant', 'list');
+    assert.equal(list.code, 0, 'grant list');
   } finally {
     await h.close();
   }

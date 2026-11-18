@@ -7,6 +7,8 @@
 # then npm ci --omit=dev --ignore-scripts for the target arch (lockfile-pinned production dependencies only); then the
 # tree is assembled, packed reproducibly (sorted, numeric owner 0, commit time) and, on a matching host arch, the
 # packed wrapper is run once (--help) as a smoke check. Needs git, node and npm (the repo's .node-version), tar, gzip.
+# Every input comes from the archived HEAD (engines.node, the wrapper template, the sources), and a checkout with tracked
+# changes is refused, so release.json's commit names exactly what is in the artifact.
 set -euo pipefail
 arch=${1:-}
 case "$arch" in x64 | arm64) ;; *) echo "build: usage: build.sh <x64|arm64>" >&2; exit 2 ;; esac
@@ -14,7 +16,10 @@ repo=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$repo"
 out=${PIW_RELEASE_OUT:-$repo/harness/release/out}
 commit=$(git rev-parse HEAD)
-[ -z "$(git status --porcelain --untracked-files=no)" ] || echo "build: warning: tracked changes are not in the artifact; it is built from HEAD $commit" >&2
+[ -z "$(git status --porcelain --untracked-files=no)" ] || {
+  echo "build: refused: the checkout has tracked changes; commit or stash them (the artifact is built from HEAD $commit)" >&2
+  exit 2
+}
 
 version=${PIW_RELEASE_VERSION:-}
 if [ -z "$version" ]; then
@@ -23,8 +28,6 @@ if [ -z "$version" ]; then
 fi
 [ -n "$version" ] || version="0.0.0-dev.$(git rev-parse --short=12 HEAD)"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "build: version $version is not X.Y.Z[-pre]" >&2; exit 2; }
-engine=$(node -p 'require("./package.json").engines.node')
-[[ "$engine" =~ ^\>=[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "build: engines.node $engine is not >=X.Y.Z" >&2; exit 2; }
 case "$arch" in x64) cpu=x64 ;; arm64) cpu=arm64 ;; esac
 
 name="pi-worker-$version-linux-$arch"
@@ -37,6 +40,8 @@ mkdir -p "$src" "$stage/bin"
 
 echo "build: $name from $commit"
 git archive --format=tar HEAD | tar -x -C "$src"
+engine=$(node -p 'require(process.argv[1]).engines.node' "$src/package.json")
+[[ "$engine" =~ ^\>=[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "build: engines.node $engine is not >=X.Y.Z" >&2; exit 2; }
 (
   cd "$src"
   npm ci --ignore-scripts --no-audit --no-fund >"$work/npm-ci.log" 2>&1 || { cat "$work/npm-ci.log" >&2; exit 1; }
@@ -80,7 +85,7 @@ const write = (name, value) => writeFileSync(`${STAGE}/${name}`, JSON.stringify(
 write("package.json", { name: "pi-worker", version: VERSION, private: true, license: "MIT", type: "module", engines: { node: ENGINE } });
 write("release.json", { version: VERSION, commit: COMMIT, node_engine: ENGINE, b2_protocol: JSON.parse(PROTOCOL) });
 '
-sed "s/@NODE_FLOOR@/${engine#>=}/" "$repo/harness/release/pi-worker.sh" >"$stage/bin/pi-worker"
+sed "s/@NODE_FLOOR@/${engine#>=}/" "$src/harness/release/pi-worker.sh" >"$stage/bin/pi-worker"
 chmod 0755 "$stage/bin/pi-worker"
 cp "$src/LICENSE" "$stage/LICENSE"
 
