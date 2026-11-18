@@ -458,6 +458,7 @@
       "diffs": [
         "p2-5-gitfile-writable.diff",
         "p2-5-admin-pointers-writable.diff",
+        "p2-5-admin-extras-writable.diff",
         "p2-5-head-writable.diff",
         "p2-5-common-config-writable.diff",
         "p2-5-refs-writable.diff",

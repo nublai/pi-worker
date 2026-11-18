@@ -171,11 +171,17 @@ test('kernel: bwrap linked worktree status/add/commit writes only its branch nam
 test('M1: sandbox mounts make Git pointers, HEAD, config, hooks and alternates read-only; sources are descriptors', () => {
   const r = linkedRepo();
   try {
+    // New in P2-5: the admin dir is writable, so a `config`, `config.worktree` or `hooks` already in it is bound
+    // read-only too.
+    writeFileSync(join(r.admin, 'config'), '');
+    writeFileSync(join(r.admin, 'config.worktree'), '');
+    mkdirSync(join(r.admin, 'hooks'));
     const launch = launchIn(r.wt, '/bin/true', []);
     try {
       const mounts = fdMounts(launch.args);
       const c = join(r.repo, '.git');
       for (const ro of [join(r.wt, '.git'), join(r.admin, 'gitdir'), join(r.admin, 'commondir'), join(r.admin, 'HEAD'), join(c, 'config'), join(c, 'refs'), join(c, 'objects', 'info')]) assert.ok(mounts.includes(`ro ${ro}`), ro);
+      for (const ro of ['config', 'config.worktree', 'hooks']) assert.ok(mounts.includes(`ro ${join(r.admin, ro)}`), ro);
       for (const rw of [r.wt, r.admin, join(c, 'objects'), join(c, 'refs', 'heads', 'a0-child')]) assert.ok(mounts.includes(`rw ${rw}`), rw);
       assert.ok(!launch.args.some((a, i) => (a === '--bind' || a === '--ro-bind') && launch.args[i + 1]!.startsWith(r.base)), 'no path-based bind into the sandbox-writable tree');
       assert.equal(launch.fds.length, mounts.length);
