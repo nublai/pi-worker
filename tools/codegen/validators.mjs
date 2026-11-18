@@ -1,4 +1,5 @@
-// Ajv 2020 standalone validators for every request body, parameter set, JSON response and event (plan 4.1 step 3).
+// Ajv 2020 standalone validators for every request body, parameter set, JSON response and event (plan 4.1 step 3),
+// and the client's inbound subset of them (P3-1).
 // Generated code needs no runtime package: Ajv's one runtime helper (code-point string length) is inlined, and
 // any other runtime `require` fails generation so a new dependency is never added silently.
 import Ajv2020 from 'ajv/dist/2020.js';
@@ -56,7 +57,12 @@ const UCS2 = /require\("ajv\/dist\/runtime\/ucs2length"\)\.default/g;
 const UCS2_INLINE =
   '(function ucs2length(str) { let length = 0; for (const _ of str) length++; return length; })';
 
-export function generateValidators(spec, ops, eventInfo) {
+/**
+ * The worker's validators: every request body, parameter set, JSON response, response header set and event. With
+ * `{ client: true }` only what a client checks on the way in: JSON responses (success and refusal), ndjson and
+ * binary response headers, events and Error. The same graph and compiler, so client and server agree.
+ */
+export function generateValidators(spec, ops, eventInfo, { client = false } = {}) {
   const ajv = new Ajv2020({
     code: { source: true, esm: true, lines: true },
     strict: true,
@@ -76,8 +82,8 @@ export function generateValidators(spec, ops, eventInfo) {
     exports[name] = id;
   };
   for (const op of ops) {
-    add(`params_${op.key}`, paramsSchema(spec, op));
-    if (op.body) add(`request_${op.key}`, op.body);
+    if (!client) add(`params_${op.key}`, paramsSchema(spec, op));
+    if (op.body && !client) add(`request_${op.key}`, op.body);
     for (const r of op.responses) {
       if (r.contentType === 'application/json') add(`response_${op.key}_${r.status}`, r.schema);
       // ndjson and binary responses: their headers, by lower-case name, as typed values.
