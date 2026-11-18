@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
-index 022ed8c..45c2903 100644
+index cedb085..4f7664e 100644
 --- a/packages/worker/src/owner-git/git-safe.ts
 +++ b/packages/worker/src/owner-git/git-safe.ts
-@@ -431,7 +431,7 @@ function run(at: GitCheckout, argv: readonly string[]): Buffer {
-     snapshot(owner, root, pin, dir);
+@@ -540,7 +540,7 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly workt
+     if (worktree) refuseHiddenEntries(readSnapshotIndex(dir), oidBytes);
      const home = join(dir, 'home');
      mkdirSync(home, { mode: 0o700 });
--    const result = spawnSync('git', ['-C', root, `--git-dir=${dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...argv], {
-+    const result = spawnSync('git', ['-C', root, `--git-dir=${pin.git_dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...argv], {
+-    const result = spawnSync('git', ['-C', root, `--git-dir=${dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...(worktree ? WORKTREE_CONFIG : []), ...argv], {
++    const result = spawnSync('git', ['-C', root, `--git-dir=${pin.git_dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...(worktree ? WORKTREE_CONFIG : []), ...argv], {
        env: cleanEnv(owner, home, join(pin.common_dir, 'objects')),
        stdio: ['ignore', 'pipe', 'pipe'],
        maxBuffer: 256 * 1024 * 1024,

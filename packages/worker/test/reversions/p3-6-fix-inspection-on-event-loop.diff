@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index 485d380..3331975 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -285,7 +285,8 @@ export class Artifacts {
+     const base = request.base === undefined ? undefined : revision(request.base, pin);
+     // Admission and the slot are taken in one synchronous step: no other call runs in between.
+     this.admit(caller);
+-    return this.run(caller, { root: w.cwd, pin, worker_id: w.worker_id, worker_epoch: w.worker_epoch, commit, ...(base === undefined ? {} : { base }) });
++    void this.run;
++    return readFacts({ owner: { stateDir: this.s.stateDir, env: this.env }, root: w.cwd, pin, worker_id: w.worker_id, worker_epoch: w.worker_epoch, commit, ...(base === undefined ? {} : { base }) });
+   }
+ 
+   /** Ends every running inspection (its process group killed) and waits until each has ended. */

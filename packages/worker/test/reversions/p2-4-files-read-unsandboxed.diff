@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/supervisor/supervisor.ts b/packages/worker/src/supervisor/supervisor.ts
-index 9cbd765..6ecc679 100644
+index f7ae416..6f33d2f 100644
 --- a/packages/worker/src/supervisor/supervisor.ts
 +++ b/packages/worker/src/supervisor/supervisor.ts
-@@ -200,8 +200,7 @@ export class Supervisor {
+@@ -214,8 +214,7 @@ export class Supervisor {
     */
    readFile(id: string, request: { path: string; roots: readonly string[] }): ReturnType<typeof readConfined> {
      const root = confinement(this.state.require(id).worker);
@@ -11,4 +11,4 @@ index 9cbd765..6ecc679 100644
 +    return readConfined(root ?? this.state.require(id).worker.cwd, request.path, request.roots);
    }
  
-   list(): Worker[] {
+   /**

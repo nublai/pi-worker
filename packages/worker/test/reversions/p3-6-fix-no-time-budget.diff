@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index 485d380..bb1ee7e 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -342,7 +342,7 @@ export class Artifacts {
+     const done = new Promise<void>(resolve => (markDone = resolve));
+     const entry: Running = { caller, stop, done };
+     this.running.add(entry);
+-    const timer = setTimeout(() => stop(new Refusal('artifact_inspection_timeout')), this.budgetMs);
++    const timer = setTimeout(() => undefined, this.budgetMs);
+     const finish = () => {
+       if (finished) return;
+       finished = true;

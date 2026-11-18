@@ -511,7 +511,12 @@
         "p2-6-replace-objects-honoured.diff",
         "p2-6-split-index-allowed.diff",
         "p2-6-submodules-not-ignored.diff",
-        "p2-6-show-signature-runs-gpg.diff"
+        "p2-6-show-signature-runs-gpg.diff",
+        "p3-6-fix-hidden-index-entries-allowed.diff",
+        "p3-6-fix-assume-unchanged-allowed.diff",
+        "p3-6-fix-skip-worktree-allowed.diff",
+        "p3-6-fix-stat-trust-config-allowed.diff",
+        "p3-6-fix-stat-overrides-dropped.diff"
       ]
     },
     "staging": {
@@ -749,7 +754,14 @@
         "p3-6-pin-mismatch-untyped.diff",
         "p3-6-merge-base-guessed.diff",
         "p3-6-lists-unbounded.diff",
-        "p3-6-channel-inspects-parent.diff"
+        "p3-6-channel-inspects-parent.diff",
+        "p3-6-fix-inspection-on-event-loop.diff",
+        "p3-6-fix-no-time-budget.diff",
+        "p3-6-fix-group-not-killed.diff",
+        "p3-6-fix-no-per-caller-cap.diff",
+        "p3-6-fix-no-supervisor-cap.diff",
+        "p3-6-fix-conflict-judged-after-truncation.diff",
+        "p3-6-fix-merge-base-exit-ignored.diff"
       ]
     }
   }

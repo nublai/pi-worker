@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index cedb085..ceb6759 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -540,7 +540,7 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly workt
+     if (worktree) refuseHiddenEntries(readSnapshotIndex(dir), oidBytes);
+     const home = join(dir, 'home');
+     mkdirSync(home, { mode: 0o700 });
+-    const result = spawnSync('git', ['-C', root, `--git-dir=${dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...(worktree ? WORKTREE_CONFIG : []), ...argv], {
++    const result = spawnSync('git', ['-C', root, `--git-dir=${dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...(worktree ? WORKTREE_CONFIG.slice(0, 0) : []), ...argv], {
+       env: cleanEnv(owner, home, join(pin.common_dir, 'objects')),
+       stdio: ['ignore', 'pipe', 'pipe'],
+       maxBuffer: 256 * 1024 * 1024,

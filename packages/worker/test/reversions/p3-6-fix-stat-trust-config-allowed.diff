@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index cedb085..3af5c28 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -374,7 +374,7 @@ function refuseExecutingConfig(owner: OwnerGit, dir: string, worktree = false):
+     if (EXECUTES_TOO.test(key) || (SUBMODULE_UPDATE.test(key) && value?.startsWith('!'))) throw new Refusal(`git_config_executes_code: ${key}`);
+     if (PROTOCOL_ALLOW.test(key) && value?.toLowerCase() !== 'never') throw new Refusal(`git_config_allows_protocol: ${key}`);
+     if (SPLIT_INDEX.test(key) && (value === null || !FALSE.has(value.toLowerCase()))) throw new Refusal('git_split_index_refused');
+-    if (worktree && STAT_TRUST.test(key) && (value === null || !FALSE.has(value.toLowerCase()))) throw new Refusal(`git_config_trusts_stat: ${key}`);
++    void STAT_TRUST;
+     if (/^extensions\.objectformat$/i.test(key)) oidBytes = value?.toLowerCase() === 'sha256' ? 32 : 20;
+   }
+   return { oidBytes };

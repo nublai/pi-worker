@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index 485d380..aefaf59 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -156,7 +156,7 @@ function changes(out: Buffer): Change[] {
+ const noCommonAncestor = (error: unknown): boolean => {
+   if (!(error instanceof Error) || error instanceof Refusal) return false;
+   const failed = error as Error & Partial<GitFailure>;
+-  return failed.command === 'merge-base' && failed.status === 1 && failed.signal === null && failed.stderr === '';
++  return failed.command === 'merge-base' && failed.stderr === '';
+ };
+ 
+ /** `artifact_inspection_unavailable` naming `detail`. */
