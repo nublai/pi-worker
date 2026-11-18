@@ -570,7 +570,20 @@ cleanup is confirmed and recorded, `relaunch` opens history without prompting; o
   [nubl .pi/plan/research/opencode-borrow-study.md:83]) and the slice 4 review's client gaps closed: response
   validation, SSE reconnect with snapshot diff, before/after-write classification
   [nubl .pi/plan/research/a0-slice4-review.md:85]. Journey `p3-fanout`: pstack fans out to two worktree children
-  through the worker; owner verification binds commit and tree.
+  through the worker; owner verification binds commit and tree. The P3 build plan and its rows (P3-1 to P3-12) are
+  nubl `.pi/plan/p3-worker-provider.md`.
+
+**P3-1 as built (client response validation, suite C1).** `npm run generate` also emits the client's inbound
+validators (`packages/client-ts/src/generated/validators.js`), from the same graph and Ajv compiler as the worker's:
+every JSON response by operation and status, the ndjson and binary response headers, every event and `Error`. They
+are standalone code with no runtime package, and the client still imports only Node built-ins and its own files (a
+test scans the built client). The client checks every reply before its caller sees it: the media type, strict UTF-8,
+JSON and schema of a JSON reply; the media type, typed declared headers and complete final line of a byte read; and
+each SSE frame. A 200 that fails is `unknown` after the write and its body is never exposed. A refusal keeps the
+worker's `no_effect` only from an `Error` body that passes its schema; any other JSON refusal is `unknown`
+(`refusal_not_b2_error`) and keeps nothing. An invalid frame ends the watch with `ResyncRequired('invalid_frame')`
+before the callback, so it never enables controls. A failure names the check and the schema path only, never a
+value from the reply. Explicitly open objects (`Receipt.result`, `StopResult`, `Worker.resources`) stay open.
 - **P4, Install and operations.** `release.yml`, `pi-worker install|upgrade|rollback|doctor|logs`, systemd user
   unit, upgrade policy (an upgrade restarts the supervisor and so kills pi children; drain or refuse while
   executions run), logs without prompt text. Shep's installer offers the worker. Journey `p4-upgrade-rollback` on a
