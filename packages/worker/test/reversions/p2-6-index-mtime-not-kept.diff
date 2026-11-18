@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index e2f30b5..3667e10 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -283,7 +283,7 @@ function copyData(admin: number, common: number, out: number): void {
+   // Keep the index mtime: Git treats an entry as racily clean (and compares content) when its mtime is not older than
+   // the index file's. A fresh copy time would make a same-second, same-size edit look clean. Rounding down only widens
+   // the racy set, so it can add content checks, never skip one.
+-  copyFileAt(admin, ['index'], out, 'index', budget, true);
++  copyFileAt(admin, ['index'], out, 'index', budget);
+   for (const name of ['refs', 'info']) {
+     mkdirSync(fdPath(out, name), { mode: 0o700 });
+     let src: number;

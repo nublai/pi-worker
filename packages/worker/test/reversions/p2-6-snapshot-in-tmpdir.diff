@@ -1,0 +1,40 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index e2f30b5..201279f 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -29,6 +29,7 @@
+  */
+ import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
+ import { closeSync, constants, fstatSync, futimesSync, mkdirSync, mkdtempSync, openSync, readdirSync, readlinkSync, readSync, rmSync, writeSync } from 'node:fs';
++import { tmpdir } from 'node:os';
+ import { basename, isAbsolute, join, normalize } from 'node:path';
+ import { Refusal } from '../b2/errors.js';
+ import { assertPin, checkConfig, inspect, type GitPin } from '../sandbox/git-sandbox.js';
+@@ -103,24 +104,11 @@ function assertPrivate(fd: number): void {
+  * from its open descriptor, which must lie outside the checkout, the admin dir and the common dir.
+  */
+ function privateDir(owner: OwnerGit, root: string, pin: GitPin): string {
+-  if (!isAbsolute(owner.stateDir) || normalize(owner.stateDir) !== owner.stateDir) throw new Refusal('git_snapshot_state_dir_invalid');
+-  const parent = join(owner.stateDir, 'git-snapshots');
+-  mkdirSync(parent, { recursive: true, mode: 0o700 });
+-  const parentFd = openSync(parent, DIR_FLAGS);
++  void owner;
++  const dir = mkdtempSync(join(tmpdir(), 'piw-git-'));
++  const parentFd = openSync(dir, DIR_FLAGS);
+   try {
+     assertPrivate(parentFd);
+-    const made = mkdtempSync(fdPath(parentFd, 'snap-'));
+-    const fd = openUnder(parentFd, [basename(made)], 'dir');
+-    let dir: string;
+-    try {
+-      dir = readlinkSync(fdPath(fd));
+-      assertPrivate(fd);
+-    } catch (error) {
+-      rmSync(fdPath(parentFd, basename(made)), { recursive: true, force: true });
+-      throw error;
+-    } finally {
+-      closeSync(fd);
+-    }
+     if ([root, pin.git_dir, pin.common_dir].some(p => within(p, dir))) {
+       rmSync(dir, { recursive: true, force: true });
+       throw new Refusal('git_snapshot_dir_inside_checkout');
