@@ -1,15 +1,22 @@
 /**
  * Children core, unsandboxed (P1-11): typed launch specs, child reports and the missing-report parent fence.
  * Rewritten from A0 `src/supervisor.ts` (`validateLaunch`, `onReport`, `report`, the child part of `recover`). P2-4
- * adds the bwrap profile for typed children (sandbox/); the parent channel (P2-8) is still to come, so a sandboxed
- * root worker is refused.
+ * adds the bwrap profile for typed children (sandbox/); P2-8 adds sandboxed parents and their parent channel
+ * (channel.ts, b2/channel.ts).
  *
  * - A typed child (`workers.create` with `parent` and `launch_spec`) has a launch spec that is a subset of its
  *   environment's methods, of the creating caller's grant, and of its parent's spec (methods, environment methods,
  *   tools, denials, resources), and its environment stays inside the parent's tree: its `environment.root` and its
- *   cwd resolve (realpath) under the parent's `environment.root`, or the parent's cwd when it has none. P2-8 adds the
- *   O_NOFOLLOW open of the child root; until then a symlink swapped after this check is a named limit. The parent must be writable (no fence, no move), name its current binding and its
- *   running execution, and its creating grant must still be active. Every check runs before any record or spawn.
+ *   cwd resolve (realpath) under the parent's `environment.root`, or the parent's cwd when it has none. The parent
+ *   must be writable (no fence, no move), name its current binding and its running execution, and its creating grant
+ *   must still be active. Every check runs before any record or spawn.
+ * - A sandboxed parent (P2-8) needs a parent channel to be served. Its child is sandboxed and runs in an
+ *   owner-prepared slot: its cwd is exactly `PARENT/.piw-slots/<name>`, opened with O_NOFOLLOW from the parent root
+ *   (sandbox.ts `openSlot`), never resolved. The child's Git metadata, when it has any, is the parent's own pinned
+ *   repository: its pinned common dir equals the parent's (a parent with no Git root has children with none), so a
+ *   gitfile the parent points at another repository, or at a repository it made inside its root, refuses. Its launch
+ *   spec names resources in its own staged profile (`CHILD/.piw-agent/…`) for the parent's (`PARENT/.piw-agent/…`).
+ *   Parents get no Git administrative writes: the owner prepares the slots.
  * - Lineage (`parent`, `parent_worker_id`, `parent_launch_command_id`) is in the child's starting row, durable before
  *   its dispatch record and spawn (lifecycle.ts). An unknown child create fences the parent on that command.
  * - A typed child's only report authority is its inherited FD 3 (host.ts): B2 `children.report` naming a typed child
@@ -34,8 +41,11 @@ import type { Fence } from './fence.js';
 import type { Input } from './input.js';
 import type { Lifecycle } from './lifecycle.js';
 import type { Create, Live, SupervisorState, Worker } from './state.js';
-import { sandboxed, sandboxRoot } from '../sandbox/sandbox.js';
+import { closeSync } from 'node:fs';
+import { join } from 'node:path';
+import { AGENT_DIR, openSlot, sandboxed, sandboxRoot } from '../sandbox/sandbox.js';
 import type { GitPin } from '../sandbox/git-sandbox.js';
+import { channelAvailable } from './channel.js';
 
 export type Report = import('../generated/api.js').components['schemas']['Report'];
 export type ChildClaim = import('../generated/api.js').components['schemas']['ChildClaim'];
@@ -134,10 +144,14 @@ export class Children {
     if (c.parent && !spec) throw new Refusal('child_launch_spec_required');
     if (!spec) return undefined;
     let gitPin: GitPin | null | undefined;
-    // A sandboxed child (P2-4): its root equals its cwd and overlaps no control path (sandbox.ts). A sandboxed root
-    // worker (a parent) needs the parent channel, which lands in P2-8: until then it is refused.
+    // A sandboxed parent's child runs in a slot below its root, opened with no link followed, before anything resolves
+    // the path (P2-8).
+    const family = c.parent ? this.s.workers.get(c.parent.worker_id) : undefined;
+    if (family && sandboxed(family.worker.launch_spec) && sandboxed(spec)) closeSync(openSlot(family.worker.cwd, c.cwd));
+    // A sandboxed worker (P2-4): its root equals its cwd and overlaps no control path (sandbox.ts). A sandboxed root
+    // worker (a parent) needs a parent channel (P2-8).
     if (sandboxed(spec)) {
-      if (!c.parent) throw new Refusal('sandboxed_parent_requires_parent_channel');
+      if (!c.parent) channelAvailable(this.s);
       if (c.resume_session_id) throw new Refusal('sandboxed_child_resume_unsupported');
       gitPin = sandboxRoot(c, { stateDir: this.s.stateDir, paths: this.s.sandboxControls }).gitPin;
     }
@@ -156,14 +170,18 @@ export class Children {
     const p = parent.worker.launch_spec;
     // A sandboxed parent's children are sandboxed too: a child never runs with more filesystem than its parent.
     if (sandboxed(p) && !sandboxed(spec)) throw new Refusal('child_filesystem_cannot_widen');
+    if (sandboxed(p)) this.sameRepository(parent, gitPin);
+    // A sandboxed child of a sandboxed parent names a resource in its staged profile for the parent's same path.
+    const staged = sandboxed(p) ? join(c.cwd, AGENT_DIR) : null;
+    const asParent = (path: string) => (staged && path.startsWith(`${staged}/`) ? join(parent.worker.cwd, AGENT_DIR, path.slice(staged.length + 1)) : path);
     if (
       !p ||
       !subset(spec.grant_methods, p.grant_methods) ||
       !subset(spec.environment.allowed_methods, p.environment.allowed_methods) ||
       !subset(spec.tools, p.tools) ||
       !subset(p.denied_tools, spec.denied_tools) ||
-      !subset(spec.resources.extensions, p.resources.extensions) ||
-      !subset(spec.resources.skills, p.resources.skills)
+      !subset(spec.resources.extensions.map(asParent), p.resources.extensions) ||
+      !subset(spec.resources.skills.map(asParent), p.resources.skills)
     ) {
       throw new Refusal('child_authority_not_subset');
     }
@@ -175,6 +193,15 @@ export class Children {
     if (!within(tree, root) || !within(root, cwd)) throw new Refusal('child_environment_outside_parent');
     this.active(parent.worker.grant_source_id);
     return gitPin;
+  }
+
+  /**
+   * A sandboxed parent's child (P2-8): its Git metadata (`gitPin`, its root's as its validation read it) is the parent's
+   * own pinned repository: the same common dir. A child root with no Git metadata has no Git dirs at all.
+   */
+  private sameRepository(parent: Live, gitPin: GitPin | null | undefined): void {
+    const own = parent.gitPin?.common_dir ?? null;
+    if (gitPin && gitPin.common_dir !== own) throw new Refusal('parent_channel_child_git_not_parent_repository');
   }
 
   /** An uncertain child launch fences its parent durably (the parent cannot simply replace the child). */

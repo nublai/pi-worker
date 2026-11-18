@@ -26,6 +26,7 @@ import type { Domain } from '../containment/containment.js';
 import { sandboxed } from '../sandbox/sandbox.js';
 import type { GitPin } from '../sandbox/git-sandbox.js';
 import type { DependencyBind } from '../sandbox/staging.js';
+import type { Channel, ChannelFactory } from './channel.js';
 
 export type Worker = components['schemas']['Worker'];
 export type Create = components['schemas']['Create'];
@@ -104,11 +105,13 @@ export interface Live extends Persisted {
   /** The supervisor-owned follow-up queue (cap 32), in arrival order. */
   pending?: Map<string, Queued>;
   /**
-   * A sandboxed worker's Git metadata as its create's validation accepted it (memory, P2-5; sandbox/git-sandbox.ts): its
-   * launch mounts only that metadata. A sandboxed worker is never relaunched yet (children are not relaunched, and a
-   * sandboxed root worker waits for P2-8), so the pin is not journaled.
+   * A sandboxed worker's Git metadata as its create's (or, for a sandboxed root worker, its relaunch's) validation
+   * accepted it (memory, P2-5; sandbox/git-sandbox.ts): its launch mounts only that metadata, and a sandboxed parent's
+   * channel children must share its common dir (P2-8). Not journaled: a relaunch validates the metadata again.
    */
   gitPin?: GitPin | null;
+  /** A sandboxed root worker's parent channel for its current generation (memory, P2-8; channel.ts). */
+  channel?: Channel;
   /**
    * The parent profile a sandboxed child stages into its root (memory, P2-7; sandbox/staging.ts), as its create's
    * validation found it: `PARENT/.piw-agent`. Absent when the parent has none (nothing is staged).
@@ -140,6 +143,8 @@ export interface HostLaunch {
    * supervisor closes them once the factory returns.
    */
   readonly dependencies?: readonly DependencyBind[];
+  /** With `sandbox`, a sandboxed root worker's channel directory (P2-8), bound read-only at `/run/piw-parent`. */
+  readonly channel?: string;
 }
 
 export type HostFactory = (launch: HostLaunch) => SessionHost;
@@ -199,6 +204,8 @@ export class SupervisorState {
   grants?: GrantStore;
   /** Control paths besides the state directory that no sandbox root may overlap (the B2 socket's directory). */
   sandboxControls: readonly string[] = [];
+  /** Builds each parent channel's B2 handler (P2-8); without it a sandboxed root worker is refused. */
+  channels?: ChannelFactory;
   /**
    * Parents with a child whose process ended and whose live missing-report check has not run yet (it waits for the
    * child's report channel to drain): a new child launch under such a parent is refused `child_end_unsettled`.
