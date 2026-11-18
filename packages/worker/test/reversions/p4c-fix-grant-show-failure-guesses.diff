@@ -1,19 +1,19 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 7be530c..621a2c2 100644
+index 67db275..c3fb8b6 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -330,7 +330,13 @@ export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.Process
+@@ -351,7 +351,13 @@ export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.Process
+   const home = env.HOME;
    if (!home) return base;
    if (!canonicalPath(home) || home === '/') throw unsafe('HOME');
-   if (!unitInstalled(join(home, '.config', 'systemd', 'user', UNIT))) return base;
--  const stateDir = pinnedStateDir(unitShow(system, base));
-+  let props: Record<string, string>;
+-  const unit = installedUnit(system, base, home);
++  let unit: InstalledUnit;
 +  try {
-+    props = unitShow(system, base);
-+  } catch {
-+    return base;
++    unit = installedUnit(system, base, home);
++  } catch (error) {
++    if (error instanceof LocalFailure && error.code === 'pi_worker_systemctl_failed') return base;
++    throw error;
 +  }
-+  const stateDir = pinnedStateDir(props);
-   const named = env.PIW_STATE_DIR || (env.XDG_STATE_HOME ? join(env.XDG_STATE_HOME, 'pi-worker') : undefined);
-   if (named !== undefined && (!isAbsolute(named) || resolve(named) !== stateDir)) {
-     throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: stateDir, requested: named });
+   if (unit.kind === 'none') return base;
+   if (unit.kind === 'unloaded') throw unsafe('state', 'systemd has not loaded the installed unit; run systemctl --user daemon-reload');
+   const stateDir = unit.stateDir;

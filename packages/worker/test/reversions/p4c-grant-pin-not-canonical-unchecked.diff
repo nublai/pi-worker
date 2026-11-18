@@ -1,12 +1,12 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 7be530c..7924dc0 100644
+index 67db275..979e3ca 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -311,7 +311,6 @@ function pinnedStateDir(props: Record<string, string>): string {
-   const values = (props.Environment ?? '').split(' ').filter(word => word.startsWith('PIW_STATE_DIR='));
-   if (values.length !== 1) throw unsafe('state', `the installed unit's environment has ${values.length ? 'several' : 'no printable'} PIW_STATE_DIR`);
-   const stateDir = values[0]!.slice('PIW_STATE_DIR='.length);
--  if (!canonicalPath(stateDir)) throw unsafe('state', 'the installed unit pins a state directory that is not canonical');
-   return stateDir;
+@@ -303,7 +303,6 @@ function pinnedValue(props: Record<string, string>, key: string, which: string):
+   const values = (props.Environment ?? '').split(' ').filter(word => word.startsWith(`${key}=`));
+   if (values.length !== 1) throw unsafe(which, `the installed unit's environment has ${values.length ? 'several' : 'no printable'} ${key}`);
+   const value = values[0]!.slice(key.length + 1);
+-  if (!canonicalPath(value)) throw unsafe(which, `the installed unit pins a ${key} that is not canonical`);
+   return value;
  }
  

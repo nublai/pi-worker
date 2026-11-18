@@ -1,0 +1,12 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index 67db275..88d8632 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -299,7 +299,6 @@ function unitShow(system: System, env: NodeJS.ProcessEnv): Record<string, string
+  * quoted or as `[unprintable]`), several, or a value that is not canonical.
+  */
+ function pinnedValue(props: Record<string, string>, key: string, which: string): string {
+-  if (new RegExp(`(^|[\\s"])${key}(=|[\\s"]|$)`).test(props.UnsetEnvironment ?? '')) throw unsafe(which, `the installed unit's UnsetEnvironment= removes ${key}`);
+   const values = (props.Environment ?? '').split(' ').filter(word => word.startsWith(`${key}=`));
+   if (values.length !== 1) throw unsafe(which, `the installed unit's environment has ${values.length ? 'several' : 'no printable'} ${key}`);
+   const value = values[0]!.slice(key.length + 1);

@@ -1,10 +1,10 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 7be530c..6edb59b 100644
+index 67db275..1ba1777 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -332,7 +332,7 @@ export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.Process
-   if (!unitInstalled(join(home, '.config', 'systemd', 'user', UNIT))) return base;
-   const stateDir = pinnedStateDir(unitShow(system, base));
+@@ -356,7 +356,7 @@ export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.Process
+   if (unit.kind === 'unloaded') throw unsafe('state', 'systemd has not loaded the installed unit; run systemctl --user daemon-reload');
+   const stateDir = unit.stateDir;
    const named = env.PIW_STATE_DIR || (env.XDG_STATE_HOME ? join(env.XDG_STATE_HOME, 'pi-worker') : undefined);
 -  if (named !== undefined && (!isAbsolute(named) || resolve(named) !== stateDir)) {
 +  if (named !== undefined && (resolve(named) !== stateDir) && (void isAbsolute, true)) {

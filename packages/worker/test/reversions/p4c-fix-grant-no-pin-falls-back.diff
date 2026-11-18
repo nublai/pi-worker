@@ -1,15 +1,17 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 7be530c..483bae8 100644
+index 67db275..06a97e1 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -330,7 +330,9 @@ export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.Process
+@@ -351,9 +351,10 @@ export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.Process
+   const home = env.HOME;
    if (!home) return base;
    if (!canonicalPath(home) || home === '/') throw unsafe('HOME');
-   if (!unitInstalled(join(home, '.config', 'systemd', 'user', UNIT))) return base;
--  const stateDir = pinnedStateDir(unitShow(system, base));
-+  const props = unitShow(system, base);
-+  if (!(props.Environment ?? '').split(' ').some(word => word.startsWith('PIW_STATE_DIR='))) return base;
-+  const stateDir = pinnedStateDir(props);
++  const props = unitInstalled(join(home, '.config', 'systemd', 'user', UNIT)) ? unitShow(system, base) : undefined;
++  if (!props || props.LoadState === 'not-found' || !(props.Environment ?? '').split(' ').some(word => word.startsWith('PIW_STATE_DIR='))) return base;
+   const unit = installedUnit(system, base, home);
+-  if (unit.kind === 'none') return base;
+-  if (unit.kind === 'unloaded') throw unsafe('state', 'systemd has not loaded the installed unit; run systemctl --user daemon-reload');
++  if (unit.kind !== 'pinned') return base;
+   const stateDir = unit.stateDir;
    const named = env.PIW_STATE_DIR || (env.XDG_STATE_HOME ? join(env.XDG_STATE_HOME, 'pi-worker') : undefined);
    if (named !== undefined && (!isAbsolute(named) || resolve(named) !== stateDir)) {
-     throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: stateDir, requested: named });

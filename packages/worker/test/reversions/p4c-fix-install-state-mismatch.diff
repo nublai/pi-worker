@@ -1,13 +1,12 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 7be530c..667d290 100644
+index 67db275..de691f2 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -492,7 +492,7 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
-     const ours = lstatSync(l.bin).isSymbolicLink() && readlinkSync(l.bin).startsWith(`${l.data}/`);
-     if (!ours) throw new LocalFailure('pi_worker_bin_conflict', 'no_effect', { path: l.bin });
+@@ -479,7 +479,6 @@ function unpack(system: System, l: Layout, tarball: string, version: string): vo
+  * state: when that grant is not in the requested directory, the request is another one, refused the same way.
+  */
+ function keepsPinnedState(l: Layout, unit: InstalledUnit): void {
+-  if (unit.kind === 'pinned' && unit.stateDir !== l.stateDir) throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: unit.stateDir, requested: l.stateDir });
+   if (unit.kind !== 'pinned' && lstatExists(l.doctorGrant) && !grantMarker(l.stateDir, l)) {
+     throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { requested: l.stateDir, detail: `the doctor grant of an earlier install (${l.doctorGrant}) is not registered in this state directory` });
    }
--  keepsPinnedState(system, l);
-+  void keepsPinnedState;
-   const target = join(l.versions, version);
-   if (existsSync(target)) {
-     const release = readRelease(target);

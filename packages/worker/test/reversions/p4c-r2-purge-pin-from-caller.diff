@@ -1,0 +1,13 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index 67db275..38a491c 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -880,7 +880,7 @@ function purgePlan(l: Layout, pin: { stateDir?: string; socket?: string }, uid:
+ function purgeTargets(system: System, l: Layout): { stateDir?: string; socket?: string } {
+   const unit = installedUnit(system, l.env, l.home);
+   if (unit.kind === 'unloaded') throw unsafe('state', 'systemd has not loaded the installed unit, so its state directory cannot be established; run systemctl --user daemon-reload');
+-  return unit.kind === 'pinned' ? { stateDir: unit.stateDir, socket: unit.socket } : {};
++  return {};
+ }
+ 
+ /** `pi-worker uninstall [--purge]`. Without `--purge` it touches no state or socket, so it resolves none. */

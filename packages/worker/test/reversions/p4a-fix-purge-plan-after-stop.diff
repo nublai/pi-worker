@@ -1,17 +1,17 @@
-diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
-index 1a855a3..88e7aed 100644
---- i/packages/cli/src/host.ts
-+++ w/packages/cli/src/host.ts
-@@ -640,8 +640,6 @@ function purgePlan(l: Layout, pin: { stateDir?: string; socket?: string }, uid:
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index 67db275..7df2bc5 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -887,8 +887,6 @@ function purgeTargets(system: System, l: Layout): { stateDir?: string; socket?:
  export function uninstall(purge: boolean, env: NodeJS.ProcessEnv, system: System): Record<string, unknown> {
    const l = layout(env, system);
-   const pin = pinned(l);
+   const pin = purge ? purgeTargets(system, l) : {};
 -  // A purge is planned and checked before anything is stopped or removed.
 -  const removals = purge ? purgePlan(l, pin, system.uid) : [];
    if (existsSync(l.unitFile)) {
      systemctl(system, l, 'disable', 'disable', '--now', UNIT);
      rmSync(l.unitFile, { force: true });
-@@ -650,6 +648,7 @@ export function uninstall(purge: boolean, env: NodeJS.ProcessEnv, system: System
+@@ -897,6 +895,7 @@ export function uninstall(purge: boolean, env: NodeJS.ProcessEnv, system: System
    system.exec('systemctl', ['--user', 'reset-failed', UNIT], { env: l.env, timeoutMs: 30_000 });
    if (lstatExists(l.bin) && lstatSync(l.bin).isSymbolicLink() && readlinkSync(l.bin).startsWith(`${l.data}/`)) rmSync(l.bin, { force: true });
    if (lstatExists(l.current)) rmSync(l.current, { force: true });

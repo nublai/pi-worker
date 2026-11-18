@@ -1,0 +1,16 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index 67db275..d391934 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -637,9 +637,10 @@ function effectiveSocket(system: System, l: Layout): { socket: string } | { refu
+   } catch (error) {
+     if (!(error instanceof LocalFailure)) throw error;
+     const detail = error.details.detail ?? error.details.step;
++    if (detail !== null) return { socket: l.socket };
+     return { refused: `${error.code}${error.details.which ? ` (${String(error.details.which)})` : ''}${detail ? `: ${String(detail)}` : ''}` };
+   }
+-  if (unit.kind === 'unloaded') return { refused: 'systemd has not loaded the installed unit' };
++  if (unit.kind === 'unloaded') return { socket: l.socket };
+   return { socket: unit.kind === 'pinned' ? unit.socket : l.socket };
+ }
+ 
