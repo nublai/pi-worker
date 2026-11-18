@@ -1,13 +1,13 @@
 diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
-index 82645fa..663b442 100644
+index 051f070..7e55a8c 100644
 --- a/packages/client-ts/src/observer.ts
 +++ b/packages/client-ts/src/observer.ts
-@@ -290,7 +290,7 @@ export class Observer {
+@@ -343,7 +343,7 @@ export class Observer {
        if (signal.aborted) break;
        if ('stop' in ending) return ending.stop;
        protocolFailures = ending.retry === 'protocol' ? protocolFailures + 1 : 0;
 -      if (protocolFailures >= this.maxProtocolFailures) return { reason: 'protocol', error: new Error('protocol_failures_exhausted') };
 +      if (protocolFailures >= this.maxProtocolFailures && attempt < 0) return { reason: 'protocol', error: new Error('protocol_failures_exhausted') };
+       connectFailures = ending.retry === 'unreachable' ? connectFailures + 1 : 0;
+       if (connectFailures >= this.maxConnectFailures) return { reason: 'unreachable', error: ending.error ?? new Error('unreachable') };
        if (snapshot) attempt = 0;
-       const ceiling = Math.min(this.maxMs, this.initialMs * 2 ** Math.min(attempt, 30));
-       attempt++;

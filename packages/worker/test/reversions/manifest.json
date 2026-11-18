@@ -283,7 +283,8 @@
         "pr19-grant-uncapped.diff",
         "pr19-peer-any-uid.diff",
         "pr19-grant-blocking-open.diff",
-        "pr19-peer-xucred-any-layout.diff"
+        "pr19-peer-xucred-any-layout.diff",
+        "p2-8-fix2-go-watch-authority-end-resyncs.diff"
       ]
     },
     "events-set": {
@@ -554,7 +555,8 @@
         "p3-1-sse-lossy-utf8.diff",
         "p3-1-byte-read-content-type-unchecked.diff",
         "p3-1-byte-read-headers-unchecked.diff",
-        "p3-1-ndjson-final-line-unchecked.diff"
+        "p3-1-ndjson-final-line-unchecked.diff",
+        "p2-8-fix2-watch-authority-end-resyncs.diff"
       ]
     },
     "client-reconcile": {
@@ -653,7 +655,10 @@
         "p3-3-backoff-uncapped.diff",
         "p3-3-delivery-failure-continues.diff",
         "p3-3-slow-consumer-unbounded.diff",
-        "p3-3-batch-state-before-notices.diff"
+        "p3-3-batch-state-before-notices.diff",
+        "p2-8-fix2-observer-refusal-retried.diff",
+        "p2-8-fix2-observer-refusal-first-retried.diff",
+        "p2-8-fix2-observer-unreachable-unbounded.diff"
       ]
     },
     "install-interface": {
@@ -694,7 +699,8 @@
         "p2-8-fix-stream-no-period.diff",
         "p2-8-fix-close-skips-retire.diff",
         "p2-8-fix-closed-channel-served.diff",
-        "p2-8-fix-recheck-ends-without-frame.diff"
+        "p2-8-fix-recheck-ends-without-frame.diff",
+        "p2-8-fix2-authority-end-resyncs.diff"
       ]
     }
   }

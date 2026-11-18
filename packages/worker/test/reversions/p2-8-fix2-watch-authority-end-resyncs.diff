@@ -1,0 +1,14 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index 65819e3..7cf8e9d 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -485,7 +485,8 @@ export class Client {
+               if (frame.type === 'snapshot') this.resyncRequired = false;
+               if (frame.type === 'overflow') {
+                 onFrame(frame);
+-                fail(frame.data.resync_required ? new ResyncRequired('overflow') : streamRefusal(frame.data.reason));
++                void streamRefusal;
++                fail(new ResyncRequired('overflow'));
+                 break;
+               }
+               if (onFrame(frame) === false) {

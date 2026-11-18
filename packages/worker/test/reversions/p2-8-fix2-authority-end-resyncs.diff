@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/events/hub.ts b/packages/worker/src/events/hub.ts
+index e173907..65a376a 100644
+--- a/packages/worker/src/events/hub.ts
++++ b/packages/worker/src/events/hub.ts
+@@ -173,7 +173,7 @@ export class EventHub {
+     } catch (error) {
+       const reason = recheckReason(error);
+       // An authority end is terminal: the caller must not reconnect (a new subscription is refused with this code).
+-      this.overflow(sub, reason, reason === RECHECK_FAILED);
++      this.overflow(sub, reason);
+       return false;
+     }
+   }

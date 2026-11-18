@@ -1,0 +1,12 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 051f070..90ef1f6 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -230,7 +230,6 @@ function classify(error: unknown): Ending {
+   if (error instanceof ClientFailure) {
+     // A refusal the worker sent (here: an open stream whose authority ended, a terminal overflow) never gets better by
+     // reconnecting; a new subscription would be refused with the same code, or find no socket.
+-    if (error.phase === 'http') return { stop: { reason: 'refused', error: e } };
+     // The grant file is read before anything is sent; an unreadable or invalid one never gets better by retrying.
+     return error.message.startsWith('grant_file_') ? { stop: { reason: 'unauthorized', error: e } } : { retry: 'transient' };
+   }
