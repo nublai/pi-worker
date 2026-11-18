@@ -135,6 +135,7 @@ test('cli: flags map to the wire shapes of their fields', () => {
   assert.throws(() => build(['session.configure', 'w1', '--model', 'noslash']), /PROVIDER\/MODEL_ID/);
   assert.equal(build(['sessions.rebind', 'w1', '--action', 'fork', '--source-leaf-id', 'null', '--entry-id', 'e']).body?.source_leaf_id, null);
   assert.deepEqual(build(['files.read', 'w1', '--path', '/r/f', '--root', '/r', '--root', '/q']).body, { path: '/r/f', roots: ['/r', '/q'] });
+  assert.deepEqual(build(['artifacts.inspect', 'w1', '--worker-epoch', 'e1', '--commit', 'refs/heads/ns/leaf', '--base', 'a'.repeat(40)]).body, { worker_epoch: 'e1', commit: 'refs/heads/ns/leaf', base: 'a'.repeat(40) });
   assert.deepEqual(build(['history.page', 'w1', '--limit', '5', '--after', 'e1']), { path: { worker_id: 'w1' }, query: { limit: 5, after: 'e1' }, body: undefined });
   assert.deepEqual(build(['models.list', '--worker', 'w1']).query, { worker_id: 'w1' });
   assert.deepEqual(build(['interactions.status', 'w1', '--interaction-id', 'i1']).query, { interaction_id: 'i1' });

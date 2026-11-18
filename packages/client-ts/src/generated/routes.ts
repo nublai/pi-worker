@@ -189,6 +189,12 @@ export const routes = {
     validate: v.response_files_read_200, headers: null, headerKinds: null,
     errors: { '400': v.response_files_read_400, '409': v.response_files_read_409, '413': v.response_files_read_413, '415': v.response_files_read_415, '500': v.response_files_read_500, '501': v.response_files_read_501 },
   },
+  "artifacts.inspect": {
+    method: "POST", path: "/b2/workers/{worker_id}/artifacts/inspect", mutation: false, stream: false, body: "json", mediaTypes: ["application/json"], maxBodyBytes: 262144,
+    responseMode: "json", maxFrameBytes: null, maxResponseBytes: null, contentTypes: ["application/json"],
+    validate: v.response_artifacts_inspect_200, headers: null, headerKinds: null,
+    errors: { '400': v.response_artifacts_inspect_400, '409': v.response_artifacts_inspect_409, '413': v.response_artifacts_inspect_413, '415': v.response_artifacts_inspect_415, '500': v.response_artifacts_inspect_500, '501': v.response_artifacts_inspect_501 },
+  },
   "attachments.status": {
     method: "GET", path: "/b2/attachments/{attachment_id}", mutation: false, stream: false, body: "none", mediaTypes: [], maxBodyBytes: 0,
     responseMode: "json", maxFrameBytes: null, maxResponseBytes: null, contentTypes: ["application/json"],

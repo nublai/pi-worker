@@ -32,7 +32,8 @@ client for it). The grant is the `bridge` profile unless `Options.Methods` says 
   pi's aborted assistant turn when `executions.cancel` or `executions.interrupt` ends a running execution; and what
   `AppendHistory` adds. `sessions.get`, `sessions.list`, `sessions.history` and `blobs.read` read those, and an unknown session is
   `unknown_session`. `models.list` and `commands.list` answer for a ready worker or an existing directory with
-  their wire fixtures' catalog. The reads it does not model (`history.page`, `items.read`, `files.read`) answer only a
+  their wire fixtures' catalog. The reads it does not model (`history.page`, `items.read`, `files.read`,
+  `artifacts.inspect`) answer only a
   request that matches a wire fixture exactly, else `404 fixture_not_found`, never another request's reply.
 - **Replay (`Options.Replay`).** Every operation answers only from its wire fixtures, matched exactly; use it to test
   that a driver handles every documented reply, refusals included.

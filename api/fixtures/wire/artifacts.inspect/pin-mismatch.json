@@ -1,0 +1,18 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-child"
+    },
+    "body": {
+      "worker_epoch": "epoch-child",
+      "commit": "bc1f7b9ea8491700b4c94cc57d5cccfc650cc54a"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "artifact_pin_mismatch",
+      "effect": "no_effect"
+    }
+  }
+}

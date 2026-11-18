@@ -136,6 +136,8 @@ func callFixture(t *testing.T, ctx context.Context, c *b2.Client, fx workerfake.
 		return c.ItemsRead(ctx, p[0], p[1])
 	case "files.read":
 		return c.FilesRead(ctx, p[0], reqBody[b2.FileRead](t, fx))
+	case "artifacts.inspect":
+		return c.ArtifactsInspect(ctx, p[0], reqBody[b2.ArtifactInspect](t, fx))
 	case "attachments.status":
 		return c.AttachmentsStatus(ctx, p[0])
 	case "attachments.release":

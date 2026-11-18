@@ -63,6 +63,9 @@ rules:
       - items.read
       - blobs.read
       - files.read
+      # P3-6 (nubl .pi/plan/p3-worker-provider.md, Q1 approved 2026-11-18):
+      # owner-Git facts about a worker's checkout; no general Git endpoint.
+      - artifacts.inspect
       - models.list
       - session.configure
       - commands.list

@@ -259,6 +259,18 @@ export const COMMANDS: readonly Command[] = [
     options: [body('path', 'string', 'absolute file path', { required: true }), body('root', 'list', 'confinement root (repeatable)', { field: 'roots', required: true })],
   },
   {
+    name: 'artifacts.inspect',
+    op: 'artifacts.inspect',
+    mode: 'call',
+    summary: "Owner-Git facts about a worker's checkout at its saved launch pin",
+    args: [WORKER],
+    options: [
+      body('worker-epoch', 'string', "the worker's current epoch", { required: true }),
+      body('commit', 'string', 'full object id, or refs/heads/<ns>/<leaf> in the worker namespace', { required: true }),
+      body('base', 'string', 'base: full object id, or a branch in the worker namespace'),
+    ],
+  },
+  {
     name: 'attachments.stage',
     op: 'attachments.stage',
     mode: 'stage',

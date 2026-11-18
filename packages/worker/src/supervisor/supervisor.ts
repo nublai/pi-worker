@@ -20,6 +20,7 @@ import { Features, type Configure, type InventoryFactory } from './features.js';
 import { SessionCommands, type Compact, type Invoke } from './session-commands.js';
 import { Attachments, type StageRequest } from '../attachments/attachments.js';
 import { Lifecycle } from './lifecycle.js';
+import { Artifacts, type ArtifactFacts, type ArtifactInspect } from './artifacts.js';
 import { activity } from './activity.js';
 import type { Containment } from '../containment/containment.js';
 import { readConfined } from '../sandbox/sandbox.js';
@@ -60,6 +61,7 @@ export class Supervisor {
   readonly features: Features;
   readonly commands: SessionCommands;
   readonly attachments: Attachments;
+  readonly artifacts: Artifacts;
 
   constructor(options: SupervisorOptions) {
     this.state = new SupervisorState(options.journal, options.receipts, options.supervisorEpoch, options.stateDir, options.factory);
@@ -93,6 +95,7 @@ export class Supervisor {
     this.attachments.onRecord = (value, appended) =>
       this.state.events.publish('attachment.updated', { worker_id: value.worker_id, execution_id: null, data: { attachment: structuredClone(value) }, appended });
     this.input.attachments = this.attachments;
+    this.artifacts = new Artifacts(this.state);
     activity(this.state, this.lifecycle);
   }
 
@@ -213,6 +216,14 @@ export class Supervisor {
     const root = confinement(this.state.require(id).worker);
     if (!root) throw new Refusal('files_read_requires_sandbox_environment');
     return readConfined(root, request.path, request.roots);
+  }
+
+  /**
+   * `artifacts.inspect` (P3-6): owner-Git facts about a sandboxed worker's checkout at its saved launch pin
+   * (artifacts.ts). Facts, never a verdict.
+   */
+  inspectArtifact(id: string, request: ArtifactInspect): ArtifactFacts {
+    return this.artifacts.inspect(id, request);
   }
 
   list(): Worker[] {

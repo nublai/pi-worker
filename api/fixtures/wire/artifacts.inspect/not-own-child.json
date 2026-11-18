@@ -1,0 +1,18 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-parent"
+    },
+    "body": {
+      "worker_epoch": "epoch-parent",
+      "commit": "bc1f7b9ea8491700b4c94cc57d5cccfc650cc54a"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "parent_channel_requires_own_child",
+      "effect": "no_effect"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-child"
+    },
+    "body": {
+      "worker_epoch": "epoch-child",
+      "commit": "refs/heads/pa/root"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "artifact_ref_outside_namespace",
+      "effect": "no_effect"
+    }
+  }
+}

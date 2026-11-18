@@ -580,7 +580,7 @@ Every call passes `-c protocol.allow=never`,
 `-c protocol.ext.allow=never` and `-c protocol.file.allow=never`. Named limit: a supervisor killed during a call leaves
 its snapshot (a copy of the repository's config and refs) in the private snapshot directory. `git-sandbox.ts` now
 exports `inspect` (unchanged) for the snapshot. No supervisor path calls owner Git yet; the harness and Maestro are its
-callers (P2 live journey, P3).
+callers (P2 live journey, P3). Since P3-6 the supervisor does, for `artifacts.inspect` (section 12).
 
 **P2-7 as built.** `sandbox/staging.ts` stages a profile for a sandboxed typed child. The profile is the parent cwd's
 `.piw-agent`, and a parent with none stages nothing, so a child keeps an owner-staged `.piw-agent` of its own as in
@@ -628,7 +628,7 @@ administrative writes: the owner creates, locks and removes worktrees.
   channel gains nothing. Each request and each dispatch recheck the generation (`parent_channel_retired` once the
   parent's epoch is another or it is no longer starting or ready), the parent's creating grant (`grant_revoked`), the
   whitelist (`hello`, `workers.list`, `workers.get`, `workers.create`, `workers.stop`, `executions.interrupt`,
-  `sessions.prompt`, `events.subscribe`, `history.page`, `receipts.get`; anything else `parent_channel_method_denied`, before parameters
+  `sessions.prompt`, `events.subscribe`, `history.page`, `receipts.get`, and since P3-6 `artifacts.inspect` for its own children; anything else `parent_channel_method_denied`, before parameters
   or body) and the channel grant; a channel the supervisor no longer serves is `parent_channel_retired`. An open
   `events.subscribe` rechecks that same guard before every frame, when its channel closes and every 500 ms, and ends
   with one `overflow` whose reason is the refusal code, before any later event (PR #39 fix round; owner streams
@@ -738,6 +738,34 @@ Since PR #39 fix round 2 a stream whose authority ended (a terminal `overflow`, 
 once as `refused` with the code, never reconnecting, and a socket that is missing or refuses connections stops it as
 `unreachable` after `maxConnectFailures` (default 10) consecutive attempts; before, both retried without bound.
 The store is Maestro's (P3-8).
+
+**P3-6 as built (narrow `artifacts.inspect` over typed owner Git; root decision Q1).** A new B2 read,
+`POST /b2/workers/{worker_id}/artifacts/inspect` (grant method `artifacts.inspect`, `supervisor/artifacts.ts`). The
+body is `{worker_epoch, commit, base?}`: the worker's current epoch (`stale_binding` otherwise) and a commit and
+optional base, each a full object id (40 or 64 hex) or a branch `refs/heads/<ns>/<leaf>` in the worker's own
+namespace, the namespace of its pinned symbolic HEAD (`artifact_ref_outside_namespace`; a detached worker has none).
+No path, pathspec, option, abbreviation or revision expression is accepted: the schema refuses it (400) and the
+supervisor checks the same pattern again. The supervisor runs only P2-6's typed functions (`gitRevParse`,
+`artifactSubject`, `gitStatus`, `gitMergeBase`, `gitDiff` name-status) with the worker's **saved launch
+pin** (`Live.gitPin`, the metadata its create's validation accepted; never a pin read again) and its private snapshot
+directory. The reply is facts, never a verdict: the subject (commit and native tree, replacement objects off), HEAD
+(its pinned branch, its commit, whether it is the inspected commit), with a base its id, the merge base (null for
+unrelated histories), whether it is an ancestor, the `--name-status` changes and the advisory diff digest, the
+worktree's porcelain status as `clean`, `dirty` or `conflicted` with its entries (`.piw-*` runtime directories appear
+unless the repository excludes them), the pin's identity (SHA-256 of its canonical JSON, its HEAD branch) and the
+provenance (`owner_git_launch_pin`, the Git version, the time). Lists stop at 10,000 entries or 1 MiB of paths and
+say so (`truncated`). It fails closed, because the shared object store is writable: no saved pin (an unsandboxed
+worker, a root with no Git metadata, a supervisor restarted since the launch: the pin is memory only) or owner Git
+refusing the checkout (an executing config, a split index, ...) is `artifact_inspection_unavailable` with owner Git's
+code in `detail`; metadata that differs from the pin (a retargeted HEAD, a redirected gitfile, a changed config) is
+`artifact_pin_mismatch`; a commit, base or the commit's tree not in the store is `artifact_object_missing`. Owner
+grants call it for any worker in their scope; the parent channel whitelists it for the parent's own children only
+(`parent_channel_requires_own_child` for the parent itself; another parent's child is `grant_scope_denied`), within
+the methods of the grant that created the parent. It is not in the `bridge` profile. Named limit: owner Git runs
+synchronously, so an inspection holds the supervisor's event loop for its Git runs. Tests:
+`packages/worker/test/security/artifacts.test.ts` (V1 readback through the TS client against the real supervisor
+with real linked worktrees, compared with the owner's own `artifactSubject`; every refusal; malformed values; scope
+through the channel and owner grants; restart; each wire fixture replayed from a real checkout).
 - **P4, Install and operations.** `release.yml`, `pi-worker install|upgrade|rollback|doctor|logs`, systemd user
   unit, upgrade policy (an upgrade restarts the supervisor and so kills pi children; drain or refuse while
   executions run), logs without prompt text. Shep's installer offers the worker. Journey `p4-upgrade-rollback` on a
