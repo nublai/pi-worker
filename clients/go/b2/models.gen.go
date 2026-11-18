@@ -2146,7 +2146,7 @@ type ArtifactFacts struct {
 	WorkerEpoch Id `json:"worker_epoch"`
 	WorkerId    Id `json:"worker_id"`
 
-	// Worktree The checkout's `git status --porcelain` (untracked files listed, ignored ones not). `conflicted` when any entry is unmerged, else `dirty` when any entry exists, judged on the complete status before `entries` is bounded.
+	// Worktree The checkout's `git status --porcelain` with every untracked file listed one by one (`??`) and every file a `.gitignore` in the tree ignores listed too (`!!`): no repository exclude file, `core.excludesFile` or `status.*` setting hides one. Nothing below pi-worker's runtime directories at the root (`.piw-agent`, `.piw-worker`, `.piw-slots`) is listed, tracked or not. `conflicted` when any entry is unmerged, else `dirty` when any entry exists, judged on the complete status before `entries` is bounded.
 	Worktree struct {
 		Entries []ArtifactStatusEntry      `json:"entries"`
 		State   ArtifactFactsWorktreeState `json:"state"`
@@ -2186,7 +2186,7 @@ type ArtifactRevision = string
 
 // ArtifactStatusEntry defines model for ArtifactStatusEntry.
 type ArtifactStatusEntry struct {
-	// Code The two `git status --porcelain` (v1) status letters.
+	// Code The two `git status --porcelain` (v1) status letters (`??` untracked, `!!` untracked and ignored by a `.gitignore` in the tree).
 	Code string `json:"code"`
 
 	// Path The rest of the porcelain line as Git prints it: one path, or `FROM -> TO` for a rename or copy, quoted by Git when it holds special characters.

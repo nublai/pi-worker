@@ -3535,7 +3535,10 @@ components:
         code:
           type: string
           pattern: ^[ MTADRCU?!]{2}$
-          description: The two `git status --porcelain` (v1) status letters.
+          description: >-
+            The two `git status --porcelain` (v1) status letters (`??`
+            untracked, `!!` untracked and ignored by a `.gitignore` in the
+            tree).
         path:
           $ref: '#/components/schemas/ArtifactPath'
           description: >-
@@ -3656,8 +3659,13 @@ components:
           additionalProperties: false
           required: [state, entries, truncated]
           description: >-
-            The checkout's `git status --porcelain` (untracked files listed,
-            ignored ones not). `conflicted` when any entry is unmerged, else
+            The checkout's `git status --porcelain` with every untracked file
+            listed one by one (`??`) and every file a `.gitignore` in the tree
+            ignores listed too (`!!`): no repository exclude file,
+            `core.excludesFile` or `status.*` setting hides one. Nothing below
+            pi-worker's runtime directories at the root (`.piw-agent`,
+            `.piw-worker`, `.piw-slots`) is listed, tracked or not.
+            `conflicted` when any entry is unmerged, else
             `dirty` when any entry exists, judged on the complete status
             before `entries` is bounded.
           properties:

@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, truncateSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, truncateSync, utimesSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { join, resolve } from 'node:path';
 import { Client, ClientFailure } from '@nublai/pi-worker-client';
@@ -88,7 +88,8 @@ type Reply = { status: number; body: Record<string, unknown> };
 
 /**
  * A fixture supervisor that serves parent channels, an owner B2 socket with the TS client on it, and an owner
- * repository `repo` (one commit, `note`; `.piw-*` excluded). `parent(ns)` makes a sandboxed parent whose root is a
+ * repository `repo` (one commit, `note`; `.piw-*` excluded for plain Git: owner Git reads no exclude file and leaves the
+ * runtime directories out by pathspec, #47). `parent(ns)` makes a sandboxed parent whose root is a
  * linked worktree on `refs/heads/<ns>/root`, with a running execution; its `child(name)` makes an owner-prepared slot
  * on `refs/heads/<name>/work` (the owner reads its pin before any agent touches it) and launches it over the parent's
  * channel. Every channel server is closed by `cleanup`, whatever production code did.
@@ -462,7 +463,18 @@ test('artifacts.inspect answers each of its wire fixtures from a real checkout, 
     const ownEnv = inspections.env;
     const slow = fakeGit(join(x.base, 'slow-git'), { statusSeconds: 30 });
     let background: Promise<unknown> = Promise.resolve();
+    // The dirty fixture's checkout: a child-written .gitignore, the file it ignores and a stray file, removed after.
+    const dirt = ['.gitignore', 'ignored.txt', 'stray.txt'].map(name => join(a.slot, name));
     const around: Record<string, [() => void | Promise<void>, () => void | Promise<void>]> = {
+      'dirty-untracked.json': [
+        () => {
+          writeFileSync(dirt[0]!, 'ignored.txt\n');
+          for (const file of dirt.slice(1)) writeFileSync(file, 'x\n');
+        },
+        () => {
+          for (const file of dirt) rmSync(file);
+        },
+      ],
       'pin-mismatch.json': [() => writeFileSync(adminHead, 'ref: refs/heads/pa/root\n'), () => writeFileSync(adminHead, 'ref: refs/heads/ca/work\n')],
       'inspection-timeout.json': [
         () => {
@@ -491,7 +503,7 @@ test('artifacts.inspect answers each of its wire fixtures from a real checkout, 
         },
       ],
     };
-    assert.deepEqual(fixtures.map(f => f.name).sort(), ['inspection-timeout.json', 'inspections-busy.json', 'not-own-child.json', 'object-missing.json', 'ok.json', 'pin-mismatch.json', 'ref-outside-namespace.json', 'stale-epoch.json', 'unavailable.json']);
+    assert.deepEqual(fixtures.map(f => f.name).sort(), ['dirty-untracked.json', 'inspection-timeout.json', 'inspections-busy.json', 'not-own-child.json', 'object-missing.json', 'ok.json', 'pin-mismatch.json', 'ref-outside-namespace.json', 'stale-epoch.json', 'unavailable.json']);
     for (const { name, fixture: fx } of fixtures) {
       const request = map(fx.request) as { path: { worker_id: string }; body: unknown };
       await around[name]?.[0]();
@@ -692,6 +704,44 @@ test('artifacts.inspect: a child that replaces a directory\'s entries with one s
     // The directory expanded again (a full index): the edit is seen.
     x.git(a.slot, 'read-tree', 'HEAD');
     assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'dirty', entries: [{ code: ' M', path: 'd/f' }], truncated: false }, 'expanded: the change is seen');
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test('artifacts.inspect (#47): no exclude state hides an untracked file: an info/exclude entry, a configured core.excludesFile the child writes, status.showUntrackedFiles=no and a .gitignore the child commits (listed as !!) all leave the checkout dirty, each file listed', { timeout: 60_000 }, async () => {
+  const x = await world();
+  try {
+    // The owner's config, pinned at the launches below: an excludes file in the root (relative: the checkout's own),
+    // and no untracked files shown.
+    x.git(x.repo, 'config', 'core.excludesFile', '.hide');
+    x.git(x.repo, 'config', 'status.showUntrackedFiles', 'no');
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    const req = { worker_epoch: a.worker.worker_epoch, commit: x.baseId };
+    assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'clean', entries: [], truncated: false }, 'control: clean, the runtime directories left out');
+    // The child: an excludes file where the config points, an entry in the common info/exclude (a same-UID writer; the
+    // sandbox cannot write it, kernel owner Git #47), a .gitignore committed on its branch, and the files they hide.
+    writeFileSync(join(a.slot, '.hide'), 'hidden-config\n.hide\n');
+    appendFileSync(join(x.repo, '.git', 'info', 'exclude'), 'hidden-info\n');
+    writeFileSync(join(a.slot, '.gitignore'), 'hidden-tree\n');
+    x.git(a.slot, 'add', '.gitignore');
+    x.git(a.slot, 'commit', '-qm', 'ignore');
+    mkdirSync(join(a.slot, 'newdir'));
+    for (const name of ['hidden-config', 'hidden-info', 'hidden-tree', 'newdir/a']) writeFileSync(join(a.slot, name), 'x\n');
+    assert.equal(x.git(a.slot, 'status', '--porcelain'), '', 'fixture: plain Git reports clean');
+    const facts = await x.inspect(a.worker.worker_id, { ...req, commit: 'refs/heads/ca/work' });
+    assert.deepEqual(facts.worktree, {
+      state: 'dirty',
+      entries: [
+        { code: '??', path: '.hide' },
+        { code: '??', path: 'hidden-config' },
+        { code: '??', path: 'hidden-info' },
+        { code: '??', path: 'newdir/a' },
+        { code: '!!', path: 'hidden-tree' },
+      ],
+      truncated: false,
+    });
   } finally {
     await x.cleanup();
   }

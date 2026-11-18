@@ -18,7 +18,9 @@
  *   changed paths, the pin's identity and the provenance. Whether that is acceptable is the caller's check. The
  *   worktree state is judged on the complete status, before its list is bounded; owner Git refuses index state that
  *   hides tracked changes (assume-unchanged, skip-worktree, stat-trusting config), so that is never `clean`, and trusts
- *   neither an entry's recorded stat data nor the index's cache tree (it hashes every tracked file).
+ *   neither an entry's recorded stat data nor the index's cache tree (it hashes every tracked file). Nor does any
+ *   exclude state hide an untracked file (#47): every one is listed, those a `.gitignore` in the tree ignores as `!!`,
+ *   except below pi-worker's own runtime directories (owner Git step 6).
  * - **Off the event loop, bounded.** Owner Git is synchronous (it copies a snapshot and waits for Git), so each
  *   inspection runs it in a child process of its own (`artifacts-child.ts`, its own process group, the owner environment
  *   only, a private directory per inspection in the state's `git-snapshots`), never on the supervisor's event loop: hello, stop, cancel and

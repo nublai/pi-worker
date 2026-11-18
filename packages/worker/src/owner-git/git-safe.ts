@@ -6,8 +6,9 @@
  * config by path, and a sandboxed writer can rewrite admin files in that window. So every call:
  *  1. opens the checkout's `.git`, admin and common dirs with O_NOFOLLOW and compares the launch-time pin (gitfile,
  *     gitdir, commondir, symbolic HEAD, config hash, alternates) through those descriptors;
- *  2. copies HEAD, config (re-hashed against the pin), refs, packed-refs, shallow, info and the index from the SAME
- *     descriptors into a fresh mode-0700 snapshot directory in
+ *  2. copies HEAD, config (re-hashed against the pin), refs, packed-refs, shallow and the index from the SAME
+ *     descriptors (never `info/`: its exclude, attributes, grafts and sparse-checkout files each change what Git
+ *     reports, step 6) into a fresh mode-0700 snapshot directory in
  *     the supervisor's state, `<stateDir>/git-snapshots/` (`$XDG_STATE_HOME/pi-worker/git-snapshots/`), never under
  *     `TMPDIR`. Its real path, read back from its open descriptor, must lie outside the checkout, the admin dir and the
  *     common dir: a path string (a symlinked `TMPDIR` or state directory) cannot put it where the agent writes;
@@ -18,7 +19,8 @@
  *     split index (a `sharedindex.*` file in the admin dir, or `core.splitIndex`): the snapshot copies only `index`;
  *  4. runs Git with GIT_DIR = that snapshot (no `commondir`, so nothing is redirected), objects from the pinned common
  *     dir (content-addressed data), a clean environment allowlist, no global/system/XDG config or attributes, fsmonitor
- *     and hooks disabled, replacement objects off (`GIT_NO_REPLACE_OBJECTS`), pathspecs literal, every transport
+ *     and hooks disabled, replacement objects off (`GIT_NO_REPLACE_OBJECTS`), no glob pathspecs and every caller path
+ *     literal (`:(literal)`), no exclude file (`core.excludesFile=/dev/null`), every transport
  *     refused (`protocol.allow`, and `protocol.ext.allow` and `protocol.file.allow` by name), and on diff-family and
  *     status commands `--no-ext-diff --no-textconv --ignore-submodules=all` (on the command line: an agent-written
  *     `.gitmodules` `ignore = none` overrides `diff.ignoreSubmodules`, and Git then runs inside the nested repository).
@@ -43,6 +45,14 @@
  *     (`ls-files --others` never uses it), `FSMN` is ignored with `core.fsmonitor=false` on every call, `link` names a
  *     shared index the snapshot never has (Git fails; `sharedindex.*` beside the index already refuses), and `REUC`
  *     (resolve-undo) and unknown optional extensions are not read by status or diff.
+ *  6. on the calls that list untracked files (`gitStatus`, `gitLsFiles` with `untracked`), trusts no exclude state:
+ *     the snapshot has no `info/exclude` (step 2) and `core.excludesFile` is `/dev/null` (step 4), so neither a
+ *     repository exclude file nor a configured one hides a file. Status runs with `--untracked-files=all` (every
+ *     untracked file listed one by one, whatever `status.showUntrackedFiles` says; porcelain v1 reads no other
+ *     `status.*` key that changes what it lists) and `--ignored=traditional`: a file a `.gitignore` in the tree ignores
+ *     (tree data the child writes or commits) is listed too, as `!!`. `ls-files --others` reads no exclude source at
+ *     all. What both leave out is pi-worker's own: its runtime directories at the root (`.piw-agent`, `.piw-worker`,
+ *     `.piw-slots`; sandbox.ts) are excluded by an explicit pathspec, everything below them, tracked or not.
  *
  * The API is typed: one function per supported inspection (status, diff, log, show, rev-parse, cat-file, ls-files,
  * for-each-ref, merge-base). Callers pass validated values (revisions, paths, ref prefixes, counts), never options:
@@ -62,6 +72,7 @@ import { closeSync, constants, fstatSync, mkdirSync, mkdtempSync, openSync, read
 import { basename, isAbsolute, join, normalize } from 'node:path';
 import { Refusal } from '../b2/errors.js';
 import { assertPin, checkConfig, inspect, type GitPin } from '../sandbox/git-sandbox.js';
+import { AGENT_DIR, SLOTS_DIR, WORKER_DIR } from '../sandbox/sandbox.js';
 import { DIR_FLAGS, FILE_FLAGS, fdPath, isMissing, openPinned, openUnder, readFd } from '../sandbox/pinned-fs.js';
 export type { GitPin } from '../sandbox/git-sandbox.js';
 
@@ -81,7 +92,7 @@ export interface GitCheckout {
 }
 
 export const SAFE_GIT_CONFIG = [
-  ...['core.fsmonitor=false', 'core.hooksPath=/dev/null', 'core.attributesFile=/dev/null', 'diff.ignoreSubmodules=all', 'submodule.recurse=false'],
+  ...['core.fsmonitor=false', 'core.hooksPath=/dev/null', 'core.attributesFile=/dev/null', 'core.excludesFile=/dev/null', 'diff.ignoreSubmodules=all', 'submodule.recurse=false'],
   ...['protocol.allow=never', 'protocol.ext.allow=never', 'protocol.file.allow=never'],
 ].flatMap(setting => ['-c', setting]);
 /** Config keys whose value names a program Git can run. */
@@ -139,8 +150,8 @@ function cleanEnv(owner: OwnerGit, home: string, objects?: string): Record<strin
     GIT_NO_LAZY_FETCH: '1',
     // Artifact identity is the commit and its native tree: a copied `refs/replace/*` must not substitute objects.
     GIT_NO_REPLACE_OBJECTS: '1',
-    // A path is a path: no `:(top)`, `:!`, `:(attr:...)` or glob magic.
-    GIT_LITERAL_PATHSPECS: '1',
+    // No glob in any pathspec; a caller's path also carries `:(literal)` (`pathArgs`), so it is never magic either.
+    GIT_NOGLOB_PATHSPECS: '1',
     ...(objects === undefined ? {} : { GIT_OBJECT_DIRECTORY: objects }),
   };
 }
@@ -336,13 +347,19 @@ function copyTreeAt(source: number, dest: number, budget: Budget, depth = 0): vo
   }
 }
 
-/** Refs, packed-refs, shallow, info and the index: data, copied through the pinned descriptors; links refused. */
+/**
+ * Refs, packed-refs, shallow and the index: data, copied through the pinned descriptors; links refused. Never `info/`
+ * (step 2).
+ */
+/** The common dir's directories the snapshot copies whole: `refs` only, never `info` (step 2). */
+const COPIED_DIRS: readonly string[] = ['refs'];
+
 function copyData(admin: number, common: number, out: number): void {
   const budget: Budget = { entries: 0, bytes: 0 };
   for (const name of ['packed-refs', 'shallow']) copyFileAt(common, [name], out, name, budget);
   // Its mtime does not matter: a call that reads the index blanks every entry's stat data (step 5), so none is trusted.
   copyFileAt(admin, ['index'], out, 'index', budget);
-  for (const name of ['refs', 'info']) {
+  for (const name of COPIED_DIRS) {
     mkdirSync(fdPath(out, name), { mode: 0o700 });
     let src: number;
     try {
@@ -538,8 +555,19 @@ function path(value: string): string {
   return value;
 }
 
-/** Paths after `--`. */
-const pathArgs = (paths: readonly string[] = []): string[] => ['--', ...paths.map(path)];
+/** Paths after `--`, each literal (`:(literal)`: no magic, no glob). */
+const pathArgs = (paths: readonly string[] = []): string[] => ['--', ...paths.map(value => `:(literal)${path(value)}`)];
+
+/**
+ * Step 6: pi-worker's own runtime directories at the root, excluded by pathspec (after `pathArgs`) from every listing of
+ * untracked files: they are pi-worker's, not the child's tree.
+ */
+const RUNTIME_EXCLUDED = [AGENT_DIR, WORKER_DIR, SLOTS_DIR].map(name => `:(exclude,literal)${name}`);
+/**
+ * Step 6, on status: every untracked file listed one by one whatever the config says, and those a `.gitignore` in the
+ * tree ignores too (as `!!`).
+ */
+const ALL_UNTRACKED = ['--untracked-files=all', '--ignored=traditional'];
 
 /** A literal ref prefix under `refs/`: no glob characters, nothing a ref name cannot hold. */
 function refPrefix(value: string): string {
@@ -675,9 +703,13 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly reads
   }
 }
 
-/** `git status --porcelain` (v1) as Git prints it; with `branch`, its `## ` line first; limited to `paths`. */
+/**
+ * `git status --porcelain` (v1) as Git prints it; with `branch`, its `## ` line first; limited to `paths`. Every
+ * untracked file is listed (`??`), and every file a `.gitignore` ignores (`!!`), except below pi-worker's runtime
+ * directories (step 6).
+ */
 export function gitStatus(at: GitCheckout, options: { readonly branch?: boolean; readonly paths?: readonly string[] } = {}): string {
-  return run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...NO_SUBMODULES, ...pathArgs(options.paths)], { reads: 'worktree' }).toString('utf8');
+  return run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...ALL_UNTRACKED, ...NO_SUBMODULES, ...pathArgs(options.paths), ...RUNTIME_EXCLUDED], { reads: 'worktree' }).toString('utf8');
 }
 
 /** `git diff` of `of`, printed as `format` (default `patch`), limited to `paths`. */
@@ -725,9 +757,13 @@ export function gitCatFile(at: GitCheckout, mode: keyof typeof CAT_FILE, object:
   return mode === 'size' ? Number(text) : text;
 }
 
-/** `git ls-files`: the tracked files or, with `untracked`, the untracked ones not excluded; limited to `paths`. */
+/**
+ * `git ls-files`: the tracked files or, with `untracked`, every untracked file (no exclude file or `.gitignore` read)
+ * except below pi-worker's runtime directories (step 6); limited to `paths`.
+ */
 export function gitLsFiles(at: GitCheckout, options: { readonly untracked?: boolean; readonly paths?: readonly string[] } = {}): string[] {
-  const out = run(at, ['ls-files', '-z', ...(options.untracked === true ? ['--others', '--exclude-standard'] : []), ...pathArgs(options.paths)], { reads: 'index' });
+  const untracked = options.untracked === true;
+  const out = run(at, ['ls-files', '-z', ...(untracked ? ['--others'] : []), ...pathArgs(options.paths), ...(untracked ? RUNTIME_EXCLUDED : [])], { reads: 'index' });
   return out.toString('utf8').split('\0').filter(Boolean);
 }
 

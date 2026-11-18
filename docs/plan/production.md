@@ -560,15 +560,16 @@ revisions). `owner-git/artifact.ts` exports `artifactSubject(owner, cwd, commit,
 else in it reaches Git, `TZ` included). There is no raw argv entry: owner Git builds every argv, places
 `--end-of-options` before revisions and `--` before paths, and refuses (`git_argument_refused`, before anything is
 opened) a revision or path that starts with `-` or holds a control character, a path that is absolute, has a `..`
-segment or starts with `:` (pathspec magic; Git also runs with `GIT_LITERAL_PATHSPECS=1`), a ref prefix that is not a
+segment or starts with `:` (pathspec magic; owner Git also passes each path as `:(literal)<path>` and runs Git with
+`GIT_NOGLOB_PATHSPECS=1`, which replaced `GIT_LITERAL_PATHSPECS=1` in #47 so its own exclusion pathspecs work), a ref prefix that is not a
 literal under `refs/`, and a count that is not a whole number from 1 to 1,000,000. Diff-family calls pass
 `--no-ext-diff --no-textconv`, and diff-family and status calls `--ignore-submodules=all` on the command line (an
 agent-written `.gitmodules` `ignore = none` overrides the `-c` setting, and Git would then run in the nested
 repository under its own config). Git runs with `GIT_NO_REPLACE_OBJECTS=1`, so a copied `refs/replace/*` cannot give
 a commit another tree. Owner Git runs only in a linked worktree (`readGitPin` refuses an ordinary root, as P2-5 does).
 Each call compares the pin through O_NOFOLLOW descriptors
-and copies HEAD, config, refs, `packed-refs`, `shallow`, `info` and the index (its mtime kept until P3-6s, which blanks every
-entry's stat data instead) from those descriptors
+and copies HEAD, config, refs, `packed-refs`, `shallow` and the index (its mtime kept until P3-6s, which blanks every
+entry's stat data instead; `info` until #47, never since) from those descriptors
 into `<stateDir>/git-snapshots/snap-*`. Both directories must be ours and mode 0700, and the snapshot's real path, read
 back from its descriptor, must lie outside the root, the admin dir and the common dir
 (`git_snapshot_dir_inside_checkout`); `TMPDIR` is never used. The snapshot's config, listed by Git's own parser, refuses
@@ -787,7 +788,19 @@ changed file is `dirty`. The cache-tree extension (`TREE`) is dropped too (a for
 directory matched HEAD, and status then read `clean`), with `EOIE` and `IEOT`, which describe the old layout; the
 checksum is written anew (formats 2 to 4, SHA-1 and SHA-256). An index the reader cannot frame, or that Git itself then
 cannot read, refuses `git_index_unreadable`. The 60 s budget, the caps and the 256 MiB index cap are unchanged; a clean
-child with 15,001 tracked 1 KiB files inspects in well under a second. Tests:
+child with 15,001 tracked 1 KiB files inspects in well under a second. Follow-up (#47, Maestro #12's V1 bound check):
+no exclude state hides an untracked file. The snapshot copies no `info/` (so no `info/exclude`, and no
+`info/attributes`, `info/grafts` or `info/sparse-checkout` either), every call passes `-c core.excludesFile=/dev/null`,
+status runs with `--untracked-files=all --ignored=traditional` (each untracked file listed whatever
+`status.showUntrackedFiles` says; porcelain v1 reads no other `status.*` key that changes what it lists), and
+`gitLsFiles` with `untracked` runs `ls-files --others` with no exclude source at all. A file a `.gitignore` in the
+tree ignores is listed as `!!`, so it is `dirty` too: the V1 check is about the child's tree, and a `.gitignore` is
+tree data the child writes or commits. pi-worker's runtime directories at the root (`.piw-agent`, `.piw-worker`,
+`.piw-slots`) are left out by an explicit pathspec (`:(exclude,literal)<dir>`), tracked or untracked (named limit:
+a change below them is never reported). Kernel facts: a sandboxed linked-worktree child cannot write the common dir's
+`info/exclude`, `info/attributes`, `info/grafts` or `config` (nor set any key with `git config`); it can create its
+admin dir's `config`, `config.worktree` and `info/exclude` (none is read for a linked worktree, `extensions.worktreeConfig`
+being refused at launch), its own HOME's ignore file, and any `.gitignore` in its tree. Tests:
 `packages/worker/test/security/artifacts.test.ts` (V1 readback through the TS client against the real supervisor
 with real linked worktrees, compared with the owner's own `artifactSubject`; every refusal; malformed values; scope
 through the channel and owner grants; restart; each wire fixture replayed from a real checkout).

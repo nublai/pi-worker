@@ -45,6 +45,8 @@ import { locateBwrap, sandboxEnv, sandboxLaunch } from '../../src/sandbox/sandbo
 import { forgeStat, readIndex, sparseDirectory, writeIndex } from '../git-index.js';
 import { privateTmp } from '../helpers.js';
 
+/** pi-worker's runtime directories at a root (sandbox.ts): owner Git lists nothing below them (step 6). */
+const RUNTIME_DIRS = ['.piw-agent', '.piw-worker', '.piw-slots'];
 const kernel = process.env.PIW_TEST_KERNEL === '1';
 const skip = kernel ? false : 'kernel tier: needs PIW_TEST_KERNEL=1 in a delegated user service with bwrap (harness/ci/kernel.sh)';
 const SYS_PATH = '/usr/bin:/bin';
@@ -320,24 +322,33 @@ test('owner Git: results match plain Git on an untouched checkout (snapshot is f
     f.git(f.repo, 'tag', 'v1', f.baseId);
     f.git(f.repo, 'pack-refs', '--all');
     f.git(f.repo, 'branch', 'loose', f.baseId);
-    writeFileSync(join(f.repo, '.git', 'info', 'exclude'), 'ignored-*\n');
+    // An untracked `.gitignore` in the tree, and pi-worker's runtime directories (owner Git lists the one and leaves the
+    // others out; step 6). The plain argv names the same options and pathspecs.
+    writeFileSync(join(f.wt, '.gitignore'), 'ignored-*\n');
     writeFileSync(join(f.wt, 'ignored-x'), 'x');
     writeFileSync(join(f.wt, 'untracked'), 'u');
+    for (const dir of RUNTIME_DIRS) {
+      mkdirSync(join(f.wt, dir, 'sub'), { recursive: true });
+      writeFileSync(join(f.wt, dir, 'sub', 'f'), 'r');
+    }
     const pin = readGitPin(f.wt);
     const at = on(f, pin);
+    const runtime = RUNTIME_DIRS.map(dir => `:(exclude)${dir}`);
     // A0's argv cases, each as the typed call that runs it; each still compared with plain Git's output for that argv.
     // A0's `symbolic-ref HEAD` is `rev-parse --symbolic-full-name HEAD` (symbolic-ref is not in the typed API).
     const cases: [() => string, string[]][] = [
-      [() => gitStatus(at, { branch: true }).trim(), ['status', '--porcelain', '--branch']],
+      [() => gitStatus(at, { branch: true }).trim(), ['status', '--porcelain', '--branch', '--untracked-files=all', '--ignored', '--', ...runtime]],
       [() => ['HEAD', 'v1', 'loose', 'a0-child/task'].map(rev => gitRevParse(at, rev)).join('\n'), ['rev-parse', 'HEAD', 'v1', 'loose', 'a0-child/task']],
       [() => gitForEachRef(at, 'refs/').map(r => `${r.ref} ${r.object}`).join('\n'), ['for-each-ref', '--format=%(refname) %(objectname)']],
       [() => gitDiff(at, { kind: 'revisions', from: f.baseId, to: f.headId }).toString('utf8').trim(), ['diff', '--binary', f.baseId, f.headId]],
       [() => gitLog(at, 'HEAD', 3).map(e => `${e.commit} ${e.subject}`).join('\n'), ['log', '--format=%H %s', '-3']],
       [() => gitRevParse(at, 'HEAD', { symbolicFullName: true }), ['rev-parse', '--symbolic-full-name', 'HEAD']],
-      [() => gitLsFiles(at, { untracked: true }).join('\n'), ['ls-files', '--others', '--exclude-standard']],
+      [() => gitLsFiles(at, { untracked: true }).join('\n'), ['ls-files', '--others', '--', ...runtime]],
       [() => gitMergeBase(at, f.baseId, f.headId), ['merge-base', f.baseId, f.headId]],
     ];
     for (const [i, [call, args]] of cases.entries()) assert.equal(call(), plain(f.wt, ...args), `case ${i}`);
+    assert.match(gitStatus(at), /^!! ignored-x$/m, 'non-vacuous: the ignored file is listed');
+    assert.doesNotMatch(gitStatus(at), /\.piw-/, 'non-vacuous: the runtime directories are left out');
     // A0 also ran `fsck` and `config --get credential.helper` through owner Git: the typed API has neither (nor any raw
     // argv function to name them): the export test below asserts the exported surface.
   } finally {
@@ -1156,6 +1167,76 @@ test('owner Git: a pinned log.showSignature never runs gpg from the supervisor P
   }
 });
 
+// ---- #47: no exclude state hides an untracked file ----
+
+/**
+ * The hidden files of #47 in the fixture's worktree: one a repository `info/exclude` names, one a pinned
+ * `core.excludesFile` names (a file in the worktree, which the child writes), one a `.gitignore` the child committed
+ * names (and a directory it names), an untracked directory a pinned `status.showUntrackedFiles=no` would fold away, and
+ * a file below each runtime directory plus one below a nested `.piw-agent` (not a runtime directory: listed). Returns
+ * the pin, read after the owner's config.
+ */
+function hideUntracked(f: Fixture): GitPin {
+  writeFileSync(join(f.repo, '.git', 'info', 'exclude'), 'hidden-info\n');
+  f.git(f.repo, 'config', 'core.excludesFile', join(f.wt, '.hide'));
+  f.git(f.repo, 'config', 'status.showUntrackedFiles', 'no');
+  writeFileSync(join(f.wt, '.hide'), 'hidden-config\n');
+  writeFileSync(join(f.wt, '.gitignore'), 'hidden-tree\nnested/\n');
+  f.git(f.wt, 'add', '.gitignore');
+  f.git(f.wt, 'commit', '-qm', 'ignore');
+  mkdirSync(join(f.wt, 'nested'));
+  mkdirSync(join(f.wt, 'newdir'));
+  mkdirSync(join(f.wt, 'sub', '.piw-agent'), { recursive: true });
+  for (const name of ['hidden-info', 'hidden-config', 'hidden-tree', 'nested/a', 'nested/b', 'newdir/a', 'sub/.piw-agent/y']) writeFileSync(join(f.wt, name), 'x\n');
+  for (const dir of RUNTIME_DIRS) {
+    mkdirSync(join(f.wt, dir, 'sessions'), { recursive: true });
+    writeFileSync(join(f.wt, dir, 'sessions', 's.jsonl'), '{}\n');
+  }
+  return readGitPin(f.wt);
+}
+
+test('owner Git (#47): no exclude state hides an untracked file from status or ls-files (info/exclude, a configured core.excludesFile, status.showUntrackedFiles, a committed .gitignore listed as !!); only the runtime directories are left out, by pathspec', () => {
+  const f = fixture();
+  try {
+    const pin = hideUntracked(f);
+    // Control: plain Git hides every one of them (the dirty `note` is all it reports).
+    assert.equal(f.git(f.wt, 'status', '--porcelain'), 'M note', 'fixture: plain Git hides the untracked files');
+    const at = on(f, pin);
+    const status = [' M note', '?? .hide', '?? hidden-config', '?? hidden-info', '?? newdir/a', '?? sub/.piw-agent/y', '!! hidden-tree', '!! nested/a', '!! nested/b'];
+    assert.equal(gitStatus(at), `${status.join('\n')}\n`);
+    assert.equal(gitStatus(at, { paths: ['nested', 'newdir'] }), '?? newdir/a\n!! nested/a\n!! nested/b\n', 'limited to paths');
+    // A named runtime directory is still left out.
+    assert.equal(gitStatus(at, { paths: ['.piw-worker'] }), '', 'a runtime directory, named');
+    assert.deepEqual(gitLsFiles(at, { untracked: true }), ['.hide', 'hidden-config', 'hidden-info', 'hidden-tree', 'nested/a', 'nested/b', 'newdir/a', 'sub/.piw-agent/y']);
+    assert.deepEqual(gitLsFiles(at, { untracked: true, paths: ['nested'] }), ['nested/a', 'nested/b']);
+    // Tracked files are listed as before; a caller's path is literal (no glob).
+    assert.deepEqual(gitLsFiles(at), ['.gitattributes', '.gitignore', 'note']);
+    assert.equal(f.git(f.wt, 'ls-files', '--', 'n?te'), 'note', 'fixture: plain Git globs a path');
+    assert.deepEqual(gitLsFiles(at, { paths: ['n?te'] }), [], 'ls-files: a path is literal');
+    assert.equal(gitStatus(at, { paths: ['n?te'] }), '', 'status: a path is literal');
+    assert.equal(gitDiff(at, { kind: 'worktree' }, { format: 'name-only', paths: ['n*'] }).toString('utf8'), '', 'diff: a path is literal');
+    assert.equal(gitStatus(at, { paths: ['note'] }), ' M note\n');
+    assert.equal(runs(f), 'none');
+    assert.deepEqual(leftovers(f), []);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("owner Git (#47): the snapshot copies no info/ (a common-dir info/grafts never rewrites the history owner Git reports; info/exclude is never read)", () => {
+  const f = fixture();
+  try {
+    // A graft that makes HEAD a root commit (Git reads info/grafts even with replacement objects off).
+    writeFileSync(join(f.repo, '.git', 'info', 'grafts'), `${f.headId}\n`);
+    assert.equal(spawnSync('git', ['-C', f.wt, 'log', '--format=%H', 'HEAD'], { encoding: 'utf8', env: { ...f.env, GIT_NO_REPLACE_OBJECTS: '1' } }).stdout.trim(), f.headId, 'fixture: plain Git honours the graft');
+    const at = on(f, readGitPin(f.wt));
+    assert.deepEqual(gitLog(at, 'HEAD', 3).map(e => e.commit), [f.headId, f.baseId], 'the native history');
+    assert.equal(gitMergeBase(at, f.baseId, f.headId), f.baseId);
+  } finally {
+    f.cleanup();
+  }
+});
+
 // ---- kernel (real bwrap): the writer is a sandboxed parent ----
 
 test('kernel owner Git: a bwrap parent racing its child admin commondir cannot make owner safeGit run a planted driver', { skip, timeout: 300_000 }, async () => {
@@ -1182,6 +1263,66 @@ test('kernel owner Git: a bwrap parent racing its child admin commondir cannot m
     assert.equal(runs(f), 'none', `owner ran the planted payload; tally ${JSON.stringify(tally)}`);
     assert.deepEqual(tally.other, []);
     assert.ok(tally.passed > 0 && tally.refused > 0, `sandboxed writer must interleave: ${JSON.stringify(tally)}`);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('kernel owner Git (#47): a sandboxed linked-worktree child cannot write the common info/ or config; what it can write (its admin dir, its HOME, the tree) never hides an untracked file from owner Git', { skip, timeout: 60_000 }, async () => {
+  const f = fixture();
+  try {
+    const c = join(f.repo, '.git');
+    assert.ok(existsSync(join(c, 'info', 'exclude')), 'fixture: the common dir has an info/exclude');
+    const pin = readGitPin(f.wt);
+    // Each probe prints only a fixed marker when it wrote; the script goes on either way. Git's own config writes, and
+    // the files Git reads for the owner: the common info/ (exclude, attributes, grafts) and config, the admin dir's
+    // config and config.worktree (effective only with extensions.worktreeConfig, which a launch refuses) and info/,
+    // the sandbox's own XDG ignore file, a file in the tree, and a .gitignore committed on its branch.
+    const script = `set -u
+      wrote() { echo "WROTE $1"; }
+      ( echo hidden-a >> ${c}/info/exclude ) 2>/dev/null && wrote common-info-exclude
+      ( echo '* -text' > ${c}/info/attributes ) 2>/dev/null && wrote common-info-attributes
+      ( echo planted > ${c}/info/grafts ) 2>/dev/null && wrote common-info-grafts
+      ( printf '[core]\\n\\texcludesFile = .hide\\n' >> ${c}/config ) 2>/dev/null && wrote common-config
+      git config core.excludesFile .hide 2>/dev/null && wrote git-config-excludesfile
+      git config status.showUntrackedFiles no 2>/dev/null && wrote git-config-status
+      git config --worktree core.excludesFile .hide 2>/dev/null && wrote git-config-worktree
+      ( printf '[core]\\n\\texcludesFile = .hide\\n[status]\\n\\tshowUntrackedFiles = no\\n' > ${f.admin}/config.worktree ) 2>/dev/null && wrote admin-config-worktree
+      ( printf '[core]\\n\\texcludesFile = .hide\\n' > ${f.admin}/config ) 2>/dev/null && wrote admin-config
+      ( mkdir -p ${f.admin}/info && echo hidden-admin > ${f.admin}/info/exclude ) 2>/dev/null && wrote admin-info-exclude
+      ( mkdir -p "$HOME/.config/git" && echo hidden-home > "$HOME/.config/git/ignore" ) 2>/dev/null && wrote sandbox-home-ignore
+      ( printf 'hidden-a\\nhidden-admin\\nhidden-home\\n' > .hide ) 2>/dev/null && wrote worktree-file
+      { echo hidden-tree > .gitignore && git add .gitignore && git commit -qm ignore; } >/dev/null 2>&1 && wrote committed-gitignore
+      for n in hidden-a hidden-admin hidden-home hidden-tree; do echo x > "$n"; done
+      echo DONE`;
+    const launch = sandboxLaunch(f.wt, '/bin/sh', ['-c', script], { env: sandboxEnv(childEnv({ PATH: SYS_PATH, LANG: 'C' }, 'task'), f.wt), bwrap: locateBwrap(), gitPin: pin });
+    const child = spawn(launch.command, launch.args, { env: launch.env, stdio: ['ignore', 'pipe', 'pipe', 'ignore', ...launch.fds] });
+    launch.close();
+    let out = '';
+    child.stdout!.on('data', (d: Buffer) => (out += d.toString('utf8')));
+    child.stderr!.resume();
+    try {
+      const status = await Promise.race([
+        new Promise<number | null>(resolve => child.once('close', resolve)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('the sandboxed child did not end within 30 s')), 30_000).unref()),
+      ]);
+      assert.equal(status, 0);
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+      child.stdout!.destroy();
+      child.stderr!.destroy();
+    }
+    // The facts: the common dir's info/ and config are not writable; the admin dir, the sandbox HOME and the tree are.
+    assert.deepEqual(out.trim().split('\n'), ['WROTE admin-config-worktree', 'WROTE admin-config', 'WROTE admin-info-exclude', 'WROTE sandbox-home-ignore', 'WROTE worktree-file', 'WROTE committed-gitignore', 'DONE']);
+    for (const name of ['attributes', 'grafts']) assert.equal(existsSync(join(c, 'info', name)), false, name);
+    assert.doesNotMatch(readFileSync(join(c, 'info', 'exclude'), 'utf8'), /hidden/);
+    assert.equal(readGitPin(f.wt).config_sha256, pin.config_sha256, 'the common config is unchanged');
+    // Plain Git on the host: of what the child wrote, only the tree's .gitignore hides a file (the admin dir's config,
+    // config.worktree and info/exclude are not read for a linked worktree without extensions.worktreeConfig).
+    const plain = f.git(f.wt, 'status', '--porcelain').split('\n').filter(line => /hidden|\.hide/.test(line));
+    assert.deepEqual(plain, ['?? .hide', '?? hidden-a', '?? hidden-admin', '?? hidden-home'], 'plain Git hides only the .gitignore entry');
+    // Owner Git lists every one of them, the .gitignore entry as ignored.
+    assert.deepEqual(gitStatus(on(f, pin)).split('\n').filter(line => /hidden|\.hide/.test(line)), ['?? .hide', '?? hidden-a', '?? hidden-admin', '?? hidden-home', '!! hidden-tree']);
   } finally {
     f.cleanup();
   }
