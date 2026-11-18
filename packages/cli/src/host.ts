@@ -30,6 +30,9 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@nublai/pi-worker-client';
 import { resolvePaths } from '@nublai/pi-worker/dist/src/config.js';
+import { parseJournal } from '@nublai/pi-worker/dist/src/journal/journal.js';
+import { INSTALLATION_ID } from '@nublai/pi-worker/dist/src/journal/state.js';
+import { TOKEN_PREFIX } from '@nublai/pi-worker/dist/src/grants/store.js';
 import { LocalFailure } from './errors.js';
 
 export const UNIT = 'pi-worker.service';
@@ -360,12 +363,16 @@ function unpack(system: System, l: Layout, tarball: string, version: string): vo
     const problem = unconfined(join(staging, top));
     if (problem) throw invalid(problem);
     if (readRelease(join(staging, top))?.version !== version) throw invalid('release.json does not name this version');
+    const entry = join(staging, top, 'bin', 'pi-worker');
+    let regular: boolean;
     try {
-      // Followed: a link here already resolves inside the version directory.
-      accessSync(join(staging, top, 'bin', 'pi-worker'), constants.X_OK);
+      regular = lstatSync(entry).isFile();
+      accessSync(entry, constants.X_OK);
     } catch {
-      throw invalid('no executable bin/pi-worker');
+      regular = false;
     }
+    // A directory is searchable (X_OK) and a link is not the file itself: neither is the entry the unit runs.
+    if (!regular) throw invalid('bin/pi-worker is not an executable regular file');
     chmodSync(join(staging, top), 0o755);
     renameSync(join(staging, top), target);
   } finally {
@@ -594,6 +601,59 @@ export function removeTree(path: string): void {
 
 type Kind = 'dir' | 'file' | 'socket';
 
+/** What the daemon and the `grant` command write at the top of a state directory, by type (lstat). */
+const STATE_ENTRIES: Readonly<Record<string, Kind>> = {
+  'journal.jsonl': 'file',
+  'journal.jsonl.compact': 'file',
+  'journal.lock': 'file',
+  grants: 'dir',
+  sessions: 'dir',
+  attachments: 'dir',
+};
+
+/** A `journal.jsonl` pi-worker wrote: it parses as a journal and a start record names a valid installation id. */
+function journalMarker(stateDir: string): boolean {
+  try {
+    const records = parseJournal(readFileSync(join(stateDir, 'journal.jsonl'))).records;
+    return records.some(r => r.kind === 'supervisor' && typeof r.value.installation_id === 'string' && INSTALLATION_ID.test(r.value.installation_id));
+  } catch {
+    return false;
+  }
+}
+
+/** This install's doctor grant registered in the state directory: `grants/<id>.json`, `<id>` from the bearer's token. */
+function grantMarker(stateDir: string, l: Layout): boolean {
+  try {
+    const token = (JSON.parse(readFileSync(l.doctorGrant, 'utf8')) as { token?: unknown }).token;
+    const [prefix, id] = typeof token === 'string' ? token.split('.') : [];
+    if (prefix !== TOKEN_PREFIX || !id || !/^[a-zA-Z0-9_-]{1,64}$/.test(id)) return false;
+    return lstatSync(join(stateDir, 'grants', `${id}.json`)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Why purge may not remove `stateDir` whole, or undefined: it must hold pi-worker's own marker (a journal with an
+ * installation id, or this install's doctor grant) and, at its top, nothing pi-worker does not write. Neither the path
+ * nor the owner is evidence that pi-worker made the directory.
+ */
+function foreignState(stateDir: string, l: Layout): string | undefined {
+  const is: Record<Kind, (e: { isDirectory(): boolean; isFile(): boolean }) => boolean> = { dir: e => e.isDirectory(), file: e => e.isFile(), socket: () => false };
+  let entries;
+  try {
+    entries = readdirSync(stateDir, { withFileTypes: true });
+  } catch {
+    return 'cannot be read';
+  }
+  for (const entry of entries) {
+    const kind = STATE_ENTRIES[entry.name];
+    if (!kind || !is[kind](entry)) return 'it holds an entry pi-worker does not write';
+  }
+  if (!journalMarker(stateDir) && !grantMarker(stateDir, l)) return 'it holds no pi-worker journal and no doctor grant of this install';
+  return undefined;
+}
+
 interface Removal {
   readonly which: string;
   readonly path: string;
@@ -632,6 +692,10 @@ function purgePlan(l: Layout, pin: { stateDir?: string; socket?: string }, uid: 
       throw unsafe(r.which, 'cannot be inspected');
     }
     if (st.uid !== uid || !is[r.kind](st)) throw unsafe(r.which, `not a ${r.kind === 'dir' ? 'directory' : r.kind} of this user (a symlink?)`);
+    if (r.which === 'state') {
+      const foreign = foreignState(r.path, l);
+      if (foreign) throw unsafe('state', `not a pi-worker state directory: ${foreign}`);
+    }
     return !r.keep;
   });
 }
