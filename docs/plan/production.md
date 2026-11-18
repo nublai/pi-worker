@@ -649,19 +649,23 @@ is opt-in: a caller that wants reconnects constructs it with an `AbortSignal`; `
 It only reads (`events.subscribe`, and `receipts.get` through `reconcile`). Controls (`controls`, `binding`,
 `isCurrent`) close when a stream breaks (disconnect, overflow, malformed frame, refusal) and open only on the next
 stream's snapshot that passed its schema; a stream whose first frame is not a snapshot is dropped unapplied. A
-reconnect sends the last cursor as `Last-Event-ID`, and `resync=overflow` after an overflow. A cold start seeds
-silently; every later snapshot, whatever its `resync_reason`, is diffed against retained state: a missed interaction
-surfaces once by `interaction_id`, a settlement once by `execution_id`, a child report once by its report command
-id; a worker missing from a snapshot is `worker_removed` and one whose epoch, session or revision moved is
-`worker_rebound`, and handles taken before are no longer current. When a worker's `settle_count` grew by more than
-its `recent_settlements` list holds, the observer surfaces `settlement_gap` (the rest are only in history) and
-reconciles each pending command the consumer names whose settlement is not listed; it never invents a settlement.
+reconnect sends the last cursor as `Last-Event-ID`, and `resync=overflow` after an overflow until a stream that asked
+for it delivered its snapshot. A cold start seeds silently; every later snapshot, whatever its `resync_reason`, is
+diffed against retained state: a missed interaction surfaces once by `interaction_id`, a settlement once by
+`execution_id`, a child report once by its report command id; a worker missing from a snapshot is `worker_removed`
+and one whose epoch, session or revision moved is `worker_rebound`, and handles taken before are no longer current.
+When a worker's `settle_count` grew by more than its `recent_settlements` list holds (cause `settle_count`), or the
+list is full and its oldest entry was never seen (cause `retention`: `settle_count` counts only executions pi
+settled, while an input an extension handled without a run is listed too, so it can push an entry out unseen; PR #38
+review), the observer surfaces `settlement_gap` (the rest are only in history) and reconciles each pending command
+the consumer names whose settlement is not listed; it never invents a settlement.
 Notices reach `deliver` in ordered batches with the state (`ObserverState`, plain JSON) that already counts them.
 The consumer persists both atomically with its outbox and passes the state back as `restored` after a restart,
 which is then a diff, not a cold seed; an invalid restored state throws rather than seeding. A failed `deliver`
 stops the observer; a consumer that falls behind (64 batches) drops the stream and resyncs. Reconnects back off
-exponentially up to `maxMs`; 401/403 and other refusals stop at once, malformed streams after three in a row, and
-abort closes the stream, clears the timer and delivers nothing more. The store is Maestro's (P3-8).
+exponentially up to `maxMs`; 401/403 and other refusals stop at once, malformed streams (an overflow before any
+snapshot included) after three in a row, and abort closes the stream, clears the timer and delivers nothing more.
+The store is Maestro's (P3-8).
 - **P4, Install and operations.** `release.yml`, `pi-worker install|upgrade|rollback|doctor|logs`, systemd user
   unit, upgrade policy (an upgrade restarts the supervisor and so kills pi children; drain or refuse while
   executions run), logs without prompt text. Shep's installer offers the worker. Journey `p4-upgrade-rollback` on a

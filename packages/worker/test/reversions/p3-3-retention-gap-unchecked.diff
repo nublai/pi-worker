@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 8c368cf..aaf2612 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -197,7 +197,7 @@ function gapCause(row: Worker, prev: RetainedWorker | undefined): 'settle_count'
+   const listed = row.recent_settlements ?? [];
+   if ((row.settle_count ?? 0) - (prev?.settle_count ?? 0) > listed.length) return 'settle_count';
+   const oldest = listed.at(-1);
+-  if (listed.length >= RECENT_SETTLEMENTS && oldest && !prev?.settlements.includes(oldest.execution_id)) return 'retention';
++  if (listed.length >= RECENT_SETTLEMENTS && oldest && !prev?.settlements.includes(oldest.execution_id) && listed.length < 0) return 'retention';
+   return undefined;
+ }
+ 
