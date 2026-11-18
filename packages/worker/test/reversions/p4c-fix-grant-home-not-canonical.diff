@@ -1,0 +1,13 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index 7be530c..71470eb 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -328,7 +328,7 @@ export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.Process
+   const base = userEnv(env, system.uid);
+   const home = env.HOME;
+   if (!home) return base;
+-  if (!canonicalPath(home) || home === '/') throw unsafe('HOME');
++  if (!canonicalPath(home) || home === '/') return base;
+   if (!unitInstalled(join(home, '.config', 'systemd', 'user', UNIT))) return base;
+   const stateDir = pinnedStateDir(unitShow(system, base));
+   const named = env.PIW_STATE_DIR || (env.XDG_STATE_HOME ? join(env.XDG_STATE_HOME, 'pi-worker') : undefined);

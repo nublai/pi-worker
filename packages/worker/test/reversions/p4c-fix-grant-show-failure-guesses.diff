@@ -1,0 +1,19 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index 7be530c..621a2c2 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -330,7 +330,13 @@ export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.Process
+   if (!home) return base;
+   if (!canonicalPath(home) || home === '/') throw unsafe('HOME');
+   if (!unitInstalled(join(home, '.config', 'systemd', 'user', UNIT))) return base;
+-  const stateDir = pinnedStateDir(unitShow(system, base));
++  let props: Record<string, string>;
++  try {
++    props = unitShow(system, base);
++  } catch {
++    return base;
++  }
++  const stateDir = pinnedStateDir(props);
+   const named = env.PIW_STATE_DIR || (env.XDG_STATE_HOME ? join(env.XDG_STATE_HOME, 'pi-worker') : undefined);
+   if (named !== undefined && (!isAbsolute(named) || resolve(named) !== stateDir)) {
+     throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: stateDir, requested: named });

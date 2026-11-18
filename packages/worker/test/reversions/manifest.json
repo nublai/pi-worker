@@ -711,7 +711,14 @@
         "p4c-grant-xdg-state-ignored.diff",
         "p4c-grant-pin-not-canonical-unchecked.diff",
         "p4c-grant-relative-name-matches.diff",
-        "p4c-grant-name-not-normalized.diff"
+        "p4c-grant-name-not-normalized.diff",
+        "p4c-fix-grant-home-not-canonical.diff",
+        "p4c-fix-grant-pin-from-unit-file.diff",
+        "p4c-fix-grant-show-failure-guesses.diff",
+        "p4c-fix-grant-no-pin-falls-back.diff",
+        "p4c-fix-grant-pin-ambiguous.diff",
+        "p4c-fix-grant-environment-file.diff",
+        "p4c-fix-install-state-mismatch.diff"
       ]
     }
   }

@@ -1,8 +1,8 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index d8bbc13..267e5f7 100644
+index 7be530c..60aea5d 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -296,7 +296,7 @@ export function grantEnv(env: NodeJS.ProcessEnv, uid: number): NodeJS.ProcessEnv
+@@ -335,7 +335,7 @@ export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.Process
    if (named !== undefined && (!isAbsolute(named) || resolve(named) !== stateDir)) {
      throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: stateDir, requested: named });
    }

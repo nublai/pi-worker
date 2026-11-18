@@ -1,14 +1,13 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index d8bbc13..e19e8c4 100644
+index 7be530c..b6331ed 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -286,7 +286,8 @@ function pinnedIn(unitFile: string): { stateDir?: string; socket?: string } {
+@@ -325,7 +325,7 @@ function pinnedStateDir(props: Record<string, string>): string {
   * caller's own environment resolves it, as the daemon would.
   */
- export function grantEnv(env: NodeJS.ProcessEnv, uid: number): NodeJS.ProcessEnv {
--  const base = userEnv(env, uid);
+ export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.ProcessEnv {
+-  const base = userEnv(env, system.uid);
 +  const base = env;
-+  void uid;
    const home = env.HOME;
-   if (!canonicalPath(home) || home === '/') return base;
-   const stateDir = pinnedIn(join(home, '.config', 'systemd', 'user', UNIT)).stateDir;
+   if (!home) return base;
+   if (!canonicalPath(home) || home === '/') throw unsafe('HOME');
