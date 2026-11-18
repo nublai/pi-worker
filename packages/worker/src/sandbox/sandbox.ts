@@ -12,7 +12,11 @@
  * Not mounted: the supervisor's state (journal, grants, sessions of unsandboxed workers), the B2 socket's directory,
  * the cgroup tree, the host HOME and the user's pi profile. Readable inside: the model credentials its environment
  * allowlist passes (`*_API_KEY` and the like) and any credential store the owner staged read-only in `ROOT/.piw-agent`.
- * Named limit: the network is shared, not filtered.
+ * Named limit: the network is shared, not filtered. Named limit: bwrap makes the directories a bind needs on whatever
+ * tmpfs holds its path, so below the private writable `/tmp` or `/run` a read-only bind's absent siblings can be created
+ * inside (never on the host). The Git common dir therefore has its own tmpfs, remounted read-only; the root and its
+ * `.piw-agent` binds lie in the root bind; a worker runtime installed under `/tmp` or `/run` would let a child plant a
+ * `node_modules` that only its own sandboxed processes resolve.
  *
  * The supervisor reads what a sandbox can write (its session files, `files.read`) only through opens pinned at the
  * root, never following a link. A root's Git metadata is mounted by git-sandbox.ts (P2-5), for a linked worktree only:
@@ -201,7 +205,13 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
     // The root's Git metadata, after the root bind it overlays (git-sandbox.ts); every source a descriptor.
     const git = gitPlan(root, rootFd, options.gitPin);
     opened.push(...git.fds);
+    // The common dir gets its own tmpfs under its binds, remounted read-only after them: bwrap makes the directories a
+    // bind needs on whatever tmpfs holds its path, and under the private writable `/tmp` or `/run` that would leave
+    // every unbound path of the common dir (an absent `packed-refs`, `shallow`, `commondir`, `hooks`, `worktrees/*`)
+    // writable inside. The remount is not recursive, so the writable binds keep their flags.
+    if (git.pin) mounts.push('--tmpfs', git.pin.common_dir);
     for (const mount of git.mounts) bind(mount.mode, mount.fd, mount.dest);
+    if (git.pin) mounts.push('--remount-ro', git.pin.common_dir);
     // A staged profile's dependency trees: read-only binds of the exact directories staging opened. The mount point must
     // be a real directory below the root (no link at any component), as staging made it.
     for (const dep of options.dependencies ?? []) {
