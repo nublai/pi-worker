@@ -105,7 +105,9 @@ async function channelFixture(options: { git?: boolean; resources?: (root: strin
   assert.equal((await f.supervisor.prompt(p.worker_id, { ...bind(p, 'parent-run'), message: 'run' })).state, 'delivered');
   const w = f.supervisor.get(p.worker_id);
   const live = f.supervisor.state.require(w.worker_id);
-  const socket = join(live.channel!.dir, 'sock');
+  assert.ok(live.channel, 'a sandboxed parent has a channel');
+  assert.equal(launches[0]?.channel, live.channel.dir, "the parent's launch binds its own channel");
+  const socket = join(live.channel.dir, 'sock');
   const call = async (path: string, body?: unknown, headers: Record<string, string> = {}) => {
     const r = await socketCall(socket, body === undefined ? 'GET' : 'POST', `/b2${path}`, body, headers);
     return r as { status: number; body: Record<string, unknown> & Worker[] };
