@@ -3,7 +3,7 @@
  * stream frame by frame, ends it, and checks what the next request carried and what the observer surfaced. The fake
  * counts every request; the observer only ever reads. Assertion messages name cases, never frame or reply values.
  */
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -186,8 +186,15 @@ function trackedTimers() {
   };
 }
 
+/** Every observer a test started: aborted after the file, so a guard removed by a reversion cannot keep it alive. */
+const started = new Set<AbortController>();
+after(() => {
+  for (const ac of started) ac.abort();
+});
+
 function start(fake: Awaited<ReturnType<typeof fakeWorker>>, client: Client, extra: Partial<ObserverOptions> = {}) {
   const ac = new AbortController();
+  started.add(ac);
   const batches: ObserverBatch[] = [];
   const controls: boolean[] = [];
   const observer = new Observer({
@@ -298,9 +305,9 @@ test('C3: a cold start seeds silently; every reconnect sends Last-Event-ID and d
     assert.equal(fake.counts.receipts, 0, 'no gap: no receipt read');
   } finally {
     o?.ac.abort();
-    if (o) await ended(o.done, 'cleanup');
     await closeServer(fake.server);
     t.cleanup();
+    if (o) await ended(o.done, 'cleanup');
   }
 });
 
@@ -354,9 +361,9 @@ test('C3: controls are gated from a disconnect, overflow or malformed frame unti
     assert.equal(fake.counts.mutations, 0, 'never a mutation');
   } finally {
     o?.ac.abort();
-    if (o) await ended(o.done, 'cleanup');
     await closeServer(fake.server);
     t.cleanup();
+    if (o) await ended(o.done, 'cleanup');
   }
 });
 
@@ -408,9 +415,9 @@ test('C3: live events surface once by identity; removed and rebound workers inva
     assert.deepEqual(o.batches.at(-1)!.notices, [], 'the same snapshot twice: nothing new');
   } finally {
     o?.ac.abort();
-    if (o) await ended(o.done, 'cleanup');
     await closeServer(fake.server);
     t.cleanup();
+    if (o) await ended(o.done, 'cleanup');
   }
 });
 
@@ -458,9 +465,9 @@ test('C3: eight missed settlements come from the snapshot alone; more than eight
     assert.equal(fake.counts.mutations, 0, 'never a mutation');
   } finally {
     o?.ac.abort();
-    if (o) await ended(o.done, 'cleanup');
     await closeServer(fake.server);
     t.cleanup();
+    if (o) await ended(o.done, 'cleanup');
   }
 });
 
@@ -528,12 +535,10 @@ test('C3: a restart restores the persisted state: no cold seed, what a crash kep
     }
     assert.equal(fake.counts.mutations, 0, 'never a mutation');
   } finally {
-    for (const r of runs) {
-      r.ac.abort();
-      await ended(r.done, 'cleanup');
-    }
+    for (const r of runs) r.ac.abort();
     await closeServer(fake.server);
     t.cleanup();
+    for (const r of runs) await ended(r.done, 'cleanup');
   }
 });
 
@@ -637,6 +642,7 @@ test('C3: abort closes the stream and clears the backoff timer; backoff is cappe
     }
     assert.equal(fake.counts.mutations, 0, 'never a mutation');
   } finally {
+    for (const ac of started) ac.abort();
     await closeServer(fake.server);
     t.cleanup();
   }
@@ -682,8 +688,8 @@ test('C3: deliveries arrive in order with the state that counts them; a consumer
     assert.equal(fake.counts.mutations, 0, 'never a mutation');
   } finally {
     o?.ac.abort();
-    if (o) await ended(o.done, 'cleanup');
     await closeServer(fake.server);
     t.cleanup();
+    if (o) await ended(o.done, 'cleanup');
   }
 });
