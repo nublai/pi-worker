@@ -32,6 +32,11 @@ const fixture = () => {
     mkdirSync(dirname(join(dir, f)), { recursive: true });
     writeFileSync(join(dir, f), '{}\n');
   }
+  for (const n of names) {
+    const t = target(n);
+    mkdirSync(dirname(join(dir, t)), { recursive: true });
+    writeFileSync(join(dir, t), `${t}\n`.repeat(20));
+  }
   sh('init', '-q', '-b', 'main');
   sh('config', 'user.email', 'a@b.c');
   sh('config', 'user.name', 'x');
@@ -71,7 +76,7 @@ test('--changed --list: a file a group patches selects that group only', () => {
   try {
     const name = names[0];
     const file = target(name);
-    f.change(file, `${readFileSync(join(repo, file), 'utf8')}\n// touched\n`);
+    f.change(file, `${readFileSync(join(f.dir, file), 'utf8')}\n// touched\n`);
     const r = f.list();
     assert.equal(r.status, 0);
     assert.ok(r.lines.includes(name), 'the owning group is selected');
@@ -122,4 +127,22 @@ test('--list alone still prints every group', () => {
   const r = spawnSync(process.execPath, [join(repo, 'harness', 'lib', 'reversions.mjs'), '--list'], { encoding: 'utf8' });
   assert.equal(r.status, 0);
   assert.deepEqual(r.stdout.split('\n').filter(Boolean), names);
+});
+
+test('--changed --list: renaming a patched file still selects its original owners', () => {
+  const f = fixture();
+  try {
+    const name = names[0];
+    const file = target(name);
+    const owners = names.filter(n => manifest.groups[n].diffs.some(d => readFileSync(join(repo, relDir, d), 'utf8').includes(`+++ b/${file}`)));
+    f.sh('mv', file, `${file}.renamed`);
+    f.sh('add', '-A');
+    f.sh('commit', '-q', '-m', 'rename');
+    assert.match(f.sh('diff', '--name-status', 'main'), /^R/m, 'git sees a rename');
+    const r = f.list();
+    assert.equal(r.status, 0);
+    assert.deepEqual(r.lines, owners);
+  } finally {
+    rmSync(f.dir, { recursive: true, force: true });
+  }
 });

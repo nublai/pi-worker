@@ -63,7 +63,7 @@ if (all_) groups = all;
 if (changedBase !== undefined) {
   const mb = git('merge-base', changedBase, 'HEAD');
   if (mb.status !== 0) usage(`no merge base with ${changedBase}`);
-  const tracked = git('diff', '--name-only', mb.stdout.trim());
+  const tracked = git('diff', '--name-only', '--no-renames', mb.stdout.trim());
   const untracked = git('ls-files', '--others', '--exclude-standard');
   if (tracked.status !== 0 || untracked.status !== 0) usage('git diff failed');
   const files = new Set([...tracked.stdout.split('\n'), ...untracked.stdout.split('\n')].filter(Boolean));
