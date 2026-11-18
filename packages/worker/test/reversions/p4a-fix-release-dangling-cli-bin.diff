@@ -1,0 +1,12 @@
+diff --git i/harness/release/build.sh w/harness/release/build.sh
+index f78082e..e08a999 100755
+--- i/harness/release/build.sh
++++ w/harness/release/build.sh
+@@ -65,7 +65,6 @@ for pkg in client-ts:pi-worker-client worker:pi-worker; do
+ done
+ rm -rf "$stage/node_modules/@nublai/pi-worker-cli"
+ # Its npm bin link pointed into the workspace CLI just removed; the release's own entry is bin/pi-worker.
+-rm -f "$stage/node_modules/.bin/pi-worker"
+ [ ! -d "$src/packages/cli/node_modules" ] || { echo "build: packages/cli has nested node_modules; resolve them into the top level" >&2; exit 1; }
+ # The CLI is the top-level dist (dist/main.js); its imports resolve through the top-level node_modules.
+ cp -a "$src/packages/cli/dist/src" "$stage/dist"

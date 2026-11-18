@@ -423,6 +423,8 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `p4a-fix-release-dirty-tree.diff` | `build.sh` refuses a checkout with tracked changes | `build.sh: a clean checkout builds; one with a tracked change (wrapper or package.json) is refused and builds nothing` (group `install-safety`) |
 | `p4a-fix-release-worktree-engine.diff` | `build.sh` reads `engines.node` from the archived HEAD | `build.sh: engines.node and the wrapper come from the archived HEAD, not the working tree's copies` (group `install-safety`) |
 | `p4a-fix-release-worktree-wrapper.diff` | `build.sh` takes the wrapper template from the archived HEAD | `build.sh: engines.node and the wrapper come from the archived HEAD, not the working tree's copies` (group `install-safety`) |
+| `p4a-fix-release-dangling-cli-bin.diff` | `build.sh` drops the CLI's npm bin link into the removed workspace package (a link install would refuse) | `build.sh: a clean checkout builds; one with a tracked change…` (group `install-safety`) |
+| `p4a-fix-release-link-check.diff` | `build.sh` refuses a release tree with a link that resolves to nothing or out of it | `build.sh: a release tree with a link that resolves out of it is refused and nothing is packed` (group `install-safety`) |
 | `p4a-service-any-cgroup.diff` | `pi-worker daemon` enters a leaf only in a `pi-worker.service` cgroup, never another service's | `service: outside pi-worker.service's cgroup, or on cgroup v1, the daemon refuses to start and makes no leaf` (group `service`) |
 
 The `go-b2-auth` group runs `go test ./b2/` in `clients/go` and turns each `--- FAIL: <name>` line into the `✖ <name>`
