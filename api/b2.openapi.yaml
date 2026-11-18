@@ -2504,7 +2504,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [linked, ordinary]
+          enum: [linked]
         dot_git:
           type: string
           maxLength: 4096

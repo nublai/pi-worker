@@ -37,8 +37,8 @@ import { DIR_FLAGS, fdPath, isMissing, openPinned, openUnder, readFd, readUnder 
 
 /** The launch-time bytes of a root's Git metadata; any change refuses a launch that names this pin. */
 export interface GitPin {
-  /** Always `linked`: an ordinary checkout root is refused (the B2 schema still names `ordinary`). */
-  readonly kind: 'linked' | 'ordinary';
+  /** Always `linked`: an ordinary checkout root is refused before any record. */
+  readonly kind: 'linked';
   /** The gitfile's bytes. */
   readonly dot_git: string;
   readonly git_dir: string;

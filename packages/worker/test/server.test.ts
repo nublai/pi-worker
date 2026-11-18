@@ -59,6 +59,7 @@ test('server: refuses a socket directory that is not owned 0700 or is a symlink'
 test('server: never replaces a live socket or a non-socket file; removes a stale socket', async () => {
   const tmp = privateTmp();
   const live = netServer();
+  const opened: Array<ReturnType<typeof createB2Server>> = [];
   try {
     const socket = join(tmp.dir, 'b2.sock');
     live.listen(socket);
@@ -75,13 +76,14 @@ test('server: never replaces a live socket or a non-socket file; removes a stale
     assert.ok(existsSync(stale));
     const owner = ownerGrant(tmp.dir);
     const server = createB2Server(createApp({ grants: owner.grants }).handle);
+    opened.push(server);
     await listenPrivate(server, stale);
     assert.equal((await socketCall(stale, 'GET', '/b2/hello', undefined, owner.headers)).status, 200);
-    await close(server);
     const file = join(tmp.dir, 'file.sock');
     writeFileSync(file, '');
     await assert.rejects(listenPrivate(createB2Server(createApp().handle), file), /non-socket/);
   } finally {
+    for (const server of opened) await close(server);
     await close(live);
     tmp.cleanup();
   }

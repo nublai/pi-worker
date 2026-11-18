@@ -1267,7 +1267,7 @@ export interface components {
         /** @description Launch-time Git pointer bytes of a sandbox root. Relaunch and owner Git commands refuse when any value changed. */
         GitPin: {
             /** @enum {string} */
-            kind: "linked" | "ordinary";
+            kind: "linked";
             dot_git: string;
             git_dir: string;
             common_dir: string;

@@ -2952,7 +2952,7 @@ return errors === 0;
 }
 validate119.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
-const schema46 = {"$id":"urn:piw:schema:GitPin","type":"object","additionalProperties":false,"description":"Launch-time Git pointer bytes of a sandbox root. Relaunch and owner Git commands refuse when any value changed.","required":["kind","dot_git","git_dir","common_dir","gitdir_file","commondir_file","head","config_sha256","alternates"],"properties":{"kind":{"type":"string","enum":["linked","ordinary"]},"dot_git":{"type":"string","maxLength":4096},"git_dir":{"type":"string","maxLength":4096},"common_dir":{"type":"string","maxLength":4096},"gitdir_file":{"type":["string","null"],"maxLength":4096},"commondir_file":{"type":["string","null"],"maxLength":4096},"head":{"type":["string","null"],"maxLength":4096},"config_sha256":{"type":"string","maxLength":64},"alternates":{"type":["string","null"],"maxLength":65536}}};
+const schema46 = {"$id":"urn:piw:schema:GitPin","type":"object","additionalProperties":false,"description":"Launch-time Git pointer bytes of a sandbox root. Relaunch and owner Git commands refuse when any value changed.","required":["kind","dot_git","git_dir","common_dir","gitdir_file","commondir_file","head","config_sha256","alternates"],"properties":{"kind":{"type":"string","enum":["linked"]},"dot_git":{"type":"string","maxLength":4096},"git_dir":{"type":"string","maxLength":4096},"common_dir":{"type":"string","maxLength":4096},"gitdir_file":{"type":["string","null"],"maxLength":4096},"commondir_file":{"type":["string","null"],"maxLength":4096},"head":{"type":["string","null"],"maxLength":4096},"config_sha256":{"type":"string","maxLength":64},"alternates":{"type":["string","null"],"maxLength":65536}}};
 
 function validate122(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="urn:piw:schema:GitPin" */;
@@ -2989,7 +2989,7 @@ if(typeof data0 !== "string"){
 validate122.errors = [{instancePath:instancePath+"/kind",schemaPath:"#/properties/kind/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
 }
-if(!((data0 === "linked") || (data0 === "ordinary"))){
+if(!(data0 === "linked")){
 validate122.errors = [{instancePath:instancePath+"/kind",schemaPath:"#/properties/kind/enum",keyword:"enum",params:{allowedValues: schema46.properties.kind.enum},message:"must be equal to one of the allowed values"}];
 return false;
 }
