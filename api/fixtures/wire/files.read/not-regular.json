@@ -1,0 +1,20 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "path": "/sandbox/root/src",
+      "roots": [
+        "/sandbox/root"
+      ]
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "file_not_regular_or_over_1MiB",
+      "effect": "no_effect"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-unsandboxed"
+    },
+    "body": {
+      "path": "/sandbox/parent/README.md",
+      "roots": [
+        "/sandbox/parent"
+      ]
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "files_read_requires_sandbox_environment",
+      "effect": "no_effect"
+    }
+  }
+}

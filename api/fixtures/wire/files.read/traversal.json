@@ -1,0 +1,20 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "path": "/sandbox/root/src/../README.md",
+      "roots": [
+        "/sandbox/root"
+      ]
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "hidden_or_traversal_path_refused",
+      "effect": "no_effect"
+    }
+  }
+}
