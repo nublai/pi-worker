@@ -44,6 +44,14 @@ func (w *watch) next(t *testing.T) b2.Frame {
 	case f := <-w.frames:
 		return f
 	case err := <-w.done:
+		// The watch can end right after delivering its last frame (an overflow ends it at once); both channels are
+		// then ready and select picks either. A frame already sent wins over the end.
+		select {
+		case f := <-w.frames:
+			w.done <- err
+			return f
+		default:
+		}
 		t.Fatalf("watch ended: %v", err)
 	case <-time.After(10 * time.Second):
 		t.Fatal("no frame")
