@@ -1,0 +1,13 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index fa64646..0fdeeae 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -581,7 +581,7 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
+     if (!ours) throw new LocalFailure('pi_worker_bin_conflict', 'no_effect', { path: l.bin });
+   }
+   // The pin systemd will run with: unit files it has not read yet are read first (daemon-reload), then resolved.
+-  const installedPin = installedUnit(system, l.env, l.home, () => systemctl(system, l, 'daemon-reload', 'daemon-reload'));
++  const installedPin: InstalledUnit = unitInstalled(l.unitFile) ? { kind: 'unloaded' } : { kind: 'none' };
+   keepsPinnedState(l, installedPin);
+   const target = join(l.versions, version);
+   if (existsSync(target)) {

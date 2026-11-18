@@ -1,10 +1,10 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 67db275..a81c50b 100644
+index fa64646..a909141 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -325,10 +325,7 @@ type InstalledUnit = { readonly kind: 'none' } | { readonly kind: 'unloaded' } |
- function installedUnit(system: System, env: NodeJS.ProcessEnv, home: string, reload?: () => void): InstalledUnit {
-   if (!unitInstalled(join(home, '.config', 'systemd', 'user', UNIT))) return { kind: 'none' };
+@@ -355,10 +355,7 @@ function installedUnit(system: System, env: NodeJS.ProcessEnv, home: string, rel
+   const unitFile = join(home, '.config', 'systemd', 'user', UNIT);
+   if (!unitInstalled(unitFile)) return { kind: 'none' };
    let props = unitShow(system, env);
 -  if (props.NeedDaemonReload === 'yes' && reload) {
 -    reload();

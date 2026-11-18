@@ -1,11 +1,11 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 67db275..979e3ca 100644
+index fa64646..fc29649 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -303,7 +303,6 @@ function pinnedValue(props: Record<string, string>, key: string, which: string):
-   const values = (props.Environment ?? '').split(' ').filter(word => word.startsWith(`${key}=`));
+@@ -330,7 +330,6 @@ function pinnedValue(props: Record<string, string>, key: string, which: string,
    if (values.length !== 1) throw unsafe(which, `the installed unit's environment has ${values.length ? 'several' : 'no printable'} ${key}`);
    const value = values[0]!.slice(key.length + 1);
+   if (own === undefined || value !== own) throw overridden(key, "its value is not the one pi-worker's unit file sets");
 -  if (!canonicalPath(value)) throw unsafe(which, `the installed unit pins a ${key} that is not canonical`);
    return value;
  }

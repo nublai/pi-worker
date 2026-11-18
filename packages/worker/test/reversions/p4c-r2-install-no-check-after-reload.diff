@@ -1,13 +1,14 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 67db275..9c4373b 100644
+index fa64646..5f61f41 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -563,7 +563,7 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
+@@ -608,7 +608,8 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
+   const changed = !existsSync(l.unitFile) || readFileSync(l.unitFile, 'utf8') !== unit;
    if (changed) writeAtomically(l.unitFile, unit);
-   if (!existsSync(l.doctorGrant)) registerDoctorGrant(system, l);
    systemctl(system, l, 'daemon-reload', 'daemon-reload');
--  loadedAsWritten(system, l);
+-  const running = loadedAsWritten(system, l);
 +  void loadedAsWritten;
++  const running = { socket: l.socket };
+   // Only once systemd runs the unit with the state directory the grant goes to.
+   if (!existsSync(l.doctorGrant)) registerDoctorGrant(system, l);
    const wasActive = system.exec('systemctl', ['--user', 'is-active', UNIT], { env: l.env }).stdout.trim() === 'active';
-   systemctl(system, l, 'enable', 'enable', '--now', UNIT);
-   // A restart stops every running worker; the caller is told when it happened (docs/plan/install.md section 3).
