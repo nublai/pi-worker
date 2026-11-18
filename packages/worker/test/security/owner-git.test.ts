@@ -892,6 +892,47 @@ test('owner Git: a split index refuses (a shared index in the linked admin dir, 
   }
 });
 
+test('owner Git: a pinned log.showSignature never runs gpg from the supervisor PATH or mixes it into log and show output', () => {
+  const f = fixture();
+  try {
+    // A fake gpg first on owner Git's PATH: if Git runs it, it leaves a marker and prints into the output.
+    const dir = join(f.base, 'fakegpg');
+    const gpgRan = join(f.base, 'gpg-ran');
+    mkdirSync(dir);
+    writeFileSync(join(dir, 'gpg'), `#!/bin/sh\necho RAN >> ${gpgRan}\necho 'gpg: Signature made by fake'\necho 'gpg: Good signature from fake' >&2\nexit 0\n`, { mode: 0o755 });
+    const owner: OwnerGit = { stateDir: f.owner.stateDir, env: { PATH: `${dir}:${SYS_PATH}`, LANG: 'C' } };
+    // A signed-looking commit: a gpgsig header Git hands to gpg when log.showSignature is on.
+    const tree = f.git(f.repo, 'rev-parse', `${f.headId}^{tree}`);
+    const raw =
+      `tree ${tree}\nparent ${f.headId}\nauthor A <a@example.invalid> 1700000000 +0000\ncommitter A <a@example.invalid> 1700000000 +0000\n` +
+      'gpgsig -----BEGIN PGP SIGNATURE-----\n \n fake\n -----END PGP SIGNATURE-----\n\nsigned\n';
+    const signed = execFileSync('git', ['-C', f.repo, 'hash-object', '-t', 'commit', '-w', '--stdin'], { encoding: 'utf8', env: f.env, input: raw }).trim();
+    f.git(f.repo, 'config', 'log.showSignature', 'true');
+    // Fixture: plain Git with that config does run the fake gpg.
+    execFileSync('git', ['-C', f.repo, 'log', '-1', signed], { encoding: 'utf8', env: { ...f.env, PATH: `${dir}:${SYS_PATH}` }, stdio: 'pipe' });
+    assert.ok(existsSync(gpgRan), 'fixture: plain Git runs gpg under log.showSignature');
+    rmSync(gpgRan);
+
+    const pin = readGitPin(f.wt);
+    assert.deepEqual(
+      gitLog(on(f, pin, owner), signed, 3),
+      [
+        { commit: signed, subject: 'signed' },
+        { commit: f.headId, subject: 'head' },
+        { commit: f.baseId, subject: 'base' },
+      ],
+      'log is exactly the unsigned records',
+    );
+    const shown = gitShow(on(f, pin, owner), signed).toString('utf8');
+    const plain = execFileSync('git', ['-C', f.repo, 'show', '--no-show-signature', '--no-ext-diff', '--no-textconv', '--binary', signed], { encoding: 'utf8', env: f.env });
+    assert.equal(shown, plain, 'show is exactly the unsigned record');
+    assert.ok(!shown.includes('gpg:'), 'no gpg output in show');
+    assert.equal(existsSync(gpgRan), false, 'gpg never ran');
+  } finally {
+    f.cleanup();
+  }
+});
+
 // ---- kernel (real bwrap): the writer is a sandboxed parent ----
 
 test('kernel owner Git: a bwrap parent racing its child admin commondir cannot make owner safeGit run a planted driver', { skip, timeout: 300_000 }, async () => {

@@ -507,7 +507,8 @@
         "p2-6-program-config-keys-allowed.diff",
         "p2-6-replace-objects-honoured.diff",
         "p2-6-split-index-allowed.diff",
-        "p2-6-submodules-not-ignored.diff"
+        "p2-6-submodules-not-ignored.diff",
+        "p2-6-show-signature-runs-gpg.diff"
       ]
     },
     "staging": {

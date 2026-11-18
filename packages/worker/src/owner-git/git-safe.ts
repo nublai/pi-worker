@@ -462,7 +462,7 @@ export interface GitLogEntry {
 
 /** `git log` of `range` (a revision or `A..B`), newest first, at most `max` commits. */
 export function gitLog(at: GitCheckout, range: string, max: number): GitLogEntry[] {
-  const out = run(at, ['log', ...NO_HELPERS, ...NO_SUBMODULES, '--format=%H %s', `--max-count=${count(max)}`, ...revArgs(range), '--']);
+  const out = run(at, ['log', ...NO_HELPERS, ...NO_SUBMODULES, '--no-show-signature', '--format=%H %s', `--max-count=${count(max)}`, ...revArgs(range), '--']);
   return lines(out).map(line => {
     const space = line.indexOf(' ');
     return { commit: line.slice(0, space), subject: line.slice(space + 1) };
@@ -471,7 +471,7 @@ export function gitLog(at: GitCheckout, range: string, max: number): GitLogEntry
 
 /** `git show` of a revision (its header and diff, as `format`) or of `rev:path` (the blob's bytes). */
 export function gitShow(at: GitCheckout, object: string, options: { readonly format?: DiffFormat } = {}): Buffer {
-  return run(at, ['show', ...NO_HELPERS, ...NO_SUBMODULES, ...format(options.format ?? 'patch'), ...revArgs(object), '--']);
+  return run(at, ['show', ...NO_HELPERS, ...NO_SUBMODULES, '--no-show-signature', ...format(options.format ?? 'patch'), ...revArgs(object), '--']);
 }
 
 /** `git rev-parse --verify` of one revision: its object id, or with `symbolicFullName` its full ref name. */
