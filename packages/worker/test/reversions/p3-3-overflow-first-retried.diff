@@ -1,12 +1,12 @@
 diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
-index 8c368cf..9e1fd5b 100644
+index 051f070..187f636 100644
 --- a/packages/client-ts/src/observer.ts
 +++ b/packages/client-ts/src/observer.ts
-@@ -303,7 +303,7 @@ export class Observer {
-       } catch (error) {
+@@ -330,7 +330,7 @@ export class Observer {
          // A stream whose first frame is an overflow (the worker could not send a valid snapshot) is a protocol
-         // failure like any stream without a snapshot, so a snapshot that stays invalid stops after the bound.
--        ending = unordered ? { retry: 'protocol' } : classify(error);
+         // failure like any stream without a snapshot, so a snapshot that stays invalid stops after the bound. A
+         // terminal overflow first (the authority ended before the snapshot) still stops at once: it is a refusal.
+-        ending = unordered && streamRefused(error) === undefined ? { retry: 'protocol' } : classify(error);
 +        ending = classify(error);
          if (error instanceof ResyncRequired && error.reason === 'overflow') this.overflowed = true;
          else if (snapshot) this.overflowed = false;

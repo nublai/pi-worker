@@ -1,0 +1,16 @@
+diff --git a/clients/go/b2/sse.go b/clients/go/b2/sse.go
+index a3166c5..c9f5872 100644
+--- a/clients/go/b2/sse.go
++++ b/clients/go/b2/sse.go
+@@ -168,10 +168,7 @@ func readFrames(body io.Reader, onFrame func(Frame) bool) error {
+ 				}
+ 				frame := Frame{ID: id, Type: eventType(event), Event: event, Raw: raw}
+ 				keep := onFrame(frame)
+-				if o, ok := event.(*OverflowEvent); ok {
+-					if !o.Data.ResyncRequired {
+-						return streamRefusal(o.Data.Reason)
+-					}
++				if _, ok := event.(*OverflowEvent); ok {
+ 					return &ResyncRequired{Reason: "overflow"}
+ 				}
+ 				if !keep {
