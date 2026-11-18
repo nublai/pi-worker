@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/host/host.ts b/packages/worker/src/host/host.ts
-index a950962..b3fb95c 100644
+index 4d5bd08..6ccd296 100644
 --- a/packages/worker/src/host/host.ts
 +++ b/packages/worker/src/host/host.ts
-@@ -307,7 +307,7 @@ export class SdkHost extends LineHost {
+@@ -310,7 +310,7 @@ export class SdkHost extends LineHost {
    constructor(launch: SdkLaunch, options: { env?: NodeJS.ProcessEnv; timeoutMs?: number; prefix?: readonly string[]; sandbox?: SdkSandbox } = {}) {
      const args = [sdkChildEntry, JSON.stringify(launch)];
      const env = childEnv(options.env, launch.taskId);
--    const box = options.sandbox ? sandboxLaunch(options.sandbox.root, process.execPath, args, { env: sandboxEnv(env, options.sandbox.root), bwrap: options.sandbox.bwrap, ...(options.sandbox.gitPin !== undefined ? { gitPin: options.sandbox.gitPin } : {}) }) : undefined;
-+    const box = options.sandbox ? sandboxLaunch(options.sandbox.root, process.execPath, args, { env: sandboxEnv(env, options.sandbox.root), bwrap: options.sandbox.bwrap }) : undefined;
+-    const box = options.sandbox ? sandboxLaunch(options.sandbox.root, process.execPath, args, { env: sandboxEnv(env, options.sandbox.root), bwrap: options.sandbox.bwrap, ...(options.sandbox.gitPin !== undefined ? { gitPin: options.sandbox.gitPin } : {}), ...(options.sandbox.dependencies ? { dependencies: options.sandbox.dependencies } : {}) }) : undefined;
++    const box = options.sandbox ? sandboxLaunch(options.sandbox.root, process.execPath, args, { env: sandboxEnv(env, options.sandbox.root), bwrap: options.sandbox.bwrap, ...(options.sandbox.dependencies ? { dependencies: options.sandbox.dependencies } : {}) }) : undefined;
      try {
        super(box ? box.command : process.execPath, box ? box.args : args, {
          cwd: launch.cwd,

@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 696b04b..bedf44e 100644
+index 5724b08..de41550 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -322,7 +322,6 @@ export class Lifecycle {
+@@ -394,7 +394,6 @@ export class Lifecycle {
    private async start(live: Live, c: Create, cwd: string, resumeFile: string | undefined): Promise<ReceiptPatch> {
      const w = live.worker;
      // The domain is reserved with the worker epoch and recorded in the starting row, before anything is spawned.
@@ -10,11 +10,11 @@ index 696b04b..bedf44e 100644
      try {
        this.s.persist(live, 'worker.create');
      } catch (error) {
-@@ -332,6 +331,7 @@ export class Lifecycle {
+@@ -404,6 +403,7 @@ export class Lifecycle {
        throw error;
      }
      this.s.receipts.dispatch(c.command_id, { worker_id: w.worker_id });
 +    live.domain = this.containment.reserve(w.worker_epoch);
      let host: SessionHost;
+     let dependencies: DependencyBind[] = [];
      try {
-       const domain = live.domain;

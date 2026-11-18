@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 291cf66..a6cda1d 100644
+index 5724b08..6a6e474 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -398,7 +398,8 @@ export class Lifecycle {
+@@ -413,7 +413,8 @@ export class Lifecycle {
        const domain = live.domain;
        const prefix = this.containment.enter(domain);
        const root = confinement(w);
--      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live) } : {}) });
+-      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live), dependencies } : {}) });
 +      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix });
 +      void root;
      } catch (error) {

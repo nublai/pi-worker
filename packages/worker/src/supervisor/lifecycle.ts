@@ -407,11 +407,11 @@ export class Lifecycle {
     let host: SessionHost;
     let dependencies: DependencyBind[] = [];
     try {
-      // A sandboxed child's profile is staged after every validation and the dispatch record, before its domain exists
-      // (P2-7): a failure ends the row failed below (D3), unknown once anything was created (D2).
-      if (live.profile) dependencies = stageProfile(live.profile, cwd, rootFd => this.stagingCleanup(rootFd));
       const domain = live.domain;
       const prefix = this.containment.enter(domain);
+      // A sandboxed child's profile is staged after every validation and the dispatch record, before anything runs in
+      // its domain (P2-7): a failure ends the row failed below (D3), unknown once anything was created (D2).
+      if (live.profile) dependencies = stageProfile(live.profile, cwd, rootFd => this.stagingCleanup(rootFd));
       const root = confinement(w);
       host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live), dependencies } : {}) });
     } catch (error) {
@@ -419,6 +419,8 @@ export class Lifecycle {
       // receipt stays unknown, so a resume target is held and fenced like any other unknown create-with-resume.
       this.holdUnknownResume(live, c, resumeFile);
       await this.launchFailed(live, c.command_id, error);
+      // Nothing staged is no_effect only once the (empty) domain is observed removed and recorded, as for a relaunch.
+      if (error instanceof ProvenNoEffect && !(w.status === 'failed' && w.cleanup === CLEANED)) throw new Refusal(error.message, 'unknown');
       throw error;
     } finally {
       // The sandbox holds its own copies of the dependency trees now (or nothing runs): the supervisor keeps none.
