@@ -25,6 +25,7 @@ import type { Guard } from '../grants/authority.js';
 import type { Domain } from '../containment/containment.js';
 import { sandboxed } from '../sandbox/sandbox.js';
 import type { GitPin } from '../sandbox/git-sandbox.js';
+import type { DependencyBind } from '../sandbox/staging.js';
 
 export type Worker = components['schemas']['Worker'];
 export type Create = components['schemas']['Create'];
@@ -108,6 +109,11 @@ export interface Live extends Persisted {
    * sandboxed root worker waits for P2-8), so the pin is not journaled.
    */
   gitPin?: GitPin | null;
+  /**
+   * The parent profile a sandboxed child stages into its root (memory, P2-7; sandbox/staging.ts), as its create's
+   * validation found it: `PARENT/.piw-agent`. Absent when the parent has none (nothing is staged).
+   */
+  profile?: string;
 }
 
 export interface HostLaunch {
@@ -129,6 +135,11 @@ export interface HostLaunch {
   readonly sandbox?: string;
   /** With `sandbox`: the Git pin its validation read (P2-5); the launch refuses metadata that differs. */
   readonly gitPin?: GitPin | null;
+  /**
+   * With `sandbox`: its staged profile's dependency trees (P2-7), open descriptors the sandbox binds read-only. The
+   * supervisor closes them once the factory returns.
+   */
+  readonly dependencies?: readonly DependencyBind[];
 }
 
 export type HostFactory = (launch: HostLaunch) => SessionHost;

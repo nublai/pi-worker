@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { killGroup, processToken } from './process.js';
 import { sandboxEnv, sandboxLaunch } from '../sandbox/sandbox.js';
 import type { GitPin } from '../sandbox/git-sandbox.js';
+import type { DependencyBind } from '../sandbox/staging.js';
 
 export type PiRecord = Record<string, unknown> & { type: string };
 /**
@@ -296,6 +297,8 @@ export interface SdkSandbox {
   readonly root: string;
   readonly bwrap: string;
   readonly gitPin?: GitPin | null;
+  /** Its staged profile's dependency trees (P2-7), bound read-only; the caller owns and closes the descriptors. */
+  readonly dependencies?: readonly DependencyBind[];
 }
 
 /**
@@ -307,7 +310,7 @@ export class SdkHost extends LineHost {
   constructor(launch: SdkLaunch, options: { env?: NodeJS.ProcessEnv; timeoutMs?: number; prefix?: readonly string[]; sandbox?: SdkSandbox } = {}) {
     const args = [sdkChildEntry, JSON.stringify(launch)];
     const env = childEnv(options.env, launch.taskId);
-    const box = options.sandbox ? sandboxLaunch(options.sandbox.root, process.execPath, args, { env: sandboxEnv(env, options.sandbox.root), bwrap: options.sandbox.bwrap, ...(options.sandbox.gitPin !== undefined ? { gitPin: options.sandbox.gitPin } : {}) }) : undefined;
+    const box = options.sandbox ? sandboxLaunch(options.sandbox.root, process.execPath, args, { env: sandboxEnv(env, options.sandbox.root), bwrap: options.sandbox.bwrap, ...(options.sandbox.gitPin !== undefined ? { gitPin: options.sandbox.gitPin } : {}), ...(options.sandbox.dependencies ? { dependencies: options.sandbox.dependencies } : {}) }) : undefined;
     try {
       super(box ? box.command : process.execPath, box ? box.args : args, {
         cwd: launch.cwd,

@@ -17,8 +17,9 @@
  * The supervisor reads what a sandbox can write (its session files, `files.read`) only through opens pinned at the
  * root, never following a link. A root's Git metadata is mounted by git-sandbox.ts (P2-5), for a linked worktree only:
  * pointers, a symbolic HEAD, config and alternates read-only, the worktree's admin dir, the shared objects and one
- * private branch namespace writable; an ordinary checkout root is refused. Profile
- * staging is P2-7 and the parent channel P2-8: until then a sandboxed root worker (a parent) is refused.
+ * private branch namespace writable; an ordinary checkout root is refused. A child's staged profile (staging.ts, P2-7)
+ * is in `ROOT/.piw-agent`; each of its `node_modules` mount points gets the parent's tree read-only, by descriptor. The
+ * parent channel is P2-8: until then a sandboxed root worker (a parent) is refused.
  */
 import { closeSync, existsSync, fstatSync, readSync, realpathSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -28,6 +29,7 @@ import { Refusal } from '../b2/errors.js';
 import type { components } from '../generated/api.js';
 import { gitPlan, type GitPin } from './git-sandbox.js';
 import { isMissing, openPinned, openUnder } from './pinned-fs.js';
+import type { DependencyBind } from './staging.js';
 
 type Create = components['schemas']['Create'];
 type LaunchSpec = components['schemas']['LaunchSpec'];
@@ -161,7 +163,8 @@ export function sandboxEnv(allowed: NodeJS.ProcessEnv, root: string): Record<str
  * at SANDBOX_FD_BASE onwards, in order; `close` closes the supervisor's copies (after the spawn, or on failure).
  * `bwrap` is the executable `locateBwrap` found. `env` is the complete environment inside (`sandboxEnv`). With a
  * `gitPin` (the validation's, `sandboxRoot`), the root's Git metadata must still equal it; `gitPin` in the result is
- * the metadata the launch mounts.
+ * the metadata the launch mounts. `dependencies` are a staged profile's dependency trees (staging.ts), each bound
+ * read-only at its mount point below `ROOT/.piw-agent`; their descriptors stay the caller's to close.
  */
 export interface SandboxLaunch {
   readonly command: string;
@@ -172,7 +175,7 @@ export interface SandboxLaunch {
   close(): void;
 }
 
-export function sandboxLaunch(root: string, command: string, args: readonly string[], options: { env: Record<string, string>; bwrap?: string; gitPin?: GitPin | null }): SandboxLaunch {
+export function sandboxLaunch(root: string, command: string, args: readonly string[], options: { env: Record<string, string>; bwrap?: string; gitPin?: GitPin | null; dependencies?: readonly DependencyBind[] }): SandboxLaunch {
   const opened: number[] = [];
   const close = () => {
     for (const fd of opened.splice(0)) closeSync(fd);
@@ -199,6 +202,18 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
     const git = gitPlan(root, rootFd, options.gitPin);
     opened.push(...git.fds);
     for (const mount of git.mounts) bind(mount.mode, mount.fd, mount.dest);
+    // A staged profile's dependency trees: read-only binds of the exact directories staging opened. The mount point must
+    // be a real directory below the root (no link at any component), as staging made it.
+    for (const dep of options.dependencies ?? []) {
+      let point: number;
+      try {
+        point = openUnder(rootFd, [AGENT_DIR, ...dep.dest], 'dir');
+      } catch {
+        throw new Refusal('sandbox_dependency_mount_point_invalid');
+      }
+      closeSync(point);
+      bind('ro-bind', dep.fd, join(root, AGENT_DIR, ...dep.dest));
+    }
     // pi may read the credential stores the owner staged in its agent directory, read-only. A link there refuses
     // rather than letting bwrap resolve it on the host.
     for (const name of ['auth.json', 'models.json']) {
