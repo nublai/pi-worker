@@ -611,6 +611,8 @@ const STATE_ENTRIES: Readonly<Record<string, Kind>> = {
   grants: 'dir',
   sessions: 'dir',
   attachments: 'dir',
+  // Owner Git's pinned snapshots (owner-git/git-safe.ts).
+  'git-snapshots': 'dir',
 };
 
 /** A `journal.jsonl` pi-worker wrote: it parses as a journal and a start record names a valid installation id. */
