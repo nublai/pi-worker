@@ -1,16 +1,26 @@
-# CI for every push and PR: build and tests on Linux, Node 26; the client also on
-# pi's Node floor (22.19). Actions are pinned by full SHA. No secrets.
+# CI: build and tests on Linux, Node 26; the client also on pi's Node floor (22.19). Actions are pinned by full SHA.
+# No secrets. Runs on pushes to main, on PRs, nightly and on demand (a branch push alone does not run it: its PR does).
+# Reversions: the full set runs nightly, on workflow_dispatch and on a PR labelled `full-reversions`; any other PR runs
+# only the groups its diff selects, and a push to main the groups changed since the previous head.
+# A `labeled` event for any other label runs nothing (every job is gated), and its own concurrency group keeps it from
+# cancelling a run in progress.
 name: ci
 on:
   push:
+    branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ (github.event.action == 'labeled' && github.event.label.name != 'full-reversions') && 'label' || 'run' }}
   cancel-in-progress: true
 jobs:
   check:
+    if: github.event.action != 'labeled' || github.event.label.name == 'full-reversions'
     # Generation (check:generated) and the Go tests in npm run check run on Go 1.26.11, the toolchain
     # tools/go/go.mod names; generate.mjs refuses any other Go. GOTOOLCHAIN=local: Go never downloads a compiler.
     runs-on: ubuntu-24.04
@@ -38,6 +48,7 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}
   crash:
+    if: github.event.action != 'labeled' || github.event.label.name == 'full-reversions'
     # npm run test:crash: SIGKILL-at-fsync recovery tests. Same toolchains as check.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -64,26 +75,53 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}
   reversion-groups:
-    # The shard list comes from the manifest, so a new group can never be left out of CI.
+    # The shard list comes from the manifest, so a new group can never be left out of CI. Which groups run:
+    #  - schedule, workflow_dispatch, or a PR labelled full-reversions: every group;
+    #  - any other PR: the groups its diff against the base branch selects (--changed origin/<base> --list);
+    #  - a push to main: the groups changed since the previous head, or every group when that head is new or gone.
+    # An empty list skips the reversions job (an empty matrix is an error) and reversions-gate reports it.
+    if: github.event.action != 'labeled' || github.event.label.name == 'full-reversions'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       groups: ${{ steps.list.outputs.groups }}
+      mode: ${{ steps.list.outputs.mode }}
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+          fetch-depth: 0
       # actions/setup-node v7.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version-file: .node-version
       - id: list
-        run: echo "groups=$(node harness/lib/reversions.mjs --list | jq -Rnc '[inputs]')" >> "$GITHUB_OUTPUT"
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+          FULL_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'full-reversions') }}
+        run: |
+          set -euo pipefail
+          all() { node harness/lib/reversions.mjs --list; }
+          case "$EVENT" in
+            pull_request)
+              if [ "$FULL_LABEL" = true ]; then mode='all (label full-reversions)'; names=$(all)
+              else mode="changed vs $BASE_REF"; names=$(node harness/lib/reversions.mjs --changed "origin/$BASE_REF" --list); fi ;;
+            push)
+              if [ "$BEFORE" != 0000000000000000000000000000000000000000 ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+                mode='changed since the previous head'; names=$(node harness/lib/reversions.mjs --changed "$BEFORE" --list)
+              else mode='all (new ref or force push)'; names=$(all); fi ;;
+            *) mode="all ($EVENT)"; names=$(all) ;;
+          esac
+          echo "groups=$(printf '%s\n' "$names" | jq -Rnc '[inputs | select(length > 0)]')" >> "$GITHUB_OUTPUT"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
   reversions:
     # One shard per manifest group. Each applies the group's guard-reversion diffs and fails unless a named test
     # fails by assertion for every one (harness/lib/reversions.mjs --group, the same as --all locally).
     needs: reversion-groups
+    if: needs.reversion-groups.result == 'success' && needs.reversion-groups.outputs.groups != '[]'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     name: reversions (${{ matrix.group }})
@@ -115,7 +153,29 @@ jobs:
       - run: node harness/lib/reversions.mjs --group ${{ matrix.group }}
         env:
           TMPDIR: ${{ runner.temp }}
+  reversions-gate:
+    # The one clear signal for the reversion tier: green when every selected shard passed or none was selected.
+    needs: [reversion-groups, reversions]
+    if: always() && (github.event.action != 'labeled' || github.event.label.name == 'full-reversions')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          SELECT: ${{ needs.reversion-groups.result }}
+          RESULT: ${{ needs.reversions.result }}
+          MODE: ${{ needs.reversion-groups.outputs.mode }}
+          GROUPS_JSON: ${{ needs.reversion-groups.outputs.groups }}
+        run: |
+          echo "reversion selection: $MODE; groups: $GROUPS_JSON; shards: $RESULT"
+          [ "$SELECT" = success ] || { echo 'group selection failed'; exit 1; }
+          case "$RESULT" in
+            success) ;;
+            skipped) [ "$GROUPS_JSON" = '[]' ] || { echo 'shards were skipped'; exit 1; }
+                     echo 'no reversion group selected for this change; the full set runs nightly and on the full-reversions label' ;;
+            *) echo 'a reversion shard did not pass'; exit 1 ;;
+          esac
   go-client:
+    if: github.event.action != 'labeled' || github.event.label.name == 'full-reversions'
     # The Go client builds and tests on Go 1.24 (Shep's bridge) with the standard library only,
     # and talks to the built worker (hello and a 501).
     runs-on: ubuntu-24.04
@@ -152,6 +212,7 @@ jobs:
           go test -tags integration ./...
           ./stdlib-gate.sh
   client-node22:
+    if: github.event.action != 'labeled' || github.event.label.name == 'full-reversions'
     # @nublai/pi-worker-client keeps pi's Node floor; test it on exactly that version.
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -171,6 +232,7 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}
   release-artifact:
+    if: github.event.action != 'labeled' || github.event.label.name == 'full-reversions'
     # The x64 release tarball as release.yml builds it (build.sh also runs
     # the packed wrapper once), kept as a workflow artifact
     # (docs/plan/install.md section 1).

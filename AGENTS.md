@@ -45,11 +45,25 @@ Read before changing behaviour:
 
 ## Verification
 
-CI runs `check`, `crash`, every reversion group (one matrix shard each) and, on its path filter, `kernel` on every
-push and PR.
+CI (`ci.yml`) runs on pushes to `main`, on PRs (opened, synchronize, reopened, labeled), nightly (03:17 UTC) and on
+demand; a push to another branch runs nothing until its PR exists. `check`, `crash`, `go-client`, `client-node22`
+and `release-artifact` run on every such event; `kernel` runs on its path filter, nightly and on demand.
+
+Reversions (one matrix shard per group) are the slow tier, so they are selected:
+
+- Nightly, `workflow_dispatch` and a PR labelled **`full-reversions`**: every group.
+- Any other PR: only the groups `--changed origin/<base>` selects. A change to the runner, the manifest, the
+  toolchain or a package manifest selects every group; a file no reversion patches selects none.
+- A push to `main`: the groups changed since the previous head (every group for a new ref or a force push).
+- With no group selected the shards are skipped and `reversions-gate` reports that as a pass. Adding a label other
+  than `full-reversions` runs nothing.
+
+**Merge rule:** a PR merges only after a run with the full set green on its exact head. When it is ready to merge,
+add the `full-reversions` label (pushing again needs a run again; the label stays and every later push runs the
+full set).
 
 - **Builders** run `npm run check` and the affected reversion groups (`--changed origin/main`) locally, and cite
-  the CI run on the exact head for `crash`, the remaining reversions and `kernel`. Do not rerun them by hand.
+  the CI run on the exact head for `crash`, the remaining reversions (the full set, once labelled) and `kernel`. Do not rerun them by hand.
 - **Reviewers** cite the CI run on the exact head SHA, and run only their own probes and targeted tests. A red or
   missing run on that head is a finding.
 - A change that CI cannot cover (live journeys, rule 8) is still run and recorded as rule 9 says.
@@ -59,10 +73,11 @@ push and PR.
 `package.json` scripts are the source; the ones with non-obvious conditions:
 
 - `npm run check`: everything CI runs except the kernel tier, the crash tier and the reversions.
-- `npm run test:crash`: the crash-recovery tests. CI runs it on every push.
+- `npm run test:crash`: the crash-recovery tests. CI runs it on every PR and push to main.
 - `node harness/lib/reversions.mjs --changed origin/main`: only the reversion groups whose patched files your
   branch touches (commit first; the runner needs a clean tree). `--group <name>` runs one group, `--list` names
-  them, `--all` runs every group. Each prints caught/total and fails on any diff not caught by a named assertion.
+  them, `--changed <base> --list` prints only the selected names (what CI uses; runs nothing), `--all` runs every
+  group. Each prints caught/total and fails on any diff not caught by a named assertion.
 - `harness/ci/kernel.sh`: kernel tests (cgroup v2, bwrap). It runs the suite inside a delegated user service
   (`systemd-run --user -p Delegate=yes`) with `PIW_TEST_KERNEL=1`; outside one, kernel tests skip.
 - `PIW_CRASH_AT=<label>` SIGKILLs the supervisor right after that fsync; `PIW_TRACE_FSYNC=1` lists labels. Use them

@@ -4,12 +4,15 @@
 //   node harness/lib/reversions.mjs <group>... | --group <name> ...   named groups (CI runs one per matrix job)
 //   node harness/lib/reversions.mjs --all                             every group (the full set)
 //   node harness/lib/reversions.mjs --changed <base>                  only groups a diff against <base> touches
-//   node harness/lib/reversions.mjs --list                            group names, one per line
+//   node harness/lib/reversions.mjs --list                            every group name, one per line
+//   node harness/lib/reversions.mjs --changed <base> --list           the selected group names, one per line (empty
+//                                                                     when none), nothing is run; for CI's matrix
 // --changed selects a group when a file changed since the merge base with <base> (commits, plus any uncommitted or
 // untracked files, though the runner itself needs those committed first) is a
 // file one of the group's diffs patches, or is one of the group's diff files. A change to the runner, the manifest,
 // tools/node-test.mjs, package manifests, lockfile, tsconfig or .node-version selects every group. It does not
-// follow imports, so a file no reversion patches selects nothing: CI runs the full set.
+// follow imports, so a file no reversion patches selects nothing: CI runs the full set
+// on the `full-reversions` label and nightly.
 // Exit 0 only when every selected diff is caught by a named failing test; each group's caught/total goes to stderr.
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -23,7 +26,7 @@ const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
 const all = Object.keys(manifest.groups);
 const args = process.argv.slice(2);
 const usage = msg => {
-  console.error(`${msg ? `${msg}\n` : ''}usage: reversions.mjs <group>... | --group <name>... | --all | --changed <base> | --list (groups: ${all.join(', ')})`);
+  console.error(`${msg ? `${msg}\n` : ''}usage: reversions.mjs <group>... | --group <name>... | --all | --changed <base> [--list] | --list (groups: ${all.join(', ')})`);
   process.exit(2);
 };
 const git = (...a) => spawnSync('git', a, { cwd: root, encoding: 'utf8' });
@@ -38,12 +41,11 @@ const diffTargets = group =>
 let groups = [];
 let all_ = false;
 let changedBase;
+let listOnly = false;
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
-  if (a === '--list') {
-    console.log(all.join('\n'));
-    process.exit(0);
-  } else if (a === '--all') all_ = true;
+  if (a === '--list') listOnly = true;
+  else if (a === '--all') all_ = true;
   else if (a === '--group') {
     if (!args[i + 1]) usage('--group needs a name');
     groups.push(args[++i]);
@@ -52,6 +54,10 @@ for (let i = 0; i < args.length; i++) {
     changedBase = args[++i];
   } else if (a.startsWith('--')) usage(`unknown option ${a}`);
   else groups.push(a);
+}
+if (listOnly && changedBase === undefined) {
+  console.log(all.join('\n'));
+  process.exit(0);
 }
 if (all_) groups = all;
 if (changedBase !== undefined) {
@@ -72,6 +78,10 @@ if (changedBase !== undefined) {
     return everything || [...files].some(f => own.has(f));
   });
   console.error(`changed vs ${changedBase}: ${files.size} files${everything ? ' (runner/manifest/toolchain change: all groups)' : ''}; groups: ${picked.join(', ') || 'none'}`);
+  if (listOnly) {
+    if (picked.length) console.log(picked.join('\n'));
+    process.exit(0);
+  }
   groups = [...new Set([...groups, ...picked])];
   if (groups.length === 0) {
     console.error('no affected reversion groups; CI runs the full set');
