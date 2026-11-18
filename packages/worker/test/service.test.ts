@@ -5,7 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { enterServiceLeaf, ServiceDelegationRefused, SUPERVISOR_LEAF } from '../src/service.js';
@@ -34,11 +34,15 @@ test('service: the supervisor enters the unit leaf and the unit cgroup is its de
   }
 });
 
-test('service: outside a .service cgroup, or on cgroup v1, the daemon refuses to start', () => {
-  for (const line of ['0::/user.slice/user-1000.slice/session-3.scope', `1:name=systemd:${UNIT}\n0::${UNIT}`, `0::${UNIT}/../x.service/..`]) {
+test("service: outside pi-worker.service's cgroup, or on cgroup v1, the daemon refuses to start and makes no leaf", () => {
+  const other = '/user.slice/user-1000.slice/user@1000.service/app.slice/other.service';
+  const lines = ['0::/user.slice/user-1000.slice/session-3.scope', `0::${other}`, `1:name=systemd:${UNIT}\n0::${UNIT}`, `0::${UNIT}/../x.service/..`];
+  for (const [i, line] of lines.entries()) {
     const f = fixture(line);
+    mkdirSync(join(f.mount, other), { recursive: true });
     try {
-      assert.throws(() => enterServiceLeaf(f.proc, f.mount), ServiceDelegationRefused);
+      assert.throws(() => enterServiceLeaf(f.proc, f.mount), ServiceDelegationRefused, `case ${i} refused`);
+      assert.equal(existsSync(join(f.mount, other, SUPERVISOR_LEAF)), false, `case ${i}: another service's cgroup is left as it was`);
     } finally {
       f.cleanup();
     }

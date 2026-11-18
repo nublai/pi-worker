@@ -29,7 +29,8 @@ at_least() {
 node=$(command -v node 2>/dev/null) ||
   refuse "{\"error\":\"node_missing\",\"effect\":\"no_effect\",\"required\":\">=$floor\"}"
 found=$("$node" -p 'process.versions.node' 2>/dev/null) || found=unknown
-case "$found" in *[!0-9.]* | '') found=unknown ;; esac
+case "$found" in [0-9]*) ;; *) found=unknown ;; esac
+case "$found" in *[!0-9A-Za-z.-]*) found=unknown ;; esac
 at_least "$found" "$floor" ||
   refuse "{\"error\":\"node_unsupported\",\"effect\":\"no_effect\",\"required\":\">=$floor\",\"found\":\"$found\"}"
 

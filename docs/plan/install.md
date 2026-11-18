@@ -122,8 +122,8 @@ WantedBy=default.target
 
 - **Delegation**, as the kernel tier (`harness/ci/kernel.sh`) uses it: `Delegate=yes`, and `pi-worker daemon` first
   moves itself into the unit cgroup's `supervisor` leaf, then uses the unit cgroup as its delegation
-  (`PIW_CGROUP_ROOT`), so each worker's cleanup domain is a sibling of that leaf. `daemon` refuses to start outside a
-  `.service` cgroup it can write (`no_service_delegation`). Stopping the unit kills every worker with it.
+  (`PIW_CGROUP_ROOT`), so each worker's cleanup domain is a sibling of that leaf. `daemon` refuses to start anywhere but the
+  cgroup of a `pi-worker.service` unit it can write (`no_service_delegation`). Stopping the unit kills every worker with it.
 - **Paths are pinned** at install: the state directory and socket are what the installing user's environment resolves
   (state `PIW_STATE_DIR`, else `$XDG_STATE_HOME/pi-worker`, else `~/.local/state/pi-worker`; socket `PIW_SOCKET`,
   else `$XDG_RUNTIME_DIR/pi-worker/b2.sock`, `XDG_RUNTIME_DIR` defaulting to `/run/user/<uid>`), so the daemon and
