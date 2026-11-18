@@ -229,6 +229,10 @@ export const FILE_READ_MAX_BYTES = 1024 * 1024;
  * `files.read` in a sandboxed worker's root: a regular UTF-8 file of at most 1 MiB, inside one of the caller's
  * explicit `roots` (each inside the sandbox root), with no hidden component and no `.` or `..`, opened with no symlink
  * at any component. `path` is absolute or relative to the root.
+ *
+ * `root` is the canonical cwd recorded at launch and stays the boundary: it is never resolved again, so a root (or an
+ * ancestor) replaced by a symlink cannot move the boundary, and the open from `/` refuses that link like any other
+ * (`file_symlink_or_unavailable`, as for a removed root).
  */
 export function readConfined(root: string, path: string, roots: readonly string[]): { path: string; content: string; bytes: number; evidence: 'pinned_file_read' } {
   if (!roots.length || roots.length > 64) throw new Refusal('explicit_roots_required');
@@ -236,7 +240,7 @@ export function readConfined(root: string, path: string, roots: readonly string[
   // components are checked below the root).
   const parts = path.split('/');
   if (parts.some(p => p === '.' || p === '..') || (!isAbsolute(path) && parts.some(p => p.startsWith('.')))) throw new Refusal('hidden_or_traversal_path_refused');
-  const canonical = realpathSync(root);
+  const canonical = root;
   const target = resolve(canonical, path);
   if (!inside(canonical, target) || roots.some(r => !isAbsolute(r) || !inside(canonical, resolve(r))) || !roots.some(r => inside(resolve(r), target))) throw new Refusal('file_outside_explicit_roots');
   if (relative(canonical, target).split('/').some(p => p.startsWith('.'))) throw new Refusal('hidden_or_traversal_path_refused');
