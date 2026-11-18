@@ -1,9 +1,9 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 4e8146d..bc1507b 100644
+index 6742797..846526d 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -78,9 +78,9 @@ export class Lifecycle {
-   private terminate(live: Live): Promise<boolean> {
+@@ -99,9 +99,9 @@ export class Lifecycle {
+     closeChannel(live);
      if (!live.cleaning) {
        const domain = live.domain;
 -      const leader = { pid: live.pid, token: live.token };
@@ -14,7 +14,7 @@ index 4e8146d..bc1507b 100644
          .catch(() => false)
          .finally(() => {
            if (live.cleaning === cleaning) live.cleaning = undefined;
-@@ -98,6 +98,7 @@ export class Lifecycle {
+@@ -119,6 +119,7 @@ export class Lifecycle {
     * (Grok and GPT PR #27 delta). A leader that left the domain and still runs keeps the worker pending, so no relaunch
     * or resume starts a second writer beside it. A generation that spawned no process has no leader.
     */
@@ -22,7 +22,7 @@ index 4e8146d..bc1507b 100644
    private leaderGone(leader: { pid: number | null; token: string | null }): boolean {
      return leader.pid === null || processGone(leader.pid, leader.token);
    }
-@@ -175,6 +176,7 @@ export class Lifecycle {
+@@ -202,6 +203,7 @@ export class Lifecycle {
    }
  
    wireHost(live: Live, host: SessionHost): void {

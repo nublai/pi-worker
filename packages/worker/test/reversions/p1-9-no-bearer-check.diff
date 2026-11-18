@@ -1,12 +1,11 @@
 diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
-index 163170b..63d6aa1 100644
+index 52d14e8..00420a8 100644
 --- a/packages/worker/src/b2/app.ts
 +++ b/packages/worker/src/b2/app.ts
-@@ -157,5 +157,6 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
-       },
+@@ -280,5 +280,5 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
      ]),
    ) as unknown as Handlers;
--  return { handle: createRouter({ handlers: scoped, authorize: authorizer(options.grants) }), handlers: scoped };
-+  void authorizer;
-+  return { handle: createRouter({ handlers: scoped }), handlers: scoped };
+   const authorize = channel ? channelAuthorizer(options.supervisor, options.grants, channel) : authorizer(options.grants);
+-  return { handle: createRouter({ handlers: scoped, authorize }), handlers: scoped };
++  return { handle: createRouter({ handlers: scoped, ...(channel ? { authorize } : {}) }), handlers: scoped };
  }

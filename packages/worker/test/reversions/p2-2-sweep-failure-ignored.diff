@@ -1,11 +1,11 @@
 diff --git a/packages/worker/src/supervisor/supervisor.ts b/packages/worker/src/supervisor/supervisor.ts
-index 176f057..d676179 100644
+index 0ca0cc8..b9369d3 100644
 --- a/packages/worker/src/supervisor/supervisor.ts
 +++ b/packages/worker/src/supervisor/supervisor.ts
-@@ -127,7 +127,7 @@ export class Supervisor {
-    * anything is recovered or recorded, so the daemon fails to start (P2-2).
-    */
+@@ -145,7 +145,7 @@ export class Supervisor {
    async recover(): Promise<void> {
+     // No channel survives a restart: the directories a killed supervisor left are removed (P2-8).
+     sweepChannels(this.state.stateDir);
 -    await this.lifecycle.containment.sweep([...this.lifecycle.pendingDomains(), ...this.features.pendingDomains()]);
 +    await this.lifecycle.containment.sweep([...this.lifecycle.pendingDomains(), ...this.features.pendingDomains()]).catch(() => {});
      // The owner's durable `keep` of a recovered intent survives restarts; any other intent_ready does not.

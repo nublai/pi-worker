@@ -1,10 +1,10 @@
 diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
-index b1637ff..9ecc744 100644
+index 2cfdf35..04a92e9 100644
 --- a/packages/worker/src/supervisor/children.ts
 +++ b/packages/worker/src/supervisor/children.ts
-@@ -150,7 +150,7 @@ export class Children {
-       !subset(spec.resources.extensions, p.resources.extensions) ||
-       !subset(spec.resources.skills, p.resources.skills)
+@@ -183,7 +183,7 @@ export class Children {
+       !subset(spec.resources.extensions.map(asParent), p.resources.extensions) ||
+       !subset(spec.resources.skills.map(asParent), p.resources.skills)
      ) {
 -      throw new Refusal('child_authority_not_subset');
 +      if (!p) throw new Refusal('child_authority_not_subset');

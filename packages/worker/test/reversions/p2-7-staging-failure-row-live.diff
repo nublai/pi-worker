@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 1ac3976..965dae9 100644
+index 6742797..751b2c2 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -406,12 +406,10 @@ export class Lifecycle {
+@@ -411,12 +411,10 @@ export class Lifecycle {
      this.s.receipts.dispatch(c.command_id, { worker_id: w.worker_id });
      let host: SessionHost;
      let dependencies: DependencyBind[] = [];
@@ -14,5 +14,5 @@ index 1ac3976..965dae9 100644
 -      // its domain (P2-7): a failure ends the row failed below (D3), unknown once anything was created (D2).
 -      if (live.profile) dependencies = stageProfile(live.profile, cwd, rootFd => this.stagingCleanup(rootFd));
        const root = confinement(w);
-       host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live), dependencies } : {}) });
-     } catch (error) {
+       // A sandboxed parent's channel for this generation, before anything runs in its domain (P2-8).
+       const channel = sandboxedParent(live) ? { channel: (await openChannel(this.s, live)).dir } : {};

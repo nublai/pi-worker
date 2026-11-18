@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 1ac3976..32eb651 100644
+index 6742797..56806f1 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -413,7 +413,7 @@ export class Lifecycle {
-       // its domain (P2-7): a failure ends the row failed below (D3), unknown once anything was created (D2).
-       if (live.profile) dependencies = stageProfile(live.profile, cwd, rootFd => this.stagingCleanup(rootFd));
+@@ -420,7 +420,7 @@ export class Lifecycle {
        const root = confinement(w);
--      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live), dependencies } : {}) });
-+      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live) } : {}) });
+       // A sandboxed parent's channel for this generation, before anything runs in its domain (P2-8).
+       const channel = sandboxedParent(live) ? { channel: (await openChannel(this.s, live)).dir } : {};
+-      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live), dependencies, ...channel } : {}) });
++      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live), ...channel } : {}) });
      } catch (error) {
        // No host was constructed: the domain (if it was created) is cleaned and the row ends with its reason; the
        // receipt stays unknown, so a resume target is held and fenced like any other unknown create-with-resume.

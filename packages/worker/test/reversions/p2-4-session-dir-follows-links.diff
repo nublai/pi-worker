@@ -1,17 +1,17 @@
 diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
-index 5c2a115..41ba864 100644
+index e133043..11dec27 100644
 --- a/packages/worker/src/sandbox/sandbox.ts
 +++ b/packages/worker/src/sandbox/sandbox.ts
-@@ -21,7 +21,7 @@
-  * is in `ROOT/.piw-agent`; each of its `node_modules` mount points gets the parent's tree read-only, by descriptor. The
-  * parent channel is P2-8: until then a sandboxed root worker (a parent) is refused.
+@@ -24,7 +24,7 @@
+  * directory holding the channel's socket, bound read-only by descriptor at `/run/piw-parent`. Its children live in
+  * owner-prepared slots, `PARENT/.piw-slots/<name>` (`openSlot`).
   */
 -import { closeSync, existsSync, fstatSync, readSync, realpathSync } from 'node:fs';
 +import { closeSync, existsSync, fstatSync, mkdirSync, readSync, realpathSync } from 'node:fs';
  import { execFileSync } from 'node:child_process';
  import { delimiter, dirname, isAbsolute, join, normalize, relative, resolve } from 'node:path';
  import { fileURLToPath } from 'node:url';
-@@ -261,7 +261,7 @@ export function openRooted(root: string, file: string): number {
+@@ -307,7 +307,7 @@ export function openRooted(root: string, file: string): number {
  export function sandboxSessionDir(root: string, workerId: string): string {
    const fd = openPinned(root, 'dir');
    try {

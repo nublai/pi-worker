@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/host/host.ts b/packages/worker/src/host/host.ts
-index 6a0b5ec..7112086 100644
+index 3235468..0c41801 100644
 --- a/packages/worker/src/host/host.ts
 +++ b/packages/worker/src/host/host.ts
-@@ -268,7 +268,7 @@ const TYPED_CHILD_ENV_PATTERN = /^(LC_[A-Z]+|XDG_[A-Z_]+_(HOME|DIR|DIRS)|PI_[A-Z
+@@ -284,7 +284,7 @@ const TYPED_CHILD_ENV_PATTERN = /^(LC_[A-Z]+|XDG_[A-Z_]+_(HOME|DIR|DIRS)|PI_[A-Z
   */
- export function childEnv(env: NodeJS.ProcessEnv = process.env, taskId?: string | null): NodeJS.ProcessEnv {
+ export function childEnv(env: NodeJS.ProcessEnv = process.env, taskId?: string | null, allowlist = !!taskId): NodeJS.ProcessEnv {
    const out = Object.fromEntries(
--    Object.entries(env).filter(([k]) => !k.startsWith('PIW_') && !k.startsWith('PI_WORKER_') && (!taskId || TYPED_CHILD_ENV.has(k) || TYPED_CHILD_ENV_PATTERN.test(k))),
-+    Object.entries(env).filter(([k]) => !k.startsWith('PIW_') && !k.startsWith('PI_WORKER_') && (!taskId || TYPED_CHILD_ENV.has(k) || TYPED_CHILD_ENV_PATTERN.test(k) || true)),
+-    Object.entries(env).filter(([k]) => !k.startsWith('PIW_') && !k.startsWith('PI_WORKER_') && (!allowlist || TYPED_CHILD_ENV.has(k) || TYPED_CHILD_ENV_PATTERN.test(k))),
++    Object.entries(env).filter(([k]) => !k.startsWith('PIW_') && !k.startsWith('PI_WORKER_') && (!allowlist || TYPED_CHILD_ENV.has(k) || TYPED_CHILD_ENV_PATTERN.test(k) || true)),
    );
    if (taskId) Object.assign(out, { PI_WORKER_REPORT_FD: '3', PI_WORKER_TASK_ID: taskId, PI_SUBAGENT_ID: taskId });
    return out;
