@@ -3,12 +3,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { acquisition, classifyReceipt, Client, ClientFailure, reconcile, requestHash, type Expected } from '@nublai/pi-worker-client';
+import { acquisition, classifyReceipt, Client, ClientFailure, Observer, reconcile, requestHash, type Expected, type Notice, type ObserverBatch, type TimerHandle } from '@nublai/pi-worker-client';
 import { createApp } from '../src/b2/app.js';
 import { createB2Server, listenPrivate } from '../src/b2/server.js';
 import { response_hello_200 } from '../src/generated/validators.js';
 import { ownerGrant, privateTmp } from './helpers.js';
-import { fixture } from './supervisor-fixture.js';
+import { bind, fixture } from './supervisor-fixture.js';
 
 test('client-ts: hello succeeds and a refused read is an HTTP 409 no_effect refusal', async () => {
   const tmp = privateTmp();
@@ -119,6 +119,115 @@ test('client-ts: requestHash matches the real worker\'s receipts; reconcile reso
   } finally {
     if (first) await stop(first.server);
     if (second) await stop(second.server);
+    f.cleanup();
+  }
+});
+
+/**
+ * C3 against the real supervisor (P3-3): the observer seeds silently, sees a settlement live, loses its SSE stream,
+ * misses a settlement while gated, reconnects with Last-Event-ID and recovers that settlement once from the snapshot;
+ * after a supervisor restart (a new transport epoch) the journaled settlements surface nothing twice.
+ */
+test('client-ts: the observer recovers a settlement missed across a real SSE disconnect once, and nothing twice across a supervisor restart', { timeout: 60_000 }, async () => {
+  const f = fixture();
+  const owner = ownerGrant(f.dir);
+  const socketPath = join(f.dir, 'b2.sock');
+  const serve = async () => {
+    const server = createB2Server(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle);
+    await listenPrivate(server, socketPath);
+    return server;
+  };
+  const stop = async (server: ReturnType<typeof createB2Server>) => {
+    server.closeAllConnections();
+    await new Promise<void>(r => server.close(() => r()));
+  };
+  const until = async (cond: () => boolean, label: string) => {
+    const end = Date.now() + 10_000;
+    while (!cond()) {
+      if (Date.now() > end) assert.fail(`timed out waiting: ${label}`);
+      await new Promise(r => setTimeout(r, 5));
+    }
+  };
+  // Reconnects wait for the test: each backoff timer is held until released.
+  const held: (() => void)[] = [];
+  const live = new Set<TimerHandle>();
+  let token = 0;
+  const timers = {
+    set(callback: () => void, _ms: number): TimerHandle {
+      const handle = ++token;
+      live.add(handle);
+      held.push(() => {
+        live.delete(handle);
+        callback();
+      });
+      return handle;
+    },
+    clear(handle: TimerHandle) {
+      live.delete(handle);
+    },
+  };
+  const ac = new AbortController();
+  const batches: ObserverBatch[] = [];
+  let server: ReturnType<typeof createB2Server> | undefined;
+  let done: Promise<unknown> | undefined;
+  try {
+    const w = await f.create();
+    server = await serve();
+    const observer = new Observer({ client: new Client({ socketPath, grantFile: owner.file }), signal: ac.signal, timers, deliver: b => void batches.push(structuredClone(b)) });
+    done = observer.run();
+    await until(() => batches.length === 1, 'seed');
+    assert.equal(batches[0]!.seeded, true, 'cold start seeds');
+    assert.deepEqual(batches[0]!.notices, [], 'silently');
+    const settlements = () => batches.flatMap(b => b.notices).filter((n): n is Extract<Notice, { kind: 'settlement' }> => n.kind === 'settlement');
+
+    // Live: one prompt settles while the stream is up.
+    const one = await f.supervisor.prompt(w.worker_id, { ...bind(f.supervisor.get(w.worker_id), 'p-one'), message: 'one' });
+    f.hosts[0]!.emit('event', { type: 'agent_settled' });
+    await until(() => settlements().length === 1, 'live settlement');
+    assert.equal(settlements()[0]!.execution_id, one.execution_id);
+    assert.equal(settlements()[0]!.source, 'live');
+
+    // The worker drops the SSE connection; controls close and the reconnect is held.
+    server.closeAllConnections();
+    await until(() => !observer.controls && held.length === 1, 'disconnect gates');
+    const handle = { ...bind(f.supervisor.get(w.worker_id), 'x'), worker_id: w.worker_id };
+    assert.equal(observer.isCurrent(handle), false, 'gated: no handle is current');
+    // Missed while disconnected.
+    const two = await f.supervisor.prompt(w.worker_id, { ...bind(f.supervisor.get(w.worker_id), 'p-two'), message: 'two' });
+    f.hosts[0]!.emit('event', { type: 'agent_settled' });
+    held.shift()!();
+    await until(() => batches.some(b => b.resync !== undefined && !b.seeded), 'reconnect snapshot');
+    const resync = batches.find(b => b.resync !== undefined && !b.seeded)!;
+    assert.equal(resync.resync, 'gap', 'Last-Event-ID was sent: the worker reports a gap, not a fresh attach');
+    assert.deepEqual(
+      resync.notices.map(n => (n.kind === 'settlement' ? `${n.execution_id === two.execution_id ? 'two' : 'other'}:${n.source}` : n.kind)),
+      ['two:snapshot'],
+      'the missed settlement, once, from the snapshot',
+    );
+    assert.equal(observer.controls, true, 'controls reopen with the snapshot');
+    assert.ok(observer.isCurrent(handle), 'the binding is unchanged');
+
+    // The supervisor restarts: a new transport epoch; its journaled rows surface nothing already seen.
+    await stop(server);
+    server = undefined;
+    await until(() => held.length === 1, 'restart gates');
+    await f.restart();
+    server = await serve();
+    const before = batches.length;
+    held.shift()!();
+    await until(() => batches.length > before && batches.at(-1)!.resync !== undefined, 'snapshot after restart');
+    assert.equal(batches.at(-1)!.resync, 'epoch', 'a supervisor restart is a new transport epoch');
+    const ids = settlements().map(s => s.execution_id);
+    assert.deepEqual(ids, [one.execution_id, two.execution_id], 'each settlement exactly once');
+    assert.ok(
+      batches.flatMap(b => b.notices).every(n => n.kind !== 'receipt' && n.kind !== 'settlement_gap'),
+      'no gap: nothing reconciled, nothing invented',
+    );
+  } finally {
+    ac.abort();
+    if (done) await done;
+    assert.equal(live.size, 0, 'abort clears the held reconnect');
+    if (server) await stop(server);
     f.cleanup();
   }
 });
