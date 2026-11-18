@@ -8,7 +8,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
@@ -38,8 +38,9 @@ type Spec = NonNullable<Create['launch_spec']>;
 /** The complete environment inside a recorded sandbox launch: synthetic, never process.env. */
 const SANDBOX_ENV: Record<string, string> = { PATH: '/usr/bin:/bin', HOME: '/tmp/piw-home', LANG: 'C' };
 /** Git with no global or system configuration and a synthetic environment. */
+const gitEnv = (home: string) => ({ PATH: '/usr/bin:/bin', HOME: home, LANG: 'C', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' });
 function gitIn(home: string) {
-  const env = { PATH: '/usr/bin:/bin', HOME: home, LANG: 'C', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  const env = gitEnv(home);
   return (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 type GitFn = ReturnType<typeof gitIn>;
@@ -977,6 +978,10 @@ export default pi => pi.on('input', async e => {
     const after = new Map(gitForEachRef(parentAt, 'refs/').map(ref => [ref.ref, ref.object] as [string, string]));
     const moved = [...after].filter(([ref, sha]) => before.get(ref) !== sha).map(([ref]) => ref).sort();
     assert.deepEqual(moved, ['refs/heads/job/live', 'refs/heads/task-live/work']);
+    // A0's final integrity check. The test owns this fixture repository and runs plain Git on it (owner Git's typed
+    // API has no fsck, P2-6): the repository the sandboxed parent and child wrote is intact.
+    const fsck = spawnSync('git', ['-C', t.root, 'fsck', '--full', '--strict'], { env: gitEnv(base), stdio: 'ignore' });
+    assert.equal(fsck.status, 0, 'the shared repository passes git fsck --full --strict');
   } finally {
     await r.close();
     tmp.cleanup();
