@@ -50,8 +50,20 @@ const childCreate = (root: string, extra: Partial<Spec> = {}): Create => ({
   parent: parentBinding,
   launch_spec: { environment: { id: 'root', revision: 1, allowed_methods: [], filesystem: 'bwrap', root }, role: 'child', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: [], seed_mode: 'standalone', ...extra },
 });
+/** A synthetic supervisor environment for profile tests: never process.env, so no real credential can reach an argv or a message. */
+const SYNTHETIC_SECRET = 'synthetic-credential-value-0f3a9c';
+const SYNTHETIC_ENV: NodeJS.ProcessEnv = { PATH: '/usr/bin:/bin', HOME: '/home/synthetic', LANG: 'C', SYNTHETIC_API_KEY: SYNTHETIC_SECRET };
+/** A bwrap argv as text with every `--setenv KEY VALUE` value redacted. */
+const redactedArgv = (args: readonly string[]): string => args.map((a, i) => (args[i - 2] === '--setenv' ? '<redacted>' : a)).join(' ');
+/** Null when `--remount-ro /` follows every mount in the profile, else a message with indices and a redacted argv. */
+const remountProblem = (args: readonly string[]): string | null => {
+  const body = args.slice(0, args.indexOf('--'));
+  const remount = body.findIndex((a, i) => a === '--remount-ro' && body[i + 1] === '/');
+  const lastMount = Math.max(...body.flatMap((a, i) => (/^--(ro-)?bind(-fd)?$|^--dir$|^--tmpfs$|^--proc$|^--dev$/.test(a) ? [i] : [])));
+  return remount > lastMount ? null : `--remount-ro / (index ${remount}) must follow every mount (last mount at index ${lastMount}); argv: ${redactedArgv(body)}`;
+};
 /** The environment a sandboxed child gets inside its root. */
-const profileEnv = (root: string, env: NodeJS.ProcessEnv = process.env) => sandboxEnv(childEnv(env, 'task'), root);
+const profileEnv = (root: string, env: NodeJS.ProcessEnv = SYNTHETIC_ENV) => sandboxEnv(childEnv(env, 'task'), root);
 const launchIn = (root: string, command: string, args: string[], bwrap?: string): SandboxLaunch => sandboxLaunch(root, command, args, { env: profileEnv(root), ...(bwrap ? { bwrap } : {}) });
 
 // ---- ported from A0 sandbox.test.ts ----
@@ -249,8 +261,7 @@ async function waitFor(path: string, ms = 10_000): Promise<void> {
 test('sandbox host uses environment allowlist and a private PID namespace', async () => {
   const tmp = privateTmp();
   const dir = realpathSync(tmp.dir);
-  const saved = process.env.PIW_TEST_PRIVATE_SENTINEL;
-  process.env.PIW_TEST_PRIVATE_SENTINEL = 'NOT_A_CREDENTIAL';
+  const env = { ...SYNTHETIC_ENV, PIW_TEST_PRIVATE_SENTINEL: 'NOT_A_CREDENTIAL' };
   try {
     const spec: Spec = { environment: { id: 'test', revision: 1, filesystem: 'bwrap', root: dir, allowed_methods: [] }, role: 'child', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: [], seed_mode: 'standalone' };
     const profile = launchIn(dir, 'node', []);
@@ -259,7 +270,7 @@ test('sandbox host uses environment allowlist and a private PID namespace', asyn
     // A0 captured the containment's spawn; the production host spawns bwrap itself, so a stand-in bwrap records it.
     const out = join(dir, 'capture');
     const bwrap = fakeBwrap(dir, out);
-    const host = new SdkHost({ cwd: dir, sessionDir: dir, provider: 'p', model: 'm', thinking: 'off', projectTrusted: false, launchSpec: spec, taskId: 'task' }, { sandbox: { root: dir, bwrap } });
+    const host = new SdkHost({ cwd: dir, sessionDir: dir, provider: 'p', model: 'm', thinking: 'off', projectTrusted: false, launchSpec: spec, taskId: 'task' }, { env, sandbox: { root: dir, bwrap } });
     await once(host, 'exit');
     await waitFor(`${out}.argv.done`);
     const args = readFileSync(`${out}.argv.done`, 'utf8').trim().split('\n');
@@ -269,8 +280,6 @@ test('sandbox host uses environment allowlist and a private PID namespace', asyn
     assert.deepEqual(names.filter(n => !['PWD', 'SHLVL', '_', 'OLDPWD'].includes(n)).sort(), Object.keys(profile.env).sort(), 'host must replace rather than merge the parent environment; compare names only, never print inherited values');
     assert.equal(names.includes('PIW_TEST_PRIVATE_SENTINEL'), false);
   } finally {
-    if (saved === undefined) delete process.env.PIW_TEST_PRIVATE_SENTINEL;
-    else process.env.PIW_TEST_PRIVATE_SENTINEL = saved;
     tmp.cleanup();
   }
 });
@@ -653,10 +662,12 @@ test('bwrap profile: --die-with-parent, --clearenv allowlist, credential links r
     assert.deepEqual(set.sort(), Object.keys(launch.env).sort());
     assert.ok(launch.args.includes('--ro-bind-fd'));
     // The sandbox's own `/` is remounted read-only after the last mount and directory, before the command.
-    const body = launch.args.slice(0, launch.args.indexOf('--'));
-    const remount = body.findIndex((a, i) => a === '--remount-ro' && body[i + 1] === '/');
-    const lastMount = Math.max(...body.flatMap((a, i) => (/^--(ro-)?bind(-fd)?$|^--dir$|^--tmpfs$|^--proc$|^--dev$/.test(a) ? [i] : [])));
-    assert.ok(remount > lastMount, `--remount-ro / follows every mount: ${body.join(' ')}`);
+    assert.equal(remountProblem(launch.args), null);
+    // A failure message never carries a --setenv value: run the check on a deliberately wrong argv.
+    assert.ok(launch.args.includes(SYNTHETIC_SECRET), 'the synthetic credential is in the profile argv');
+    const message = remountProblem(['--setenv', 'SYNTHETIC_API_KEY', SYNTHETIC_SECRET, '--remount-ro', '/', '--tmpfs', '/tmp', '--', '/bin/true']);
+    assert.ok(message !== null && message.includes('--setenv SYNTHETIC_API_KEY <redacted>'), 'a wrong argv fails the remount check');
+    assert.equal(message.includes(SYNTHETIC_SECRET), false, 'the failure message must not contain an env value');
     rmSync(join(root, '.piw-agent', 'models.json'));
     writeFileSync(join(root, 'elsewhere'), '{}');
     symlinkSync(join(root, 'elsewhere'), join(root, '.piw-agent', 'models.json'));
