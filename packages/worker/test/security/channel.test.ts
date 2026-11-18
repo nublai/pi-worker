@@ -83,6 +83,26 @@ async function channelFixture(options: { git?: boolean; resources?: (root: strin
   const grants = new GrantStore(f.dir);
   f.supervisor.serveParentChannels(parentChannels({ supervisor: f.supervisor, grants }));
   const tmp = privateTmp();
+  try {
+    return await familyOf(f, tmp, grants, hosts, launches, options);
+  } catch (error) {
+    // A fixture that fails before its test's try block still closes its channel socket (an open one keeps the run alive).
+    await f.supervisor.shutdown();
+    f.cleanup();
+    tmp.cleanup();
+    throw error;
+  }
+}
+
+/** The rest of `channelFixture`: the tree, the sandboxed parent and its running execution. */
+async function familyOf(
+  f: ReturnType<typeof fixture>,
+  tmp: ReturnType<typeof privateTmp>,
+  grants: GrantStore,
+  hosts: { workerId: string; host: Host }[],
+  launches: HostLaunch[],
+  options: { git?: boolean; resources?: (root: string) => string[] },
+) {
   const base = realpathSync(tmp.dir);
   const root = join(base, 'parent');
   const outside = join(base, 'outside');
@@ -140,7 +160,7 @@ async function channelFixture(options: { git?: boolean; resources?: (root: strin
 
 // ---- ported from A0 security-fix.test.ts (B1, m1) ----
 
-test('B1: a symlinked .piw-slots (or slot entry) cannot hand a child an arbitrary host root', async () => {
+test('B1: a symlinked .piw-slots (or slot entry) cannot hand a child an arbitrary host root', { timeout: 60_000 }, async () => {
   const x = await channelFixture();
   try {
     const before = tree(x.outside);
@@ -167,7 +187,7 @@ test('B1: a symlinked .piw-slots (or slot entry) cannot hand a child an arbitrar
   }
 });
 
-test('B1: the channel acts with its own root-scoped grant, never the owner grant; worker-less receipts stay hidden', async () => {
+test('B1: the channel acts with its own root-scoped grant, never the owner grant; worker-less receipts stay hidden', { timeout: 60_000 }, async () => {
   const x = await channelFixture();
   try {
     const grant = x.grants.read(`channel-${x.w.worker_epoch}`);
@@ -186,7 +206,7 @@ test('B1: the channel acts with its own root-scoped grant, never the owner grant
   }
 });
 
-test("B1 (topology B): a channel child's Git dirs are the parent's own pinned repository; another repository, or one the parent made in its root, refuses", async () => {
+test("B1 (topology B): a channel child's Git dirs are the parent's own pinned repository; another repository, or one the parent made in its root, refuses", { timeout: 60_000 }, async () => {
   const x = await channelFixture({ git: true });
   try {
     const parentPin = x.live.gitPin;
@@ -221,7 +241,7 @@ test("B1 (topology B): a channel child's Git dirs are the parent's own pinned re
   }
 });
 
-test("B1 (topology B): a parent cannot redirect a slot's gitfile (in its writable root) to another slot or repository", async () => {
+test("B1 (topology B): a parent cannot redirect a slot's gitfile (in its writable root) to another slot or repository", { timeout: 60_000 }, async () => {
   let race: ((launch: HostLaunch) => void) | undefined;
   const x = await channelFixture({ git: true, before: launch => race?.(launch) });
   const owner: OwnerGit = { stateDir: x.f.dir, env: { PATH: '/usr/bin:/bin' } };
@@ -281,7 +301,7 @@ test("B1 (topology B): a parent cannot redirect a slot's gitfile (in its writabl
   }
 });
 
-test('m1: an exact channel launch retry returns the stored receipt; a refused retry refuses again (never unknown)', async () => {
+test('m1: an exact channel launch retry returns the stored receipt; a refused retry refuses again (never unknown)', { timeout: 60_000 }, async () => {
   const x = await channelFixture();
   try {
     const body = x.child('retry', x.slot('r'));
@@ -301,7 +321,7 @@ test('m1: an exact channel launch retry returns the stored receipt; a refused re
 
 // ---- ported from A0 gate1-parent.test.ts ----
 
-test('parent channel staging never dereferences profile symlinks into supervisor secrets', async () => {
+test('parent channel staging never dereferences profile symlinks into supervisor secrets', { timeout: 60_000 }, async () => {
   const x = await channelFixture();
   try {
     const profile = join(x.root, '.piw-agent');
@@ -328,7 +348,7 @@ test('parent channel staging never dereferences profile symlinks into supervisor
 
 // ---- new in P2-8 ----
 
-test('channel: only the whitelist is served; the Authorization header is ignored (the owner bearer gains nothing); only the parent and its children are visible', async () => {
+test('channel: only the whitelist is served; the Authorization header is ignored (the owner bearer gains nothing); only the parent and its children are visible', { timeout: 60_000 }, async () => {
   const x = await channelFixture();
   try {
     const owner = ownerGrant(x.f.dir, 'test-owner');
@@ -363,7 +383,7 @@ test('channel: only the whitelist is served; the Authorization header is ignored
   }
 });
 
-test("channel: a create must be the parent's own typed child; its resources must lie in the parent's profile", async () => {
+test("channel: a create must be the parent's own typed child; its resources must lie in the parent's profile", { timeout: 60_000 }, async () => {
   const x = await channelFixture();
   try {
     const unrelated = await x.f.create();
@@ -385,7 +405,7 @@ test("channel: a create must be the parent's own typed child; its resources must
   }
 });
 
-test("channel: a child's resources in the parent's profile are named in its staged copy; it is an SDK worker sandboxed in its slot", async () => {
+test("channel: a child's resources in the parent's profile are named in its staged copy; it is an SDK worker sandboxed in its slot", { timeout: 60_000 }, async () => {
   const x = await channelFixture({
     resources: root => {
       mkdirSync(join(root, '.piw-agent', 'extensions'), { recursive: true });
@@ -412,7 +432,7 @@ test("channel: a child's resources in the parent's profile are named in its stag
   }
 });
 
-test('channel: one generation: a stopped parent’s socket is gone, a retired generation and a revoked grant (the channel’s or the parent’s creating one) are refused', async () => {
+test('channel: one generation: a stopped parent’s socket is gone, a retired generation and a revoked grant (the channel’s or the parent’s creating one) are refused', { timeout: 60_000 }, async () => {
   const x = await channelFixture();
   try {
     const handle = parentChannels({ supervisor: x.s, grants: x.grants });
@@ -456,7 +476,7 @@ test('channel: one generation: a stopped parent’s socket is gone, a retired ge
   }
 });
 
-test('channel: a relaunched sandboxed parent gets a new channel (directory, socket and grant); its root is validated again', async () => {
+test('channel: a relaunched sandboxed parent gets a new channel (directory, socket and grant); its root is validated again', { timeout: 60_000 }, async () => {
   const x = await channelFixture({ git: true });
   try {
     const old = x.live.channel!.dir;
@@ -490,7 +510,7 @@ test('channel: a relaunched sandboxed parent gets a new channel (directory, sock
   }
 });
 
-test('channel: a supervisor without parent channels refuses a sandboxed root worker before any record; a restart removes stale channel directories', async () => {
+test('channel: a supervisor without parent channels refuses a sandboxed root worker before any record; a restart removes stale channel directories', { timeout: 60_000 }, async () => {
   const f = fixture();
   const tmp = privateTmp();
   try {
@@ -519,7 +539,7 @@ function fakeBwrap(dir: string, out: string): string {
   return path;
 }
 
-test('channel: the production host runs a sandboxed parent in bwrap with its channel directory bound read-only by descriptor and an allowlisted environment', async () => {
+test('channel: the production host runs a sandboxed parent in bwrap with its channel directory bound read-only by descriptor and an allowlisted environment', { timeout: 60_000 }, async () => {
   const tmp = privateTmp();
   const dir = realpathSync(tmp.dir);
   try {
