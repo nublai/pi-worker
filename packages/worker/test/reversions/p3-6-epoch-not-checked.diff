@@ -1,9 +1,9 @@
 diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
-index b2f78cb..03f5211 100644
+index 485d380..2645169 100644
 --- a/packages/worker/src/supervisor/artifacts.ts
 +++ b/packages/worker/src/supervisor/artifacts.ts
-@@ -145,7 +145,6 @@ export class Artifacts {
-   inspect(id: string, request: ArtifactInspect): ArtifactFacts {
+@@ -276,7 +276,6 @@ export class Artifacts {
+   async inspect(id: string, request: ArtifactInspect, caller = ''): Promise<ArtifactFacts> {
      const live = this.s.require(id);
      const w = live.worker;
 -    if (request.worker_epoch !== w.worker_epoch) throw new Refusal('stale_binding');

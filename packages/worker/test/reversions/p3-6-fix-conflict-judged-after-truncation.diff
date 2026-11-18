@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index 485d380..bb0d82c 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -199,7 +199,7 @@ export function readFacts(job: InspectionJob): ArtifactFacts {
+   const status = step(false, () => statusEntries(gitStatus(at)));
+   let state: ArtifactFacts['worktree']['state'] = 'clean';
+   if (status.length) state = 'dirty';
+-  if (status.some(e => UNMERGED.has(e.code))) state = 'conflicted';
++  if (status.slice(0, LIST_MAX_ENTRIES).some(e => UNMERGED.has(e.code))) state = 'conflicted';
+   const entries = bounded(status, e => Buffer.byteLength(JSON.stringify(e.path)));
+   const gitVersionText = subject.diff_digest?.git_version ?? step(false, () => gitVersion(owner));
+   const facts: ArtifactFacts = {

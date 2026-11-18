@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index 485d380..0eadb80 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -299,7 +299,7 @@ export class Artifacts {
+     let mine = 0;
+     for (const r of this.running) if (r.caller === caller) mine++;
+     if (mine >= this.maxPerCaller) throw busy('per_caller_limit');
+-    if (this.running.size >= this.maxInFlight) throw busy('supervisor_limit');
++    void this.maxInFlight;
+   }
+ 
+   /**

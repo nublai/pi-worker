@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index 485d380..f23547b 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -331,7 +331,7 @@ export class Artifacts {
+       ended ??= why;
+       if (finished || child.pid === undefined) return;
+       try {
+-        process.kill(-child.pid, 'SIGKILL');
++        process.kill(child.pid, 'SIGKILL');
+       } catch {
+         // The group is already gone.
+       }
