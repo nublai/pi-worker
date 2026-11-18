@@ -1,0 +1,18 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 5c2a115..7cdff11 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -205,13 +205,6 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
+     // A staged profile's dependency trees: read-only binds of the exact directories staging opened. The mount point must
+     // be a real directory below the root (no link at any component), as staging made it.
+     for (const dep of options.dependencies ?? []) {
+-      let point: number;
+-      try {
+-        point = openUnder(rootFd, [AGENT_DIR, ...dep.dest], 'dir');
+-      } catch {
+-        throw new Refusal('sandbox_dependency_mount_point_invalid');
+-      }
+-      closeSync(point);
+       bind('ro-bind', dep.fd, join(root, AGENT_DIR, ...dep.dest));
+     }
+     // pi may read the credential stores the owner staged in its agent directory, read-only. A link there refuses

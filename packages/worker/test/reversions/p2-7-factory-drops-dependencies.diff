@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/daemon.ts b/packages/worker/src/daemon.ts
+index 0ee34e9..83343ac 100644
+--- a/packages/worker/src/daemon.ts
++++ b/packages/worker/src/daemon.ts
+@@ -58,7 +58,7 @@ export function productionHosts(bwrap: string, env?: NodeJS.ProcessEnv): { facto
+         },
+         // pi starts inside the worker's cleanup domain; a sandboxed worker's pi in the bwrap profile of its root, there,
+         // with the Git metadata its validation accepted (P2-5) and its staged profile's dependency trees (P2-7).
+-        { prefix: launch.prefix, ...(env ? { env } : {}), ...(launch.sandbox ? { sandbox: { root: launch.sandbox, bwrap, ...(launch.gitPin !== undefined ? { gitPin: launch.gitPin } : {}), ...(launch.dependencies ? { dependencies: launch.dependencies } : {}) } } : {}) },
++        { prefix: launch.prefix, ...(env ? { env } : {}), ...(launch.sandbox ? { sandbox: { root: launch.sandbox, bwrap, ...(launch.gitPin !== undefined ? { gitPin: launch.gitPin } : {}) } } : {}) },
+       ),
+     // pi starts inside the probe's cleanup domain.
+     inventory: launch =>

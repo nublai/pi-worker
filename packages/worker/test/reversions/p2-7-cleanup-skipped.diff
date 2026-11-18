@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..36cce15 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -218,7 +218,7 @@ export function stageProfile(source: string, root: string, cleanup: (rootFd: num
+     const reason = error instanceof Refusal ? error.message : `profile_staging_failed:${code(error) ?? 'error'}`;
+     if (!created) throw new ProvenNoEffect(reason, 'nothing_staged');
+     try {
+-      cleanup(rootFd!);
++      void cleanup;
+     } catch {
+       /* best effort: the outcome is unknown either way */
+     }

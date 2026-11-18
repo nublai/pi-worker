@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 1ac3976..1e6cabf 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -424,7 +424,7 @@ export class Lifecycle {
+       throw error;
+     } finally {
+       // The sandbox holds its own copies of the dependency trees now (or nothing runs): the supervisor keeps none.
+-      for (const dep of dependencies.splice(0)) closeSync(dep.fd);
++      for (const dep of dependencies.splice(0)) if (dep.fd < 0) closeSync(dep.fd);
+     }
+     live.host = host;
+     live.pid = host.pid ?? null;

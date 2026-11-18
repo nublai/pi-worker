@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 1ac3976..0e2d916 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -420,7 +420,6 @@ export class Lifecycle {
+       this.holdUnknownResume(live, c, resumeFile);
+       await this.launchFailed(live, c.command_id, error);
+       // Nothing staged is no_effect only once the (empty) domain is observed removed and recorded, as for a relaunch.
+-      if (error instanceof ProvenNoEffect && !(w.status === 'failed' && w.cleanup === CLEANED)) throw new Refusal(error.message, 'unknown');
+       throw error;
+     } finally {
+       // The sandbox holds its own copies of the dependency trees now (or nothing runs): the supervisor keeps none.

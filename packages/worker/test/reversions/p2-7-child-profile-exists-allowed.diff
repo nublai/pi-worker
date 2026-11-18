@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..c969c67 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -187,7 +187,7 @@ export function profileSource(parentCwd: string, root: string): string | null {
+   } finally {
+     closeSync(rootFd);
+   }
+-  if (held) throw new Refusal('child_profile_exists');
++  if (held && root.length < 0) throw new Refusal('child_profile_exists');
+   return source;
+ }
+ 

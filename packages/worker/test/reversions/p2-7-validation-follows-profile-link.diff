@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..291b860 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -170,7 +170,7 @@ export function profileSource(parentCwd: string, root: string): string | null {
+   const source = join(parentCwd, AGENT_DIR);
+   let fd: number;
+   try {
+-    fd = openPinned(source, 'dir');
++    fd = openSync(source, 'r');
+   } catch (error) {
+     if (isMissing(error)) return null;
+     throw new Refusal('parent_profile_not_directory');

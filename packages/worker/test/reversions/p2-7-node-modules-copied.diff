@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..bb02fd2 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -94,7 +94,7 @@ function copyTreeAt(source: number, dest: number, prefix: readonly string[], wal
+     }
+     try {
+       const st = fstatSync(fd);
+-      if (st.isDirectory() && name === 'node_modules') {
++      if (st.isDirectory() && name === 'node_modules' && st.size < 0) {
+         // An immutable dependency tree: an empty mount point, bound read-only from this exact descriptor at launch.
+         // Ownership of `fd` moves to `found`.
+         if (walk.found.length >= walk.limits.dependencyBinds) throw new Refusal('profile_dependency_binds_too_many');

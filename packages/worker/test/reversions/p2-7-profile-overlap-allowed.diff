@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..a7fc260 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -176,7 +176,6 @@ export function profileSource(parentCwd: string, root: string): string | null {
+     throw new Refusal('parent_profile_not_directory');
+   }
+   closeSync(fd);
+-  if (inside(source, root) || inside(root, source)) throw new Refusal('child_root_overlaps_parent_profile');
+   // Anything at the name (a directory, a file, a link) is not a profile this launch created.
+   let held = true;
+   const rootFd = openPinned(root, 'dir');

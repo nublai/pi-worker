@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 5c2a115..3e1bc02 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -212,7 +212,7 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
+         throw new Refusal('sandbox_dependency_mount_point_invalid');
+       }
+       closeSync(point);
+-      bind('ro-bind', dep.fd, join(root, AGENT_DIR, ...dep.dest));
++      bind('bind', dep.fd, join(root, AGENT_DIR, ...dep.dest));
+     }
+     // pi may read the credential stores the owner staged in its agent directory, read-only. A link there refuses
+     // rather than letting bwrap resolve it on the host.

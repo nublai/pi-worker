@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..4f4f35a 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -112,7 +112,7 @@ function copyTreeAt(source: number, dest: number, prefix: readonly string[], wal
+           closeSync(child);
+         }
+       } else if (st.isFile()) writeFdAt(fd, dest, name, st.mode & 0o777, walk.budget, walk.limits);
+-      else throw new Refusal('profile_copy_special_file');
++      else if (st.size < 0) throw new Refusal('profile_copy_special_file');
+     } finally {
+       if (fd !== undefined) closeSync(fd);
+     }

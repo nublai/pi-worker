@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..5b84d98 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -143,7 +143,7 @@ export function removeTreeAt(parent: number, name: string, depth = 0): void {
+   if (depth > 64) throw new Refusal('remove_tree_too_deep');
+   let fd: number;
+   try {
+-    fd = openSync(fdPath(parent, name), DIR_FLAGS);
++    fd = openSync(fdPath(parent, name), DIR_FLAGS & ~constants.O_NOFOLLOW);
+   } catch (error) {
+     if (isMissing(error)) return;
+     if (code(error) === 'ENOTDIR' || code(error) === 'ELOOP') {

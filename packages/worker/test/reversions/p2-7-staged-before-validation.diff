@@ -1,0 +1,15 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 1ac3976..dfe1d31 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -360,6 +360,10 @@ export class Lifecycle {
+         }
+       },
+       () => {
++        if (c.parent && sandboxed(c.launch_spec) && this.s.workers.has(c.parent.worker_id)) {
++          const early = profileSource(this.s.require(c.parent.worker_id).worker.cwd, realpathSync(c.cwd));
++          if (early) for (const dep of stageProfile(early, realpathSync(c.cwd))) closeSync(dep.fd);
++        }
+         gitPin = this.typedLaunch(c);
+         // A queued untyped launch that comes due while a sibling's missing-report check is pending waits for it (4a).
+         if (lineage && this.s.childEnding.has(lineage.parent_worker_id)) throw new Refusal('child_end_unsettled');
