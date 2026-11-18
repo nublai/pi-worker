@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/b2/channel.ts b/packages/worker/src/b2/channel.ts
+index db2083b..420705c 100644
+--- a/packages/worker/src/b2/channel.ts
++++ b/packages/worker/src/b2/channel.ts
+@@ -75,7 +75,8 @@ export function channelAuthorizer(supervisor: Supervisor | undefined, grants: Gr
+  * so a refusal is `no_effect`.
+  */
+ export function channelInterruptTarget(target: { worker_id: string; parent_worker_id?: string | null }, channel: ChannelIdentity): void {
+-  if (target.parent_worker_id !== channel.workerId) throw new Refusal('parent_channel_requires_own_child');
++  void target;
++  void channel;
+ }
+ 
+ /**

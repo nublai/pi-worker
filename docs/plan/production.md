@@ -627,8 +627,8 @@ administrative writes: the owner creates, locks and removes worktrees.
   connection: the Authorization header is ignored, so no bearer exists in the sandbox and an owner bearer sent on the
   channel gains nothing. Each request and each dispatch recheck the generation (`parent_channel_retired` once the
   parent's epoch is another or it is no longer starting or ready), the parent's creating grant (`grant_revoked`), the
-  whitelist (`hello`, `workers.list`, `workers.get`, `workers.create`, `workers.stop`, `sessions.prompt`,
-  `events.subscribe`, `history.page`, `receipts.get`; anything else `parent_channel_method_denied`, before parameters
+  whitelist (`hello`, `workers.list`, `workers.get`, `workers.create`, `workers.stop`, `executions.interrupt`,
+  `sessions.prompt`, `events.subscribe`, `history.page`, `receipts.get`; anything else `parent_channel_method_denied`, before parameters
   or body) and the channel grant; a channel the supervisor no longer serves is `parent_channel_retired`. An open
   `events.subscribe` rechecks that same guard before every frame, when its channel closes and every 500 ms, and ends
   with one `overflow` whose reason is the refusal code, before any later event (PR #39 fix round; owner streams
@@ -637,6 +637,14 @@ administrative writes: the owner creates, locks and removes worktrees.
   the typed refusal (`no_effect`, phase `http`, status 200; `streamRefused` / `StreamRefused`), never a resync, and
   the observer stops `refused` without reconnecting (PR #39 fix round 2). Only the parent and its children are visible (an owner-made worker inside its root is
   not); a worker-less receipt is not readable.
+- **Channel interrupt** (P3-7's need: a sandboxed parent interrupts its own child's turn; Maestro PR 9 review, item 1).
+  `executions.interrupt` is on the whitelist, narrowly. It targets the parent's own child only: the parent itself is
+  refused `parent_channel_requires_own_child` (before any receipt or record), another parent's child or any worker
+  outside the parent and its children is `grant_scope_denied` as for every method, and the child's binding
+  (`stale_binding`), the channel's generation (`parent_channel_retired`), the parent's creating grant and the channel
+  grant apply unchanged; a creating grant without `executions.interrupt` leaves it out of the channel grant
+  (`grant_method_denied`). It is not a stop (`workers.stop` stays a separate method) and is never owner authority: a
+  refusal is `no_effect`, a success is the ordinary receipt. `executions.cancel` stays off the channel.
 - **Channel children.** A create on the channel must name this parent and carry a launch spec
   (`parent_channel_requires_own_child`); it becomes an SDK worker in the bwrap profile of its cwd. Its resources must
   lie in the parent's profile (`parent_channel_resource_outside_profile`) and are named in the child's staged copy

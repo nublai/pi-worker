@@ -11,6 +11,11 @@
  *   every `RECHECK_MS` (b2/app.ts): it ends with one `overflow` naming the refusal, and nothing after it.
  * - **Method whitelist.** Only `CHANNEL_METHODS` are served (`parent_channel_method_denied` before parameters or body).
  * - **Own workers only.** The parent and its children are the only workers it can see (b2/app.ts `owned`).
+ * - **Interrupt: a child's turn only.** `executions.interrupt` is served for the parent's own children
+ *   (`channelInterruptTarget`): the parent's own turn is refused `parent_channel_requires_own_child`, a worker that is
+ *   not the parent's or its child's is out of scope (`grant_scope_denied`, as for every method), and the child's
+ *   binding, the generation and both grants are checked exactly as for the other channel methods. It is not a stop, and
+ *   a creating grant without the method leaves it out of the channel grant (`grant_method_denied`).
  * - **Own children only.** `workers.create` must name this parent and carry a launch spec
  *   (`parent_channel_requires_own_child`); the child is an SDK worker in the bwrap profile of its cwd, which the
  *   supervisor requires to be an owner-prepared slot (`PARENT/.piw-slots/<name>`, children.ts). Its resources must
@@ -62,6 +67,15 @@ export function channelAuthorizer(supervisor: Supervisor | undefined, grants: Gr
     );
     return { caller, guard };
   };
+}
+
+/**
+ * An interrupt on a parent's channel: the target must be the parent's own child, never the parent itself (its own turn
+ * is not the parent's to interrupt through the worker). Called after the scope check, before any receipt or record,
+ * so a refusal is `no_effect`.
+ */
+export function channelInterruptTarget(target: { worker_id: string; parent_worker_id?: string | null }, channel: ChannelIdentity): void {
+  if (target.parent_worker_id !== channel.workerId) throw new Refusal('parent_channel_requires_own_child');
 }
 
 /**

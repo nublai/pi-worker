@@ -26,8 +26,11 @@ import { createB2Server } from '../b2/server.js';
 import { CHANNEL_SOCKET_NAME } from '../sandbox/sandbox.js';
 import type { Live, SupervisorState } from './state.js';
 
-/** What a parent may call on its channel (A0's list): its own and its children's rows, launches, prompts and stops. */
-export const CHANNEL_METHODS: readonly string[] = ['hello', 'workers.list', 'workers.get', 'workers.create', 'workers.stop', 'sessions.prompt', 'events.subscribe', 'history.page', 'receipts.get'];
+/**
+ * What a parent may call on its channel (A0's list): its own and its children's rows, launches, prompts and stops, and
+ * the interrupt of a child's turn (`executions.interrupt`, its own children only: b2/channel.ts `channelInterruptTarget`).
+ */
+export const CHANNEL_METHODS: readonly string[] = ['hello', 'workers.list', 'workers.get', 'workers.create', 'workers.stop', 'executions.interrupt', 'sessions.prompt', 'events.subscribe', 'history.page', 'receipts.get'];
 
 /** The generation a channel serves: the parent, its epoch, its own grant and its root. */
 export interface ChannelIdentity {

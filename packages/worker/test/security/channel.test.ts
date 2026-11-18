@@ -13,13 +13,16 @@ import { once } from 'node:events';
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { createConnection } from 'node:net';
+import { Client, ClientFailure, type Receipt } from '@nublai/pi-worker-client';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { parentChannels } from '../../src/b2/channel.js';
+import { CHANNEL_METHODS } from '../../src/supervisor/channel.js';
 import { CgroupContainment, checkDelegation, type Domain } from '../../src/containment/containment.js';
 import { productionHosts } from '../../src/daemon.js';
 import { createApp } from '../../src/b2/app.js';
 import { createB2Server, listenPrivate } from '../../src/b2/server.js';
+import { authority, type Guard } from '../../src/grants/authority.js';
 import { GrantStore } from '../../src/grants/store.js';
 import type { SdkHost } from '../../src/host/host.js';
 import { journalPath, openState } from '../../src/journal/state.js';
@@ -65,7 +68,7 @@ const count = (dir: string): number => (existsSync(dir) ? readdirSync(dir, { rec
  * otherwise slots are plain directories. Every sandboxed launch runs `sandboxLaunch` (so the spawn's pin, staging and
  * channel checks run) before its fake host exists; `before` runs first.
  */
-async function channelFixture(options: { git?: boolean; resources?: (root: string) => string[]; before?: (launch: HostLaunch) => void } = {}) {
+async function channelFixture(options: { git?: boolean; resources?: (root: string) => string[]; before?: (launch: HostLaunch) => void; creator?: readonly string[] } = {}) {
   const hosts: { workerId: string; host: Host }[] = [];
   const launches: HostLaunch[] = [];
   // Every channel server the supervisor opened: teardown closes them itself, so a test whose guard under test keeps a
@@ -123,7 +126,7 @@ async function familyOf(
   grants: GrantStore,
   hosts: { workerId: string; host: Host }[],
   launches: HostLaunch[],
-  options: { git?: boolean; resources?: (root: string) => string[] },
+  options: { git?: boolean; resources?: (root: string) => string[]; creator?: readonly string[] },
   cleanup: () => Promise<void>,
 ) {
   const base = realpathSync(tmp.dir);
@@ -142,7 +145,13 @@ async function familyOf(
   const resources = options.resources?.(root) ?? [];
   const methods = ['workers.create', 'children.report', 'sessions.resolve_unknown'];
   const spec: Spec = { environment: { id: 'parent', revision: 1, filesystem: 'bwrap', root, allowed_methods: methods }, role: 'parent', tools: ['read'], denied_tools: [], resources: { extensions: resources, skills: [] }, grant_methods: methods, seed_mode: 'standalone' };
-  const made = await f.supervisor.create({ command_id: 'parent', cwd: root, host: 'sdk', provider: 'p', model: 'm', thinking: 'off', launch_spec: spec });
+  const create = () => f.supervisor.create({ command_id: 'parent', cwd: root, host: 'sdk', provider: 'p', model: 'm', thinking: 'off', launch_spec: spec });
+  // With `creator`, the parent is created under a grant of those methods (a B2 create records it as the creating grant).
+  let made;
+  if (options.creator) {
+    grants.register({ caller: 'creator', scope: { worker_ids: ['*'], cwd_roots: ['*'] }, methods: [...options.creator], grant_id: 'creator' });
+    made = await authority.run(Object.assign(() => {}, { grant_id: 'creator' }) as Guard, create);
+  } else made = await create();
   assert.equal(made.state, 'delivered', JSON.stringify(made));
   const p = f.supervisor.get(made.worker_id!);
   assert.equal((await f.supervisor.prompt(p.worker_id, { ...bind(p, 'parent-run'), message: 'run' })).state, 'delivered');
@@ -389,13 +398,164 @@ test('channel: only the whitelist is served; the Authorization header is ignored
         assert.equal(r.status, 409, JSON.stringify(r.body));
         assert.equal(r.body.error, 'grant_scope_denied');
       }
-      for (const path of [`/workers/${x.w.worker_id}/resolve_unknown`, `/workers/${x.w.worker_id}/relaunch`, `/workers/${x.w.worker_id}/interactions/answer`, `/workers/${x.w.worker_id}/compact`]) {
+      for (const path of [`/workers/${x.w.worker_id}/cancel`, `/workers/${x.w.worker_id}/resolve_unknown`, `/workers/${x.w.worker_id}/relaunch`, `/workers/${x.w.worker_id}/interactions/answer`, `/workers/${x.w.worker_id}/compact`]) {
         const r = await x.call(path, { command_id: 'x' }, headers);
         assert.equal(r.status, 409, `${path}: ${JSON.stringify(r.body)}`);
         assert.equal(r.body.error, 'parent_channel_method_denied', path);
         assert.equal(r.body.effect, 'no_effect');
       }
     }
+  } finally {
+    await x.cleanup();
+  }
+});
+
+// ---- executions.interrupt on the channel (P3-7: a sandboxed parent interrupts its own child's turn) ----
+
+/** The parent's own public client on its channel socket: no bearer, as in its sandbox. */
+const parentClient = (socket: string): Client => new Client({ socketPath: socket, timeoutMs: 10_000 });
+
+/** A child of the fixture's parent, created and prompted through the channel with the public client; its turn is running. */
+async function runningChild(x: Awaited<ReturnType<typeof channelFixture>>, client: Client, name: string) {
+  const made = await client.call('workers.create', { body: x.child(`create-${name}`, x.slot(name)) as never });
+  assert.equal(made.state, 'delivered', JSON.stringify(made));
+  const id = made.worker_id!;
+  const row = x.s.get(id);
+  const prompted = await client.call('sessions.prompt', { path: { worker_id: id }, body: { command_id: `run-${name}`, worker_epoch: row.worker_epoch, session_id: row.session_id!, binding_revision: row.binding_revision, message: 'run' } });
+  assert.equal(prompted.state, 'delivered', JSON.stringify(prompted));
+  const live = x.s.get(id);
+  assert.equal(live.execution?.state, 'started');
+  const host = x.hosts.find(h => h.workerId === id)!.host;
+  return { id, row: live, host, execution_id: live.execution!.execution_id };
+}
+const control = (w: { worker_epoch: string; session_id?: string | null; binding_revision: number }, command_id: string, execution_id?: string) => ({
+  command_id,
+  worker_epoch: w.worker_epoch,
+  session_id: w.session_id!,
+  binding_revision: w.binding_revision,
+  ...(execution_id ? { execution_id } : {}),
+});
+const aborts = (h: { commands: { type: string }[] }): number => h.commands.filter(c => c.type === 'abort').length;
+/** The typed no_effect refusal of a channel call. */
+async function refused(call: Promise<unknown>, code: string, why: string): Promise<void> {
+  const error = await call.then(
+    () => undefined,
+    (e: unknown) => e,
+  );
+  assert.ok(error instanceof ClientFailure, `${why}: refused, got ${String(error)}`);
+  assert.equal(error.message, code, why);
+  assert.equal(error.effect, 'no_effect', why);
+  assert.equal(error.status, 409, why);
+}
+
+test("channel: a parent interrupts its own child's running turn: the receipt, the child's abort and execution.settled", { timeout: 60_000 }, async () => {
+  const x = await channelFixture();
+  try {
+    const client = parentClient(x.socket);
+    const c = await runningChild(x, client, 'a');
+    const watched = watchEvents(x.socket, { types: ['execution.settled'] });
+    assert.equal(await within(watched.attached, 5000), true, 'the stream attached');
+    const receipt: Receipt = await client.call('executions.interrupt', { path: { worker_id: c.id }, body: control(c.row, 'interrupt-a', c.execution_id) });
+    assert.equal(receipt.operation, 'executions.interrupt');
+    assert.equal(receipt.state, 'delivered', JSON.stringify(receipt));
+    assert.equal(receipt.effect, 'observed');
+    assert.equal(receipt.worker_id, c.id);
+    assert.deepEqual(receipt.result, { requested: true, disposition: 'settled', external_effects_stopped: 'unproven' });
+    assert.deepEqual(
+      c.host.commands.filter(h => ['clear_queue', 'abort'].includes(h.type)).map(h => h.type),
+      ['clear_queue', 'abort'],
+      "the child's pi was told to clear its queue and abort",
+    );
+    assert.equal(aborts(x.hosts.find(h => h.workerId === x.w.worker_id)!.host), 0, "the parent's own turn is untouched");
+    for (let n = 0; n < 200 && !watched.frames.some(f => f.type === 'execution.settled'); n++) await delay(10);
+    const settled = watched.frames.filter(f => f.type === 'execution.settled');
+    assert.equal(settled.length, 1, 'one execution.settled reaches the parent');
+    assert.equal(settled[0]!.type === 'execution.settled' ? settled[0]!.worker_id : undefined, c.id);
+    assert.equal(x.s.get(c.id).execution?.state, 'settled');
+    // The receipt is readable through the channel; an exact retry returns it and aborts nothing more.
+    assert.deepEqual(await client.call('receipts.get', { path: { command_id: 'interrupt-a' } }), receipt);
+    const again = await client.call('executions.interrupt', { path: { worker_id: c.id }, body: control(c.row, 'interrupt-a', c.execution_id) });
+    assert.deepEqual(again, receipt);
+    assert.equal(aborts(c.host), 1);
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test("channel: executions.interrupt refuses the parent itself, another parent's child, a stale generation or binding, and a creating grant without the method; each no_effect", { timeout: 60_000 }, async () => {
+  const x = await channelFixture();
+  try {
+    const client = parentClient(x.socket);
+    const mine = await runningChild(x, client, 'mine');
+    const parentHost = x.hosts.find(h => h.workerId === x.w.worker_id)!.host;
+    // Another parent with a running child of its own, in the same supervisor.
+    const root2 = join(x.base, 'parent2');
+    mkdirSync(join(root2, '.piw-agent'), { recursive: true });
+    mkdirSync(join(root2, '.piw-slots', 'b'), { recursive: true });
+    const spec2: Spec = { ...x.spec, environment: { ...x.spec.environment, id: 'parent2', root: root2 } };
+    const p2 = await x.s.create({ command_id: 'parent2', cwd: root2, host: 'sdk', provider: 'p', model: 'm', thinking: 'off', launch_spec: spec2 });
+    assert.equal(p2.state, 'delivered', JSON.stringify(p2));
+    const parent2 = x.s.get(p2.worker_id!);
+    assert.equal((await x.s.prompt(parent2.worker_id, { ...bind(parent2, 'parent2-run'), message: 'run' })).state, 'delivered');
+    const ready2 = x.s.get(parent2.worker_id);
+    const slot2 = join(root2, '.piw-slots', 'b');
+    const born = await x.s.create({
+      ...x.child('theirs-create', slot2),
+      parent: { worker_id: ready2.worker_id, worker_epoch: ready2.worker_epoch, session_id: ready2.session_id!, binding_revision: ready2.binding_revision, execution_id: ready2.execution!.execution_id, task_id: 'task-theirs', generation_id: 'gen' },
+      launch_spec: { ...spec2, role: 'child', grant_methods: ['children.report'], environment: { id: slot2, revision: 1, allowed_methods: ['children.report'], filesystem: 'bwrap', root: slot2 } },
+    });
+    assert.equal(born.state, 'delivered', JSON.stringify(born));
+    const theirs = x.s.get(born.worker_id!);
+    assert.equal(theirs.parent_worker_id, parent2.worker_id);
+    assert.equal((await x.s.prompt(theirs.worker_id, { ...bind(theirs, 'theirs-run'), message: 'run' })).state, 'delivered');
+    const theirsRunning = x.s.get(theirs.worker_id);
+    const theirsHost = x.hosts.find(h => h.workerId === theirs.worker_id)!.host;
+
+    const quiet = () => {
+      assert.equal(aborts(parentHost), 0, "the parent's turn was not interrupted");
+      assert.equal(aborts(mine.host), 0, "the child's turn was not interrupted");
+      assert.equal(aborts(theirsHost), 0, "the other parent's child was not interrupted");
+      assert.equal(x.s.get(mine.id).execution?.state, 'started');
+    };
+    // The parent itself: its own turn is not its to interrupt.
+    const self = x.s.get(x.w.worker_id);
+    await refused(client.call('executions.interrupt', { path: { worker_id: self.worker_id }, body: control(self, 'int-self', self.execution!.execution_id) }), 'parent_channel_requires_own_child', 'the parent itself');
+    // Another parent's child: out of scope, as for every method.
+    await refused(client.call('executions.interrupt', { path: { worker_id: theirs.worker_id }, body: control(theirsRunning, 'int-theirs', theirsRunning.execution!.execution_id) }), 'grant_scope_denied', "another parent's child");
+    // A stale binding or execution of its own child: the ordinary checks of the method.
+    await refused(client.call('executions.interrupt', { path: { worker_id: mine.id }, body: { ...control(mine.row, 'int-stale-epoch', mine.execution_id), worker_epoch: 'an-older-generation' } }), 'stale_binding', 'a stale worker epoch');
+    await refused(client.call('executions.interrupt', { path: { worker_id: mine.id }, body: control(mine.row, 'int-stale-exec', 'another-execution') }), 'stale_execution', 'a stale execution');
+    quiet();
+    for (const id of ['int-self', 'int-theirs', 'int-stale-epoch', 'int-stale-exec']) assert.equal(x.s.receipts.all.get(id), undefined, `${id}: refused before any receipt`);
+    // A retired generation: the channel's epoch is no longer the parent's (a restart of the parent, in effect).
+    const epoch = x.live.worker.worker_epoch;
+    x.live.worker.worker_epoch = 'a-newer-generation';
+    try {
+      await refused(client.call('executions.interrupt', { path: { worker_id: mine.id }, body: control(mine.row, 'int-retired', mine.execution_id) }), 'parent_channel_retired', 'a retired generation');
+    } finally {
+      x.live.worker.worker_epoch = epoch;
+    }
+    quiet();
+    // The channel grant, revoked: no interrupt either.
+    x.grants.revoke(`channel-${epoch}`);
+    await refused(client.call('executions.interrupt', { path: { worker_id: mine.id }, body: control(mine.row, 'int-revoked', mine.execution_id) }), 'grant_revoked', 'a revoked channel grant');
+    quiet();
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test("channel: a parent whose creating grant lacks executions.interrupt cannot interrupt even its own child; its other methods are unchanged", { timeout: 60_000 }, async () => {
+  const x = await channelFixture({ creator: [...CHANNEL_METHODS.filter(m => m !== 'executions.interrupt'), 'children.report', 'sessions.resolve_unknown'] });
+  try {
+    const client = parentClient(x.socket);
+    const c = await runningChild(x, client, 'a');
+    assert.equal(x.grants.read(`channel-${x.w.worker_epoch}`).methods.includes('executions.interrupt'), false, "the channel grant is within its creator's methods");
+    await refused(client.call('executions.interrupt', { path: { worker_id: c.id }, body: control(c.row, 'int-denied', c.execution_id) }), 'grant_method_denied', 'a creating grant without the method');
+    assert.equal(aborts(c.host), 0);
+    assert.equal(x.s.receipts.all.get('int-denied'), undefined);
+    assert.equal(x.s.get(c.id).execution?.state, 'started');
+    assert.equal((await client.call('workers.get', { path: { worker_id: c.id } })).worker_id, c.id, 'its other channel methods still work');
   } finally {
     await x.cleanup();
   }
