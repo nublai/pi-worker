@@ -8,6 +8,10 @@
 // to those files; any other word becomes a `--test-name-pattern`. So `npm test -- receipts` runs `receipts.test.js`
 // files and `npm run test:conformance -- 02 03` runs the tests whose names contain `02` or `03`.
 //
+// A hung test must fail by itself: unless the caller passes `--test-timeout`, every test gets PIW_TEST_TIMEOUT_MS
+// (default 120000). A test's own `{ timeout }` option wins over this default, so the long kernel and crash tests that
+// set one keep it; only a test with no timeout of its own is held to 120 s.
+//
 // `--no-todo` (this wrapper's own option): the run fails if any test result is marked todo, read from the runner's
 // own results (tools/todo-reporter.mjs), not from a list in a test file. Node exits 0 when a todo test fails, so a
 // frozen conformance row marked todo would otherwise pass silently (plan section 5.1: from P1-11 none may be todo).
@@ -20,6 +24,9 @@ import { fileURLToPath } from 'node:url';
 const args = process.argv.slice(2);
 const noTodo = args.includes('--no-todo');
 const options = args.filter(a => a.startsWith('-') && a !== '--no-todo');
+if (!options.some(a => a === '--test-timeout' || a.startsWith('--test-timeout='))) {
+  options.push(`--test-timeout=${process.env.PIW_TEST_TIMEOUT_MS ?? 120000}`);
+}
 const positional = args.filter(a => !a.startsWith('-'));
 const isGlob = a => a.includes('*') || a.includes('/') || a.endsWith('.js');
 const globs = positional.filter(isGlob);
