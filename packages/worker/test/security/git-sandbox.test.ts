@@ -3,7 +3,10 @@
  * mount cases and m2, plus new cases: config and pointer refusals, a packed or reflog sibling in the branch namespace,
  * Git mounts overlapping a control path, and the pin a create's validation accepted reaching the spawn. PR #30 fix
  * round: an ordinary checkout root and a repository inside (or around) the root refuse, config is judged by Git's own
- * parser, and a kernel matrix shows what a linked child cannot move. Cases named `kernel` run real bwrap and Git:
+ * parser, and a kernel matrix shows what a linked child cannot move. Common-dir fix: the common dir is its own tmpfs,
+ * remounted read-only, and the kernel matrix runs with the repository under TMPDIR and under `/tmp` itself (the
+ * sandbox's private writable tmpfs), runs every probe and compares the host common dir byte for byte. Cases named
+ * `kernel` run real bwrap and Git:
  * `harness/ci/kernel.sh -- git` (PIW_TEST_KERNEL=1); elsewhere they skip.
  *
  * Every Git command and every sandbox environment here is synthetic (never process.env), so no credential can reach an
@@ -12,8 +15,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
-import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refusal } from '../../src/b2/errors.js';
 import { productionHosts } from '../../src/daemon.js';
@@ -61,9 +65,18 @@ function initRepo(git: ReturnType<typeof gitIn>, repo: string): void {
   git(repo, 'commit', '-qm', 'base');
 }
 
+/**
+ * A private directory below `/tmp` itself, whatever TMPDIR says: in the sandbox `/tmp` is a private writable tmpfs, so
+ * a repository there is where unbound common-dir paths used to be creatable (CI's TMPDIR is elsewhere).
+ */
+function slashTmp(): { dir: string; cleanup: () => void } {
+  const dir = mkdtempSync('/tmp/piw-test-');
+  chmodSync(dir, 0o700);
+  return { dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
 /** A0 security-fix `linkedRepo`: a repository and a linked worktree on the private branch `a0-child/task`. */
-function linkedRepo() {
-  const tmp = privateTmp();
+function linkedRepo(tmp = privateTmp()) {
   const base = realpathSync(tmp.dir);
   const repo = join(base, 'repo');
   const wt = join(base, 'wt');
@@ -96,6 +109,29 @@ const fdMounts = (args: string[]) => {
   for (let i = 0; i < args.length; i++) if (args[i] === '--ro-bind-fd' || args[i] === '--bind-fd') out.push(`${args[i] === '--ro-bind-fd' ? 'ro' : 'rw'} ${args[i + 2]}`);
   return out;
 };
+
+/**
+ * Every path below `dir` (relative) with its type, mode and content hash or link target; `skip` prunes a path and
+ * everything below it.
+ */
+function snapshot(dir: string, skip: (rel: string) => boolean): Record<string, string> {
+  const out: Record<string, string> = {};
+  const walk = (rel: string) => {
+    for (const name of readdirSync(join(dir, rel)).sort()) {
+      const path = rel ? `${rel}/${name}` : name;
+      if (skip(path)) continue;
+      const st = lstatSync(join(dir, path));
+      const mode = (st.mode & 0o7777).toString(8);
+      if (st.isSymbolicLink()) out[path] = `link ${readlinkSync(join(dir, path))}`;
+      else if (st.isDirectory()) {
+        out[path] = `dir ${mode}`;
+        walk(path);
+      } else out[path] = `file ${mode} ${createHash('sha256').update(readFileSync(join(dir, path))).digest('hex')}`;
+    }
+  };
+  walk('');
+  return out;
+}
 
 const spawnLaunch = (launch: SandboxLaunch) =>
   new Promise<{ status: number | null; out: string; err: string }>(resolve => {
@@ -285,46 +321,93 @@ test('git: an ordinary checkout root refuses (409 no_effect) in validation and a
   }
 });
 
-test("kernel: a linked worktree child cannot move another branch, a symbolic or packed ref, a reflog, HEAD or another worktree's admin dir", { skip, timeout: 60_000 }, async () => {
+// The common-dir fix: run every probe (none stops the script) with the repository under TMPDIR and under `/tmp`, assert
+// the in-sandbox refusals by their fixed markers, then the host common dir byte for byte outside the writable set.
+for (const [where, tmp] of [
+  ['TMPDIR', privateTmp],
+  ['/tmp', slashTmp],
+] as const) {
+  test(`kernel: a linked worktree child cannot move another branch, a symbolic or packed ref, a reflog, HEAD or another worktree's admin dir, nor create a common-dir path (repository under ${where})`, { skip, timeout: 60_000 }, async () => {
+    const r = linkedRepo(tmp());
+    try {
+      const c = join(r.repo, '.git');
+      r.git(r.repo, 'branch', 'unrelated');
+      const other = join(r.base, 'other');
+      r.git(r.repo, 'worktree', 'add', '-qb', 'b0-other/task', other, 'HEAD');
+      const unrelated = r.git(r.repo, 'rev-parse', 'unrelated');
+      const head = readFileSync(join(r.admin, 'HEAD'), 'utf8');
+      const otherCommondir = readFileSync(join(c, 'worktrees', 'other', 'commondir'), 'utf8');
+      // Each probe prints only a fixed marker and the script goes on; a symbolic ref inside the namespace may be made,
+      // but updating through it must not reach the branch it names.
+      const script = `set -u
+        wrote() { echo "WROTE $1"; }
+        { echo z > z && git add z && git -c user.name=A -c user.email=a@example.invalid commit -qm child; } 2>/dev/null || echo COMMIT-FAILED
+        git update-ref refs/heads/unrelated HEAD 2>/dev/null && wrote unrelated-ref
+        ( echo planted > ${c}/refs/heads/unrelated ) 2>/dev/null && wrote unrelated-ref-file
+        git symbolic-ref refs/heads/a0-child/link refs/heads/unrelated 2>/dev/null
+        git update-ref refs/heads/a0-child/link HEAD 2>/dev/null && wrote symbolic-ref
+        ( printf '%s refs/heads/injected\\n' "$(git rev-parse HEAD)" >> ${c}/packed-refs ) 2>/dev/null && wrote packed-refs
+        git pack-refs --all 2>/dev/null && wrote pack-refs
+        git for-each-ref --format='%(refname)' 2>/dev/null | grep -qx refs/heads/injected && wrote injected-ref-visible
+        ( echo planted >> ${c}/logs/refs/heads/unrelated ) 2>/dev/null && wrote unrelated-reflog
+        ( echo planted >> ${c}/logs/HEAD ) 2>/dev/null && wrote common-head-reflog
+        git symbolic-ref HEAD refs/heads/unrelated 2>/dev/null && wrote head-retarget
+        ( echo 'ref: refs/heads/unrelated' > ${r.admin}/HEAD ) 2>/dev/null && wrote head-file
+        ( echo ../../planted > ${c}/worktrees/other/commondir ) 2>/dev/null && wrote other-commondir
+        mkdir ${c}/worktrees/planted 2>/dev/null && wrote new-admin-dir
+        ( mkdir -p ${c}/hooks && echo planted > ${c}/hooks/pre-commit ) 2>/dev/null && wrote common-hooks
+        ( echo planted > ${c}/commondir ) 2>/dev/null && wrote common-commondir
+        ( echo planted > ${c}/shallow ) 2>/dev/null && wrote shallow
+        ( echo 'ref: refs/heads/unrelated' > ${c}/HEAD ) 2>/dev/null && wrote common-head
+        ( echo planted > ${c}/index ) 2>/dev/null && wrote common-index
+        ( echo planted > ${c}/description ) 2>/dev/null && wrote description
+        ( echo '* filter=planted' > ${c}/info/attributes ) 2>/dev/null && wrote info-attributes
+        echo DONE`;
+      const launch = launchIn(r.wt, '/bin/sh', ['-c', script], { bwrap: locateBwrap() });
+      // What the profile makes writable on purpose: the shared objects (not alternates), the worktree's admin dir (not
+      // its pointers or symbolic HEAD) and its branch namespace with its reflogs. The launch made every directory it
+      // binds, so the snapshot is taken after it.
+      const writable = (rel: string) =>
+        (rel.startsWith('objects/') && rel !== 'objects/info' && !rel.startsWith('objects/info/')) ||
+        (rel.startsWith('worktrees/wt/') && !['worktrees/wt/HEAD', 'worktrees/wt/gitdir', 'worktrees/wt/commondir'].includes(rel)) ||
+        rel.startsWith('refs/heads/a0-child/') ||
+        rel.startsWith('logs/refs/heads/a0-child/');
+      const before = snapshot(c, writable);
+      const result = await spawnLaunch(launch);
+      assert.equal(result.status, 0, result.err);
+      // In the sandbox: every probe refused (the list names each one that was not), and the commit worked.
+      assert.deepEqual(result.out.trim().split('\n'), ['DONE']);
+      // On the host: the common dir outside the writable set is byte for byte what it was.
+      assert.deepEqual(snapshot(c, writable), before);
+      assert.notEqual(r.git(r.wt, 'rev-parse', 'HEAD'), unrelated, 'the child committed on its own branch');
+      assert.equal(r.git(r.repo, 'rev-parse', 'unrelated'), unrelated);
+      assert.equal(readFileSync(join(r.admin, 'HEAD'), 'utf8'), head);
+      assert.equal(readFileSync(join(c, 'worktrees', 'other', 'commondir'), 'utf8'), otherCommondir);
+      // The paths the host never had stay absent (the main checkout's own `index` and `description` are in the snapshot).
+      for (const name of ['worktrees/planted', 'hooks/pre-commit', 'commondir', 'shallow', 'packed-refs', 'info/attributes']) assert.equal(existsSync(join(c, name)), false, name);
+      assert.ok(!r.git(r.repo, 'for-each-ref', '--format=%(refname)').split('\n').includes('refs/heads/injected'));
+    } finally {
+      r.cleanup();
+    }
+  });
+}
+
+test('git: the common dir is its own tmpfs under its binds, remounted read-only after them, so no unbound path of it is writable wherever it lies', () => {
   const r = linkedRepo();
   try {
     const c = join(r.repo, '.git');
-    r.git(r.repo, 'branch', 'unrelated');
-    const other = join(r.base, 'other');
-    r.git(r.repo, 'worktree', 'add', '-qb', 'b0-other/task', other, 'HEAD');
-    const unrelated = r.git(r.repo, 'rev-parse', 'unrelated');
-    const head = readFileSync(join(r.admin, 'HEAD'), 'utf8');
-    const otherCommondir = readFileSync(join(c, 'worktrees', 'other', 'commondir'), 'utf8');
-    // Each probe prints only a fixed marker; a symbolic ref inside the namespace may be made, but updating through it
-    // must not reach the branch it names.
-    const script = `set -u
-      wrote() { echo "WROTE $1"; exit 71; }
-      echo z > z && git add z && git -c user.name=A -c user.email=a@example.invalid commit -qm child || exit 70
-      git update-ref refs/heads/unrelated HEAD 2>/dev/null && wrote unrelated-ref
-      ( echo planted > ${c}/refs/heads/unrelated ) 2>/dev/null && wrote unrelated-ref-file
-      git symbolic-ref refs/heads/a0-child/link refs/heads/unrelated 2>/dev/null
-      git update-ref refs/heads/a0-child/link HEAD 2>/dev/null && wrote symbolic-ref
-      ( printf '%s refs/heads/injected\\n' "$(git rev-parse HEAD)" >> ${c}/packed-refs ) 2>/dev/null && wrote packed-refs
-      git pack-refs --all 2>/dev/null && wrote pack-refs
-      ( echo planted >> ${c}/logs/refs/heads/unrelated ) 2>/dev/null && wrote unrelated-reflog
-      ( echo planted >> ${c}/logs/HEAD ) 2>/dev/null && wrote common-head-reflog
-      git symbolic-ref HEAD refs/heads/unrelated 2>/dev/null && wrote head-retarget
-      ( echo 'ref: refs/heads/unrelated' > ${r.admin}/HEAD ) 2>/dev/null && wrote head-file
-      ( echo ../../planted > ${c}/worktrees/other/commondir ) 2>/dev/null && wrote other-commondir
-      mkdir ${c}/worktrees/planted 2>/dev/null && wrote new-admin-dir
-      ( mkdir -p ${c}/hooks && echo planted > ${c}/hooks/pre-commit ) 2>/dev/null && wrote common-hooks
-      ( echo planted > ${c}/commondir ) 2>/dev/null && wrote common-commondir
-      ( echo planted > ${c}/shallow ) 2>/dev/null && wrote shallow
-      echo OK`;
-    const result = await spawnLaunch(launchIn(r.wt, '/bin/sh', ['-c', script], { bwrap: locateBwrap() }));
-    assert.equal(result.status, 0, result.out);
-    assert.equal(result.out.trim(), 'OK');
-    assert.notEqual(r.git(r.wt, 'rev-parse', 'HEAD'), unrelated, 'the child committed on its own branch');
-    assert.equal(r.git(r.repo, 'rev-parse', 'unrelated'), unrelated);
-    assert.equal(readFileSync(join(r.admin, 'HEAD'), 'utf8'), head);
-    assert.equal(readFileSync(join(c, 'worktrees', 'other', 'commondir'), 'utf8'), otherCommondir);
-    for (const name of ['worktrees/planted', 'hooks/pre-commit', 'commondir', 'shallow']) assert.equal(existsSync(join(c, name)), false, name);
-    assert.ok(!r.git(r.repo, 'for-each-ref', '--format=%(refname)').split('\n').includes('refs/heads/injected'));
+    for (const detach of [false, true]) {
+      if (detach) writeFileSync(join(r.admin, 'HEAD'), `${r.git(r.wt, 'rev-parse', 'HEAD')}\n`);
+      const launch = launchIn(r.wt, '/bin/true', []);
+      launch.close();
+      const body = launch.args.slice(0, launch.args.indexOf('--'));
+      const at = (flag: string) => body.flatMap((a, i) => (a === flag && body[i + 1] === c ? [i] : []));
+      const binds = body.flatMap((a, i) => (/^--(ro-)?bind(-fd)?$/.test(a) && body[i + 2]!.startsWith(`${c}/`) ? [i] : []));
+      const [tmpfs] = at('--tmpfs');
+      const [remount] = at('--remount-ro');
+      assert.deepEqual([at('--tmpfs').length, at('--remount-ro').length], [1, 1], `one tmpfs and one read-only remount of the common dir (detached=${detach})`);
+      assert.ok(binds.length > 0 && binds.every(i => tmpfs! < i && i < remount!), `every common-dir bind lies between its tmpfs and its remount (detached=${detach})`);
+    }
   } finally {
     r.cleanup();
   }

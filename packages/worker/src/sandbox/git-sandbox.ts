@@ -7,7 +7,8 @@
  * the worktree's `.git` gitfile, the admin dir's `gitdir`, `commondir` (and `config`, `config.worktree`, `hooks` when
  * present) and a symbolic HEAD, plus the common dir's `config`, `packed-refs`, `shallow`, `info/exclude`, `refs`,
  * `logs` and `objects/info` (alternates). The rest of the common dir (`hooks`, `worktrees`, other worktrees' admin
- * dirs) is not mounted at all. Writable: the admin dir (index, logs, locks, and HEAD when it is detached), the shared
+ * dirs) is not mounted at all: the launch puts the common dir on its own tmpfs under these binds and remounts it
+ * read-only (sandbox.ts), so an absent path there cannot be created inside, wherever the repository lies. Writable: the admin dir (index, logs, locks, and HEAD when it is detached), the shared
  * object store, and, with a symbolic HEAD, one private branch namespace `refs/heads/<ns>/` with its reflogs, which must
  * hold only the worktree's own branch (loose or packed). A detached HEAD gets no branch namespace.
  *
