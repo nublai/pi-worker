@@ -29,6 +29,7 @@ import { ReceiptStore } from '../../src/receipts/receipts.js';
 import { inside, locateBwrap, readConfined, sandboxEnv, sandboxLaunch, sandboxRoot, sandboxSessionDir, type SandboxLaunch } from '../../src/sandbox/sandbox.js';
 import type { Create, HostLaunch } from '../../src/supervisor/state.js';
 import { Supervisor } from '../../src/supervisor/supervisor.js';
+import { Client } from '@nublai/pi-worker-client';
 import { ownerGrant, privateTmp, repoRoot, socketCall } from '../helpers.js';
 import { bind, fixture, Host } from '../supervisor-fixture.js';
 
@@ -378,6 +379,68 @@ test('sandbox: a sandboxed child launches in its root (factory told, session dir
     f.cleanup();
     tree.cleanup();
   }
+});
+
+/**
+ * A sandboxed child `root` (cwd `tree/root`) of an unsandboxed parent `tree/parent`, on a fixture supervisor served
+ * over a private B2 socket: `read` is files.read over the socket, `client` the TS client on it.
+ */
+async function withSandboxedB2(body: (s: { tree: string; child: ReturnType<Supervisor['get']>; parent: ReturnType<Supervisor['get']>; read: (id: string, body: unknown) => Promise<{ status: number; body: unknown }>; client: Client }) => Promise<void>) {
+  const f = fixture({
+    launch: launch => {
+      if (!launch.sandbox) return undefined;
+      const sid = `sandboxed-${launch.workerId}`;
+      const file = join(launch.sessionDir, `${sid}.jsonl`);
+      writeFileSync(file, `${JSON.stringify({ type: 'session', id: sid })}\n`);
+      return new Host(launch.sessionDir, sid, file);
+    },
+  });
+  const tmp = privateTmp();
+  try {
+    const tree = realpathSync(tmp.dir);
+    const family = await sandboxedFamily(f, tree, cwd => ({ environment: { id: 'child', revision: 1, allowed_methods: ['children.report'], filesystem: 'bwrap', root: cwd } }));
+    const made = await f.supervisor.create(family.child('root'));
+    assert.equal(made.state, 'delivered', JSON.stringify(made));
+    const child = f.supervisor.get(made.worker_id!);
+    const owner = ownerGrant(f.dir);
+    const server = createB2Server(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle);
+    const socket = join(f.dir, 'b2.sock');
+    await listenPrivate(server, socket);
+    try {
+      const read = (id: string, req: unknown) => socketCall(socket, 'POST', `/b2/workers/${id}/files/read`, req, owner.headers);
+      await body({ tree, child, parent: f.supervisor.get(family.parent.worker_id), read, client: new Client({ socketPath: socket, grantFile: owner.file }) });
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>(r => server.close(() => r()));
+    }
+  } finally {
+    f.cleanup();
+    tmp.cleanup();
+  }
+}
+
+test('sandbox: files.read keeps the recorded root as its boundary: a root replaced by a symlink, or removed, is refused typed and never followed', async () => {
+  await withSandboxedB2(async ({ tree, child, read }) => {
+    const root = child.cwd;
+    const outside = join(tree, 'outside');
+    mkdirSync(outside);
+    writeFileSync(join(root, 'sentinel.txt'), 'INSIDE');
+    writeFileSync(join(outside, 'sentinel.txt'), 'OUTSIDE');
+    const refused = (error: string) => ({ status: 409, body: { error, effect: 'no_effect' } });
+    assert.deepEqual(await read(child.worker_id, { path: join(root, 'sentinel.txt'), roots: [root] }), { status: 200, body: { path: join(root, 'sentinel.txt'), content: 'INSIDE', bytes: 6, evidence: 'pinned_file_read' } }, 'non-vacuous: the root reads before the swap');
+    // The root is renamed away and a symlink to its sibling takes its place.
+    renameSync(root, `${root}-saved`);
+    symlinkSync(outside, root);
+    try {
+      assert.deepEqual(await read(child.worker_id, { path: join(root, 'sentinel.txt'), roots: [root] }), refused('file_symlink_or_unavailable'), 'a request through the replaced root never follows its link');
+      assert.deepEqual(await read(child.worker_id, { path: join(outside, 'sentinel.txt'), roots: [outside] }), refused('file_outside_explicit_roots'), 'the link target never becomes the boundary');
+      rmSync(root);
+      assert.deepEqual(await read(child.worker_id, { path: join(root, 'sentinel.txt'), roots: [root] }), refused('file_symlink_or_unavailable'), 'a removed root is the typed refusal, not a 500');
+    } finally {
+      rmSync(root, { force: true });
+      renameSync(`${root}-saved`, root);
+    }
+  });
 });
 
 test('sandbox: a sandboxed root worker waits for the parent channel; a child root overlapping the state is refused; sessions never cross a confinement', async () => {
