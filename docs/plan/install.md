@@ -173,10 +173,11 @@ canonical (section 3 step 4), the state or socket directory is `/`, HOME or hold
 a real directory (the socket: a socket) owned by the user: a symlink is never followed or removed in its place.
 The state directory, when it exists, is removed whole only when it is pi-worker's: it holds pi-worker's marker (a
 `journal.jsonl` whose start record names an installation id, or `grants/<id>.json` for this install's doctor grant)
-and, at its top, nothing but what the daemon and `grant` write (`journal.jsonl`, `journal.jsonl.compact`,
-`journal.lock` as files; `grants/`, `sessions/`, `attachments/` as directories). Otherwise, an empty directory
-included, it refuses `pi_worker_unsafe_path` with `which: state`; neither the path nor its owner counts as evidence.
-A state left by a partial install with neither marker is the owner's to remove by hand.
+and, at its top, nothing but what the daemon and `grant` write: `journal.jsonl`, `journal.jsonl.compact`,
+`journal.lock` and `journal.lock-journal` (the lock's SQLite journal while the supervisor runs) as files, `grants/`,
+`sessions/` and `attachments/` as directories. Otherwise, an empty directory included, it refuses
+`pi_worker_unsafe_path` with `which: state`; neither the path nor its owner counts as evidence. A state left by a
+partial install with neither marker is the owner's to remove by hand.
 Prints `{"uninstalled": true, "purged": bool}`. Running it with nothing installed succeeds.
 
 ## 7. What Shep's installer runs after install

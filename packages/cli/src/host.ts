@@ -606,6 +606,8 @@ const STATE_ENTRIES: Readonly<Record<string, Kind>> = {
   'journal.jsonl': 'file',
   'journal.jsonl.compact': 'file',
   'journal.lock': 'file',
+  // The lock's SQLite rollback journal (src/lock.ts), present while a supervisor holds the lock.
+  'journal.lock-journal': 'file',
   grants: 'dir',
   sessions: 'dir',
   attachments: 'dir',

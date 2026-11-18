@@ -704,17 +704,30 @@ test('uninstall --purge refuses a state directory pi-worker did not make (no mar
   }
 });
 
-test('uninstall --purge removes a state directory that holds a pi-worker journal, with nothing installed', async () => {
-  const h = await host(({ dir }) => ({ PIW_STATE_DIR: join(dir, 'state') }));
-  try {
-    mkdirSync(h.state, { mode: 0o700 });
-    openState(h.state).close();
-    assert.ok(existsSync(join(h.state, 'journal.jsonl')), 'the supervisor wrote its journal');
-    const purge = await h.cli('uninstall', '--purge');
-    assert.deepEqual([purge.code, purge.json], [0, { uninstalled: true, purged: true }], 'purged');
-    assert.equal(lstatExists(h.state), false, 'the state directory is removed');
-  } finally {
-    await h.close();
+test('uninstall --purge removes a state directory that holds a pi-worker journal, with nothing installed, or while a supervisor holds it', async () => {
+  for (const live of [false, true]) {
+    const h = await host(({ dir }) => ({ PIW_STATE_DIR: join(dir, 'state') }));
+    // Purge is planned while the unit still runs: the supervisor holds its lock (and the lock's SQLite journal).
+    let state: { close(): void } | undefined;
+    try {
+      mkdirSync(h.state, { mode: 0o700 });
+      state = openState(h.state);
+      if (!live) {
+        state.close();
+        state = undefined;
+      }
+      assert.ok(existsSync(join(h.state, 'journal.jsonl')), 'the supervisor wrote its journal');
+      const purge = await h.cli('uninstall', '--purge');
+      assert.deepEqual([purge.code, purge.json], [0, { uninstalled: true, purged: true }], `purged (supervisor ${live ? 'running' : 'stopped'})`);
+      assert.equal(lstatExists(h.state), false, 'the state directory is removed');
+    } finally {
+      try {
+        state?.close();
+      } catch {
+        // Its files are gone; the lock goes with the descriptor.
+      }
+      await h.close();
+    }
   }
 });
 
