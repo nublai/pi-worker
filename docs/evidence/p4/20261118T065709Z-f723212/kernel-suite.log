@@ -1,0 +1,142 @@
+kernel: platform: kernel 6.12.115; bubblewrap 0.9.0; systemd 255 (255.4-1ubuntu8.18)
+kernel: platform: user manager controllers: cpu memory pids
+kernel: platform: kernel.apparmor_restrict_unprivileged_userns=absent
+kernel: unit: piw-kernel-1794985789-26803 (Delegate=yes)
+{"containment_create_fsync_cuts":11,"containment_create_effect_cuts":1}
+{"containment_fsync_cuts":50,"containment_effect_cuts":7}
+✔ containment crash: a contained initial create reserves its domain before every spawn and survives every fsync and effect cut (1661.363799ms)
+✔ containment crash: SIGKILL after every recovery, keep, relaunch, sandboxed child, report and stop fsync and native effect (17271.576548ms)
+✔ cleanup_pending is fsynced before kill; failed empty proof blocks resume and replacement (57.552814ms)
+✔ a failed journal still permits fault termination but never records cleanup as confirmed (15.956139ms)
+✔ containment: an inventory probe runs in its own domain, recorded before it is spawned; only the domain removal, recorded, ends it (9.801861ms)
+✔ containment: an inventory probe whose cleanup is unproven, or cut by a supervisor crash, stays recorded; recovery cleans it before listening (13.842281ms)
+✔ containment: inventory probes are admitted supervisor-wide up to inventory_probes_max; of 64 simultaneous cwd queries from an inventory-only grant 4 start and the rest are refused inventory_probes_busy before anything is recorded or spawned (GPT PR #21 delta 4) (82.746693ms)
+✔ containment: compaction keeps every inventory probe record whose cleanup is not confirmed, and drops confirmed ones (0.775786ms)
+✔ containment: every pi process the production daemon starts, a worker or an inventory probe, runs through its domain join prefix (17.396135ms)
+✔ containment: a domain is never reused, and a join that cannot enter its domain runs nothing (exit 125) (3.133498ms)
+✔ containment: clean confirms only a removed domain of its own delegation (409.350311ms)
+✔ containment: the daemon refuses to start without a cgroup delegation and never listens (100.98968ms)
+✔ kernel: real leader crash kills a detached grandchild without stop or restart (2260.475983ms)
+✔ kernel: real cgroup stop kills setsid/nohup grandchild and retires the pre-exec join target (2244.361146ms)
+✔ kernel: real cgroup restart kills setsid/nohup grandchild and retires the pre-exec join target (2246.533986ms)
+✔ kernel: a supervisor stop kills the worker domain with its detached grandchild; the domain is removed and recorded (2272.886363ms)
+✔ kernel: an inventory probe runs in a real domain; its setsid grandchild dies when the probe ends (2247.356788ms)
+✔ kernel: a supervisor crash mid-probe leaves the probe recorded; recovery kills its setsid grandchild and removes the domain (2259.342955ms)
+✔ kernel: without PIW_CGROUP_ROOT the daemon keeps an installation-scoped delegated user service (112.004633ms)
+✔ linked-worktree sandbox refuses flat or shared branch write namespaces before spawn (89.107203ms)
+✔ kernel: bwrap linked worktree status/add/commit writes only its branch namespace and shared objects (59.091652ms)
+✔ M1: sandbox mounts make Git pointers, HEAD, config, hooks and alternates read-only; sources are descriptors (22.49725ms)
+✔ m2: relaunch refuses a retargeted HEAD instead of mounting a sibling namespace (25.108922ms)
+✔ kernel M1: child cannot rewrite .git, gitdir, commondir, HEAD or alternates; commit still works (43.386643ms)
+✔ git: an ordinary checkout root refuses (409 no_effect) in validation and at spawn, whatever its refs, HEAD or worktrees (37.02835ms)
+✖ kernel: a linked worktree child cannot move another branch, a symbolic or packed ref, a reflog, HEAD or another worktree's admin dir (47.591048ms)
+✔ git: config is judged by Git's own parser: include, includeIf or worktreeConfig refuse in LF, CRLF and inline-header forms; unparseable config refuses (170.245414ms)
+✔ git: a linked worktree whose repository lies inside its root, or contains it, refuses (409 no_effect) before any mount (31.616257ms)
+✔ git: a gitfile copied into another root, a gitfile naming no worktree admin dir, a linked .git and a non-object detached HEAD refuse (34.087879ms)
+✔ git: a Git mount containing or inside the state or a control path is refused before any record (33.415517ms)
+✔ git: a create refuses bad Git metadata before any record; its spawn mounts only the pin its validation accepted (123.990189ms)
+✔ kernel: a delegated cgroup v2 domain is created, gets memory and pids, is killed with a setsid descendant, and removed (53.649635ms)
+ℹ cgroup: /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/piw-kernel-1794985789-26803.service/piw-smoke-28261
+✔ kernel: bwrap --unshare-user runs a command in a new user namespace with a cleared environment (12.704369ms)
+ℹ bubblewrap 0.9.0
+✔ kernel: relaunch after a stop starts the new epoch only once the old epoch's setsid grandchild is dead and its domain removed and recorded (2301.788538ms)
+✔ kernel: relaunch after a leader-crash starts the new epoch only once the old epoch's setsid grandchild is dead and its domain removed and recorded (2283.826941ms)
+✔ kernel: relaunch after a supervisor-crash starts the new epoch only once the old epoch's setsid grandchild is dead and its domain removed and recorded (2284.340625ms)
+✔ files.read pins roots, refuses hidden/traversal/symlink paths, non-UTF8, sockets, and oversize files (6.056294ms)
+✔ sandbox history and session directory provisioning cannot follow outside symlinks (2.437572ms)
+✔ sandbox launch refuses mismatched roots, parent state exposure, non-child and external resources (10.84464ms)
+✔ sandbox refuses user runtime control paths (equal) (4.898298ms)
+✔ sandbox refuses user runtime control paths (ancestor) (4.244704ms)
+✔ sandbox refuses user runtime control paths (descendant) (4.765631ms)
+✔ sandbox refuses user runtime control paths (bus) (5.513806ms)
+✔ sandbox refuses user runtime control paths (bus-ancestor) (4.837567ms)
+✔ sandbox refuses user runtime control paths (symlink) (6.219848ms)
+✔ sandbox refuses default user runtime, private kernel mounts and nested cgroup/socket roots (5.651762ms)
+✔ sandbox host uses environment allowlist and a private PID namespace (22.518063ms)
+✔ sandboxed parent cannot create an unconfined child (22.717258ms)
+✔ sandbox: a sandboxed child launches in its root (factory told, session dir inside it, history pinned there); files.read reads it (95.524044ms)
+✔ sandbox: files.read keeps the recorded root as its boundary: a root replaced by a symlink, or removed, is refused typed and never followed (47.890237ms)
+✔ sandbox: a 1 MiB file of worst-case JSON escaping reaches the TS client whole (the advertised limit fits the client response limit) (149.359151ms)
+✔ sandbox: files.read answers each of its wire fixtures from a real sandboxed root, and every reachable documented refusal has one (60.557562ms)
+✔ sandbox: a sandboxed root worker waits for the parent channel; a child root overlapping the state is refused; sessions never cross a confinement (55.084508ms)
+✔ sandbox: the production host runs bwrap inside the join prefix, hands it the mount descriptors from FD 4 and keeps none open (13.167411ms)
+✔ sandbox: compaction keeps a sandboxed session’s root in the resume catalog, so its reads stay pinned (0.832831ms)
+✔ sandbox: the daemon refuses to start without a bwrap that runs, and never listens (299.312916ms)
+✔ bwrap profile: --die-with-parent, --clearenv allowlist, credential links refuse (2.747794ms)
+✔ kernel B1: bwrap binds the exact opened root even if the path is swapped before spawn; no mount fd reaches the sandbox (14.484604ms)
+✔ kernel: the root is the only writable host tree; the sandbox’s own / is read-only, /tmp writable; PWD names the root (10.489419ms)
+✔ kernel: --die-with-parent kills the sandbox when its spawning process dies (127.498217ms)
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+✔ kernel: bwrap SDK child cannot read outside sentinel/socket/grants; inherited FD delivers its report (1344.357637ms)
+✔ D1: a real-size profile (20k+ entries, node_modules shape) stages small and binds its dependency tree read-only by descriptor (870.773679ms)
+✔ D1: the copied part keeps its entry budget; a refusal after dispatch removes the partial copy and is outcome_unknown (1334.161822ms)
+✔ D2+D3: a staging failure after dispatch is cleaned and reported outcome_unknown (parent fenced); the child row ends failed and frees its root (81.536251ms)
+✔ D2: an unverified staging cleanup is outcome_unknown and fences the parent (52.867547ms)
+✔ D2: a parent that renames the partial .a0-agent aside before cleanup cannot get rejected/no_effect (44.426257ms)
+✔ D2: after the dispatch record a plain Refusal is outcome_unknown; only ProvenNoEffect is rejected/no_effect (15.038311ms)
+✔ B2: refused launches stage nothing; accepted staging never copies a raced link target (1175.569725ms)
+✔ staging: a link in the profile is recreated verbatim, never followed; a linked node_modules is a link, never a bind (42.420609ms)
+✔ staging: the copy refuses past its depth, byte and dependency-bind limits and on a FIFO; the production limits are A0’s (17.43914ms)
+✔ staging: the cleanup removes the staged tree and unlinks a link in it without following it (1.353447ms)
+✔ staging: a create refuses before any record when the child root already holds .piw-agent, overlaps the parent profile, or the profile is a link; with no parent profile nothing is staged (34.34931ms)
+✔ staging: a profile that vanished or became a link after validation stages nothing and is rejected no_effect after dispatch; the row ends failed (58.899388ms)
+✔ staging: nothing staged is still outcome_unknown (parent fenced) while the child’s domain is not observed removed (33.008151ms)
+✔ staging: the sandbox binds each dependency read-only at its real mount point, and refuses a mount point that is a link (1.194751ms)
+✔ staging: the production host hands bwrap each dependency descriptor for its read-only bind (26.455737ms)
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+{"event":"invalid_frame","type":"worker.updated","reason":"event worker.updated does not match its schema"}
+✔ kernel: a sandboxed child reads its parent’s staged profile; the dependency tree loads read-only at its own profile path and the host mount point stays empty (1311.43484ms)
+✔ installation: a new state records a random installation id in every start record; a moved state keeps it, and a new state at the same path is another installation whose sweep never selects the live one (30.229812ms)
+✔ installation: after its state directory moves, recovery still kills the domain the journal records (82.160664ms)
+✔ installation: a recorded domain this cleanup would not accept fails startup before anything is swept or recorded; one of a previous boot does not (38.344976ms)
+✔ installation: the installation lock is the abstract Unix socket \0pi-worker-installation/<id>, named from the id whatever XDG_RUNTIME_DIR says; a second hold of the id is refused installation_in_use, another id is not; any other bind error refuses installation_lock_unavailable (5.787795ms)
+✔ installation: a daemon on a copy of a running daemon's state is refused installation_in_use and never listens, after the running daemon garbage-collects, with another XDG_RUNTIME_DIR and socket directory, and after every file in the running daemon's directories is unlinked; it starts once the other is SIGKILLed or stops (570.360295ms)
+✔ kernel: a daemon on a copy of a running daemon's state is refused before its sweep, after the running daemon garbage-collects, with another XDG_RUNTIME_DIR, and after the lock files are unlinked: the running daemon's domain keeps running until the holder is SIGKILLed (478.729767ms)
+✔ sweep: startup sweeps only the unknown domains of its own installation in its own delegation (4.269685ms)
+✔ sweep: recovery awaits the startup sweep; a sweep failure fails it before anything is recovered or recorded (49.934201ms)
+✔ sweep: a recorded domain recovery cannot prove gone leaves its worker cleanup_pending and startup proceeds; an unrecorded one fails startup (241.639612ms)
+✔ kernel: real startup sweeps orphaned domains, with a setsid grandchild, but never another installation service (2410.036496ms)
+✔ kernel: in an operator-shared delegation the daemon sweeps its own installation's orphan, with a setsid grandchild, before it listens; another installation's domain and the operator's cgroups are untouched (2493.858868ms)
+✔ kernel: a sweep that cannot prove an unrecorded domain gone fails startup: the daemon exits refused orphan_cleanup_unproven and never listens (5140.598514ms)
+ℹ tests 89
+ℹ suites 0
+ℹ pass 88
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 140329.398799
+
+✖ failing tests:
+
+test at packages/worker/dist/test/security/git-sandbox.test.js:274:1
+✖ kernel: a linked worktree child cannot move another branch, a symbolic or packed ref, a reflog, HEAD or another worktree's admin dir (47.591048ms)
+  AssertionError [ERR_ASSERTION]: WROTE packed-refs
+  
+  
+  71 !== 0
+  
+      at TestContext.<anonymous> (file:///home/exedev/piw/packages/worker/dist/test/security/git-sandbox.test.js:306:16)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 71,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+kernel: FAIL: kernel suite exited 1
