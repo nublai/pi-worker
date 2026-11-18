@@ -617,6 +617,23 @@ worker's `no_effect` only from an `Error` body that passes its schema; any other
 (`refusal_not_b2_error`) and keeps nothing. An invalid frame ends the watch with `ResyncRequired('invalid_frame')`
 before the callback, so it never enables controls. A failure names the check and the schema path only, never a
 value from the reply. Explicitly open objects (`Receipt.result`, `StopResult`, `Worker.resources`) stay open.
+
+**P3-2 as built (write classification and receipt reconciliation, suite C2).** The client sends a mutation once and
+classifies its failure: nothing written before connect (a missing or refused socket, an unreadable grant, a body
+that cannot be serialized) is `before_write`/`no_effect`; once the write is attempted, a reset, partial request,
+timeout or malformed reply is `after_write`/`unknown`; a valid B2 refusal keeps the worker's effect with phase
+`http`. `reconcile(client, expected)` (`packages/client-ts/src/reconcile.ts`) is what a caller such as Maestro's
+outbox runs for an uncertain command: one `receipts.get`, never the mutation. `expected` is what the caller recorded
+before sending: the command id, operation, worker and `requestHash` of the request (the worker's own canonical
+SHA-256 of body, `worker_id` and operation; a worker test checks it against the real supervisor). Only a receipt
+matching all four resolves the command: `delivered` with `effect: observed` is `observed`, `rejected` with `effect:
+no_effect` is `no_effect`. Anything else stays `unknown` with a reason: a mismatch (the foreign receipt is not
+handed back), `accepted`/`dispatch_recorded`, `outcome_unknown` (also after a worker restart), a queued or
+recovered intent even when its effect is `no_effect`, and a missing, expired, scope-denied or unreadable receipt,
+where the read's own `no_effect` refusal is never the command's. `unknown` is never permission to resend.
+`acquisition(create, prompt?)` keeps a created worker `acquired` when its first prompt (in the create or as its own
+`sessions.prompt`) was refused (`not_prompted`) or lost (`unknown`), and a lost create `unknown`, never
+`not_acquired`.
 - **P4, Install and operations.** `release.yml`, `pi-worker install|upgrade|rollback|doctor|logs`, systemd user
   unit, upgrade policy (an upgrade restarts the supervisor and so kills pi children; drain or refuse while
   executions run), logs without prompt text. Shep's installer offers the worker. Journey `p4-upgrade-rollback` on a
