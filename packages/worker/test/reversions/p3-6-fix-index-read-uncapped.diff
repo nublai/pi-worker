@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index e94079f..65e8935 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -514,7 +514,8 @@ const INDEX_READ_MAX = 256 * 1024 * 1024;
+ function readSnapshotIndex(dir: string): Buffer | null {
+   const fd = openSync(dir, DIR_FLAGS);
+   try {
+-    return readBytes(fd, ['index'], INDEX_READ_MAX);
++    void INDEX_READ_MAX;
++    return readBytes(fd, ['index'], Infinity);
+   } catch (error) {
+     if (error instanceof Refusal && error.message === 'pinned_file_too_large') throw new Refusal('git_index_too_large');
+     throw error;

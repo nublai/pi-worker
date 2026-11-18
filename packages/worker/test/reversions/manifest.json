@@ -761,7 +761,8 @@
         "p3-6-fix-no-per-caller-cap.diff",
         "p3-6-fix-no-supervisor-cap.diff",
         "p3-6-fix-conflict-judged-after-truncation.diff",
-        "p3-6-fix-merge-base-exit-ignored.diff"
+        "p3-6-fix-merge-base-exit-ignored.diff",
+        "p3-6-fix-index-read-uncapped.diff"
       ]
     }
   }
