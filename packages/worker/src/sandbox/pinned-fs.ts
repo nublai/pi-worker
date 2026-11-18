@@ -1,6 +1,6 @@
 /**
  * Descriptor-relative filesystem access for paths that sandboxed code can write, ported from A0 `src/pinned-fs.ts`
- * (the opens; A0's profile copy and removal land with profile staging, P2-7). Every component is opened with
+ * (the opens; A0's profile copy and removal are staging.ts, P2-7). Every component is opened with
  * O_NOFOLLOW from an already-open parent descriptor, so a concurrent rename or symlink swap cannot redirect a later
  * component or the final object. Callers own and close returned descriptors.
  */

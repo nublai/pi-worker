@@ -15,7 +15,7 @@
  * dies with it.
  */
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { ProvenNoEffect, Refusal } from '../b2/errors.js';
 import { processGone } from '../host/process.js';
@@ -26,6 +26,7 @@ import { budgetKey } from '../journal/journal.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
 import { sandboxed, sandboxSessionDir } from '../sandbox/sandbox.js';
 import type { GitPin } from '../sandbox/git-sandbox.js';
+import { profileSource, removeStagedProfile, stageProfile, type DependencyBind } from '../sandbox/staging.js';
 import { confinement, HOLDING, type Binding, type Create, type KeptBinding, type Live, type SupervisorState } from './state.js';
 import { currentGuard } from '../grants/authority.js';
 
@@ -74,6 +75,12 @@ export class Lifecycle {
   latch: (live: Live, commandId: string) => boolean = () => {
     throw new Error('fence_not_wired');
   };
+
+  /**
+   * Removes a failed staging's partial `ROOT/.piw-agent` (P2-7). A seam only so tests can prove an unverified or
+   * raced cleanup still ends `outcome_unknown` (D2).
+   */
+  stagingCleanup: (rootFd: number) => void = removeStagedProfile;
 
   constructor(
     readonly s: SupervisorState,
@@ -317,6 +324,7 @@ export class Lifecycle {
     let cwd = '';
     let resumeFile: string | undefined;
     let gitPin: GitPin | null | undefined;
+    let profile: string | null = null;
     const receipt = await this.s.receipts.run(
       c.command_id,
       'workers.create',
@@ -326,6 +334,7 @@ export class Lifecycle {
         const w = live.worker;
         if (c.launch_spec) w.launch_spec = structuredClone(c.launch_spec);
         if (gitPin !== undefined) live.gitPin = gitPin;
+        if (profile) live.profile = profile;
         if (c.parent) {
           w.parent = structuredClone(c.parent);
           w.parent_worker_id = c.parent.worker_id;
@@ -363,6 +372,8 @@ export class Lifecycle {
         this.s.exclusiveCwd(cwd);
         // The same session gates as every other resume: a new worker identity never erases session uncertainty.
         if (c.resume_session_id) resumeFile = this.s.resumable(c.resume_session_id, '', sandboxed(c.launch_spec) ? cwd : undefined);
+        // A sandboxed child stages its parent's profile, if the parent has one (P2-7): judged here, staged after dispatch.
+        if (c.parent && sandboxed(c.launch_spec)) profile = profileSource(this.s.require(c.parent.worker_id).worker.cwd, cwd);
       },
     );
     // A typed child whose launch may have run fences its parent: the parent cannot simply launch a replacement.
@@ -394,17 +405,24 @@ export class Lifecycle {
     }
     this.s.receipts.dispatch(c.command_id, { worker_id: w.worker_id });
     let host: SessionHost;
+    let dependencies: DependencyBind[] = [];
     try {
+      // A sandboxed child's profile is staged after every validation and the dispatch record, before its domain exists
+      // (P2-7): a failure ends the row failed below (D3), unknown once anything was created (D2).
+      if (live.profile) dependencies = stageProfile(live.profile, cwd, rootFd => this.stagingCleanup(rootFd));
       const domain = live.domain;
       const prefix = this.containment.enter(domain);
       const root = confinement(w);
-      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live) } : {}) });
+      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live), dependencies } : {}) });
     } catch (error) {
       // No host was constructed: the domain (if it was created) is cleaned and the row ends with its reason; the
       // receipt stays unknown, so a resume target is held and fenced like any other unknown create-with-resume.
       this.holdUnknownResume(live, c, resumeFile);
       await this.launchFailed(live, c.command_id, error);
       throw error;
+    } finally {
+      // The sandbox holds its own copies of the dependency trees now (or nothing runs): the supervisor keeps none.
+      for (const dep of dependencies.splice(0)) closeSync(dep.fd);
     }
     live.host = host;
     live.pid = host.pid ?? null;
