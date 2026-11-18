@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/channel.ts b/packages/worker/src/supervisor/channel.ts
+index 9ed7e84..9ed0b0a 100644
+--- a/packages/worker/src/supervisor/channel.ts
++++ b/packages/worker/src/supervisor/channel.ts
+@@ -57,7 +57,6 @@ const channelPathBytes = (stateDir: string): number => Buffer.byteLength(join(ch
+ 
+ /** A sandboxed root worker needs a channel: refused before any record when none is served or its socket path cannot exist. */
+ export function channelAvailable(s: SupervisorState): void {
+-  if (!s.channels || !s.grants) throw new Refusal('sandboxed_parent_requires_parent_channel');
+   if (channelPathBytes(s.stateDir) > SOCKET_PATH_MAX) throw new Refusal('parent_channel_socket_path_too_long');
+ }
+ 

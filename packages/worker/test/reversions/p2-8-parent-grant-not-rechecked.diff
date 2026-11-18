@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/b2/channel.ts b/packages/worker/src/b2/channel.ts
+index fdbc698..37db525 100644
+--- a/packages/worker/src/b2/channel.ts
++++ b/packages/worker/src/b2/channel.ts
+@@ -42,7 +42,6 @@ export function channelAuthorizer(supervisor: Supervisor | undefined, grants: Gr
+       const parent = supervisor.state.workers.get(channel.workerId)?.worker;
+       if (!parent || parent.worker_epoch !== channel.epoch || !['starting', 'ready'].includes(parent.status)) throw new Refusal('parent_channel_retired');
+       // Revoking the grant that created the parent stops its channel too.
+-      if (parent.grant_source_id && grants.read(parent.grant_source_id).revoked) throw new Refusal('grant_revoked');
+       if (!CHANNEL_METHODS.includes(route.grantMethod)) throw new Refusal('parent_channel_method_denied');
+       const caller = grants.current({ grant_id: channel.grantId, caller: '', scope: { worker_ids: [], cwd_roots: [] }, methods: [], answers_for_person: false });
+       if (!allowsMethod(caller, route.grantMethod)) throw new Refusal('grant_method_denied');

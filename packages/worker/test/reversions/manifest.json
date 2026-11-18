@@ -665,6 +665,31 @@
         "p4b-unit-no-node-no-warnings.diff",
         "p4b-wrapper-warnings-on.diff"
       ]
+    },
+    "channel": {
+      "command": "npm test -- channel",
+      "diffs": [
+        "p2-8-slot-follows-links.diff",
+        "p2-8-slot-name-unchecked.diff",
+        "p2-8-child-git-not-parent-repository.diff",
+        "p2-8-slot-checks-before-receipt.diff",
+        "p2-8-channel-uses-owner-authority.diff",
+        "p2-8-channel-honours-bearer.diff",
+        "p2-8-no-method-whitelist.diff",
+        "p2-8-other-workers-visible.diff",
+        "p2-8-retired-generation-served.diff",
+        "p2-8-parent-grant-not-rechecked.diff",
+        "p2-8-channel-left-open.diff",
+        "p2-8-not-own-child.diff",
+        "p2-8-resource-outside-profile.diff",
+        "p2-8-parent-env-not-allowlisted.diff",
+        "p2-8-channel-bound-by-path.diff",
+        "p2-8-relaunch-not-revalidated.diff",
+        "p2-8-relaunch-without-channel.diff",
+        "p2-8-no-channel-required.diff",
+        "p2-8-lifecycle-drops-channel.diff",
+        "p2-8-factory-drops-channel.diff"
+      ]
     }
   }
 }

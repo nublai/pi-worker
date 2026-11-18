@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index 52d14e8..a3d5b89 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -86,7 +86,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+   };
+   const channel = options.channel;
+   /** On a parent channel, only the parent and its own children exist. */
+-  const owned = (w: { worker_id: string; parent_worker_id?: string | null }): boolean => !channel || w.worker_id === channel.workerId || w.parent_worker_id === channel.workerId;
++  const owned = (w: { worker_id: string; parent_worker_id?: string | null }): boolean => !channel || !!w.worker_id;
+   const visible = (caller: Caller | undefined, id: string): boolean => {
+     const live = options.supervisor?.state.workers.get(id);
+     return !!caller && !!live && owned(live.worker) && allowsWorker(caller, live.worker);
