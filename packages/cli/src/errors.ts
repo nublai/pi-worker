@@ -20,6 +20,20 @@ export class GrantCommandFailed extends Error {
   }
 }
 
+/**
+ * A host command (`install`, `uninstall`, …) failed: `no_effect` when it refused before writing anything, `unknown`
+ * once it may have changed the host. `details` are typed fields printed with the error (never a secret).
+ */
+export class LocalFailure extends Error {
+  constructor(
+    readonly code: string,
+    readonly effect: 'no_effect' | 'unknown',
+    readonly details: Record<string, unknown> = {},
+  ) {
+    super(code);
+  }
+}
+
 /** A mutation's receipt recorded a refusal or an unknown outcome; the receipt itself is already on stdout. */
 export class ReceiptRefusal extends Error {
   constructor(
@@ -57,6 +71,7 @@ export function mapError(error: unknown, context: Record<string, string | undefi
   if (error instanceof ProtocolMismatch) return mapped({ error: 'protocol_mismatch', detail: error.message }, 'no_effect');
   if (error instanceof ResyncRequired) return mapped({ error: 'resync_required', reason: error.reason }, 'no_effect');
   if (error instanceof GrantCommandFailed) return mapped({ error: error.code }, error.effect);
+  if (error instanceof LocalFailure) return mapped({ error: error.code, ...error.details }, error.effect);
   if (error instanceof ReceiptRefusal) return mapped({ error: error.code, receipt_state: error.state }, error.effect);
   return mapped({ error: 'cli_failure', detail: error instanceof Error ? error.message : String(error) }, 'unknown');
 }

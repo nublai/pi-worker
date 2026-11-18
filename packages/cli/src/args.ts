@@ -97,11 +97,12 @@ export function parse(argv: readonly string[]): Parsed {
       positional.push(...argv.slice(i + 1));
       break;
     }
-    if (!token.startsWith('--')) {
+    const short = /^-([a-zA-Z])$/.exec(token)?.[1];
+    if (!token.startsWith('--') && short === undefined) {
       positional.push(token);
       continue;
     }
-    const { name: flag, inline } = splitFlag(token);
+    const { name: flag, inline } = short === undefined ? splitFlag(token) : { name: [...options.values()].find(o => o.short === short)?.flag ?? short, inline: undefined };
     const option = options.get(flag);
     if (!option) throw new UsageError(`unknown flag --${flag}${command ? ` for ${command.name}` : ''}`);
     let raw = inline;
