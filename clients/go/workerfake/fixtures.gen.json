@@ -2,6 +2,63 @@
  "generated": "by tools/codegen from api/fixtures; DO NOT EDIT",
  "wire": {
   "artifacts.inspect": {
+   "dirty-untracked": {
+    "request": {
+     "path": {
+      "worker_id": "worker-child"
+     },
+     "body": {
+      "worker_epoch": "epoch-child",
+      "commit": "bf6972b2f480db1b890babf6a1c1800e18b92a88"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "worker_id": "worker-child",
+      "worker_epoch": "epoch-child",
+      "commit": {
+       "requested": "bf6972b2f480db1b890babf6a1c1800e18b92a88",
+       "commit_id": "bf6972b2f480db1b890babf6a1c1800e18b92a88",
+       "tree_id": "01635e0721070548c089b138923231ce96550111"
+      },
+      "head": {
+       "ref": "refs/heads/ca/work",
+       "commit_id": "bf6972b2f480db1b890babf6a1c1800e18b92a88",
+       "matches_commit": true
+      },
+      "worktree": {
+       "state": "dirty",
+       "entries": [
+        {
+         "code": "??",
+         "path": ".gitignore"
+        },
+        {
+         "code": "??",
+         "path": "stray.txt"
+        },
+        {
+         "code": "!!",
+         "path": "ignored.txt"
+        }
+       ],
+       "truncated": false
+      },
+      "pin": {
+       "kind": "linked",
+       "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+       "head_ref": "refs/heads/ca/work"
+      },
+      "provenance": {
+       "evidence": "owner_git_launch_pin",
+       "git_version": "git version 2.53.0",
+       "replace_objects": "disabled",
+       "inspected_at": "2026-11-18T12:00:00.000Z"
+      }
+     }
+    }
+   },
    "inspection-timeout": {
     "request": {
      "path": {

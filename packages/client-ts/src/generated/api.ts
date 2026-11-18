@@ -1737,7 +1737,7 @@ export interface components {
             from_path?: components["schemas"]["ArtifactPath"];
         };
         ArtifactStatusEntry: {
-            /** @description The two `git status --porcelain` (v1) status letters. */
+            /** @description The two `git status --porcelain` (v1) status letters (`??` untracked, `!!` untracked and ignored by a `.gitignore` in the tree). */
             code: string;
             /** @description The rest of the porcelain line as Git prints it: one path, or `FROM -> TO` for a rename or copy, quoted by Git when it holds special characters. */
             path: components["schemas"]["ArtifactPath"];
@@ -1782,7 +1782,7 @@ export interface components {
                 changed_truncated: boolean;
                 diff_digest: components["schemas"]["ArtifactDiffDigest"];
             };
-            /** @description The checkout's `git status --porcelain` (untracked files listed, ignored ones not). `conflicted` when any entry is unmerged, else `dirty` when any entry exists, judged on the complete status before `entries` is bounded. */
+            /** @description The checkout's `git status --porcelain` with every untracked file listed one by one (`??`) and every file a `.gitignore` in the tree ignores listed too (`!!`): no repository exclude file, `core.excludesFile` or `status.*` setting hides one. Nothing below pi-worker's runtime directories at the root (`.piw-agent`, `.piw-worker`, `.piw-slots`) is listed, tracked or not. `conflicted` when any entry is unmerged, else `dirty` when any entry exists, judged on the complete status before `entries` is bounded. */
             worktree: {
                 /** @enum {string} */
                 state: "clean" | "dirty" | "conflicted";
