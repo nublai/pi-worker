@@ -202,3 +202,36 @@ another root, a gitfile naming no worktree admin dir, a linked .git and a non-ob
 mount containing or inside the state or a control path is refused before any record" and "git: a create refuses bad Git
 metadata before any record; its spawn mounts only the pin its validation accepted" (the production factory refuses a
 HEAD retargeted after validation, and bwrap never runs).
+
+**P2-7** ports A0's `gate1-fix` tests (every case except `kernel D1`) and the `security-fix` B2 staging case into
+`test/security/staging.test.ts` (the kernel tier: `harness/ci/kernel.sh -- staging`). A0 launched its children through a
+sandboxed parent's channel (`POST /v0/workers` on `live.channel.socket`), which lands in P2-8; here the parent is an
+unsandboxed typed worker and the child is created with `workers.create` (the supervisor's `create`), so A0's channel
+reply fields (`error`, `effect`, `state`) are read from the create's receipt, which carries the same fields, and a
+validation refusal (A0's 409 body) is the create's rejected `Refusal`. The profile is the parent cwd's `.piw-agent`
+(A0's `.a0-agent` in the parent root) and the child's root is beside the parent in its environment tree (A0's
+`.a0-worktrees/<name>`). A0's `Supervisor.stagingCleanup` seam is `Lifecycle.stagingCleanup`. A0's fixture host count
+(`hosts.length === 1`, the parent only) is the count of recorded sandboxed launches (0).
+
+| A0 test | New test | Status |
+| `gate1-fix.test.ts` › "D1: a real-size profile (20k+ entries, node_modules shape) stages small and binds its dependency tree read-only by descriptor" | `packages/worker/test/security/staging.test.ts` › same name | Ported, all assertions (the fixture's factory records `sandboxLaunch`'s argv and the dependency descriptors' identity while they are open). Adds: once the factory returned, the supervisor holds no descriptor of the dependency tree |
+| `gate1-fix.test.ts` › "D1: the copied part keeps its entry budget; a refusal after dispatch removes the partial copy and is outcome_unknown" | `staging.test.ts` › same name | Ported, all assertions |
+| `gate1-fix.test.ts` › "D2+D3: a staging failure after dispatch is cleaned and reported outcome_unknown (parent fenced); the child row ends failed and frees its root" | `staging.test.ts` › same name | Ported, all assertions |
+| `gate1-fix.test.ts` › "D2: an unverified staging cleanup is outcome_unknown and fences the parent" | `staging.test.ts` › same name | Ported, all assertions |
+| `gate1-fix.test.ts` › "D2: a parent that renames the partial .a0-agent aside before cleanup cannot get rejected/no_effect" | `staging.test.ts` › same name | Ported, all assertions; it renames `.piw-agent`. This is the Gate 1 security delta's rename-aside case: the fix is the plan's "D2 always-unknown after creation" (no name or `nlink` proof is attempted) |
+| `gate1-fix.test.ts` › "D2: after the dispatch record a plain Refusal is outcome_unknown; only ProvenNoEffect is rejected/no_effect" | `staging.test.ts` › same name | Ported, all assertions, on a `ReceiptStore` over a real state (`crash/receipts.test.ts` has carried the same rule since P1-2) |
+| `gate1-fix.test.ts` › "kernel D1: a sandboxed parent launches a channel child with a 20k+ entry profile; …" | — | Lands in P2-8 (a channel child). Until then the new kernel case below runs the dependency bind in real bwrap |
+| `security-fix.test.ts` › "B2: refused launches stage nothing; accepted staging never copies a raced link target" | `staging.test.ts` › same name | Ported, all assertions; the racer runs with an empty environment and is killed in `finally` |
+
+New in P2-7 (`staging.test.ts`): "staging: a link in the profile is recreated verbatim, never followed; a linked
+node_modules is a link, never a bind", "staging: the copy refuses past its depth, byte and dependency-bind limits and on
+a FIFO; the production limits are A0’s", "staging: the cleanup removes the staged tree and unlinks a link in it without
+following it", "staging: a create refuses before any record when the child root already holds .piw-agent, overlaps the
+parent profile, or the profile is a link; with no parent profile nothing is staged", "staging: a profile that vanished
+or became a link after validation stages nothing and is rejected no_effect after dispatch; the row ends failed",
+"staging: nothing staged is still outcome_unknown (parent fenced) while the child’s domain is not observed removed",
+"staging: the sandbox binds each dependency read-only at its real mount point, and refuses a mount point that is a
+link", "staging: the production host hands bwrap each dependency descriptor for its read-only bind" and the kernel case
+"kernel: a sandboxed child reads its parent’s staged profile; the dependency tree loads read-only at its own profile
+path and the host mount point stays empty" (real bwrap and pi SDK child, no model: the child imports a module from the
+bind, writes to it fail `EROFS`, the staged `auth.json` is read-only, and the host mount point stays empty).
