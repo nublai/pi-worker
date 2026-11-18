@@ -583,7 +583,7 @@ exports `inspect` (unchanged) for the snapshot. No supervisor path calls owner G
 callers (P2 live journey, P3). Since P3-6 the supervisor does, for `artifacts.inspect` (section 12). Since the P3-6 fix
 round, the calls that compare the working tree with the index (`gitStatus`, a worktree `gitDiff`) fail closed on index
 state that hides tracked changes: an index entry marked assume-unchanged or skip-worktree, read from the snapshot's copy
-of the index (formats 2 to 4; another refuses `git_index_unreadable`), refuses `git_index_hides_changes`; a pinned
+of the index (formats 2 to 4; another refuses `git_index_unreadable`; at most 256 MiB, a larger one refuses `git_index_too_large`), refuses `git_index_hides_changes`; a pinned
 `core.ignoreStat`, `core.sparseCheckout` or `index.sparse` refuses `git_config_trusts_stat: <key>`; and `core.checkStat`,
 `core.trustctime`, `core.untrackedCache` and `core.ignoreStat` are overridden on the command line to Git's full checks
 (the ported racy-index case pins `core.checkStat minimal` and `core.trustctime false` and still requires the edit be

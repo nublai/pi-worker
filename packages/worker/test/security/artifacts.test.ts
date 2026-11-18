@@ -9,9 +9,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, truncateSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { Client, ClientFailure } from '@nublai/pi-worker-client';
 import { createApp } from '../../src/b2/app.js';
 import { parentChannels } from '../../src/b2/channel.js';
@@ -638,6 +638,59 @@ test('artifacts.inspect: a tracked change the child hides with assume-unchanged 
       assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'dirty', entries: [{ code: ' M', path: 'note' }], truncated: false }, `${flag} cleared: the change is seen`);
       x.git(a.slot, 'checkout', '--', 'note');
     }
+  } finally {
+    await x.cleanup();
+  }
+});
+
+/** A child's commit of `count` tracked files with long names: an index of well over 1 MiB, no flag set, which plain Git calls clean. */
+function commitManyFiles(x: Awaited<ReturnType<typeof world>>, slot: string, count: number): string {
+  for (let i = 0; i < count; i++) writeFileSync(join(slot, `f${String(i).padStart(6, '0')}-${'x'.repeat(40)}`), '');
+  writeFileSync(join(slot, 'zzz-last'), 'last\n');
+  x.git(slot, 'add', '.');
+  x.git(slot, 'commit', '-qm', 'many');
+  return x.git(slot, 'rev-parse', 'HEAD');
+}
+
+const indexPath = (x: Awaited<ReturnType<typeof world>>, slot: string): string => realpathSync(resolve(slot, x.git(slot, 'rev-parse', '--git-path', 'index')));
+
+test('artifacts.inspect: a clean checkout whose index is over 1 MiB (15,000 tracked files) is clean, and a hiding flag on an entry past the first 1 MiB is still refused', { timeout: 120_000 }, async () => {
+  const x = await world();
+  try {
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    const head = commitManyFiles(x, a.slot, 15_000);
+    const size = statSync(indexPath(x, a.slot)).size;
+    assert.ok(size > 1024 * 1024, `fixture: the index is over 1 MiB (${size} bytes)`);
+    assert.equal(x.git(a.slot, 'status', '--porcelain'), '', 'fixture: plain Git reports clean');
+    const req = { worker_epoch: a.worker.worker_epoch, commit: head };
+    assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'clean', entries: [], truncated: false });
+    // The entry that sorts last starts past the first 1 MiB of the index; hide a change there.
+    x.git(a.slot, 'update-index', '--assume-unchanged', 'zzz-last');
+    writeFileSync(join(a.slot, 'zzz-last'), 'hidden\n');
+    assert.equal(x.git(a.slot, 'status', '--porcelain'), '', 'fixture: plain Git reports clean with the flag');
+    assert.deepEqual(await x.refusal(x.inspect(a.worker.worker_id, req)), { error: 'artifact_inspection_unavailable', effect: 'no_effect', phase: 'http', status: 409, detail: 'git_index_hides_changes' });
+    x.git(a.slot, 'update-index', '--no-assume-unchanged', 'zzz-last');
+    assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'dirty', entries: [{ code: ' M', path: 'zzz-last' }], truncated: false }, 'flag cleared: the change is seen');
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test('artifacts.inspect: the index is read up to 256 MiB; a larger one refuses git_index_too_large, a typed refusal, never a generic error', { timeout: 120_000 }, async () => {
+  const x = await world();
+  try {
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    const req = { worker_epoch: a.worker.worker_epoch, commit: x.baseId };
+    const index = indexPath(x, a.slot);
+    const cap = 256 * 1024 * 1024;
+    const unavailable = (detail: string) => ({ error: 'artifact_inspection_unavailable', effect: 'no_effect', phase: 'http', status: 409, detail });
+    // At the cap the index is read in full (the zeros appended to a real index break its checksum, so Git then fails: not the cap's refusal); one byte more is past the cap.
+    truncateSync(index, cap);
+    assert.deepEqual(await x.refusal(x.inspect(a.worker.worker_id, req)), unavailable('git_failed'), 'at the cap: read');
+    truncateSync(index, cap + 1);
+    assert.deepEqual(await x.refusal(x.inspect(a.worker.worker_id, req)), unavailable('git_index_too_large'), 'past the cap');
   } finally {
     await x.cleanup();
   }

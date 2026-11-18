@@ -25,8 +25,8 @@
  *  5. on the calls that compare the working tree with the index (`gitStatus`, a worktree `gitDiff`), fails closed on
  *     index state that hides tracked changes, all of it writable by the sandbox (the admin dir's index) or pinned by the
  *     owner (config): any index entry marked assume-unchanged or skip-worktree (`git_index_hides_changes`, read from
- *     the snapshot's copy of the index, the bytes Git then reads; an index format this reader does not know is
- *     `git_index_unreadable`), and a pinned `core.ignoreStat`, `core.sparseCheckout` or `index.sparse`
+ *     the snapshot's copy of the index, the bytes Git then reads, at most 256 MiB: a larger one is
+ *     `git_index_too_large`; an index format this reader does not know is `git_index_unreadable`), and a pinned `core.ignoreStat`, `core.sparseCheckout` or `index.sparse`
  *     (`git_config_trusts_stat`). `core.checkStat`, `core.trustctime` and `core.untrackedCache` (also an
  *     untracked cache stored in the index) are overridden on the command line to Git's full checks, which can only add
  *     content comparisons.
@@ -226,7 +226,7 @@ function headMatches(pin: GitPin, head: string | null): boolean {
   return /^[a-f0-9]{40,64}\s*$/.test(head);
 }
 
-function readBytes(base: number, names: string[]): Buffer | null {
+function readBytes(base: number, names: string[], limit?: number): Buffer | null {
   let fd: number;
   try {
     fd = openUnder(base, names, 'file');
@@ -235,7 +235,7 @@ function readBytes(base: number, names: string[]): Buffer | null {
     throw error;
   }
   try {
-    return readFd(fd);
+    return readFd(fd, limit);
   } finally {
     closeSync(fd);
   }
@@ -503,11 +503,21 @@ export interface GitFailure {
   readonly stderr: string;
 }
 
+/**
+ * The most index bytes the hidden-entry check reads into memory: 256 MiB, about two million tracked paths, far past a
+ * real repository (the general 1 MiB cap of `readFd` is for config and HEAD, not an index). A larger index refuses
+ * `git_index_too_large`; the snapshot's own 1 GiB copy budget still bounds what reaches the snapshot.
+ */
+const INDEX_READ_MAX = 256 * 1024 * 1024;
+
 /** The snapshot's own copy of the index (private, ours), or null when the checkout has none. */
 function readSnapshotIndex(dir: string): Buffer | null {
   const fd = openSync(dir, DIR_FLAGS);
   try {
-    return readBytes(fd, ['index']);
+    return readBytes(fd, ['index'], INDEX_READ_MAX);
+  } catch (error) {
+    if (error instanceof Refusal && error.message === 'pinned_file_too_large') throw new Refusal('git_index_too_large');
+    throw error;
   } finally {
     closeSync(fd);
   }
