@@ -1,5 +1,5 @@
 diff --git i/harness/release/build.sh w/harness/release/build.sh
-index 3debf51..cb3e333 100755
+index f78082e..99bdc1d 100755
 --- i/harness/release/build.sh
 +++ w/harness/release/build.sh
 @@ -16,10 +16,7 @@ repo=$(cd "$(dirname "$0")/../.." && pwd)

@@ -607,7 +607,9 @@
         "p4a-fix-grant-no-runtime-fallback.diff",
         "p4a-fix-release-dirty-tree.diff",
         "p4a-fix-release-worktree-engine.diff",
-        "p4a-fix-release-worktree-wrapper.diff"
+        "p4a-fix-release-worktree-wrapper.diff",
+        "p4a-fix-release-dangling-cli-bin.diff",
+        "p4a-fix-release-link-check.diff"
       ]
     },
     "service": {

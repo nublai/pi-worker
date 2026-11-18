@@ -1,8 +1,8 @@
 diff --git i/harness/release/build.sh w/harness/release/build.sh
-index 3debf51..2f246fb 100755
+index f78082e..368c296 100755
 --- i/harness/release/build.sh
 +++ w/harness/release/build.sh
-@@ -85,7 +85,7 @@ const write = (name, value) => writeFileSync(`${STAGE}/${name}`, JSON.stringify(
+@@ -87,7 +87,7 @@ const write = (name, value) => writeFileSync(`${STAGE}/${name}`, JSON.stringify(
  write("package.json", { name: "pi-worker", version: VERSION, private: true, license: "MIT", type: "module", engines: { node: ENGINE } });
  write("release.json", { version: VERSION, commit: COMMIT, node_engine: ENGINE, b2_protocol: JSON.parse(PROTOCOL) });
  '
@@ -10,4 +10,4 @@ index 3debf51..2f246fb 100755
 +sed "s/@NODE_FLOOR@/${engine#>=}/" "$repo/harness/release/pi-worker.sh" >"$stage/bin/pi-worker"
  chmod 0755 "$stage/bin/pi-worker"
  cp "$src/LICENSE" "$stage/LICENSE"
- 
+ # install refuses a link that resolves to nothing or out of the version directory (docs/plan/install.md section 3
