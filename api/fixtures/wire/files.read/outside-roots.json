@@ -1,0 +1,20 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "path": "/sandbox/other/notes.txt",
+      "roots": [
+        "/sandbox/root"
+      ]
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "file_outside_explicit_roots",
+      "effect": "no_effect"
+    }
+  }
+}

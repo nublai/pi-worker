@@ -961,6 +961,66 @@
    }
   },
   "files.read": {
+   "hidden": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "path": "/sandbox/root/.git/config",
+      "roots": [
+       "/sandbox/root"
+      ]
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "hidden_or_traversal_path_refused",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "not-regular": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "path": "/sandbox/root/src",
+      "roots": [
+       "/sandbox/root"
+      ]
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "file_not_regular_or_over_1MiB",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "not-utf8": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "path": "/sandbox/root/blob.bin",
+      "roots": [
+       "/sandbox/root"
+      ]
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "file_not_utf8",
+      "effect": "no_effect"
+     }
+    }
+   },
    "ok": {
     "request": {
      "path": {
@@ -980,6 +1040,86 @@
       "content": "# readme\n",
       "bytes": 9,
       "evidence": "pinned_file_read"
+     }
+    }
+   },
+   "outside-roots": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "path": "/sandbox/other/notes.txt",
+      "roots": [
+       "/sandbox/root"
+      ]
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "file_outside_explicit_roots",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "symlink": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "path": "/sandbox/root/link",
+      "roots": [
+       "/sandbox/root"
+      ]
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "file_symlink_or_unavailable",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "traversal": {
+    "request": {
+     "path": {
+      "worker_id": "worker-1"
+     },
+     "body": {
+      "path": "/sandbox/root/src/../README.md",
+      "roots": [
+       "/sandbox/root"
+      ]
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "hidden_or_traversal_path_refused",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "unsandboxed": {
+    "request": {
+     "path": {
+      "worker_id": "worker-unsandboxed"
+     },
+     "body": {
+      "path": "/sandbox/parent/README.md",
+      "roots": [
+       "/sandbox/parent"
+      ]
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "files_read_requires_sandbox_environment",
+      "effect": "no_effect"
      }
     }
    }

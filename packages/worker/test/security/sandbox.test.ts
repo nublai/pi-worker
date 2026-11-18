@@ -30,7 +30,7 @@ import { inside, locateBwrap, readConfined, sandboxEnv, sandboxLaunch, sandboxRo
 import type { Create, HostLaunch } from '../../src/supervisor/state.js';
 import { Supervisor } from '../../src/supervisor/supervisor.js';
 import { Client } from '@nublai/pi-worker-client';
-import { ownerGrant, privateTmp, repoRoot, socketCall } from '../helpers.js';
+import { bundledSpec, ownerGrant, privateTmp, repoRoot, socketCall, wireFixtures } from '../helpers.js';
 import { bind, fixture, Host } from '../supervisor-fixture.js';
 
 const kernel = process.env.PIW_TEST_KERNEL === '1';
@@ -455,6 +455,36 @@ test('sandbox: a 1 MiB file of worst-case JSON escaping reaches the TS client wh
       const file = got as { path: string; content: string; bytes: number; evidence: string };
       assert.ok(Buffer.byteLength(JSON.stringify(file)) > 2 * MiB, `${name}: the reply is past the old 2 MiB client limit (non-vacuous)`);
       assert.deepEqual({ ...file, content: file.content === content }, { path, content: true, bytes: MiB, evidence: 'pinned_file_read' }, name);
+    }
+  });
+});
+
+test('sandbox: files.read answers each of its wire fixtures from a real sandboxed root, and every reachable documented refusal has one', async () => {
+  const fixtures = wireFixtures().filter(f => f.operationId === 'files.read');
+  // SAFETY: the bundled spec carries each operation's description; the helper's type names only what it needs.
+  const op = (bundledSpec().paths['/b2/workers/{worker_id}/files/read'] as unknown as { post: { description: string } }).post;
+  const documented = [...op.description.slice(op.description.indexOf('Refusals')).matchAll(/`([a-z0-9_A-Z]+)`/g)].map(m => m[1]!).filter(n => n !== 'no_effect');
+  // Not reachable through the router: `roots` is bounded to 1..64 items by the schema (400 first); a file that grows
+  // between its fstat and its read is a race no fixture can replay.
+  const unreachable = ['explicit_roots_required', 'file_over_1MiB'];
+  const covered = new Set(fixtures.map(f => (f.fixture.response.body as { error?: string }).error));
+  assert.ok(documented.length >= 8, `documented refusals parsed: ${documented}`);
+  assert.deepEqual(documented.filter(n => !unreachable.includes(n) && !covered.has(n)), [], 'every reachable documented refusal has a wire fixture');
+  await withSandboxedB2(async ({ tree, child, parent, read }) => {
+    // The fixtures' `/sandbox/root` is this child's root; `worker-1` the child, `worker-unsandboxed` its parent.
+    const map = (value: unknown): unknown => JSON.parse(JSON.stringify(value).replaceAll('"/sandbox/', `"${tree}/`).replaceAll('"worker-1"', JSON.stringify(child.worker_id)).replaceAll('"worker-unsandboxed"', JSON.stringify(parent.worker_id)));
+    const root = child.cwd;
+    assert.equal(root, join(tree, 'root'));
+    writeFileSync(join(root, 'README.md'), '# readme\n');
+    mkdirSync(join(root, '.git'));
+    writeFileSync(join(root, '.git', 'config'), '[core]\n');
+    writeFileSync(join(tree, 'secret'), 'OUTSIDE');
+    symlinkSync(join(tree, 'secret'), join(root, 'link'));
+    mkdirSync(join(root, 'src'));
+    writeFileSync(join(root, 'blob.bin'), Buffer.from([0xff, 0xfe, 0x00]));
+    for (const { name, fixture: fx } of fixtures) {
+      const request = map(fx.request) as { path: { worker_id: string }; body: unknown };
+      assert.deepEqual(await read(request.path.worker_id, request.body), map(fx.response), name);
     }
   });
 });

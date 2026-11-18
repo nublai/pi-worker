@@ -1,0 +1,20 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "path": "/sandbox/root/blob.bin",
+      "roots": [
+        "/sandbox/root"
+      ]
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "file_not_utf8",
+      "effect": "no_effect"
+    }
+  }
+}
