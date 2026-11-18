@@ -231,7 +231,9 @@ runs and the snapshot is outside the checkout" (slice 7 major finding), "owner G
 than never refuses; ls-remote ext:: is refused and its payload never runs" (slice 7 minor finding), "owner Git: a state
 directory reached through a link into the checkout refuses (the real path is read back from the descriptor)", "owner Git:
 the snapshot directory must be private (owned, mode 0700)", "owner Git: a commondir planted after the owner checks,
-before Git starts, is never followed (Git reads the snapshot)" (the commondir race made deterministic), "owner Git: a
+before Git starts, is never followed (Git reads the snapshot)" (the commondir race made deterministic), "owner Git:
+metadata changed since the pin refuses (HEAD retargeted, config or alternates changed), whatever Git would do with it",
+"owner Git: a
 pinned credential.helper (also URL-scoped) refuses as executing config" and "owner Git: only local inspection commands
 run; transport and every other command refuses before anything is made".
 

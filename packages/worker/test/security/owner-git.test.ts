@@ -555,6 +555,29 @@ test('owner Git: a commondir planted after the owner checks, before Git starts, 
   }
 });
 
+test('owner Git: metadata changed since the pin refuses (HEAD retargeted, config or alternates changed), whatever Git would do with it', () => {
+  const f = fixture();
+  try {
+    f.git(f.repo, 'branch', 'a0-child/other', f.baseId);
+    const pin = readGitPin(f.wt);
+    const changes: [string, string, string][] = [
+      [join(f.admin, 'HEAD'), 'ref: refs/heads/a0-child/other\n', 'HEAD retargeted'],
+      [join(f.repo, '.git', 'config'), `${readFileSync(join(f.repo, '.git', 'config'), 'utf8')}[user]\n\tname = changed\n`, 'config changed'],
+      [join(f.repo, '.git', 'objects', 'info', 'alternates'), `${join(f.base, 'elsewhere')}\n`, 'alternates added'],
+    ];
+    for (const [file, content, label] of changes) {
+      const before = existsSync(file) ? readFileSync(file) : null;
+      writeFileSync(file, content);
+      for (const args of COMMANDS(f)) assert.throws(() => safeGitRun(f.owner, f.wt, pin, args), typed(/^git_metadata_changed_since_launch$/), label);
+      if (before === null) rmSync(file);
+      else writeFileSync(file, before);
+    }
+    assert.equal(safeGit(f.owner, f.wt, pin, ['status', '--porcelain']), 'M note', 'the restored metadata equals the pin again');
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('owner Git: pinned protocol.<name>.allow other than never refuses; ls-remote ext:: is refused and its payload never runs', () => {
   const f = fixture();
   try {
