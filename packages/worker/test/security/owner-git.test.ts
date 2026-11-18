@@ -1,7 +1,9 @@
 /**
  * Owner Git (P2-6), ported from A0 `src/test/owner-git.test.ts`, `gate1-artifact.test.ts` and the `security-fix.test.ts`
  * M1 owner-Git cases, plus the two slice 7 regressions (a snapshot made through a symlinked `TMPDIR`, a pinned
- * `protocol.ext.allow`) and the new guards: the snapshot's real path, the command allowlist and `credential.helper`.
+ * `protocol.ext.allow`) and the new guards: the snapshot's real path, the typed API (no raw argv; values validated),
+ * `credential.helper` and the other program-running keys, replacement objects off, split index refused, submodules
+ * ignored on the command line.
  *
  * A same-UID writer of the Git pointers plays the sandboxed agent; the cases named `kernel` run it in real bwrap
  * (`harness/ci/kernel.sh -- owner-git`, PIW_TEST_KERNEL=1); elsewhere they skip. Where a writer must act at the worst
@@ -19,7 +21,26 @@ import { join } from 'node:path';
 import { Refusal } from '../../src/b2/errors.js';
 import { childEnv } from '../../src/host/host.js';
 import { artifactSubject } from '../../src/owner-git/artifact.js';
-import { OWNER_GIT_COMMANDS, readGitPin, SAFE_GIT_CONFIG, safeGit, safeGitRun, type GitPin, type OwnerGit } from '../../src/owner-git/git-safe.js';
+import { createHash } from 'node:crypto';
+import * as ownerGitApi from '../../src/owner-git/git-safe.js';
+import {
+  gitCatFile,
+  gitDiff,
+  gitForEachRef,
+  gitLog,
+  gitLsFiles,
+  gitMergeBase,
+  gitRevParse,
+  gitShow,
+  gitStatus,
+  readGitPin,
+  SAFE_GIT_CONFIG,
+  type DiffFormat,
+  type DiffOf,
+  type GitCheckout,
+  type GitPin,
+  type OwnerGit,
+} from '../../src/owner-git/git-safe.js';
 import { locateBwrap, sandboxEnv, sandboxLaunch } from '../../src/sandbox/sandbox.js';
 import { privateTmp } from '../helpers.js';
 
@@ -96,11 +117,14 @@ function oldHelperRuns(f: Fixture, gitDir: string, root: string, args: string[])
   rmSync(f.marker, { force: true });
   return live;
 }
-const COMMANDS = (f: Fixture) => [
-  ['diff', '--binary', f.baseId, f.headId],
-  ['diff', '--', 'note'],
-  ['status', '--porcelain'],
+/** A0's three owner commands (`diff --binary BASE HEAD`, `diff -- note`, `status --porcelain`), as typed calls. */
+const CALLS = (f: Fixture): ((at: GitCheckout) => unknown)[] => [
+  at => gitDiff(at, { kind: 'revisions', from: f.baseId, to: f.headId }),
+  at => gitDiff(at, { kind: 'worktree' }, { paths: ['note'] }),
+  at => gitStatus(at),
 ];
+/** The checkout `root` (default the fixture's worktree) with `pin`, inspected by `owner` (default the fixture's). */
+const on = (f: Fixture, pin: GitPin | null | undefined, owner: OwnerGit = f.owner, root: string = f.wt): GitCheckout => ({ owner, root, pin });
 const snapshots = (f: Fixture) => join(f.state, 'git-snapshots');
 const leftovers = (f: Fixture) => (existsSync(snapshots(f)) ? readdirSync(snapshots(f)) : []);
 
@@ -109,12 +133,12 @@ async function race(f: Fixture, root: string, pin: GitPin, writer: ChildProcess,
   const tally = { passed: 0, refused: 0, other: [] as string[] };
   await new Promise(r => setTimeout(r, 150)); // let the writer start flipping
   try {
-    for (const args of COMMANDS(f))
+    for (const call of CALLS(f))
       for (let i = 0; i < n; i++) {
         const t = new Date(Date.now() + i * 1000);
         utimesSync(join(root, 'note'), t, t); // stat-dirty every time
         try {
-          safeGitRun(f.owner, root, pin, args);
+          call(on(f, pin, f.owner, root));
           tally.passed++;
         } catch (error) {
           const m = error instanceof Error ? error.message : String(error);
@@ -186,7 +210,7 @@ test('owner Git: racing a child admin commondir against safeGit diff/status neve
     assert.deepEqual(tally.other, []);
     // Non-vacuous: the writer really interleaved with the checks.
     assert.ok(tally.passed > 0 && tally.refused > 0, JSON.stringify(tally));
-    assert.equal(safeGit(f.owner, f.wt, pin, ['status', '--porcelain']), 'M note');
+    assert.equal(gitStatus(on(f, pin)), ' M note\n');
     assert.deepEqual(leftovers(f), [], 'every snapshot is removed');
   } finally {
     f.cleanup();
@@ -229,7 +253,7 @@ test('owner Git: a repository config that defines a filter, diff driver, textcon
     ] as const) {
       f.git(f.repo, 'config', key, value);
       const pin = readGitPin(f.wt); // set before the pin: the pin alone cannot catch it
-      for (const [i, args] of COMMANDS(f).entries()) assert.throws(() => safeGitRun(f.owner, f.wt, pin, args), typed(/^git_config_executes_code: /), `${key}, command ${i}`);
+      for (const [i, call] of CALLS(f).entries()) assert.throws(() => call(on(f, pin)), typed(/^git_config_executes_code: /), `${key}, command ${i}`);
       f.git(f.repo, 'config', '--unset', key);
     }
     assert.deepEqual(ran(f), []);
@@ -254,7 +278,7 @@ test('owner Git: ~/.gitconfig includes, XDG config/attributes, GIT_CONFIG_* and 
     writeFileSync(join(home, '.config', 'git', 'attributes'), '* diff=evil filter=evil\n');
     const pin = readGitPin(f.wt);
     const ownerRuns = (env: Record<string, string>) => {
-      for (const args of COMMANDS(f)) safeGitRun({ stateDir: f.state, env }, f.wt, pin, args);
+      for (const call of CALLS(f)) call(on(f, pin, { stateDir: f.state, env }));
     };
     const plain = (env: Record<string, string>) => {
       rmSync(f.marker, { force: true });
@@ -299,20 +323,22 @@ test('owner Git: results match plain Git on an untouched checkout (snapshot is f
     writeFileSync(join(f.wt, 'ignored-x'), 'x');
     writeFileSync(join(f.wt, 'untracked'), 'u');
     const pin = readGitPin(f.wt);
-    // A0's `symbolic-ref HEAD` is `rev-parse --symbolic-full-name HEAD` (symbolic-ref is not an inspection command here).
-    for (const [i, args] of [
-      ['status', '--porcelain', '--branch'],
-      ['rev-parse', 'HEAD', 'v1', 'loose', 'a0-child/task'],
-      ['for-each-ref', '--format=%(refname) %(objectname)'],
-      ['diff', '--binary', f.baseId, f.headId],
-      ['log', '--format=%H %s', '-3'],
-      ['rev-parse', '--symbolic-full-name', 'HEAD'],
-      ['ls-files', '--others', '--exclude-standard'],
-      ['merge-base', f.baseId, f.headId],
-    ].entries())
-      assert.equal(safeGit(f.owner, f.wt, pin, args), plain(f.wt, ...args), `case ${i}`);
-    // A0 also ran `fsck` and `config --get credential.helper` through owner Git: neither is an inspection command now.
-    for (const args of [['fsck', '--full', '--strict'], ['config', '--get', 'credential.helper'], ['symbolic-ref', 'HEAD']]) assert.throws(() => safeGitRun(f.owner, f.wt, pin, args), typed(/^git_command_not_allowed$/));
+    const at = on(f, pin);
+    // A0's argv cases, each as the typed call that runs it; each still compared with plain Git's output for that argv.
+    // A0's `symbolic-ref HEAD` is `rev-parse --symbolic-full-name HEAD` (symbolic-ref is not in the typed API).
+    const cases: [() => string, string[]][] = [
+      [() => gitStatus(at, { branch: true }).trim(), ['status', '--porcelain', '--branch']],
+      [() => ['HEAD', 'v1', 'loose', 'a0-child/task'].map(rev => gitRevParse(at, rev)).join('\n'), ['rev-parse', 'HEAD', 'v1', 'loose', 'a0-child/task']],
+      [() => gitForEachRef(at, 'refs/').map(r => `${r.ref} ${r.object}`).join('\n'), ['for-each-ref', '--format=%(refname) %(objectname)']],
+      [() => gitDiff(at, { kind: 'revisions', from: f.baseId, to: f.headId }).toString('utf8').trim(), ['diff', '--binary', f.baseId, f.headId]],
+      [() => gitLog(at, 'HEAD', 3).map(e => `${e.commit} ${e.subject}`).join('\n'), ['log', '--format=%H %s', '-3']],
+      [() => gitRevParse(at, 'HEAD', { symbolicFullName: true }), ['rev-parse', '--symbolic-full-name', 'HEAD']],
+      [() => gitLsFiles(at, { untracked: true }).join('\n'), ['ls-files', '--others', '--exclude-standard']],
+      [() => gitMergeBase(at, f.baseId, f.headId), ['merge-base', f.baseId, f.headId]],
+    ];
+    for (const [i, [call, args]] of cases.entries()) assert.equal(call(), plain(f.wt, ...args), `case ${i}`);
+    // A0 also ran `fsck` and `config --get credential.helper` through owner Git: the typed API has neither (nor any raw
+    // argv function to name them): the export test below asserts the exported surface.
   } finally {
     f.cleanup();
   }
@@ -350,7 +376,7 @@ test('owner Git: a racily-clean same-second, same-size edit is reported modified
     utimesSync(index, T, T); // index written in the same second: the entry is racily clean
     const pin = readGitPin(wt);
     const owner: OwnerGit = { stateDir: realpathSync(stateTmp.dir), env: { PATH: SYS_PATH, LANG: 'C' } };
-    assert.equal(safeGit(owner, wt, pin, ['status', '--porcelain']), 'M note', 'owner Git must not trust stat data of a racily-clean entry');
+    assert.equal(gitStatus({ owner, root: wt, pin }), ' M note\n', 'owner Git must not trust stat data of a racily-clean entry');
     assert.equal(git(wt, 'status', '--porcelain'), 'M note', 'fixture: plain Git sees the racy edit');
   } finally {
     tmp.cleanup();
@@ -387,6 +413,37 @@ test('evidence binds commit AND native tree; diff bytes are advisory with produc
   }
 });
 
+test('evidence: with a replacement ref for the commit, the artifact tree is still its native tree', () => {
+  const f = fixture();
+  try {
+    const root = f.wt;
+    const a = f.headId;
+    // Captured before any replacement exists: the commit object's own tree line.
+    const nativeTree = /^tree ([a-f0-9]+)$/m.exec(f.git(root, 'cat-file', 'commit', a))![1]!;
+    writeFileSync(join(root, 'other'), 'other\n');
+    f.git(root, 'add', 'other');
+    f.git(root, 'commit', '-qm', 'replacement');
+    const b = f.git(root, 'rev-parse', 'HEAD');
+    const otherTree = f.git(root, 'rev-parse', 'HEAD^{tree}');
+    assert.notEqual(otherTree, nativeTree);
+    f.git(root, 'replace', a, b);
+    f.git(root, 'reset', '-q', '--hard', a);
+    // Control: Git honours the replacement by default and peels A to B's tree.
+    assert.equal(f.git(root, 'rev-parse', `${a}^{tree}`), otherTree, 'fixture must be live: plain Git uses the replacement');
+    const pin = readGitPin(root);
+    const subject = artifactSubject(f.owner, root, a, f.baseId, pin);
+    assert.equal(subject.commit_id, a);
+    assert.equal(subject.tree_id, nativeTree, 'the artifact tree is the native tree');
+    const at = on(f, pin);
+    assert.match(gitCatFile(at, 'contents', a).toString('utf8'), new RegExp(`^tree ${nativeTree}\n`), 'cat-file reads the native commit');
+    // The advisory diff is of the native objects too.
+    const native = execFileSync('git', ['-C', root, '--no-replace-objects', 'diff', '--binary', f.baseId, a], { env: f.env });
+    assert.equal(subject.diff_digest?.value, createHash('sha256').update(native).digest('hex'));
+  } finally {
+    f.cleanup();
+  }
+});
+
 // ---- ported from A0 security-fix.test.ts (M1, owner Git) ----
 
 test('M1: a planted core.fsmonitor never runs from the owner checks (pin compare, then safe config)', () => {
@@ -408,19 +465,19 @@ test('M1: a planted core.fsmonitor never runs from the owner checks (pin compare
     const original = readFileSync(join(r.admin, 'commondir'), 'utf8');
     writeFileSync(join(r.admin, 'commondir'), `${fsmonitorDecoy(join(r.wt, 'decoy'))}\n`);
     assert.throws(() => artifactSubject(r.owner, r.wt, 'HEAD', base, pin), typed(/^git_metadata_changed_since_launch/));
-    assert.throws(() => safeGit(r.owner, r.wt, pin, ['status', '--porcelain']), typed(/^git_metadata_changed_since_launch/));
+    assert.throws(() => gitStatus(on(r, pin)), typed(/^git_metadata_changed_since_launch/));
     writeFileSync(join(r.admin, 'commondir'), original);
     // Plant 2: rewrite the worktree .git gitfile to point at a decoy gitdir.
     const gitfile = readFileSync(join(r.wt, '.git'), 'utf8');
     const fake = fsmonitorDecoy(join(r.wt, 'decoy2'));
     writeFileSync(join(r.wt, '.git'), `gitdir: ${fake}\n`);
-    assert.throws(() => safeGit(r.owner, r.wt, pin, ['status', '--porcelain']), typed(/^git_metadata_changed_since_launch/));
+    assert.throws(() => gitStatus(on(r, pin)), typed(/^git_metadata_changed_since_launch/));
     writeFileSync(join(r.wt, '.git'), gitfile);
     // A config the pin cannot catch (set before pinning) still never executes.
     r.git(r.repo, 'config', 'core.fsmonitor', payload);
     const repin = readGitPin(r.wt);
-    safeGit(r.owner, r.wt, repin, ['status', '--porcelain']);
-    safeGit(r.owner, r.wt, repin, ['diff', '--stat', base, 'HEAD']);
+    gitStatus(on(r, repin));
+    gitDiff(on(r, repin), { kind: 'revisions', from: base, to: 'HEAD' }, { format: 'stat' });
     // A0 also ran `fsck` on the ordinary repository; an ordinary root refuses now, and fsck is not an inspection command.
     assert.throws(() => readGitPin(r.repo), typed(/^sandbox_git_ordinary_checkout_refused$/));
     artifactSubject(r.owner, r.wt, 'HEAD', base, repin);
@@ -430,7 +487,7 @@ test('M1: a planted core.fsmonitor never runs from the owner checks (pin compare
     assert.equal(existsSync(r.marker), true, 'fixture must be live: plain Git runs core.fsmonitor');
     rmSync(r.marker);
     // Missing pin refuses rather than trusting current bytes.
-    assert.throws(() => safeGit(r.owner, r.wt, undefined, ['status']), typed(/^git_launch_pin_required$/));
+    assert.throws(() => gitStatus(on(r, undefined)), typed(/^git_launch_pin_required$/));
   } finally {
     r.cleanup();
   }
@@ -449,7 +506,7 @@ test('M1: ordinary checkouts refuse; a config include refuses the pin and fails 
     writeFileSync(join(r.base, 'evil.cfg'), r.evil);
     r.git(r.repo, 'config', 'include.path', join(r.base, 'evil.cfg'));
     assert.throws(() => readGitPin(r.wt), typed(/include_refused/));
-    for (const args of COMMANDS(r)) assert.throws(() => safeGitRun(r.owner, r.wt, pin, args), typed(/^git_metadata_changed_since_launch: sandbox_git_config_include_refused$/));
+    for (const call of CALLS(r)) assert.throws(() => call(on(r, pin)), typed(/^git_metadata_changed_since_launch: sandbox_git_config_include_refused$/));
     // A0's sandbox assertion (an include refuses sandboxLaunch) is git-sandbox.test.ts "git: config is judged by Git's own parser …".
     assert.equal(existsSync(r.marker), false);
   } finally {
@@ -478,9 +535,9 @@ test('owner Git: with TMPDIR a symlink into the checkout, a planted diff.<x>.com
     const link = join(f.base, 'tmp-link');
     symlinkSync(join(f.wt, 'scratch'), link);
     process.env.TMPDIR = link;
-    for (const args of COMMANDS(f)) safeGitRun(owner, f.wt, pin, args);
+    for (const call of CALLS(f)) call(on(f, pin, owner));
     const dirs = gitDirs().slice(before);
-    assert.equal(dirs.length, COMMANDS(f).length, 'every call ran Git on a snapshot');
+    assert.equal(dirs.length, CALLS(f).length, 'every call ran Git on a snapshot');
     for (const [i, dir] of dirs.entries()) {
       assert.ok(within(join(f.state, 'git-snapshots'), dir), `call ${i}: the snapshot is in the state's git-snapshots`);
       assert.ok(![f.wt, f.repo].some(p => within(p, dir)), `call ${i}: the snapshot is outside the checkout`);
@@ -505,14 +562,14 @@ test('owner Git: a state directory reached through a link into the checkout refu
     for (const target of [f.wt, f.admin, join(f.repo, '.git')]) {
       const linked = join(f.base, `link-${target === f.wt ? 'root' : target === f.admin ? 'admin' : 'common'}`);
       symlinkSync(target === f.wt ? join(f.wt, 'state') : target, linked);
-      for (const args of COMMANDS(f)) assert.throws(() => safeGitRun({ stateDir: linked, env: owner.env }, f.wt, pin, args), typed(/^git_snapshot_dir_inside_checkout$/));
+      for (const call of CALLS(f)) assert.throws(() => call(on(f, pin, { stateDir: linked, env: owner.env })), typed(/^git_snapshot_dir_inside_checkout$/));
     }
-    for (const args of COMMANDS(f)) assert.throws(() => safeGitRun({ stateDir: link, env: owner.env }, f.wt, pin, args), typed(/^git_snapshot_dir_inside_checkout$/));
+    for (const call of CALLS(f)) assert.throws(() => call(on(f, pin, { stateDir: link, env: owner.env })), typed(/^git_snapshot_dir_inside_checkout$/));
     assert.deepEqual(gitDirs(), [], 'no Git ran on a snapshot inside the checkout');
     assert.equal(runs(f), 'none');
     assert.deepEqual(readdirSync(join(f.wt, 'state', 'git-snapshots')), [], 'the refused snapshot is removed');
     // A relative or non-canonical state directory refuses before anything is made.
-    for (const stateDir of ['state', `${f.state}/../x`]) assert.throws(() => safeGitRun({ stateDir, env: owner.env }, f.wt, pin, ['status']), typed(/^git_snapshot_state_dir_invalid$/));
+    for (const stateDir of ['state', `${f.state}/../x`]) assert.throws(() => gitStatus(on(f, pin, { stateDir, env: owner.env })), typed(/^git_snapshot_state_dir_invalid$/));
   } finally {
     f.cleanup();
   }
@@ -524,10 +581,10 @@ test('owner Git: the snapshot directory must be private (owned, mode 0700)', () 
     const pin = readGitPin(f.wt);
     mkdirSync(snapshots(f), { mode: 0o755 });
     chmodSync(snapshots(f), 0o755);
-    assert.throws(() => safeGitRun(f.owner, f.wt, pin, ['status']), typed(/^git_snapshot_dir_not_private$/));
+    assert.throws(() => gitStatus(on(f, pin)), typed(/^git_snapshot_dir_not_private$/));
     assert.deepEqual(leftovers(f), [], 'nothing was made in a directory that is not private');
     chmodSync(snapshots(f), 0o700);
-    assert.equal(safeGit(f.owner, f.wt, pin, ['status', '--porcelain']), 'M note');
+    assert.equal(gitStatus(on(f, pin)), ' M note\n');
     assert.deepEqual(leftovers(f), []);
   } finally {
     f.cleanup();
@@ -545,8 +602,8 @@ test('owner Git: a commondir planted after the owner checks, before Git starts, 
     assert.equal(oldHelperRuns(f, f.admin, f.wt, ['diff', '--', 'note']), true, 'fixture must be live: the decoy runs under the live admin dir');
     writeFileSync(commondir, original);
     const owner = wrapGit(f, `printf '%s\\n' '${fake}' > ${commondir}`);
-    for (const args of COMMANDS(f)) {
-      safeGitRun(owner, f.wt, pin, args);
+    for (const call of CALLS(f)) {
+      call(on(f, pin, owner));
       writeFileSync(commondir, original);
     }
     assert.equal(runs(f), 'none', 'owner Git followed a commondir planted after its checks');
@@ -568,11 +625,11 @@ test('owner Git: metadata changed since the pin refuses (HEAD retargeted, config
     for (const [file, content, label] of changes) {
       const before = existsSync(file) ? readFileSync(file) : null;
       writeFileSync(file, content);
-      for (const args of COMMANDS(f)) assert.throws(() => safeGitRun(f.owner, f.wt, pin, args), typed(/^git_metadata_changed_since_launch$/), label);
+      for (const call of CALLS(f)) assert.throws(() => call(on(f, pin)), typed(/^git_metadata_changed_since_launch$/), label);
       if (before === null) rmSync(file);
       else writeFileSync(file, before);
     }
-    assert.equal(safeGit(f.owner, f.wt, pin, ['status', '--porcelain']), 'M note', 'the restored metadata equals the pin again');
+    assert.equal(gitStatus(on(f, pin)), ' M note\n', 'the restored metadata equals the pin again');
   } finally {
     f.cleanup();
   }
@@ -595,8 +652,9 @@ test('owner Git: pinned protocol.<name>.allow other than never refuses; ls-remot
     assert.notEqual(raw.status, 0);
     assert.equal(existsSync(marker), false, 'owner Git config overrides let ext:: run');
     const pin = readGitPin(f.wt);
-    assert.throws(() => safeGitRun(f.owner, f.wt, pin, lsRemote), typed(/^git_command_not_allowed$/));
-    for (const args of COMMANDS(f)) assert.throws(() => safeGitRun(f.owner, f.wt, pin, args), typed(/^git_config_allows_protocol: protocol\.ext\.allow$/));
+    // A0 refused `safeGitRun(…, ['ls-remote', …])`; the typed API has no transport function and no raw argv entry.
+    assert.deepEqual(Object.keys(ownerGitApi).filter(k => /remote|fetch|push|clone|run|raw|argv/i.test(k)), [], 'no transport or raw argv function');
+    for (const call of CALLS(f)) assert.throws(() => call(on(f, pin)), typed(/^git_config_allows_protocol: protocol\.ext\.allow$/));
     f.git(f.repo, 'config', '--unset', 'protocol.ext.allow');
     for (const [key, value] of [
       ['protocol.file.allow', 'always'],
@@ -607,13 +665,13 @@ test('owner Git: pinned protocol.<name>.allow other than never refuses; ls-remot
     ] as const) {
       f.git(f.repo, 'config', key, value);
       const repin = readGitPin(f.wt);
-      assert.throws(() => safeGitRun(f.owner, f.wt, repin, ['status']), typed(/^git_config_allows_protocol: /), `${key}=${value}`);
+      assert.throws(() => gitStatus(on(f, repin)), typed(/^git_config_allows_protocol: /), `${key}=${value}`);
       f.git(f.repo, 'config', '--unset', key);
     }
     // `never` (in any case) is what owner Git sets anyway.
     f.git(f.repo, 'config', 'protocol.ext.allow', 'NEVER');
     f.git(f.repo, 'config', 'protocol.allow', 'never');
-    assert.equal(safeGit(f.owner, f.wt, readGitPin(f.wt), ['status', '--porcelain']), 'M note');
+    assert.equal(gitStatus(on(f, readGitPin(f.wt))), ' M note\n');
     assert.equal(existsSync(marker), false);
   } finally {
     f.cleanup();
@@ -626,7 +684,7 @@ test('owner Git: a pinned credential.helper (also URL-scoped) refuses as executi
     for (const key of ['credential.helper', 'credential.https://example.invalid.helper']) {
       f.git(f.repo, 'config', key, `!${f.payload}`);
       const pin = readGitPin(f.wt);
-      for (const args of COMMANDS(f)) assert.throws(() => safeGitRun(f.owner, f.wt, pin, args), typed(/^git_config_executes_code: credential\./), key);
+      for (const call of CALLS(f)) assert.throws(() => call(on(f, pin)), typed(/^git_config_executes_code: credential\./), key);
       f.git(f.repo, 'config', '--unset', key);
     }
     assert.equal(runs(f), 'none');
@@ -635,54 +693,200 @@ test('owner Git: a pinned credential.helper (also URL-scoped) refuses as executi
   }
 });
 
-test('owner Git: only local inspection commands run; transport and every other command refuses before anything is made', () => {
+/** A typed refusal of a caller value: `git_argument_refused: <what>`. */
+const argRefused = typed(/^git_argument_refused: /);
+
+test('owner Git: the API is typed (no raw argv export); every inspection matches plain Git; an option, pathspec magic or a bad value refuses before anything is made', () => {
   const f = fixture();
   try {
     const pin = readGitPin(f.wt);
-    assert.deepEqual([...OWNER_GIT_COMMANDS].sort(), ['cat-file', 'diff', 'diff-files', 'diff-index', 'diff-tree', 'for-each-ref', 'log', 'ls-files', 'merge-base', 'rev-parse', 'show', 'status']);
-    for (const [i, args] of [
-      ['fetch', f.repo],
-      ['ls-remote', f.repo],
-      ['push', f.repo, 'HEAD'],
-      ['pull', f.repo],
-      ['clone', f.repo, join(f.base, 'clone')],
-      ['fetch-pack', f.repo],
-      ['upload-pack', f.repo],
-      ['archive', `--remote=${f.repo}`, 'HEAD'],
-      ['remote', 'add', 'x', f.repo],
-      ['submodule', 'update', '--init'],
-      ['fsck'],
-      ['gc'],
-      ['config', '--list'],
-      ['symbolic-ref', 'HEAD'],
-      ['credential', 'fill'],
-      ['-c', 'protocol.ext.allow=always', 'status'],
-      ['--git-dir=/', 'status'],
-      ['whatchanged'],
-      [''],
-      [],
-    ].entries())
-      assert.throws(() => safeGitRun(f.owner, f.wt, pin, args), typed(/^git_command_not_allowed$/), `case ${i}`);
-    assert.equal(existsSync(snapshots(f)), false, 'a refused command made no snapshot');
-    for (const [i, args] of [
-      ['status', '--porcelain'],
-      ['diff', '--stat', f.baseId, f.headId],
-      ['diff-tree', '-r', f.baseId, f.headId],
-      ['diff-index', '--cached', 'HEAD'],
-      ['diff-files'],
-      ['log', '-1', '--format=%H'],
-      ['show', '--stat', 'HEAD'],
-      ['rev-parse', 'HEAD'],
-      ['cat-file', '-t', 'HEAD'],
-      ['ls-files'],
-      ['for-each-ref'],
-      ['merge-base', f.baseId, f.headId],
-    ].entries()) {
-      const result = safeGitRun(f.owner, f.wt, pin, args);
-      assert.equal(result.status, 0, `inspection case ${i} ran`);
+    const at = on(f, pin);
+    // Rule 6: the exported surface. Adding a function needs the security review; a raw argv function is never added.
+    assert.deepEqual(Object.keys(ownerGitApi).sort(), ['SAFE_GIT_CONFIG', 'gitCatFile', 'gitDiff', 'gitForEachRef', 'gitLog', 'gitLsFiles', 'gitMergeBase', 'gitRevParse', 'gitShow', 'gitStatus', 'gitVersion', 'readGitPin']);
+    const target = join(f.wt, 'written-by-git');
+    const plain = (...args: string[]) => execFileSync('git', ['-C', f.wt, '-c', 'core.fsmonitor=false', ...args], { env: f.env });
+    // Control: Git honours the option values tried below (`--output` writes the file).
+    plain('diff', `--output=${target}`, 'HEAD');
+    assert.equal(existsSync(target), true, 'fixture must be live: git diff --output writes its target');
+    rmSync(target);
+    const revisions = ['--help', `--output=${target}`, '--ext-diff', '--textconv', '--ignore-submodules=none', '--recurse-submodules', '-c', '--exec-path=/', '-p', '', 'HEAD\nx', 'a\0b', 'x'.repeat(5000)];
+    const byRevision: ((v: string) => unknown)[] = [
+      v => gitRevParse(at, v),
+      v => gitRevParse(at, v, { symbolicFullName: true }),
+      v => gitDiff(at, { kind: 'revisions', from: v, to: 'HEAD' }),
+      v => gitDiff(at, { kind: 'revisions', from: 'HEAD', to: v }),
+      v => gitDiff(at, { kind: 'index', from: v }),
+      v => gitLog(at, v, 1),
+      v => gitShow(at, v),
+      v => gitCatFile(at, 'type', v),
+      v => gitCatFile(at, 'contents', v),
+      v => gitMergeBase(at, v, 'HEAD'),
+      v => gitMergeBase(at, 'HEAD', v),
+    ];
+    for (const [i, call] of byRevision.entries()) for (const [j, v] of revisions.entries()) assert.throws(() => call(v), argRefused, `revision call ${i}, value ${j}`);
+    const paths = [':(top)note', ':!note', ':/note', ':(attr:x)note', '--output=x', '-p', '/etc', '../x', 'a/../../x', '..', '', 'a\nb'];
+    const byPath: ((v: string) => unknown)[] = [v => gitStatus(at, { paths: [v] }), v => gitDiff(at, { kind: 'worktree' }, { paths: ['note', v] }), v => gitLsFiles(at, { paths: [v] })];
+    for (const [i, call] of byPath.entries()) for (const [j, v] of paths.entries()) assert.throws(() => call(v), argRefused, `path call ${i}, value ${j}`);
+    for (const [j, v] of ['refs/heads/*', 'refs/[ab]', 'refs/a?', 'heads/', '--format=%(refname)', 'refs/../x', 'refs/a b', 'refs/a\\b', ''].entries()) assert.throws(() => gitForEachRef(at, v), argRefused, `ref prefix ${j}`);
+    for (const [j, v] of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2_000_000].entries()) assert.throws(() => gitLog(at, 'HEAD', v), argRefused, `count ${j}`);
+    assert.throws(() => gitDiff(at, { kind: 'revisions', from: 'HEAD', to: 'HEAD' }, { format: 'raw' as DiffFormat }), argRefused, 'format');
+    assert.throws(() => gitDiff(at, { kind: 'tree' } as unknown as DiffOf), argRefused, 'diff kind');
+    assert.throws(() => gitCatFile(at, 'batch' as 'type', 'HEAD'), argRefused, 'cat-file mode');
+    assert.equal(existsSync(target), false, 'no option reached Git');
+    assert.equal(existsSync(snapshots(f)), false, 'a refused value made no snapshot');
+    // Every typed function runs; each equals plain Git's output for the argv it stands for.
+    const text = (b: Buffer) => b.toString('utf8');
+    assert.equal(gitStatus(at), text(plain('status', '--porcelain')));
+    assert.equal(gitStatus(at, { paths: ['note'] }), text(plain('status', '--porcelain', '--', 'note')));
+    for (const fmt of ['patch', 'stat', 'name-only', 'name-status'] as const) {
+      const flags = { patch: ['--binary'], stat: ['--stat'], 'name-only': ['--name-only', '-z'], 'name-status': ['--name-status', '-z'] }[fmt];
+      assert.deepEqual(gitDiff(at, { kind: 'revisions', from: f.baseId, to: f.headId }, { format: fmt }), plain('diff', ...flags, f.baseId, f.headId), `diff revisions ${fmt}`);
+      assert.deepEqual(gitDiff(at, { kind: 'worktree' }, { format: fmt }), plain('diff', ...flags), `diff worktree ${fmt}`);
+      assert.deepEqual(gitDiff(at, { kind: 'index', from: f.baseId }, { format: fmt }), plain('diff', '--cached', ...flags, f.baseId), `diff index ${fmt}`);
     }
+    assert.deepEqual(gitLog(at, `${f.baseId}..HEAD`, 5), [{ commit: f.headId, subject: 'head' }]);
+    assert.deepEqual(gitShow(at, 'HEAD', { format: 'stat' }), plain('show', '--stat', 'HEAD'));
+    assert.deepEqual(gitShow(at, `${f.baseId}:note`), plain('show', `${f.baseId}:note`));
+    assert.equal(gitCatFile(at, 'type', 'HEAD'), 'commit');
+    assert.equal(gitCatFile(at, 'size', 'HEAD:note'), 5);
+    assert.deepEqual(gitCatFile(at, 'contents', 'HEAD'), plain('cat-file', '-p', 'HEAD'));
+    assert.deepEqual(gitLsFiles(at), ['.gitattributes', 'note']);
+    assert.deepEqual(gitForEachRef(at, 'refs/heads/a0-child'), [{ ref: 'refs/heads/a0-child/task', object: f.headId, type: 'commit' }]);
+    assert.equal(gitMergeBase(at, f.baseId, f.headId), f.baseId);
     assert.equal(runs(f), 'none');
     assert.deepEqual(leftovers(f), []);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('owner Git: help dispatch never runs a configured man or browser program (the key refuses; --help is never an argument)', () => {
+  const f = fixture();
+  try {
+    const marker = join(f.base, 'help-ran');
+    const viewer = join(f.base, 'viewer.sh');
+    writeFileSync(viewer, `#!/bin/sh\necho RAN >> ${marker}\n`, { mode: 0o755 });
+    // Astra F1: pinned before the call, so the pin cannot catch it.
+    f.git(f.repo, 'config', 'man.viewer', 'piwview');
+    f.git(f.repo, 'config', 'man.piwview.cmd', viewer);
+    // Control: Git rewrites `<command> --help` to `git help`, which runs the configured viewer.
+    spawnSync('git', ['-C', f.wt, 'status', '--help'], { env: f.env, stdio: 'ignore', timeout: 20_000 });
+    assert.equal(existsSync(marker), true, 'fixture must be live: plain Git runs man.<tool>.cmd for --help');
+    rmSync(marker);
+    const pin = readGitPin(f.wt);
+    const at = on(f, pin);
+    for (const call of CALLS(f)) assert.throws(() => call(at), typed(/^git_config_executes_code: man\./));
+    for (const [i, call] of [() => gitMergeBase(at, '--help', 'HEAD'), () => gitRevParse(at, '--help'), () => gitCatFile(at, 'type', '--help'), () => gitLog(at, '--help', 1)].entries()) assert.throws(call, argRefused, `call ${i}`);
+    assert.equal(existsSync(marker), false, 'owner Git ran the help viewer');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('owner Git: every documented program-running config key refuses (help, man, browser, tools, remote programs, trailers, send-email, tar, submodule !update)', () => {
+  const f = fixture();
+  try {
+    const value = f.payload;
+    const keys: [string, string][] = [
+      ['man.piwview.cmd', value],
+      ['man.piwview.path', value],
+      ['man.viewer', 'piwview'],
+      ['help.browser', 'piwview'],
+      ['help.format', 'web'],
+      ['web.browser', 'piwview'],
+      ['browser.piwview.cmd', value],
+      ['browser.piwview.path', value],
+      ['interactive.diffFilter', value],
+      ['gpg.ssh.defaultKeyCommand', value],
+      ['gc.recentObjectsHook', value],
+      ['difftool.piw.cmd', value],
+      ['difftool.piw.path', value],
+      ['mergetool.piw.cmd', value],
+      ['mergetool.piw.path', value],
+      ['guitool.piw.cmd', value],
+      ['imap.tunnel', value],
+      ['instaweb.httpd', value],
+      ['instaweb.browser', value],
+      ['remote.origin.receivepack', value],
+      ['remote.origin.uploadpack', value],
+      ['trailer.piw.command', value],
+      ['trailer.piw.cmd', value],
+      ['sendemail.ccCmd', value],
+      ['sendemail.toCmd', value],
+      ['sendemail.headerCmd', value],
+      ['sendemail.smtpServer', value],
+      ['sendemail.sendmailCmd', value],
+      ['sendemail.work.sendmailCmd', value],
+      ['sendemail.work.ccCmd', value],
+      ['tar.tgz.command', value],
+      ['submodule.piw.update', `!${value}`],
+    ];
+    for (const [key, v] of keys) {
+      f.git(f.repo, 'config', key, v);
+      const pin = readGitPin(f.wt);
+      assert.throws(() => gitStatus(on(f, pin)), typed(/^git_config_executes_code: /), key);
+      f.git(f.repo, 'config', '--unset', key);
+    }
+    // A submodule update mode that is not a command does not refuse.
+    f.git(f.repo, 'config', 'submodule.piw.update', 'rebase');
+    assert.equal(gitStatus(on(f, readGitPin(f.wt))), ' M note\n');
+    assert.equal(runs(f), 'none');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("owner Git: an agent's .gitmodules ignore = none never makes owner Git run Git in a nested repository", () => {
+  const f = fixture();
+  try {
+    // The agent: a nested repository committed as a gitlink, `.gitmodules` saying `ignore = none`, a filter defined in the
+    // nested repository's own config and selected by its attributes, and a dirty file there.
+    const sub = join(f.wt, 'sub');
+    mkdirSync(sub);
+    f.git(sub, 'init', '-q');
+    f.git(sub, 'config', 'user.name', 'A0 fixture');
+    f.git(sub, 'config', 'user.email', 'a0@example.invalid');
+    writeFileSync(join(sub, 'f'), 'x\n');
+    f.git(sub, 'add', '.');
+    f.git(sub, 'commit', '-qm', 'sub');
+    f.git(sub, 'config', 'filter.evil.clean', f.payload);
+    writeFileSync(join(sub, '.gitattributes'), '* filter=evil\n');
+    writeFileSync(join(f.wt, '.gitmodules'), '[submodule "sub"]\n\tpath = sub\n\turl = ./sub\n\tignore = none\n');
+    f.git(f.wt, 'add', '.gitmodules', 'sub');
+    f.git(f.wt, 'commit', '-qm', 'gitlink');
+    writeFileSync(join(sub, 'f'), 'y\n');
+    const pin = readGitPin(f.wt);
+    // Control: even with owner Git's `-c diff.ignoreSubmodules=all`, the .gitmodules setting wins and the filter runs.
+    spawnSync('git', ['-C', f.wt, ...SAFE_GIT_CONFIG, 'status', '--porcelain'], { env: f.env, stdio: 'ignore' });
+    assert.notDeepEqual(ran(f), [], 'fixture must be live: .gitmodules ignore = none overrides the -c setting');
+    rmSync(f.marker);
+    const at = on(f, pin);
+    for (const call of CALLS(f)) call(at);
+    gitDiff(at, { kind: 'index', from: f.baseId });
+    gitShow(at, 'HEAD');
+    gitLog(at, 'HEAD', 2);
+    assert.equal(runs(f), 'none', 'owner Git ran Git in the nested repository');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('owner Git: a split index refuses (a shared index in the linked admin dir, or core.splitIndex)', () => {
+  const f = fixture();
+  try {
+    // The config alone, before any index is split.
+    f.git(f.repo, 'config', 'core.splitIndex', 'true');
+    assert.throws(() => gitStatus(on(f, readGitPin(f.wt))), typed(/^git_split_index_refused$/), 'core.splitIndex=true');
+    f.git(f.repo, 'config', 'core.splitIndex', 'false');
+    assert.equal(gitStatus(on(f, readGitPin(f.wt))), ' M note\n', 'core.splitIndex=false is not a split index');
+    f.git(f.repo, 'config', '--unset', 'core.splitIndex');
+    // A linked worktree whose index is already split: its entries are in sharedindex.<id> in the admin dir.
+    f.git(f.wt, 'update-index', '--split-index');
+    assert.ok(readdirSync(f.admin).some(n => n.startsWith('sharedindex.')), 'fixture: the shared index is in the admin dir');
+    assert.equal(execFileSync('git', ['-C', f.wt, 'status', '--porcelain'], { encoding: 'utf8', env: f.env }), ' M note\n', 'fixture: plain Git reads the split index');
+    const pin = readGitPin(f.wt);
+    for (const call of CALLS(f)) assert.throws(() => call(on(f, pin)), typed(/^git_split_index_refused$/));
+    assert.deepEqual(leftovers(f), [], 'a refused call removes its snapshot');
   } finally {
     f.cleanup();
   }
