@@ -44,7 +44,9 @@ is() { [ "$1" = "$2" ] && echo true || echo false; }
 gone() { [ ! -e "$1" ] && [ ! -L "$1" ] && echo true || echo false; }
 
 echo "# p4-install on $(uname -n): $name" >>"$transcript"
-say sha256sum -c "$tarball.sha256" --status
+cd "$(dirname "$tarball")" && say sha256sum -c "$name.sha256"
+check tarball_sha256 "$(is "$rc" 0)"
+cd "$HOME"
 say tar -xzf "$tarball" -C "$boot"
 cli="$boot/pi-worker-$version/bin/pi-worker"
 
@@ -89,7 +91,7 @@ rm -f "$bridge_grant"
 say pi-worker grant register --caller p4-journey --out "$bridge_grant" --method hello --method workers.list
 check grant_registered "$(is "$rc:$(printf '%s' "$said" | json 'v.caller')" 0:p4-journey)"
 say pi-worker --grant-file "$bridge_grant" workers.list
-check granted_read "$(is "$rc:$(printf '%s' "$said" | json 'Array.isArray(v.workers)')" 0:true)"
+check granted_read "$(is "$rc:$(printf '%s' "$said" | json 'Array.isArray(v)')" 0:true)"
 say pi-worker --grant-file "$bridge_grant" sessions.list
 check ungranted_refused "$(is "$rc:$(printf '%s' "$said" | json 'v.effect')" 1:no_effect)"
 
