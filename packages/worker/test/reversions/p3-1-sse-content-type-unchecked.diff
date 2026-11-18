@@ -1,9 +1,9 @@
 diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
-index edba208..36fdff9 100644
+index d380377..5bab59b 100644
 --- a/packages/client-ts/src/client.ts
 +++ b/packages/client-ts/src/client.ts
-@@ -426,7 +426,7 @@ export class Client {
-             fail(new ResyncRequired(`HTTP ${res.statusCode}`));
+@@ -447,7 +447,7 @@ export class Client {
+             fail(new ResyncRequired(`HTTP ${res.statusCode}`, res.statusCode));
              return;
            }
 -          if (!(routes['events.subscribe'].contentTypes as readonly string[]).includes(mediaType(res.headers['content-type']))) {
