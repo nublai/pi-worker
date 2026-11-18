@@ -17,10 +17,19 @@ const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64';
 const FLOOR = '1.2.3';
 
-// The npm calls build.sh makes, faked: `ci` makes a node_modules, `run build` the compiled files it copies.
+// The npm calls build.sh makes, faked: `ci` makes a node_modules as npm does (workspace links, the CLI's .bin link
+// into its workspace package, an inner .bin link; FAKE_NPM_LINK_OUT adds a link out of the tree), `run build` the
+// compiled files build.sh copies.
 const FAKE_NPM = `#!/bin/sh
 case "$1" in
-  ci) mkdir -p node_modules/dep && echo '{"name":"dep","version":"1.0.0"}' > node_modules/dep/package.json ;;
+  ci)
+    mkdir -p node_modules/dep node_modules/@nublai node_modules/.bin
+    echo '{"name":"dep","version":"1.0.0"}' > node_modules/dep/package.json
+    echo '' > node_modules/dep/cli.js
+    for p in client-ts:pi-worker-client worker:pi-worker cli:pi-worker-cli; do ln -s ../../packages/\${p%%:*} node_modules/@nublai/\${p#*:}; done
+    ln -s ../@nublai/pi-worker-cli/dist/src/main.js node_modules/.bin/pi-worker
+    ln -s ../dep/cli.js node_modules/.bin/dep
+    [ -z "\${FAKE_NPM_LINK_OUT:-}" ] || ln -s /etc node_modules/dep/out ;;
   run)
     for p in client-ts worker cli; do mkdir -p packages/$p/dist/src; done
     mkdir -p packages/worker/dist/src/b2
@@ -73,14 +82,19 @@ function scratch() {
   git('add', '-A');
   git('commit', '-qm', 'scratch');
   const out = join(dir, 'out');
-  const build = () => spawnSync('bash', [join(repo, 'harness', 'release', 'build.sh'), ARCH], { cwd: repo, env: { ...env, PIW_RELEASE_OUT: out }, encoding: 'utf8' });
-  /** The built tarball, unpacked: its wrapper text and release.json. */
+  const build = (extra: Record<string, string> = {}) =>
+    spawnSync('bash', [join(repo, 'harness', 'release', 'build.sh'), ARCH], { cwd: repo, env: { ...env, ...extra, PIW_RELEASE_OUT: out }, encoding: 'utf8' });
+  /** The built tarball, unpacked: its wrapper text, release.json and its node_modules/.bin entries. */
   const unpacked = () => {
     const tarball = readdirSync(out).find(f => f.endsWith('.tar.gz'))!;
     const into = mkdtempSync(join(dir, 'unpacked-'));
     assert.equal(spawnSync('tar', ['-xzf', join(out, tarball), '-C', into], { env }).status, 0, 'the artifact unpacks');
     const top = join(into, readdirSync(into)[0]!);
-    return { wrapper: readFileSync(join(top, 'bin', 'pi-worker'), 'utf8'), release: JSON.parse(readFileSync(join(top, 'release.json'), 'utf8')) as Record<string, unknown> };
+    return {
+      wrapper: readFileSync(join(top, 'bin', 'pi-worker'), 'utf8'),
+      release: JSON.parse(readFileSync(join(top, 'release.json'), 'utf8')) as Record<string, unknown>,
+      bins: readdirSync(join(top, 'node_modules', '.bin')).sort(),
+    };
   };
   return { dir, repo, out, git, build, unpacked, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
@@ -90,7 +104,9 @@ test('build.sh: a clean checkout builds; one with a tracked change (wrapper or p
   try {
     const clean = s.build();
     assert.equal(clean.status, 0, 'a clean checkout builds');
-    assert.equal(s.unpacked().release.commit, s.git('rev-parse', 'HEAD'), 'release.json names HEAD');
+    const built = s.unpacked();
+    assert.equal(built.release.commit, s.git('rev-parse', 'HEAD'), 'release.json names HEAD');
+    assert.deepEqual(built.bins, ['dep'], "the CLI's npm bin link into the removed workspace package is not shipped; an inner one is");
     rmSync(s.out, { recursive: true, force: true });
     for (const file of ['harness/release/pi-worker.sh', 'package.json']) {
       const path = join(s.repo, file);
@@ -102,6 +118,18 @@ test('build.sh: a clean checkout builds; one with a tracked change (wrapper or p
       assert.equal(existsSync(s.out) && readdirSync(s.out).length > 0, false, `${file}: no artifact was written`);
       writeFileSync(path, before);
     }
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('build.sh: a release tree with a link that resolves out of it is refused and nothing is packed', () => {
+  const s = scratch();
+  try {
+    const r = s.build({ FAKE_NPM_LINK_OUT: '1' });
+    assert.equal(r.status, 1, 'refused');
+    assert.match(r.stderr, /node_modules\/dep\/out resolves to nothing or out of the release/);
+    assert.equal(existsSync(s.out) && readdirSync(s.out).some(f => f.endsWith('.tar.gz')), false, 'no artifact was written');
   } finally {
     s.cleanup();
   }

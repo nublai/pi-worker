@@ -64,6 +64,8 @@ for pkg in client-ts:pi-worker-client worker:pi-worker; do
   [ ! -d "$src/packages/$dir/node_modules" ] || cp -a "$src/packages/$dir/node_modules" "$dest/node_modules"
 done
 rm -rf "$stage/node_modules/@nublai/pi-worker-cli"
+# Its npm bin link pointed into the workspace CLI just removed; the release's own entry is bin/pi-worker.
+rm -f "$stage/node_modules/.bin/pi-worker"
 [ ! -d "$src/packages/cli/node_modules" ] || { echo "build: packages/cli has nested node_modules; resolve them into the top level" >&2; exit 1; }
 # The CLI is the top-level dist (dist/main.js); its imports resolve through the top-level node_modules.
 cp -a "$src/packages/cli/dist/src" "$stage/dist"
@@ -88,6 +90,14 @@ write("release.json", { version: VERSION, commit: COMMIT, node_engine: ENGINE, b
 sed "s/@NODE_FLOOR@/${engine#>=}/" "$src/harness/release/pi-worker.sh" >"$stage/bin/pi-worker"
 chmod 0755 "$stage/bin/pi-worker"
 cp "$src/LICENSE" "$stage/LICENSE"
+# install refuses a link that resolves to nothing or out of the version directory (docs/plan/install.md section 3
+# step 6), so such a release is never packed.
+stage_real=$(readlink -f "$stage")
+while IFS= read -r -d '' link; do
+  target=$(readlink -e -- "$link") && case "$target" in "$stage_real"/*) continue ;; esac
+  echo "build: ${link#"$stage/"} resolves to nothing or out of the release; install would refuse it" >&2
+  exit 1
+done < <(find "$stage" -type l -print0)
 
 mkdir -p "$out"
 mtime=$(git show -s --format=%ct HEAD)
