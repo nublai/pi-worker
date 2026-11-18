@@ -604,9 +604,13 @@ test('C3: an overflow before any snapshot counts toward the protocol-failure bou
         send(s, overflow(c(1)));
       };
       const o = start(fake, client, { backoff: { initialMs: 1, maxMs: 2, maxProtocolFailures: 3 } });
-      const stop = await ended(o.done, 'overflow forever');
-      assert.equal(stop.reason, 'protocol', 'an overflow-first stream is a protocol failure');
-      assert.equal(fake.counts.streams, 3, 'after exactly maxProtocolFailures streams');
+      let stop: ObserverStop | undefined;
+      void o.done.then(s => void (stop = s));
+      // A bounded window (never an unbounded wait): a guard that retries forever keeps opening streams past it.
+      await until(() => fake.counts.streams >= 3, 'three overflow-first streams');
+      await new Promise(r => setTimeout(r, 300));
+      assert.equal(fake.counts.streams, 3, 'the observer stopped after exactly maxProtocolFailures streams');
+      assert.equal(stop?.reason, 'protocol', 'an overflow-first stream is a protocol failure');
       assert.deepEqual(o.batches, [], 'nothing applied');
     }
     // An overflow, then a 503 and a disconnect before any snapshot: both retries and the next stream still ask for it.
