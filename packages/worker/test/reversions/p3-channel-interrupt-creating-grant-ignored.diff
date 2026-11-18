@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/channel.ts b/packages/worker/src/supervisor/channel.ts
+index 527f038..fd02d8b 100644
+--- a/packages/worker/src/supervisor/channel.ts
++++ b/packages/worker/src/supervisor/channel.ts
+@@ -88,7 +88,7 @@ export async function openChannel(s: SupervisorState, live: Live): Promise<Chann
+   const w = live.worker;
+   // Within the creating grant's methods; a worker created outside B2 has no creating grant.
+   const source = w.grant_source_id ? grants.read(w.grant_source_id).methods : ['*'];
+-  const wanted = [...new Set([...CHANNEL_METHODS, ...(w.launch_spec?.grant_methods ?? [])])].filter(m => source.includes('*') || source.includes(m));
++  const wanted = [...new Set([...CHANNEL_METHODS, ...(w.launch_spec?.grant_methods ?? [])])].filter(m => source.includes('*') || source.includes(m) || m === 'executions.interrupt');
+   const { grant } = grants.register({
+     caller: `parent-channel:${w.worker_id}`,
+     scope: { worker_ids: [w.worker_id], cwd_roots: [w.cwd] },

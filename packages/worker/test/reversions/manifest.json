@@ -700,7 +700,10 @@
         "p2-8-fix-close-skips-retire.diff",
         "p2-8-fix-closed-channel-served.diff",
         "p2-8-fix-recheck-ends-without-frame.diff",
-        "p2-8-fix2-authority-end-resyncs.diff"
+        "p2-8-fix2-authority-end-resyncs.diff",
+        "p3-channel-interrupt-not-whitelisted.diff",
+        "p3-channel-interrupt-parent-itself.diff",
+        "p3-channel-interrupt-creating-grant-ignored.diff"
       ]
     },
     "install-grant-state": {

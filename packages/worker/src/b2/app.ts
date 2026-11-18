@@ -24,7 +24,7 @@ import type { Route } from '../generated/routes.js';
 import { allowsCwd, allowsMethod, allowsWorker, type Caller, type GrantStore } from '../grants/store.js';
 import type { Supervisor } from '../supervisor/supervisor.js';
 import type { ChannelIdentity } from '../supervisor/channel.js';
-import { channelAuthorizer, channelChild } from './channel.js';
+import { channelAuthorizer, channelChild, channelInterruptTarget } from './channel.js';
 import { currentGuard } from '../grants/authority.js';
 import { closeSync } from 'node:fs';
 import { openSlot } from '../sandbox/sandbox.js';
@@ -173,7 +173,11 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     'sessions.steer': ({ path, body }) => supervisor().steer(path.worker_id, body),
     'sessions.follow_up': ({ path, body }) => supervisor().followUp(path.worker_id, body),
     'executions.cancel': ({ path, body }) => supervisor().control(path.worker_id, body, false),
-    'executions.interrupt': ({ path, body }) => supervisor().control(path.worker_id, body, true),
+    'executions.interrupt': ({ path, body }) => {
+      // On a parent channel only the parent's own child (b2/channel.ts), checked before any receipt exists.
+      if (channel) channelInterruptTarget(worker(path.worker_id), channel);
+      return supervisor().control(path.worker_id, body, true);
+    },
     'sessions.rebind': ({ path, body }) => supervisor().rebind(path.worker_id, body),
     'sessions.new': ({ path, body }) => supervisor().newSession(path.worker_id, body),
     'sessions.resolve_unknown': ({ path, body }) => supervisor().resolveUnknown(path.worker_id, body),
