@@ -6,8 +6,8 @@
  * config by path, and a sandboxed writer can rewrite admin files in that window. So every call:
  *  1. opens the checkout's `.git`, admin and common dirs with O_NOFOLLOW and compares the launch-time pin (gitfile,
  *     gitdir, commondir, symbolic HEAD, config hash, alternates) through those descriptors;
- *  2. copies HEAD, config (re-hashed against the pin), refs, packed-refs, shallow, info and the index (keeping its
- *     mtime, so racily-clean entries stay racy) from the SAME descriptors into a fresh mode-0700 snapshot directory in
+ *  2. copies HEAD, config (re-hashed against the pin), refs, packed-refs, shallow, info and the index from the SAME
+ *     descriptors into a fresh mode-0700 snapshot directory in
  *     the supervisor's state, `<stateDir>/git-snapshots/` (`$XDG_STATE_HOME/pi-worker/git-snapshots/`), never under
  *     `TMPDIR`. Its real path, read back from its open descriptor, must lie outside the checkout, the admin dir and the
  *     common dir: a path string (a symlinked `TMPDIR` or state directory) cannot put it where the agent writes;
@@ -29,7 +29,13 @@
  *     `git_index_too_large`; an index format this reader does not know is `git_index_unreadable`), and a pinned `core.ignoreStat`, `core.sparseCheckout` or `index.sparse`
  *     (`git_config_trusts_stat`). `core.checkStat`, `core.trustctime` and `core.untrackedCache` (also an
  *     untracked cache stored in the index) are overridden on the command line to Git's full checks, which can only add
- *     content comparisons.
+ *     content comparisons. Nothing else in that index is trusted either: in the snapshot's copy (never the checkout's
+ *     own index) every entry's recorded stat data (ctime, mtime, dev, ino, size) is zeroed, so Git re-reads and hashes
+ *     every tracked file (a recorded size of 0 makes Git compare content whenever the stat differs, and a real file's
+ *     ctime and inode are never 0), and the cache-tree extension (`TREE`, which can vouch that a staged directory
+ *     matches HEAD) is dropped with the two that describe the old layout (`EOIE`, `IEOT`); the index checksum is
+ *     written anew (Git does not check it on read, so neither does this reader). An index Git then cannot read (its own
+ *     checks, past this reader's) refuses `git_index_unreadable` too, never a guess.
  *
  * The API is typed: one function per supported inspection (status, diff, log, show, rev-parse, cat-file, ls-files,
  * for-each-ref, merge-base). Callers pass validated values (revisions, paths, ref prefixes, counts), never options:
@@ -41,11 +47,11 @@
  * Named limits: a supervisor killed during a call leaves its snapshot (a copy of the repository's config and refs) in the
  * private snapshot directory; it is no new authority (mode 0700, same user). Every call is synchronous (it copies the
  * snapshot and waits for Git): a long-lived process that must keep answering (the supervisor) runs owner Git in a child
- * process of its own, never on its event loop (supervisor/artifacts.ts). Index stat data is the index's: an entry whose
- * recorded stat matches a changed file (and is not racily clean) reads as unchanged, as in plain Git.
+ * process of its own, never on its event loop (supervisor/artifacts.ts).
  */
 import { spawnSync } from 'node:child_process';
-import { closeSync, constants, fstatSync, futimesSync, mkdirSync, mkdtempSync, openSync, readdirSync, readlinkSync, readSync, rmSync, writeSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { closeSync, constants, fstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readlinkSync, readSync, rmSync, writeSync } from 'node:fs';
 import { basename, isAbsolute, join, normalize } from 'node:path';
 import { Refusal } from '../b2/errors.js';
 import { assertPin, checkConfig, inspect, type GitPin } from '../sandbox/git-sandbox.js';
@@ -256,8 +262,8 @@ interface Budget {
   bytes: number;
 }
 
-/** The rest of the open file `fd` into a new entry `name` of `dest`; with `mtime` (whole seconds), its times set to it. */
-function copyFd(fd: number, dest: number, name: string, budget: Budget, mtime?: number): void {
+/** The rest of the open file `fd` into a new entry `name` of `dest`. */
+function copyFd(fd: number, dest: number, name: string, budget: Budget): void {
   const out = openSync(fdPath(dest, name), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
   try {
     const buf = Buffer.alloc(64 * 1024);
@@ -269,7 +275,6 @@ function copyFd(fd: number, dest: number, name: string, budget: Budget, mtime?: 
       let off = 0;
       while (off < n) off += writeSync(out, buf, off, n - off);
     }
-    if (mtime !== undefined) futimesSync(out, mtime, mtime);
   } finally {
     closeSync(out);
   }
@@ -277,9 +282,9 @@ function copyFd(fd: number, dest: number, name: string, budget: Budget, mtime?: 
 
 /**
  * Copies the regular file `names` below `source` to `name` in `dest` through one O_NOFOLLOW descriptor; an absent entry
- * is skipped. With `keepMtime`, the copy gets the source's mtime from that descriptor, rounded DOWN to whole seconds.
+ * is skipped.
  */
-function copyFileAt(source: number, names: string[], dest: number, name: string, budget: Budget, keepMtime = false): void {
+function copyFileAt(source: number, names: string[], dest: number, name: string, budget: Budget): void {
   let fd: number;
   try {
     fd = openUnder(source, names, 'file');
@@ -288,8 +293,7 @@ function copyFileAt(source: number, names: string[], dest: number, name: string,
     throw error;
   }
   try {
-    const mtime = keepMtime ? Number(fstatSync(fd, { bigint: true }).mtimeNs / 1_000_000_000n) : undefined;
-    copyFd(fd, dest, name, budget, mtime);
+    copyFd(fd, dest, name, budget);
   } finally {
     closeSync(fd);
   }
@@ -329,10 +333,8 @@ function copyTreeAt(source: number, dest: number, budget: Budget, depth = 0): vo
 function copyData(admin: number, common: number, out: number): void {
   const budget: Budget = { entries: 0, bytes: 0 };
   for (const name of ['packed-refs', 'shallow']) copyFileAt(common, [name], out, name, budget);
-  // Keep the index mtime: Git treats an entry as racily clean (and compares content) when its mtime is not older than
-  // the index file's. A fresh copy time would make a same-second, same-size edit look clean. Rounding down only widens
-  // the racy set, so it can add content checks, never skip one.
-  copyFileAt(admin, ['index'], out, 'index', budget, true);
+  // Its mtime does not matter: a worktree read blanks every entry's stat data (step 5), so none is trusted, racy or not.
+  copyFileAt(admin, ['index'], out, 'index', budget);
   for (const name of ['refs', 'info']) {
     mkdirSync(fdPath(out, name), { mode: 0o700 });
     let src: number;
@@ -385,18 +387,29 @@ const ASSUME_VALID = 0x8000;
 const EXTENDED = 0x4000;
 const SKIP_WORKTREE = 0x4000;
 
+/** An index as git-index(5) lays it out: where each entry starts, its flags, and the extensions after the entries. */
+interface IndexLayout {
+  readonly entries: readonly { readonly start: number; readonly hidden: boolean }[];
+  /** The offset just past the last entry. */
+  readonly entriesEnd: number;
+  readonly extensions: readonly { readonly signature: string; readonly start: number; readonly end: number }[];
+}
+
+const indexHash = (oidBytes: number) => createHash(oidBytes === 32 ? 'sha256' : 'sha1');
+
 /**
- * Step 5, on the snapshot's copy of the index (the bytes Git reads): an entry marked assume-unchanged or skip-worktree
- * (a sparse checkout's entries and a sparse index's directories too) refuses. Formats 2 to 4 (git-index(5)); anything
- * this reader does not know refuses as well.
+ * Step 5's reader, on the snapshot's copy of the index (the bytes Git reads). Formats 2 to 4 (git-index(5)): the header,
+ * every entry, and the extensions framed up to the trailing checksum. Anything this reader does not know, or that does
+ * not add up, refuses `git_index_unreadable`.
  */
-function refuseHiddenEntries(index: Buffer | null, oidBytes: number): void {
-  if (index === null) return;
+function indexLayout(index: Buffer, oidBytes: number): IndexLayout {
   const unreadable = () => new Refusal('git_index_unreadable');
-  if (index.length < 12 || index.toString('latin1', 0, 4) !== 'DIRC') throw unreadable();
+  if (index.length < 12 + oidBytes || index.toString('latin1', 0, 4) !== 'DIRC') throw unreadable();
   const version = index.readUInt32BE(4);
   if (version < 2 || version > 4) throw unreadable();
   const count = index.readUInt32BE(8);
+  const trailer = index.length - oidBytes;
+  const entries: { start: number; hidden: boolean }[] = [];
   let at = 12;
   for (let i = 0; i < count; i++) {
     const start = at;
@@ -411,7 +424,7 @@ function refuseHiddenEntries(index: Buffer | null, oidBytes: number): void {
       extended = index.readUInt16BE(at);
       at += 2;
     }
-    if (flags & ASSUME_VALID || extended & SKIP_WORKTREE) throw new Refusal('git_index_hides_changes');
+    entries.push({ start, hidden: (flags & ASSUME_VALID) !== 0 || (extended & SKIP_WORKTREE) !== 0 });
     // Version 4: a varint (how much of the previous path to keep), then the rest of the path; no padding.
     if (version === 4)
       do {
@@ -422,7 +435,67 @@ function refuseHiddenEntries(index: Buffer | null, oidBytes: number): void {
     at = nul + 1;
     // Versions 2 and 3: the entry is NUL-padded to a multiple of 8 bytes.
     if (version !== 4) at = start + Math.ceil((at - start) / 8) * 8;
-    if (at > index.length) throw unreadable();
+    if (at > trailer) throw unreadable();
+  }
+  const entriesEnd = at;
+  // Extensions: a 4-byte signature and a 4-byte length, then that many bytes; the last ends at the checksum.
+  const extensions: { signature: string; start: number; end: number }[] = [];
+  while (at < trailer) {
+    if (at + 8 > trailer) throw unreadable();
+    const end = at + 8 + index.readUInt32BE(at + 4);
+    if (end > trailer) throw unreadable();
+    extensions.push({ signature: index.toString('latin1', at, at + 4), start: at, end });
+    at = end;
+  }
+  return { entries, entriesEnd, extensions };
+}
+
+/**
+ * Step 5: an entry marked assume-unchanged or skip-worktree (a sparse checkout's entries and a sparse index's
+ * directories too) refuses.
+ */
+function refuseHiddenEntries(layout: IndexLayout): void {
+  if (layout.entries.some(entry => entry.hidden)) throw new Refusal('git_index_hides_changes');
+}
+
+/**
+ * Extensions the snapshot's index drops: `TREE` (the cache tree: a forged one vouches that a staged directory matches
+ * HEAD, and Git then skips comparing it), and `EOIE` and `IEOT`, which describe the layout the rewrite changes (both
+ * only speed loading).
+ */
+const UNTRUSTED_EXTENSIONS = new Set(['TREE', 'EOIE', 'IEOT']);
+/** An entry's recorded stat data: ctime, mtime (seconds and nanoseconds), dev and ino (24 bytes); size (4 at 36). */
+const STAT_HEAD = 24;
+const SIZE_AT = 36;
+
+/**
+ * Step 5: rewrites the snapshot's own index (never the checkout's) so Git trusts nothing in it: every entry's stat data
+ * zeroed (mode, uid, gid, object id, flags and path kept), the untrusted extensions dropped, the checksum written anew.
+ * `index` is the snapshot's private copy; it is changed in place.
+ */
+function writeUntrustedIndex(dir: string, index: Buffer, layout: IndexLayout, oidBytes: number): void {
+  for (const { start } of layout.entries) {
+    index.fill(0, start, start + STAT_HEAD);
+    index.fill(0, start + SIZE_AT, start + SIZE_AT + 4);
+  }
+  const kept = layout.extensions.filter(extension => !UNTRUSTED_EXTENSIONS.has(extension.signature));
+  const pieces = [index.subarray(0, layout.entriesEnd), ...kept.map(extension => index.subarray(extension.start, extension.end))];
+  const hash = indexHash(oidBytes);
+  for (const piece of pieces) hash.update(piece);
+  pieces.push(hash.digest());
+  const dirFd = openSync(dir, DIR_FLAGS);
+  try {
+    const fd = openSync(fdPath(dirFd, 'index'), constants.O_WRONLY | constants.O_TRUNC | constants.O_NOFOLLOW);
+    try {
+      for (const piece of pieces) {
+        let off = 0;
+        while (off < piece.length) off += writeSync(fd, piece, off, piece.length - off);
+      }
+    } finally {
+      closeSync(fd);
+    }
+  } finally {
+    closeSync(dirFd);
   }
 }
 
@@ -547,15 +620,28 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly workt
   try {
     const { oidBytes } = snapshot(owner, root, pin, dir, worktree);
     // Step 5, on the snapshot's index: the bytes Git reads next.
-    if (worktree) refuseHiddenEntries(readSnapshotIndex(dir), oidBytes);
+    const index = worktree ? readSnapshotIndex(dir) : null;
+    if (index !== null) {
+      const layout = indexLayout(index, oidBytes);
+      refuseHiddenEntries(layout);
+      writeUntrustedIndex(dir, index, layout, oidBytes);
+    }
     const home = join(dir, 'home');
     mkdirSync(home, { mode: 0o700 });
-    const result = spawnSync('git', ['-C', root, `--git-dir=${dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...(worktree ? WORKTREE_CONFIG : []), ...argv], {
-      env: cleanEnv(owner, home, join(pin.common_dir, 'objects')),
-      stdio: ['ignore', 'pipe', 'pipe'],
-      maxBuffer: 256 * 1024 * 1024,
-    });
+    const git = (args: readonly string[], stdout: 'pipe' | 'ignore') =>
+      spawnSync('git', ['-C', root, `--git-dir=${dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...(worktree ? WORKTREE_CONFIG : []), ...args], {
+        env: cleanEnv(owner, home, join(pin.common_dir, 'objects')),
+        stdio: ['ignore', stdout, 'pipe'],
+        maxBuffer: 256 * 1024 * 1024,
+      });
+    const result = git(argv, 'pipe');
     if (result.error) throw result.error;
+    // A worktree read that failed: if Git cannot read the rewritten index on its own (`ls-files` reads only the index;
+    // its exit, not its translated message, decides), that is the typed refusal, never a guess from the stderr text.
+    if (result.status !== 0 && index !== null) {
+      const probe = git(['ls-files', '--stage', '-z'], 'ignore');
+      if (!probe.error && probe.status !== 0 && probe.signal === null) throw new Refusal('git_index_unreadable');
+    }
     if (result.status !== 0) throw new GitFailed(argv[0]!, result.status, result.signal, result.stderr.toString('utf8').slice(0, 512));
     return result.stdout;
   } finally {

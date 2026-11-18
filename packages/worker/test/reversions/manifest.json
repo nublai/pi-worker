@@ -274,7 +274,7 @@
       ]
     },
     "go-b2-auth": {
-      "command": "cd clients/go && { go test -count=1 ./b2/ 2>&1; echo \"go-test-exit $?\"; } | awk '/^go-test-exit /{exit $2} {print} $1 == \"---\" && $2 == \"FAIL:\" {print \"✖ \" $3}'",
+      "command": "cd clients/go && { go test -count=1 ./b2/ 2>&1; echo \"go-test-exit $?\"; } | awk '/^go-test-exit /{exit $2} {print} $1 == \"---\" && $2 == \"FAIL:\" {print \"\u2716 \" $3}'",
       "diffs": [
         "pr19-grant-follows-symlink.diff",
         "pr19-grant-mode-perm-only.diff",
@@ -316,7 +316,7 @@
       ]
     },
     "go-workerfake": {
-      "command": "cd clients/go && { go test -count=1 ./workerfake/ 2>&1; echo \"go-test-exit $?\"; } | awk '/^go-test-exit /{exit $2} {print} $1 == \"---\" && $2 == \"FAIL:\" {print \"✖ \" $3}'",
+      "command": "cd clients/go && { go test -count=1 ./workerfake/ 2>&1; echo \"go-test-exit $?\"; } | awk '/^go-test-exit /{exit $2} {print} $1 == \"---\" && $2 == \"FAIL:\" {print \"\u2716 \" $3}'",
       "diffs": [
         "pr20-fake-first-prompt-ungranted.diff",
         "pr20-fake-tool-memory-unbounded.diff",
@@ -499,7 +499,6 @@
         "p2-6-git-reads-live-admin-dir.diff",
         "p2-6-env-not-allowlisted.diff",
         "p2-6-executing-config-allowed.diff",
-        "p2-6-index-mtime-not-kept.diff",
         "p2-6-pin-not-compared.diff",
         "p2-6-raw-argv-exported.diff",
         "p2-6-revision-options-reachable.diff",
@@ -516,7 +515,9 @@
         "p3-6-fix-assume-unchanged-allowed.diff",
         "p3-6-fix-skip-worktree-allowed.diff",
         "p3-6-fix-stat-trust-config-allowed.diff",
-        "p3-6-fix-stat-overrides-dropped.diff"
+        "p3-6-fix-stat-overrides-dropped.diff",
+        "p3-6-cache-tree-trusted.diff",
+        "p3-6-index-unreadable-untyped.diff"
       ]
     },
     "staging": {
@@ -762,7 +763,8 @@
         "p3-6-fix-no-supervisor-cap.diff",
         "p3-6-fix-conflict-judged-after-truncation.diff",
         "p3-6-fix-merge-base-exit-ignored.diff",
-        "p3-6-fix-index-read-uncapped.diff"
+        "p3-6-fix-index-read-uncapped.diff",
+        "p3-6-stat-data-trusted.diff"
       ]
     }
   }

@@ -1,15 +1,13 @@
 diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
-index cedb085..0c4ab93 100644
+index 7242614..727fd3e 100644
 --- a/packages/worker/src/owner-git/git-safe.ts
 +++ b/packages/worker/src/owner-git/git-safe.ts
-@@ -537,7 +537,9 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly workt
-   try {
-     const { oidBytes } = snapshot(owner, root, pin, dir, worktree);
-     // Step 5, on the snapshot's index: the bytes Git reads next.
--    if (worktree) refuseHiddenEntries(readSnapshotIndex(dir), oidBytes);
-+    void refuseHiddenEntries;
-+    void readSnapshotIndex;
-+    void oidBytes;
+@@ -623,7 +623,7 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly workt
+     const index = worktree ? readSnapshotIndex(dir) : null;
+     if (index !== null) {
+       const layout = indexLayout(index, oidBytes);
+-      refuseHiddenEntries(layout);
++      void refuseHiddenEntries;
+       writeUntrustedIndex(dir, index, layout, oidBytes);
+     }
      const home = join(dir, 'home');
-     mkdirSync(home, { mode: 0o700 });
-     const result = spawnSync('git', ['-C', root, `--git-dir=${dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...(worktree ? WORKTREE_CONFIG : []), ...argv], {

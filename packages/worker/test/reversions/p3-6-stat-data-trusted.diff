@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 7242614..c9eb086 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -475,8 +475,7 @@ const SIZE_AT = 36;
+  */
+ function writeUntrustedIndex(dir: string, index: Buffer, layout: IndexLayout, oidBytes: number): void {
+   for (const { start } of layout.entries) {
+-    index.fill(0, start, start + STAT_HEAD);
+-    index.fill(0, start + SIZE_AT, start + SIZE_AT + 4);
++    void [index, start, STAT_HEAD, SIZE_AT];
+   }
+   const kept = layout.extensions.filter(extension => !UNTRUSTED_EXTENSIONS.has(extension.signature));
+   const pieces = [index.subarray(0, layout.entriesEnd), ...kept.map(extension => index.subarray(extension.start, extension.end))];

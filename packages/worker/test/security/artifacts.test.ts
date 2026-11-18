@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, truncateSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, truncateSync, utimesSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { join, resolve } from 'node:path';
 import { Client, ClientFailure } from '@nublai/pi-worker-client';
@@ -22,6 +22,7 @@ import { readGitPin, type GitPin, type OwnerGit } from '../../src/owner-git/git-
 import { sandboxLaunch } from '../../src/sandbox/sandbox.js';
 import { ARTIFACT_INSPECTION_BUDGET_MS, ARTIFACT_INSPECTIONS_PER_CALLER_MAX, type ArtifactFacts } from '../../src/supervisor/artifacts.js';
 import type { Create, Worker } from '../../src/supervisor/state.js';
+import { forgeStat } from '../git-index.js';
 import { ownerGrant, privateTmp, socketCall, wireFixtures, bundledSpec } from '../helpers.js';
 import { bind, fixture, Host } from '../supervisor-fixture.js';
 
@@ -643,9 +644,38 @@ test('artifacts.inspect: a tracked change the child hides with assume-unchanged 
   }
 });
 
-/** A child's commit of `count` tracked files with long names: an index of well over 1 MiB, no flag set, which plain Git calls clean. */
+test("artifacts.inspect: a child that edits a tracked file and forges its index entry's stat data to match is dirty, the path listed; an honest clean worktree is clean", { timeout: 60_000 }, async () => {
+  const x = await world();
+  try {
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    const req = { worker_epoch: a.worker.worker_epoch, commit: x.baseId };
+    assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'clean', entries: [], truncated: false }, 'control: clean');
+    // Same size as the committed `base\n`, an old mtime, and the entry rewritten to the edited file's stat.
+    const note = join(a.slot, 'note');
+    writeFileSync(note, 'evil\n');
+    utimesSync(note, 1_000_000_000, 1_000_000_000);
+    const index = indexPath(x, a.slot);
+    forgeStat(index, 'note', note);
+    assert.equal(x.git(a.slot, 'status', '--porcelain'), '', 'fixture: plain Git trusts the forged entry');
+    const before = readFileSync(index);
+    assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'dirty', entries: [{ code: ' M', path: 'note' }], truncated: false }, 'the forged entry is not trusted');
+    assert.ok(readFileSync(index).equals(before), "the child's own index is never written");
+    // The honest worktree: the committed bytes, the entry refreshed.
+    writeFileSync(note, 'base\n');
+    x.git(a.slot, 'update-index', '-q', '--refresh');
+    assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'clean', entries: [], truncated: false }, 'honest: clean');
+  } finally {
+    await x.cleanup();
+  }
+});
+
+/**
+ * A child's commit of `count` tracked files with long names, 1 KiB each: an index of well over 1 MiB, no flag set, which
+ * plain Git calls clean (and whose every file owner Git hashes).
+ */
 function commitManyFiles(x: Awaited<ReturnType<typeof world>>, slot: string, count: number): string {
-  for (let i = 0; i < count; i++) writeFileSync(join(slot, `f${String(i).padStart(6, '0')}-${'x'.repeat(40)}`), '');
+  for (let i = 0; i < count; i++) writeFileSync(join(slot, `f${String(i).padStart(6, '0')}-${'x'.repeat(40)}`), `${String(i).padStart(1023, '.')}\n`);
   writeFileSync(join(slot, 'zzz-last'), 'last\n');
   x.git(slot, 'add', '.');
   x.git(slot, 'commit', '-qm', 'many');
@@ -654,7 +684,7 @@ function commitManyFiles(x: Awaited<ReturnType<typeof world>>, slot: string, cou
 
 const indexPath = (x: Awaited<ReturnType<typeof world>>, slot: string): string => realpathSync(resolve(slot, x.git(slot, 'rev-parse', '--git-path', 'index')));
 
-test('artifacts.inspect: a clean checkout whose index is over 1 MiB (15,000 tracked files) is clean, and a hiding flag on an entry past the first 1 MiB is still refused', { timeout: 120_000 }, async () => {
+test('artifacts.inspect: a clean checkout whose index is over 1 MiB (15,000 tracked files) is clean within the budget, and a hiding flag on an entry past the first 1 MiB is still refused', { timeout: 120_000 }, async t => {
   const x = await world();
   try {
     const p = await x.parent('pa');
@@ -664,7 +694,12 @@ test('artifacts.inspect: a clean checkout whose index is over 1 MiB (15,000 trac
     assert.ok(size > 1024 * 1024, `fixture: the index is over 1 MiB (${size} bytes)`);
     assert.equal(x.git(a.slot, 'status', '--porcelain'), '', 'fixture: plain Git reports clean');
     const req = { worker_epoch: a.worker.worker_epoch, commit: head };
+    // Every tracked file is hashed (no entry's stat data is trusted), within the inspection budget.
+    const started = performance.now();
     assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'clean', entries: [], truncated: false });
+    const ms = Math.round(performance.now() - started);
+    t.diagnostic(`clean inspection of 15,001 tracked files: ${ms} ms (budget ${ARTIFACT_INSPECTION_BUDGET_MS} ms)`);
+    assert.ok(ms < ARTIFACT_INSPECTION_BUDGET_MS, 'within the budget');
     // The entry that sorts last starts past the first 1 MiB of the index; hide a change there.
     x.git(a.slot, 'update-index', '--assume-unchanged', 'zzz-last');
     writeFileSync(join(a.slot, 'zzz-last'), 'hidden\n');

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 7242614..2cb5968 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -640,7 +640,7 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly workt
+     // its exit, not its translated message, decides), that is the typed refusal, never a guess from the stderr text.
+     if (result.status !== 0 && index !== null) {
+       const probe = git(['ls-files', '--stage', '-z'], 'ignore');
+-      if (!probe.error && probe.status !== 0 && probe.signal === null) throw new Refusal('git_index_unreadable');
++      void probe;
+     }
+     if (result.status !== 0) throw new GitFailed(argv[0]!, result.status, result.signal, result.stderr.toString('utf8').slice(0, 512));
+     return result.stdout;
