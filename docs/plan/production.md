@@ -538,19 +538,34 @@ name; and any Git mount overlapping the state or a control path. The pin the val
 another namespace. The pin is memory-only: no sandboxed worker is relaunched yet. Named limit (in `hello`): the shared
 object store is writable, so a sandbox can add or remove objects other checkouts use.
 
-**P2-6 as built.** `owner-git/git-safe.ts` exports `readGitPin(root)` and `safeGitRun`, `safeGit`, `safeGitBuffer`
-(`owner, root, pin, args`), `gitVersion(owner)`; `owner-git/artifact.ts` exports `artifactSubject(owner, cwd, commit,
-base, pin)`. `owner` is `{ stateDir, env }`: the supervisor's state directory and the environment PATH and the locale
-are taken from (nothing else in it reaches Git). Owner Git runs only in a linked worktree (`readGitPin` refuses an
-ordinary root, as P2-5 does) and only `status`, `diff`, `diff-tree`, `diff-index`, `diff-files`, `log`, `show`,
-`rev-parse`, `cat-file`, `ls-files`, `for-each-ref` and `merge-base`; anything else, a global option first included,
-refuses `git_command_not_allowed` before anything is opened. Each call compares the pin through O_NOFOLLOW descriptors
+**P2-6 as built.** `owner-git/git-safe.ts` exports `readGitPin(root)`, `gitVersion(owner)` and a typed API on a
+`GitCheckout` (`{ owner, root, pin }`): `gitStatus` (porcelain, optional branch line and paths), `gitDiff` (two
+revisions, the index against a revision, or the worktree against the index; as a patch, stat, name-only or
+name-status; optional paths), `gitLog` (a revision or range, at most a count), `gitShow` (a revision or `rev:path`),
+`gitRevParse` (one revision, or its symbolic full name), `gitCatFile` (type, size or contents), `gitLsFiles` (tracked
+or untracked, optional paths), `gitForEachRef` (refs under a literal `refs/` prefix) and `gitMergeBase` (two
+revisions). `owner-git/artifact.ts` exports `artifactSubject(owner, cwd, commit, base, pin)`. `owner` is
+`{ stateDir, env }`: the supervisor's state directory and the environment PATH and the locale are taken from (nothing
+else in it reaches Git, `TZ` included). There is no raw argv entry: owner Git builds every argv, places
+`--end-of-options` before revisions and `--` before paths, and refuses (`git_argument_refused`, before anything is
+opened) a revision or path that starts with `-` or holds a control character, a path that is absolute, has a `..`
+segment or starts with `:` (pathspec magic; Git also runs with `GIT_LITERAL_PATHSPECS=1`), a ref prefix that is not a
+literal under `refs/`, and a count that is not a whole number from 1 to 1,000,000. Diff-family calls pass
+`--no-ext-diff --no-textconv`, and diff-family and status calls `--ignore-submodules=all` on the command line (an
+agent-written `.gitmodules` `ignore = none` overrides the `-c` setting, and Git would then run in the nested
+repository under its own config). Git runs with `GIT_NO_REPLACE_OBJECTS=1`, so a copied `refs/replace/*` cannot give
+a commit another tree. Owner Git runs only in a linked worktree (`readGitPin` refuses an ordinary root, as P2-5 does).
+Each call compares the pin through O_NOFOLLOW descriptors
 and copies HEAD, config, refs, `packed-refs`, `shallow`, `info` and the index (its mtime kept) from those descriptors
 into `<stateDir>/git-snapshots/snap-*`. Both directories must be ours and mode 0700, and the snapshot's real path, read
 back from its descriptor, must lie outside the root, the admin dir and the common dir
 (`git_snapshot_dir_inside_checkout`); `TMPDIR` is never used. The snapshot's config, listed by Git's own parser, refuses
-when a key names a program (now including `credential.helper` and `credential.<url>.helper`) or sets `protocol.allow` or
-`protocol.<name>.allow` to anything but `never`, and every call passes `-c protocol.allow=never`,
+when a key names a program (now including `credential.helper` and `credential.<url>.helper`, every other program or
+shell-command key in `git-config(1)`, `git-send-email(1)` and `git-archive(1)`, `submodule.<name>.update` starting with
+`!`, and the help dispatch keys `help.*`, `man.*`, `web.browser` and `browser.*`), sets `protocol.allow` or
+`protocol.<name>.allow` to anything but `never`, or asks for a split index (`core.splitIndex` not false); a
+`sharedindex.*` file in the admin dir also refuses (`git_split_index_refused`: the snapshot copies only `index`).
+Every call passes `-c protocol.allow=never`,
 `-c protocol.ext.allow=never` and `-c protocol.file.allow=never`. Named limit: a supervisor killed during a call leaves
 its snapshot (a copy of the repository's config and refs) in the private snapshot directory. `git-sandbox.ts` now
 exports `inspect` (unchanged) for the snapshot. No supervisor path calls owner Git yet; the harness and Maestro are its
@@ -646,7 +661,7 @@ Each point gets a named reviewer pass (Claude and Grok, cross-family to the auth
    shared (named limit).
 7. **Owner Git (P2-6):** no agent-writable path read by Git for anything that selects code; global and system
    config ignored; the snapshot lives in supervisor state, never under `TMPDIR`; protocol-specific `allow` keys
-   refused and transport commands outside the API. Named limit: same-user code outside the sandbox can still
+   refused; the API is typed (no raw argv, no transport). Named limit: same-user code outside the sandbox can still
    write supervisor state (invariant 8).
 8. **Parent channel (P2-8):** own grant, never the owner's; source grant rechecked per request; no answers, fence
    resolution or relaunch through the channel.
@@ -668,7 +683,7 @@ Each point gets a named reviewer pass (Claude and Grok, cross-family to the auth
 | The child core in P1 (D5) lengthens P1 | P5 starts later | It is A0 slice 4 ported with its tests, without sandboxing; P1-11 can start as soon as P1-10 lands, and P1-14 to P1-16 do not depend on P1-12 or P1-13, so those can be built in parallel |
 | Generator bump silently raises the Go client's floor | Shep's Go 1.24 build breaks | Exact pins; generated models compiled and tested on Go 1.24.13 with `GOTOOLCHAIN=local` (section 4.4) |
 | A binary or streaming route bypasses validation | Unchecked bytes reach the journal or pi | Body and response modes are declared per operation and enforced by the router; closure test requires a mode on every operation (section 4.2) |
-| An owner-Git finding reappears in a new command | Owner code runs from agent-writable config | P2-6 restricts the exported command set; adding a command needs the rule 6 security review |
+| An owner-Git finding reappears in a new command | Owner code runs from agent-writable config | P2-6 exports typed functions only (no raw argv); adding a function or an option needs the rule 6 security review |
 | Go client stdlib-only rule fights oapi-codegen output (unions, formats) | Generated code imports a runtime | `exclude-schemas`, no `uuid`/`date` formats in the spec, CI gate |
 | Two durable owners for child results (worker reports, Maestro outbox) drift | Lost or duplicate parent delivery | P3 keeps raw reports in the worker and checked outcomes in Maestro only |
 

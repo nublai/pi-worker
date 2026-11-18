@@ -205,9 +205,14 @@ HEAD retargeted after validation, and bwrap never runs).
 
 **P2-6** ports A0's `owner-git` and `gate1-artifact` tests and the `security-fix` M1 owner-Git cases into
 `test/security/owner-git.test.ts` (`npm test -- owner-git`; its kernel case runs in `harness/ci/kernel.sh -- owner-git`).
-A0's `safeGitRun(root, pin, args)` is `safeGitRun(owner, root, pin, args)`: `owner` names the state directory (the
+A0's `safeGitRun(root, pin, args)` / `safeGit(root, pin, args)` is, since the PR #32 fix round, the typed call for that
+argv on a `GitCheckout` `{ owner, root, pin }` (`gitStatus`, `gitDiff`, `gitLog`, `gitShow`, `gitRevParse`, `gitCatFile`,
+`gitLsFiles`, `gitForEachRef`, `gitMergeBase`; there is no raw argv entry): A0's three race/config commands `diff
+--binary BASE HEAD`, `diff -- note` and `status --porcelain` are `gitDiff(at, { kind: 'revisions', from, to })`,
+`gitDiff(at, { kind: 'worktree' }, { paths: ['note'] })` and `gitStatus(at)`. `owner` names the state directory (the
 snapshots live in its `git-snapshots`) and the environment PATH and locale come from, so a test's Git environment is
-synthetic instead of `process.env`. A0's `artifactSubject(cwd, …)` is `artifactSubject(owner, cwd, …)`; A0's
+synthetic instead of `process.env`. A0's `safeGit(…) === 'M note'` (trimmed output) is now the exact untrimmed
+porcelain line `' M note\n'` (stricter: the leading status column and newline are compared too). A0's `artifactSubject(cwd, …)` is `artifactSubject(owner, cwd, …)`; A0's
 `A0_OWNER_GIT_RACE_N` is `PIW_OWNER_GIT_RACE_N` (default 300, as in A0). Since P2-5 an ordinary checkout root refuses
 (`sandbox_git_ordinary_checkout_refused`, also from `readGitPin`) and `GitPin.kind` is only `linked`, so A0's
 assertions made on an ordinary root run on the fixture's linked worktree, and owner Git runs only the local inspection
@@ -219,11 +224,11 @@ commands of plan row P2-6.
 | `owner-git.test.ts` › "owner Git: racing a planted commondir in an ordinary .git against safeGit diff/status never runs a planted driver or filter" | `owner-git.test.ts` › "owner Git: an ordinary checkout root refuses; a commondir planted in the repository .git never redirects a linked worktree" | **Changed:** the ordinary root no longer pins (asserted refused). The same flipper races the same planted `.git/commondir` against owner Git on the linked worktree of that repository: the liveness control, no payload and no unexpected error are kept; `refused > 0` is dropped, because a worktree's pin does not include the repository's top-level `commondir` (its Git never reads it), so nothing is refused, and `passed > 0` remains |
 | `owner-git.test.ts` › "owner Git: a repository config that defines a filter, diff driver, textconv or include is refused, not run" | `owner-git.test.ts` › same name | Ported, all assertions, on the linked worktree only (the ordinary root refuses). Adds: a refused call removes its snapshot |
 | `owner-git.test.ts` › "owner Git: ~/.gitconfig includes, XDG config/attributes and GIT_CONFIG_GLOBAL/SYSTEM are not honoured" | `owner-git.test.ts` › "owner Git: ~/.gitconfig includes, XDG config/attributes, GIT_CONFIG_* and GIT_EXTERNAL_DIFF in its environment are not honoured" | Ported, all assertions; the hostile variables are in `OwnerGit.env` (where owner Git takes its environment from) instead of `process.env`. Adds: `GIT_CONFIG_COUNT`/`KEY`/`VALUE` configuration is not honoured |
-| `owner-git.test.ts` › "owner Git: results match plain Git on an untouched checkout (snapshot is faithful)" | `owner-git.test.ts` › same name | Ported on the linked worktree. **Changed (plan row P2-6, inspection commands only):** `symbolic-ref HEAD` is compared as `rev-parse --symbolic-full-name HEAD`; `fsck --full --strict` and `config --get credential.helper` are asserted refused (`git_command_not_allowed`) instead of run. Adds: `ls-files --others --exclude-standard` and `merge-base` match plain Git |
+| `owner-git.test.ts` › "owner Git: results match plain Git on an untouched checkout (snapshot is faithful)" | `owner-git.test.ts` › same name | Ported on the linked worktree. **Changed (plan row P2-6, inspection commands only):** `symbolic-ref HEAD` is compared as `rev-parse --symbolic-full-name HEAD`; `fsck --full --strict` and `config --get credential.helper` are not in the typed API (PR #32 fix round: no raw argv entry, so they cannot be named; the export test asserts the exported surface) instead of run. Each A0 argv runs as its typed call and is still compared with plain Git's output for that same argv: the four-revision `rev-parse` as four `gitRevParse` calls joined by newlines, `for-each-ref` as `gitForEachRef(at, 'refs/')` printed `%(refname) %(objectname)`, `log --format='%H %s' -3` as `gitLog(at, 'HEAD', 3)` printed the same way. Adds: `ls-files --others --exclude-standard` and `merge-base` match plain Git |
 | `owner-git.test.ts` › "owner Git: a racily-clean same-second, same-size edit is reported modified, as plain Git does (snapshot keeps the index mtime)" | `owner-git.test.ts` › same name | Ported, all assertions, in a linked worktree (its index is in the admin dir) |
 | `owner-git.test.ts` › "kernel owner Git: a bwrap parent racing its child admin commondir cannot make owner safeGit run a planted driver" | `owner-git.test.ts` › same name | Ported, all assertions. A0's parent was sandboxed in its ordinary clone, which refuses since P2-5; the parent here is sandboxed in the directory holding the repository and its child worktree (no Git metadata at its root), where it can write the child's admin dir as A0's could (asserted: the launch mounts no Git pin) |
 | `gate1-artifact.test.ts` › "evidence binds commit AND native tree; diff bytes are advisory with producing Git version" | `owner-git.test.ts` › same name | Ported, all assertions, in an owner-made linked worktree (an ordinary root refuses) |
-| `security-fix.test.ts` › "M1: a planted core.fsmonitor never runs from the owner checks (pin compare, then safe config)" | `owner-git.test.ts` › same name | Ported, all assertions except A0's `safeGitRun(repo, readGitPin(repo), ['fsck', …])`: the ordinary root's pin is asserted refused instead, and `diff --stat` on the worktree runs in fsck's place (fsck is not an inspection command). Adds: the fixture is live (plain Git runs the fsmonitor) |
+| `security-fix.test.ts` › "M1: a planted core.fsmonitor never runs from the owner checks (pin compare, then safe config)" | `owner-git.test.ts` › same name | Ported, all assertions except A0's `safeGitRun(repo, readGitPin(repo), ['fsck', …])`: the ordinary root's pin is asserted refused instead, and `diff --stat` on the worktree (`gitDiff(…, { format: 'stat' })`) runs in fsck's place (fsck is not in the typed API). Adds: the fixture is live (plain Git runs the fsmonitor) |
 | `security-fix.test.ts` › "M1: ordinary checkouts refuse a planted commondir and config includes" | `owner-git.test.ts` › "M1: ordinary checkouts refuse; a config include refuses the pin and fails a call made with an older pin" | **Changed:** A0's `ordinary_checkout_redirected` (owner Git on an ordinary `.git` with a planted `commondir`) is superseded by the ordinary-root refusal, asserted with and without the plant. The include assertions are kept on the linked worktree: `readGitPin` refuses `include_refused`, and every call with the pin taken before refuses `git_metadata_changed_since_launch`; no payload runs |
 
 New in P2-6 (`owner-git.test.ts`): "owner Git: with TMPDIR a symlink into the checkout, a planted diff.<x>.command never
@@ -234,8 +239,16 @@ the snapshot directory must be private (owned, mode 0700)", "owner Git: a common
 before Git starts, is never followed (Git reads the snapshot)" (the commondir race made deterministic), "owner Git:
 metadata changed since the pin refuses (HEAD retargeted, config or alternates changed), whatever Git would do with it",
 "owner Git: a
-pinned credential.helper (also URL-scoped) refuses as executing config" and "owner Git: only local inspection commands
-run; transport and every other command refuses before anything is made".
+pinned credential.helper (also URL-scoped) refuses as executing config". The PR #32 fix round replaced "owner Git: only
+local inspection commands run; transport and every other command refuses before anything is made" (the command
+allowlist is gone with the raw argv entry) by "owner Git: the API is typed (no raw argv export); every inspection
+matches plain Git; an option, pathspec magic or a bad value refuses before anything is made", and added "owner Git:
+help dispatch never runs a configured man or browser program (the key refuses; --help is never an argument)", "owner
+Git: every documented program-running config key refuses (help, man, browser, tools, remote programs, trailers,
+send-email, tar, submodule !update)", "owner Git: an agent's .gitmodules ignore = none never makes owner Git run Git in
+a nested repository", "owner Git: a split index refuses (a shared index in the linked admin dir, or core.splitIndex)"
+and "evidence: with a replacement ref for the commit, the artifact tree is still its native tree". The protocol case's
+`ls-remote ext::` refusal is now the assertion that no transport or raw argv function is exported.
 
 **P2-7** ports A0's `gate1-fix` tests (every case except `kernel D1`) and the `security-fix` B2 staging case into
 `test/security/staging.test.ts` (the kernel tier: `harness/ci/kernel.sh -- staging`). A0 launched its children through a
