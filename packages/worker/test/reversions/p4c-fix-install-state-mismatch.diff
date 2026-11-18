@@ -1,9 +1,9 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 67db275..de691f2 100644
+index fa64646..83e897f 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -479,7 +479,6 @@ function unpack(system: System, l: Layout, tarball: string, version: string): vo
-  * state: when that grant is not in the requested directory, the request is another one, refused the same way.
+@@ -524,7 +524,6 @@ function unpack(system: System, l: Layout, tarball: string, version: string): vo
+  * requested directory, the request is another one, refused the same way.
   */
  function keepsPinnedState(l: Layout, unit: InstalledUnit): void {
 -  if (unit.kind === 'pinned' && unit.stateDir !== l.stateDir) throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: unit.stateDir, requested: l.stateDir });

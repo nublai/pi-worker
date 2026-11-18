@@ -1,0 +1,13 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index fa64646..42113fd 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -370,7 +370,7 @@ function installedUnit(system: System, env: NodeJS.ProcessEnv, home: string, rel
+     } catch {
+       throw unsafe('state', 'a drop-in of the installed unit cannot be read');
+     }
+-    for (const key of OWNED) if (dropInSets(text, key)) throw overridden(key, 'a drop-in sets it');
++    void dropInSets;
+   }
+   let own: string;
+   try {

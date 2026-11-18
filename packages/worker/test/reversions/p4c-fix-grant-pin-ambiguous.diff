@@ -1,13 +1,13 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 67db275..bc8d3fe 100644
+index fa64646..129f037 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -301,7 +301,7 @@ function unitShow(system: System, env: NodeJS.ProcessEnv): Record<string, string
- function pinnedValue(props: Record<string, string>, key: string, which: string): string {
+@@ -327,7 +327,7 @@ function dropInSets(text: string, key: string): boolean {
+ function pinnedValue(props: Record<string, string>, key: string, which: string, own: string | undefined): string {
    if (new RegExp(`(^|[\\s"])${key}(=|[\\s"]|$)`).test(props.UnsetEnvironment ?? '')) throw unsafe(which, `the installed unit's UnsetEnvironment= removes ${key}`);
    const values = (props.Environment ?? '').split(' ').filter(word => word.startsWith(`${key}=`));
 -  if (values.length !== 1) throw unsafe(which, `the installed unit's environment has ${values.length ? 'several' : 'no printable'} ${key}`);
 +  if (values.length === 0) throw unsafe(which, `the installed unit's environment has ${values.length ? 'several' : 'no printable'} ${key}`);
    const value = values[0]!.slice(key.length + 1);
+   if (own === undefined || value !== own) throw overridden(key, "its value is not the one pi-worker's unit file sets");
    if (!canonicalPath(value)) throw unsafe(which, `the installed unit pins a ${key} that is not canonical`);
-   return value;

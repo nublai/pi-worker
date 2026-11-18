@@ -1,12 +1,12 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 67db275..89ba6b9 100644
+index fa64646..f881388 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -332,7 +332,6 @@ function installedUnit(system: System, env: NodeJS.ProcessEnv, home: string, rel
+@@ -362,7 +362,6 @@ function installedUnit(system: System, env: NodeJS.ProcessEnv, home: string, rel
    if (props.NeedDaemonReload === 'yes') throw new LocalFailure('pi_worker_unit_reload_pending', 'no_effect', { detail: 'the unit files changed since systemd read them; run systemctl --user daemon-reload' });
    if (props.LoadState === 'not-found') return { kind: 'unloaded' };
    if (props.LoadState !== 'loaded') throw unsafe('state', `the installed unit's LoadState is ${props.LoadState || 'unknown'}`);
--  if (props.EnvironmentFiles) throw unsafe('state', 'the installed unit has an EnvironmentFile=, which could set PIW_STATE_DIR or PIW_SOCKET');
-   return { kind: 'pinned', stateDir: pinnedValue(props, 'PIW_STATE_DIR', 'state'), socket: pinnedValue(props, 'PIW_SOCKET', 'socket') };
- }
- 
+-  if (props.EnvironmentFiles) throw overridden(OWNED.join(' or '), 'the unit has an EnvironmentFile=, which could set either');
+   for (const path of (props.DropInPaths ?? '').split(' ').filter(p => p !== '')) {
+     let text: string;
+     try {

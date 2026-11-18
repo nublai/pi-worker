@@ -1,11 +1,11 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 67db275..88d8632 100644
+index fa64646..e179068 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -299,7 +299,6 @@ function unitShow(system: System, env: NodeJS.ProcessEnv): Record<string, string
+@@ -325,7 +325,6 @@ function dropInSets(text: string, key: string): boolean {
   * quoted or as `[unprintable]`), several, or a value that is not canonical.
   */
- function pinnedValue(props: Record<string, string>, key: string, which: string): string {
+ function pinnedValue(props: Record<string, string>, key: string, which: string, own: string | undefined): string {
 -  if (new RegExp(`(^|[\\s"])${key}(=|[\\s"]|$)`).test(props.UnsetEnvironment ?? '')) throw unsafe(which, `the installed unit's UnsetEnvironment= removes ${key}`);
    const values = (props.Environment ?? '').split(' ').filter(word => word.startsWith(`${key}=`));
    if (values.length !== 1) throw unsafe(which, `the installed unit's environment has ${values.length ? 'several' : 'no printable'} ${key}`);

@@ -728,7 +728,12 @@
         "p4c-r2-purge-unresolved-guesses.diff",
         "p4c-r2-socket-from-caller.diff",
         "p4c-r2-socket-refusal-guesses.diff",
-        "p4c-r2-load-state-unchecked.diff"
+        "p4c-r2-load-state-unchecked.diff",
+        "p4d-unit-dropin-not-scanned.diff",
+        "p4d-unit-value-not-compared-to-own.diff",
+        "p4d-unit-dropin-unreadable-ignored.diff",
+        "p4d-install-grant-before-reload.diff",
+        "p4d-install-prewrite-resolver-skipped.diff"
       ]
     }
   }

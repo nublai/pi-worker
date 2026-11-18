@@ -1,0 +1,13 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index fa64646..3ac3a7c 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -368,7 +368,7 @@ function installedUnit(system: System, env: NodeJS.ProcessEnv, home: string, rel
+     try {
+       text = readFileSync(path, 'utf8');
+     } catch {
+-      throw unsafe('state', 'a drop-in of the installed unit cannot be read');
++      text = '';
+     }
+     for (const key of OWNED) if (dropInSets(text, key)) throw overridden(key, 'a drop-in sets it');
+   }
