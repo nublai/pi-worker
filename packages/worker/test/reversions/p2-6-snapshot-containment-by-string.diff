@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index e2f30b5..87115c1 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -113,7 +113,7 @@ function privateDir(owner: OwnerGit, root: string, pin: GitPin): string {
+     const fd = openUnder(parentFd, [basename(made)], 'dir');
+     let dir: string;
+     try {
+-      dir = readlinkSync(fdPath(fd));
++      dir = join(parent, basename(made));
+       assertPrivate(fd);
+     } catch (error) {
+       rmSync(fdPath(parentFd, basename(made)), { recursive: true, force: true });

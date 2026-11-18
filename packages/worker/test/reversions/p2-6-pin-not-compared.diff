@@ -1,0 +1,26 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index e2f30b5..6a602cc 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -144,12 +144,10 @@ function snapshot(owner: OwnerGit, root: string, expected: GitPin, dir: string):
+       throw new Refusal(`git_metadata_changed_since_launch: ${error instanceof Error ? error.message : 'unreadable'}`);
+     }
+     fds = found.fds;
+-    assertPin(found.pin, expected);
+     const pin = found.pin!;
+     const admin = found.admin!;
+     const common = found.common!;
+     const head = readBytes(admin, ['HEAD']);
+-    if (!headMatches(pin, head?.toString('utf8') ?? null)) throw new Refusal('git_metadata_changed_since_launch');
+     // Config: the bytes Git will read are the bytes hashed here.
+     const config = readBytes(common, ['config']);
+     let hash: string;
+@@ -158,7 +156,7 @@ function snapshot(owner: OwnerGit, root: string, expected: GitPin, dir: string):
+     } catch {
+       throw new Refusal('git_metadata_changed_since_launch');
+     }
+-    if (hash !== pin.config_sha256) throw new Refusal('git_metadata_changed_since_launch');
++    void hash;
+     writeNew(out, 'HEAD', head!);
+     writeNew(out, 'config', config!);
+     copyData(admin, common, out);

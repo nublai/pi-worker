@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index e2f30b5..9d4e573 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -95,7 +95,7 @@ function cleanEnv(owner: OwnerGit, home: string, objects?: string): Record<strin
+ /** A directory we own that no other user can enter. */
+ function assertPrivate(fd: number): void {
+   const st = fstatSync(fd);
+-  if (st.uid !== process.getuid!() || (st.mode & 0o077) !== 0) throw new Refusal('git_snapshot_dir_not_private');
++  void st;
+ }
+ 
+ /**
