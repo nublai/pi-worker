@@ -74,10 +74,11 @@ What it does, in order (refusals first, before anything is written):
    file installed, it decides the pin only after systemd has read the current unit file and drop-ins: when they
    changed since systemd read them (`NeedDaemonReload=yes`) it runs `systemctl --user daemon-reload` first (nothing
    else is changed by it; its failure is `pi_worker_systemctl_failed`, `step: daemon-reload`, exit 3), then resolves
-   the pin as `grant` does (section 3.1, every refusal there applies). A state directory other than the one systemd
-   runs the unit with is refused `pi_worker_state_mismatch` with `pinned` and `requested`, also when the installing
+   the pin as `grant` does (section 3.1, every refusal there applies, an owner override of `PIW_STATE_DIR` or
+   `PIW_SOCKET` included: `pi_worker_unit_overridden`, exit 1, `no_effect`, nothing written). A state directory other
+   than the one systemd runs the unit with is refused `pi_worker_state_mismatch` with `pinned` and `requested`, also when the installing
    shell names none and so resolves the default. With no pin (no unit file, or one systemd has not loaded, after an
-   install stopped before its `daemon-reload` or an `uninstall` that kept the state), the doctor grant an earlier
+   `uninstall` that kept the state), the doctor grant an earlier
    install left in `~/.local/share/pi-worker/doctor.grant.json` names that install's state: when its record is not
    in the requested state directory, the request is refused `pi_worker_state_mismatch` with `requested` and `detail`;
    the same directory completes the install (the doctor grant is kept). Install never moves a state directory; there
@@ -96,13 +97,15 @@ What it does, in order (refusals first, before anything is written):
 7. Points `~/.local/share/pi-worker/current` at `versions/<version>` atomically (a new symlink renamed over the old).
 8. Links `~/.local/bin/pi-worker` to `~/.local/share/pi-worker/current/bin/pi-worker`.
 9. Writes `~/.config/systemd/user/pi-worker.service` (section 3.1).
-10. Registers the local doctor grant (`hello` only) once, bearer in `~/.local/share/pi-worker/doctor.grant.json`
-    (0600), which `doctor` and the readiness wait use.
-11. `systemctl --user daemon-reload`, then checks that the state directory systemd now runs the unit with is the
-    requested one (a drop-in the owner kept can pin another; `pi_worker_state_mismatch`, exit 3, before the unit is
-    enabled or restarted), then `systemctl --user enable --now pi-worker.service` (and `restart` when the unit file
-    changed while it ran).
-12. Waits (default 60 s, `--wait-ms`) until `hello` answers on the socket with this version.
+10. `systemctl --user daemon-reload`, then resolves the unit again as systemd now has it (section 3.1) and checks that
+    it runs with the state directory and socket install wrote. A drop-in the owner kept or added since that sets
+    `PIW_STATE_DIR` or `PIW_SOCKET` is refused `pi_worker_unit_overridden` (the variable named, never its value; exit 3,
+    `effect: unknown`, because the unit file is written), before the doctor grant is registered and before the unit is
+    enabled or restarted. Remove the override and run `install` again.
+11. Registers the local doctor grant (`hello` only) once, bearer in `~/.local/share/pi-worker/doctor.grant.json`
+    (0600), which `doctor` and the readiness wait use, then `systemctl --user enable --now pi-worker.service` (and
+    `restart` when the unit file changed while it ran).
+12. Waits (default 60 s, `--wait-ms`) until `hello` answers, on the socket systemd runs the unit with, with this version.
 13. Prints one JSON line on stdout:
 
     ```json
@@ -162,13 +165,22 @@ WantedBy=default.target
   (state `PIW_STATE_DIR`, else `$XDG_STATE_HOME/pi-worker`, else `~/.local/state/pi-worker`; socket `PIW_SOCKET`,
   else `$XDG_RUNTIME_DIR/pi-worker/b2.sock`, `XDG_RUNTIME_DIR` defaulting to `/run/user/<uid>`), so the daemon and
   later `grant` commands agree.
+- **pi-worker owns `PIW_STATE_DIR` and `PIW_SOCKET`.** The owner may not override either, by a drop-in
+  (`~/.config/systemd/user/pi-worker.service.d/*.conf`, or any other drop-in systemd loads for the unit), an
+  `EnvironmentFile=` or an `UnsetEnvironment=` in one; the paths are pinned at install and only a new install, from
+  the installing environment, changes the socket. The resolver refuses `pi_worker_unit_overridden` (`effect:
+  no_effect`; `variable` names `PIW_STATE_DIR`, `PIW_SOCKET`, or both for an `EnvironmentFile=`; no value is ever in the
+  error) whenever a drop-in file names either variable, the unit has an `EnvironmentFile=`, or the effective value of
+  either is not the one pi-worker's own unit file sets. Other owner drop-ins (limits, other `Environment=` variables)
+  are allowed and never touched.
 - **The pin is the rule for local state commands.** While the unit file `~/.config/systemd/user/pi-worker.service`
   exists, the local `grant` commands (`register`, `revoke`, `list`) use the `PIW_STATE_DIR` systemd runs the unit
   with, whatever the caller's shell sets, so a grant is registered where the daemon reads it. The CLI never parses
   the unit file. One resolver asks the user manager (`systemctl --user show pi-worker.service --property=LoadState
-  --property=NeedDaemonReload --property=EnvironmentFiles --property=Environment --property=UnsetEnvironment`), so
-  drop-ins, repeated and quoted assignments, an `Environment=` reset and `UnsetEnvironment=` count as they do for the
-  daemon, and returns the state directory and socket the unit runs with, or a refusal. `grant`, `install`
+  --property=NeedDaemonReload --property=EnvironmentFiles --property=DropInPaths --property=Environment
+  --property=UnsetEnvironment`), reads the drop-ins it lists and the unit file's own `Environment=PIW_STATE_DIR=` and
+  `Environment=PIW_SOCKET=` lines, and returns the state directory and socket the unit runs with (always the ones the
+  unit file sets), or a refusal. `grant`, `install`
   (section 3 step 4), `uninstall --purge` (section 6), `doctor` and `version` all use it. A caller whose environment names a different state directory
   (`PIW_STATE_DIR`, else `XDG_STATE_HOME/pi-worker`, compared as an absolute path, so a trailing `/` does not matter
   and a relative one never matches) is refused `pi_worker_state_mismatch` (exit 1, `effect: no_effect`, with `pinned`
@@ -180,12 +192,14 @@ WantedBy=default.target
   read them (`NeedDaemonReload=yes`: an unread drop-in or an edited unit; `pi_worker_unit_reload_pending`, exit 1,
   `effect: no_effect`: run `systemctl --user daemon-reload`; only `install` reloads by itself), and, as
   `pi_worker_unsafe_path` with `which: state`, a unit systemd has not loaded (`LoadState=not-found`) or could not load
-  (any state but `loaded`), an `EnvironmentFile=` (it would override `Environment=`), no `PIW_STATE_DIR` in the
+  (any state but `loaded`), no `PIW_STATE_DIR` in the
   unit's environment (none set, reset by an empty `Environment=`, or a value with a space or newline, which systemctl
   prints quoted or as `[unprintable]`), several, or one that is not canonical (section 3 step 4). An
   `UnsetEnvironment=` naming `PIW_STATE_DIR` or `PIW_SOCKET` (systemd removes it from the environment last, so
-  `Environment` no longer says what the daemon gets) refuses `pi_worker_unsafe_path` with `which: state` or
-  `which: socket`, and so does `PIW_SOCKET` missing, repeated or not canonical, `which: socket`.
+  `Environment` no longer says what the daemon gets) in the unit file refuses `pi_worker_unsafe_path` with `which: state`
+  or `which: socket`, and so does `PIW_SOCKET` missing, repeated or not canonical, `which: socket`; in a drop-in it is an
+  override (above). A loaded value that differs from the unit file's line, an `EnvironmentFile=` or a drop-in naming
+  either variable refuses `pi_worker_unit_overridden`.
   With no unit file (never installed, or uninstalled), or no HOME to find one under, the caller's own environment
   resolves the state directory as the daemon would (without HOME that needs `PIW_STATE_DIR` or `XDG_STATE_HOME`).
   `doctor`, `version` and `logs` never read or write the state directory. `doctor` and `version` hello the socket the
@@ -239,12 +253,12 @@ installed again, and the state, grants included, carries over, into the same sta
 what install and the daemon created: `~/.local/share/pi-worker/versions` and the doctor grant (then
 `~/.local/share/pi-worker` itself when nothing else is in it), the state directory and the socket's `pi-worker`
 directory (a socket configured elsewhere loses only its file). With a unit file installed, those are what systemd
-runs the unit with (the resolver of section 3.1; drop-ins count, the unit file's own lines do not): when the resolver
-refuses (systemd cannot be asked, `NeedDaemonReload=yes`, `UnsetEnvironment=`, an `EnvironmentFile=`, no single
+runs the unit with (the resolver of section 3.1, which are the ones the unit file sets): when the resolver
+refuses (systemd cannot be asked, `NeedDaemonReload=yes`, `UnsetEnvironment=`, an override of either variable, no single
 canonical value) or systemd has not loaded the unit, purge refuses with that error (exit 1, `no_effect`) before
 anything is stopped or removed. With no unit file they are what the caller's environment resolves. Owner drop-ins in
-`~/.config/systemd/user/pi-worker.service.d/` are never removed; one that pins a state directory still applies to a
-later install, which then refuses it after its `daemon-reload` (section 3 step 11). Before anything is stopped or
+`~/.config/systemd/user/pi-worker.service.d/` are never removed; one that sets `PIW_STATE_DIR` or `PIW_SOCKET` still
+applies to a later install, which then refuses it (`pi_worker_unit_overridden`, section 3 steps 4 and 10). Before anything is stopped or
 removed purge checks every target, and refuses
 `pi_worker_unsafe_path` (exit 1, `which`: `state`, `socket` or `data`, nothing removed) when a pinned path is not
 canonical (section 3 step 4), the state or socket directory is `/`, HOME or holds HOME, or a path that exists is not
@@ -279,7 +293,9 @@ socket=$(printf '%s' "$out" | jq -r .socket)     # default /run/user/<uid>/pi-wo
   the daemon's grants. A shell that sets a different one is refused `pi_worker_state_mismatch` (exit 1, `no_effect`,
   nothing written): unset it or pass the pinned one. A HOME that is not canonical, a user manager that cannot be
   asked, or a unit whose state directory systemd cannot report as one canonical path is refused too (section 3.1);
-  nothing is registered anywhere else. The daemon rereads grants on every request, so no restart is needed.
+  nothing is registered anywhere else. `PIW_STATE_DIR` and `PIW_SOCKET` are pi-worker's: a drop-in, `EnvironmentFile=`
+  or `UnsetEnvironment=` on either is refused `pi_worker_unit_overridden` (section 3.1), so the shell, the unit file and
+  the daemon always agree. The daemon rereads grants on every request, so no restart is needed.
   `grant revoke <id>` withdraws it, `grant list` lists the pinned registry.
 - Re-running `install` keeps the installed state directory: an install from a shell that resolves another one, the
   default included, is refused `pi_worker_state_mismatch` before anything is written or restarted (section 3 step 4),

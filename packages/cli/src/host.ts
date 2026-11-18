@@ -286,23 +286,50 @@ function parseShow(stdout: string): Record<string, string> {
  * assignments count as they do for the daemon. systemd that cannot be asked is a refusal, never a guess.
  */
 function unitShow(system: System, env: NodeJS.ProcessEnv): Record<string, string> {
-  const names = ['LoadState', 'NeedDaemonReload', 'EnvironmentFiles', 'Environment', 'UnsetEnvironment'];
+  const names = ['LoadState', 'NeedDaemonReload', 'EnvironmentFiles', 'DropInPaths', 'Environment', 'UnsetEnvironment'];
   const result = system.exec('systemctl', ['--user', 'show', UNIT, ...names.map(n => `--property=${n}`)], { env, timeoutMs: 30_000 });
   if (result.status !== 0) throw new LocalFailure('pi_worker_systemctl_failed', 'no_effect', { step: 'show', detail: result.stderr.trim().slice(0, 256) });
   return parseShow(result.stdout);
 }
 
+/** The variables pi-worker owns: the owner may not override either (docs/plan/install.md section 3.1). */
+const OWNED = ['PIW_STATE_DIR', 'PIW_SOCKET'] as const;
+
+/** The owner overrode a variable pi-worker owns: names it, never a value. */
+function overridden(variable: string, detail: string): LocalFailure {
+  return new LocalFailure('pi_worker_unit_overridden', 'no_effect', { variable, detail: `${detail}; pi-worker owns ${variable}, remove the override` });
+}
+
 /**
- * The one `KEY` assignment in the unit's final environment, canonical. Anything else is refused
+ * What pi-worker's own unit file sets `key` to: its one `Environment=KEY=<value>` line (the shape `unitText`
+ * writes), else undefined (a unit file that is not the one install wrote).
+ */
+function ownValue(unitText: string, key: string): string | undefined {
+  const lines = unitText.split('\n').filter(line => line.startsWith(`Environment=${key}=`));
+  return lines.length === 1 ? lines[0]!.slice(`Environment=${key}=`.length) : undefined;
+}
+
+/** A drop-in line (not a comment) naming `key`: an assignment, an unset, or the continuation of either. */
+function dropInSets(text: string, key: string): boolean {
+  return text.split('\n').some(raw => {
+    const line = raw.trim();
+    return !line.startsWith('#') && !line.startsWith(';') && line.includes(key);
+  });
+}
+
+/**
+ * `key`'s value in the unit's final environment, which must be what pi-worker's own unit file sets: one that differs
+ * is refused `pi_worker_unit_overridden` (the variable named, never the value). Anything else is refused
  * `pi_worker_unsafe_path` (`which`), never read as "no pin": an `UnsetEnvironment=` naming it (systemd removes it from
  * the environment last, `Environment=` included), no assignment (systemctl prints a value with a space or newline
  * quoted or as `[unprintable]`), several, or a value that is not canonical.
  */
-function pinnedValue(props: Record<string, string>, key: string, which: string): string {
+function pinnedValue(props: Record<string, string>, key: string, which: string, own: string | undefined): string {
   if (new RegExp(`(^|[\\s"])${key}(=|[\\s"]|$)`).test(props.UnsetEnvironment ?? '')) throw unsafe(which, `the installed unit's UnsetEnvironment= removes ${key}`);
   const values = (props.Environment ?? '').split(' ').filter(word => word.startsWith(`${key}=`));
   if (values.length !== 1) throw unsafe(which, `the installed unit's environment has ${values.length ? 'several' : 'no printable'} ${key}`);
   const value = values[0]!.slice(key.length + 1);
+  if (own === undefined || value !== own) throw overridden(key, "its value is not the one pi-worker's unit file sets");
   if (!canonicalPath(value)) throw unsafe(which, `the installed unit pins a ${key} that is not canonical`);
   return value;
 }
@@ -319,11 +346,14 @@ type InstalledUnit = { readonly kind: 'none' } | { readonly kind: 'unloaded' } |
  * them (`grant`, `install`, `uninstall --purge`, `doctor`, `version`); nothing parses the unit file itself. Unit files
  * changed since systemd read them (`NeedDaemonReload=yes`: an unread drop-in, an edited unit) are refused
  * `pi_worker_unit_reload_pending`, unless `reload` is given (install): it runs `daemon-reload` and asks again. An
- * `EnvironmentFile=` (it would override `Environment=`) and a load state other than `loaded` or `not-found` refuse
- * `pi_worker_unsafe_path` (`which: state`).
+ * `EnvironmentFile=` (it could override `Environment=`), a drop-in that sets `PIW_STATE_DIR` or `PIW_SOCKET`, or an
+ * effective value of either that is not what pi-worker's own unit file sets, refuse `pi_worker_unit_overridden`
+ * (`no_effect`, the variable named). Other drop-ins are the owner's and do not matter. A load state other than
+ * `loaded` or `not-found` refuses `pi_worker_unsafe_path` (`which: state`).
  */
 function installedUnit(system: System, env: NodeJS.ProcessEnv, home: string, reload?: () => void): InstalledUnit {
-  if (!unitInstalled(join(home, '.config', 'systemd', 'user', UNIT))) return { kind: 'none' };
+  const unitFile = join(home, '.config', 'systemd', 'user', UNIT);
+  if (!unitInstalled(unitFile)) return { kind: 'none' };
   let props = unitShow(system, env);
   if (props.NeedDaemonReload === 'yes' && reload) {
     reload();
@@ -332,8 +362,23 @@ function installedUnit(system: System, env: NodeJS.ProcessEnv, home: string, rel
   if (props.NeedDaemonReload === 'yes') throw new LocalFailure('pi_worker_unit_reload_pending', 'no_effect', { detail: 'the unit files changed since systemd read them; run systemctl --user daemon-reload' });
   if (props.LoadState === 'not-found') return { kind: 'unloaded' };
   if (props.LoadState !== 'loaded') throw unsafe('state', `the installed unit's LoadState is ${props.LoadState || 'unknown'}`);
-  if (props.EnvironmentFiles) throw unsafe('state', 'the installed unit has an EnvironmentFile=, which could set PIW_STATE_DIR or PIW_SOCKET');
-  return { kind: 'pinned', stateDir: pinnedValue(props, 'PIW_STATE_DIR', 'state'), socket: pinnedValue(props, 'PIW_SOCKET', 'socket') };
+  if (props.EnvironmentFiles) throw overridden(OWNED.join(' or '), 'the unit has an EnvironmentFile=, which could set either');
+  for (const path of (props.DropInPaths ?? '').split(' ').filter(p => p !== '')) {
+    let text: string;
+    try {
+      text = readFileSync(path, 'utf8');
+    } catch {
+      throw unsafe('state', 'a drop-in of the installed unit cannot be read');
+    }
+    for (const key of OWNED) if (dropInSets(text, key)) throw overridden(key, 'a drop-in sets it');
+  }
+  let own: string;
+  try {
+    own = readFileSync(unitFile, 'utf8');
+  } catch {
+    throw unsafe('state', 'the installed unit file cannot be read');
+  }
+  return { kind: 'pinned', stateDir: pinnedValue(props, 'PIW_STATE_DIR', 'state', ownValue(own, 'PIW_STATE_DIR')), socket: pinnedValue(props, 'PIW_SOCKET', 'socket', ownValue(own, 'PIW_SOCKET')) };
 }
 
 /**
@@ -474,9 +519,9 @@ function unpack(system: System, l: Layout, tarball: string, version: string): vo
 /**
  * An installed unit keeps its state directory: another one (an override, or drift back to the default) would repin the
  * daemon away from its journal and grants, so it is refused `pi_worker_state_mismatch` before anything is written.
- * Relocation is not install's job. With no pin (no unit file, or one systemd has not loaded: an install stopped before
- * daemon-reload, or an uninstall that kept the state), the doctor grant an earlier install registered still names its
- * state: when that grant is not in the requested directory, the request is another one, refused the same way.
+ * Relocation is not install's job. With no pin (no unit file, or one systemd has not loaded: an uninstall that kept
+ * the state), the doctor grant an earlier install registered still names its state: when that grant is not in the
+ * requested directory, the request is another one, refused the same way.
  */
 function keepsPinnedState(l: Layout, unit: InstalledUnit): void {
   if (unit.kind === 'pinned' && unit.stateDir !== l.stateDir) throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: unit.stateDir, requested: l.stateDir });
@@ -486,11 +531,13 @@ function keepsPinnedState(l: Layout, unit: InstalledUnit): void {
 }
 
 /**
- * After `daemon-reload`, the state directory systemd runs the written unit with must be the requested one: a drop-in
- * the owner kept (uninstall never removes one) can pin another. Refused `pi_worker_state_mismatch`, effect unknown
- * (the unit file is written), before the unit is enabled or restarted.
+ * After `daemon-reload`, systemd must run the written unit with the state directory and socket install wrote: a
+ * drop-in the owner kept (uninstall never removes one) or added since could set either. The resolver refuses that
+ * `pi_worker_unit_overridden` (the variable named), here with effect unknown (the unit file is written), before the
+ * doctor grant is registered or the unit is enabled or restarted; what it returns is the unit file's own pair, which
+ * is the one install wrote. Returns the socket systemd will run the unit with: the one the readiness wait asks.
  */
-function loadedAsWritten(system: System, l: Layout): void {
+function loadedAsWritten(system: System, l: Layout): { socket: string } {
   let unit: InstalledUnit;
   try {
     unit = installedUnit(system, l.env, l.home);
@@ -498,9 +545,8 @@ function loadedAsWritten(system: System, l: Layout): void {
     if (error instanceof LocalFailure) throw new LocalFailure(error.code, 'unknown', error.details);
     throw error;
   }
-  if (unit.kind !== 'pinned' || unit.stateDir !== l.stateDir) {
-    throw new LocalFailure('pi_worker_state_mismatch', 'unknown', { ...(unit.kind === 'pinned' ? { pinned: unit.stateDir } : { detail: 'systemd did not load the written unit' }), requested: l.stateDir });
-  }
+  if (unit.kind !== 'pinned') throw new LocalFailure('pi_worker_state_mismatch', 'unknown', { detail: 'systemd did not load the written unit', requested: l.stateDir });
+  return { socket: unit.socket };
 }
 
 export interface InstallOptions {
@@ -561,9 +607,10 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
   const unit = unitText(l, version, nodeDir);
   const changed = !existsSync(l.unitFile) || readFileSync(l.unitFile, 'utf8') !== unit;
   if (changed) writeAtomically(l.unitFile, unit);
-  if (!existsSync(l.doctorGrant)) registerDoctorGrant(system, l);
   systemctl(system, l, 'daemon-reload', 'daemon-reload');
-  loadedAsWritten(system, l);
+  const running = loadedAsWritten(system, l);
+  // Only once systemd runs the unit with the state directory the grant goes to.
+  if (!existsSync(l.doctorGrant)) registerDoctorGrant(system, l);
   const wasActive = system.exec('systemctl', ['--user', 'is-active', UNIT], { env: l.env }).stdout.trim() === 'active';
   systemctl(system, l, 'enable', 'enable', '--now', UNIT);
   // A restart stops every running worker; the caller is told when it happened (docs/plan/install.md section 3).
@@ -573,13 +620,13 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
   const deadline = Date.now() + (options.waitMs ?? 60_000);
   let last = 'no answer';
   for (;;) {
-    const reply = await hello(l, 5_000);
+    const reply = await hello({ ...l, socket: running.socket }, 5_000);
     if (reply.ok && reply.version === version) break;
     last = reply.ok ? `hello answered version ${reply.version}` : reply.detail;
-    if (Date.now() >= deadline) throw new LocalFailure('pi_worker_not_ready', 'unknown', { socket: l.socket, detail: last });
+    if (Date.now() >= deadline) throw new LocalFailure('pi_worker_not_ready', 'unknown', { socket: running.socket, detail: last });
     await sleep(250);
   }
-  return { version, socket: l.socket, unit: UNIT, restarted };
+  return { version, socket: running.socket, unit: UNIT, restarted };
 }
 
 function lstatExists(path: string): boolean {
