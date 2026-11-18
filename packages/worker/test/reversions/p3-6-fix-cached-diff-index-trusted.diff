@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 7910d36..a914291 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -585,7 +585,7 @@ function diffSides(of: DiffOf): string[] {
+ }
+ 
+ /** What each kind of diff reads besides objects (`run`): a cached diff the index; a worktree diff the working tree too. */
+-const READS: Readonly<Record<DiffOf['kind'], Reads | undefined>> = { revisions: undefined, index: 'index', worktree: 'worktree' };
++const READS: Readonly<Record<DiffOf['kind'], Reads | undefined>> = { revisions: undefined, index: undefined, worktree: 'worktree' };
+ 
+ const lines = (out: Buffer): string[] => out.toString('utf8').split('\n').filter(Boolean);
+ 

@@ -22,11 +22,14 @@
  *     refused (`protocol.allow`, and `protocol.ext.allow` and `protocol.file.allow` by name), and on diff-family and
  *     status commands `--no-ext-diff --no-textconv --ignore-submodules=all` (on the command line: an agent-written
  *     `.gitmodules` `ignore = none` overrides `diff.ignoreSubmodules`, and Git then runs inside the nested repository).
- *  5. on the calls that compare the working tree with the index (`gitStatus`, a worktree `gitDiff`), fails closed on
+ *  5. on the calls that read the index (`gitStatus`, a worktree or cached `gitDiff`, `gitLsFiles`), fails closed on
  *     index state that hides tracked changes, all of it writable by the sandbox (the admin dir's index) or pinned by the
- *     owner (config): any index entry marked assume-unchanged or skip-worktree (`git_index_hides_changes`, read from
+ *     owner (config): any index entry marked assume-unchanged or skip-worktree, any entry whose mode is not a regular
+ *     file, an executable, a symlink or a gitlink (a sparse index's directory entry, mode 040000, makes Git skip the
+ *     directory whole), and a sparse index's `sdir` extension (`git_index_hides_changes`, read from
  *     the snapshot's copy of the index, the bytes Git then reads, at most 256 MiB: a larger one is
- *     `git_index_too_large`; an index format this reader does not know is `git_index_unreadable`), and a pinned `core.ignoreStat`, `core.sparseCheckout` or `index.sparse`
+ *     `git_index_too_large`; an index format this reader does not know is `git_index_unreadable`), and, on the calls
+ *     that compare the working tree, a pinned `core.ignoreStat`, `core.sparseCheckout` or `index.sparse`
  *     (`git_config_trusts_stat`). `core.checkStat`, `core.trustctime` and `core.untrackedCache` (also an
  *     untracked cache stored in the index) are overridden on the command line to Git's full checks, which can only add
  *     content comparisons. Nothing else in that index is trusted either: in the snapshot's copy (never the checkout's
@@ -35,7 +38,11 @@
  *     ctime and inode are never 0), and the cache-tree extension (`TREE`, which can vouch that a staged directory
  *     matches HEAD) is dropped with the two that describe the old layout (`EOIE`, `IEOT`); the index checksum is
  *     written anew (Git does not check it on read, so neither does this reader). An index Git then cannot read (its own
- *     checks, past this reader's) refuses `git_index_unreadable` too, never a guess.
+ *     checks, past this reader's) refuses `git_index_unreadable` too, never a guess. The other extensions are kept, and
+ *     none can make a read report clean or unchanged: `UNTR` (the untracked cache) is off by `core.untrackedCache=false`
+ *     (`ls-files --others` never uses it), `FSMN` is ignored with `core.fsmonitor=false` on every call, `link` names a
+ *     shared index the snapshot never has (Git fails; `sharedindex.*` beside the index already refuses), and `REUC`
+ *     (resolve-undo) and unknown optional extensions are not read by status or diff.
  *
  * The API is typed: one function per supported inspection (status, diff, log, show, rev-parse, cat-file, ls-files,
  * for-each-ref, merge-base). Callers pass validated values (revisions, paths, ref prefixes, counts), never options:
@@ -333,7 +340,7 @@ function copyTreeAt(source: number, dest: number, budget: Budget, depth = 0): vo
 function copyData(admin: number, common: number, out: number): void {
   const budget: Budget = { entries: 0, bytes: 0 };
   for (const name of ['packed-refs', 'shallow']) copyFileAt(common, [name], out, name, budget);
-  // Its mtime does not matter: a worktree read blanks every entry's stat data (step 5), so none is trusted, racy or not.
+  // Its mtime does not matter: a call that reads the index blanks every entry's stat data (step 5), so none is trusted.
   copyFileAt(admin, ['index'], out, 'index', budget);
   for (const name of ['refs', 'info']) {
     mkdirSync(fdPath(out, name), { mode: 0o700 });
@@ -387,6 +394,10 @@ const ASSUME_VALID = 0x8000;
 const EXTENDED = 0x4000;
 const SKIP_WORKTREE = 0x4000;
 
+/** Entry modes a status or diff reads file by file: a regular file, an executable, a symlink and a gitlink. */
+const FILE_MODES = new Set([0o100644, 0o100755, 0o120000, 0o160000]);
+const MODE_AT = 24;
+
 /** An index as git-index(5) lays it out: where each entry starts, its flags, and the extensions after the entries. */
 interface IndexLayout {
   readonly entries: readonly { readonly start: number; readonly hidden: boolean }[];
@@ -424,7 +435,10 @@ function indexLayout(index: Buffer, oidBytes: number): IndexLayout {
       extended = index.readUInt16BE(at);
       at += 2;
     }
-    entries.push({ start, hidden: (flags & ASSUME_VALID) !== 0 || (extended & SKIP_WORKTREE) !== 0 });
+    // A mode other than a file's: a sparse index's directory (040000, which Git skips whole, flag or not), or one Git
+    // does not write.
+    const mode = index.readUInt32BE(start + MODE_AT);
+    entries.push({ start, hidden: (flags & ASSUME_VALID) !== 0 || (extended & SKIP_WORKTREE) !== 0 || !FILE_MODES.has(mode) });
     // Version 4: a varint (how much of the previous path to keep), then the rest of the path; no padding.
     if (version === 4)
       do {
@@ -450,12 +464,16 @@ function indexLayout(index: Buffer, oidBytes: number): IndexLayout {
   return { entries, entriesEnd, extensions };
 }
 
+/** The extension that marks a sparse index (its directory entries are not expanded): `sdir`. */
+const SPARSE_INDEX = 'sdir';
+
 /**
- * Step 5: an entry marked assume-unchanged or skip-worktree (a sparse checkout's entries and a sparse index's
- * directories too) refuses.
+ * Step 5: an entry marked assume-unchanged or skip-worktree (a sparse checkout's entries), an entry whose mode is not a
+ * file's (a sparse index's directory entry: Git skips the directory, and the files in it are never entries to compare),
+ * or a sparse index's `sdir` extension refuses.
  */
 function refuseHiddenEntries(layout: IndexLayout): void {
-  if (layout.entries.some(entry => entry.hidden)) throw new Refusal('git_index_hides_changes');
+  if (layout.entries.some(entry => entry.hidden) || layout.extensions.some(extension => extension.signature === SPARSE_INDEX)) throw new Refusal('git_index_hides_changes');
 }
 
 /**
@@ -566,6 +584,9 @@ function diffSides(of: DiffOf): string[] {
   }
 }
 
+/** What each kind of diff reads besides objects (`run`): a cached diff the index; a worktree diff the working tree too. */
+const READS: Readonly<Record<DiffOf['kind'], Reads | undefined>> = { revisions: undefined, index: 'index', worktree: 'worktree' };
+
 const lines = (out: Buffer): string[] => out.toString('utf8').split('\n').filter(Boolean);
 
 /** What a failed Git run carries: its exit status, its signal and the start of its stderr. */
@@ -609,18 +630,23 @@ class GitFailed extends Error implements GitFailure {
 }
 
 /**
- * Runs Git on a pinned snapshot with an argv owner Git built; throws a `GitFailure` on a nonzero exit; returns stdout. With
- * `worktree`, the call compares the working tree with the index (step 5).
+ * What a call reads besides objects and refs: `index`, the index (a cached diff, `ls-files`); `worktree`, the working
+ * tree compared with the index (status, a worktree diff). Both get step 5's index checks and rewrite; `worktree` also
+ * its config refusals and overrides.
  */
-function run(at: GitCheckout, argv: readonly string[], options: { readonly worktree?: boolean } = {}): Buffer {
+type Reads = 'index' | 'worktree';
+
+/** Runs Git on a pinned snapshot with an argv owner Git built; throws a `GitFailure` on a nonzero exit; returns stdout. */
+function run(at: GitCheckout, argv: readonly string[], options: { readonly reads?: Reads } = {}): Buffer {
   const { owner, root, pin } = at;
   if (!pin) throw new Refusal('git_launch_pin_required');
-  const worktree = options.worktree === true;
+  const worktree = options.reads === 'worktree';
+  const readsIndex = options.reads === 'index' || worktree;
   const dir = privateDir(owner, root, pin);
   try {
     const { oidBytes } = snapshot(owner, root, pin, dir, worktree);
     // Step 5, on the snapshot's index: the bytes Git reads next.
-    const index = worktree ? readSnapshotIndex(dir) : null;
+    const index = readsIndex ? readSnapshotIndex(dir) : null;
     if (index !== null) {
       const layout = indexLayout(index, oidBytes);
       refuseHiddenEntries(layout);
@@ -636,7 +662,7 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly workt
       });
     const result = git(argv, 'pipe');
     if (result.error) throw result.error;
-    // A worktree read that failed: if Git cannot read the rewritten index on its own (`ls-files` reads only the index;
+    // An index read that failed: if Git cannot read the rewritten index on its own (`ls-files` reads only the index;
     // its exit, not its translated message, decides), that is the typed refusal, never a guess from the stderr text.
     if (result.status !== 0 && index !== null) {
       const probe = git(['ls-files', '--stage', '-z'], 'ignore');
@@ -651,12 +677,12 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly workt
 
 /** `git status --porcelain` (v1) as Git prints it; with `branch`, its `## ` line first; limited to `paths`. */
 export function gitStatus(at: GitCheckout, options: { readonly branch?: boolean; readonly paths?: readonly string[] } = {}): string {
-  return run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...NO_SUBMODULES, ...pathArgs(options.paths)], { worktree: true }).toString('utf8');
+  return run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...NO_SUBMODULES, ...pathArgs(options.paths)], { reads: 'worktree' }).toString('utf8');
 }
 
 /** `git diff` of `of`, printed as `format` (default `patch`), limited to `paths`. */
 export function gitDiff(at: GitCheckout, of: DiffOf, options: { readonly format?: DiffFormat; readonly paths?: readonly string[] } = {}): Buffer {
-  return run(at, ['diff', ...NO_HELPERS, ...NO_SUBMODULES, ...format(options.format ?? 'patch'), ...diffSides(of), ...pathArgs(options.paths)], { worktree: of?.kind === 'worktree' });
+  return run(at, ['diff', ...NO_HELPERS, ...NO_SUBMODULES, ...format(options.format ?? 'patch'), ...diffSides(of), ...pathArgs(options.paths)], { reads: READS[of.kind] });
 }
 
 /** One commit of a log: its id and subject line. */
@@ -701,7 +727,7 @@ export function gitCatFile(at: GitCheckout, mode: keyof typeof CAT_FILE, object:
 
 /** `git ls-files`: the tracked files or, with `untracked`, the untracked ones not excluded; limited to `paths`. */
 export function gitLsFiles(at: GitCheckout, options: { readonly untracked?: boolean; readonly paths?: readonly string[] } = {}): string[] {
-  const out = run(at, ['ls-files', '-z', ...(options.untracked === true ? ['--others', '--exclude-standard'] : []), ...pathArgs(options.paths)]);
+  const out = run(at, ['ls-files', '-z', ...(options.untracked === true ? ['--others', '--exclude-standard'] : []), ...pathArgs(options.paths)], { reads: 'index' });
   return out.toString('utf8').split('\0').filter(Boolean);
 }
 

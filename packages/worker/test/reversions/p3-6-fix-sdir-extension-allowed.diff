@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 7910d36..bc7f7f1 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -473,7 +473,8 @@ const SPARSE_INDEX = 'sdir';
+  * or a sparse index's `sdir` extension refuses.
+  */
+ function refuseHiddenEntries(layout: IndexLayout): void {
+-  if (layout.entries.some(entry => entry.hidden) || layout.extensions.some(extension => extension.signature === SPARSE_INDEX)) throw new Refusal('git_index_hides_changes');
++  void SPARSE_INDEX;
++  if (layout.entries.some(entry => entry.hidden)) throw new Refusal('git_index_hides_changes');
+ }
+ 
+ /**

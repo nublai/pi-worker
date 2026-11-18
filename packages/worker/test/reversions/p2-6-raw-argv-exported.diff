@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
-index cedb085..1b121c3 100644
+index 7910d36..614c9b2 100644
 --- a/packages/worker/src/owner-git/git-safe.ts
 +++ b/packages/worker/src/owner-git/git-safe.ts
-@@ -553,6 +553,9 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly workt
+@@ -675,6 +675,9 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly reads
    }
  }
  
@@ -11,4 +11,4 @@ index cedb085..1b121c3 100644
 +
  /** `git status --porcelain` (v1) as Git prints it; with `branch`, its `## ` line first; limited to `paths`. */
  export function gitStatus(at: GitCheckout, options: { readonly branch?: boolean; readonly paths?: readonly string[] } = {}): string {
-   return run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...NO_SUBMODULES, ...pathArgs(options.paths)], { worktree: true }).toString('utf8');
+   return run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...NO_SUBMODULES, ...pathArgs(options.paths)], { reads: 'worktree' }).toString('utf8');

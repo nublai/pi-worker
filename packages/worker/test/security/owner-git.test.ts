@@ -42,7 +42,7 @@ import {
   type OwnerGit,
 } from '../../src/owner-git/git-safe.js';
 import { locateBwrap, sandboxEnv, sandboxLaunch } from '../../src/sandbox/sandbox.js';
-import { forgeStat, readIndex, writeIndex } from '../git-index.js';
+import { forgeStat, readIndex, sparseDirectory, writeIndex } from '../git-index.js';
 import { privateTmp } from '../helpers.js';
 
 const kernel = process.env.PIW_TEST_KERNEL === '1';
@@ -1034,8 +1034,52 @@ test('owner Git: a cache tree (TREE) the child forged to vouch for a staged subd
     const staged = readIndex(index);
     writeIndex(index, staged.head, [tree.bytes, ...staged.extensions.filter(e => e.signature !== 'TREE').map(e => e.bytes)]);
     assert.equal(f.git(f.wt, 'status', '--porcelain'), '', 'fixture: plain Git trusts the forged cache tree');
+    assert.equal(f.git(f.wt, 'diff', '--cached', '--name-status', 'HEAD'), '', 'fixture: plain Git trusts it for a cached diff too');
+    const before = readFileSync(index);
     const pin = readGitPin(f.wt);
     assert.equal(gitStatus(on(f, pin)), 'M  d/f\n');
+    assert.equal(gitDiff(on(f, pin), { kind: 'index', from: 'HEAD' }, { format: 'name-status' }).toString('utf8'), 'M\0d/f\0', 'a cached diff never trusts the cache tree');
+    assert.ok(readFileSync(index).equals(before), "the checkout's own index is unchanged");
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('owner Git: a sparse-directory entry (mode 040000, no skip-worktree bit) or an sdir extension refuses every index read (git_index_hides_changes), never reads as clean', () => {
+  const f = fixture();
+  try {
+    const index = join(f.admin, 'index');
+    f.git(f.wt, 'checkout', '--', 'note');
+    mkdirSync(join(f.wt, 'd'));
+    writeFileSync(join(f.wt, 'd', 'f'), 'dee\n');
+    f.git(f.wt, 'add', 'd/f');
+    f.git(f.wt, 'commit', '-qm', 'dir');
+    const honest = readFileSync(index);
+    const at = () => on(f, readGitPin(f.wt));
+    const reads: [string, () => unknown][] = [
+      ['status', () => gitStatus(at())],
+      ['worktree diff', () => gitDiff(at(), { kind: 'worktree' })],
+      ['cached diff', () => gitDiff(at(), { kind: 'index', from: 'HEAD' })],
+      ['ls-files', () => gitLsFiles(at())],
+    ];
+    // The directory's entries replaced by one entry for `d/`, HEAD's tree for it; the file inside it then edited.
+    sparseDirectory(index, 'd', f.git(f.wt, 'rev-parse', 'HEAD:d'));
+    writeFileSync(join(f.wt, 'd', 'f'), 'evil\n');
+    assert.equal(spawnSync('git', ['-C', f.wt, 'config', '--get-regexp', '^(index\\.sparse|core\\.sparsecheckout)$'], { env: f.env }).status, 1, 'fixture: no sparse config');
+    // `--no-optional-locks`: a plain status would rewrite the index (expanded, or flagged skip-worktree).
+    assert.equal(f.git(f.wt, '--no-optional-locks', 'status', '--porcelain'), '', 'fixture: plain Git skips the directory');
+    for (const [what, read] of reads) assert.throws(read, typed(/^git_index_hides_changes$/), `${what}, sparse-directory entry`);
+    assert.equal(gitRevParse(at(), 'HEAD'), f.git(f.wt, 'rev-parse', 'HEAD'), 'reads that do not read the index still answer');
+    // An `sdir` extension (a sparse index's marker), on an index with no directory entry: refused too.
+    writeFileSync(index, honest);
+    const parts = readIndex(index);
+    writeIndex(index, parts.head, [...parts.extensions.map(e => e.bytes), Buffer.concat([Buffer.from('sdir', 'latin1'), Buffer.alloc(4)])]);
+    assert.equal(f.git(f.wt, '--no-optional-locks', 'status', '--porcelain'), 'M d/f', 'fixture: plain Git reads the index');
+    for (const [what, read] of reads) assert.throws(read, typed(/^git_index_hides_changes$/), `${what}, sdir extension`);
+    // Control: the honest index, the edit seen.
+    writeFileSync(index, honest);
+    assert.equal(gitStatus(at()), ' M d/f\n', 'control: the honest index shows the edit');
+    assert.deepEqual(leftovers(f), [], 'a refused call removes its snapshot');
   } finally {
     f.cleanup();
   }

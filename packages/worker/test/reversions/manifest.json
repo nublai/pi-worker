@@ -517,7 +517,11 @@
         "p3-6-fix-stat-trust-config-allowed.diff",
         "p3-6-fix-stat-overrides-dropped.diff",
         "p3-6-cache-tree-trusted.diff",
-        "p3-6-index-unreadable-untyped.diff"
+        "p3-6-index-unreadable-untyped.diff",
+        "p3-6-fix-sparse-directory-entry-allowed.diff",
+        "p3-6-fix-sdir-extension-allowed.diff",
+        "p3-6-fix-cached-diff-index-trusted.diff",
+        "p3-6-fix-ls-files-index-trusted.diff"
       ]
     },
     "staging": {
