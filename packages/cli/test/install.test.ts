@@ -522,6 +522,18 @@ test('uninstall --purge refuses a state directory that is HOME, holds HOME, or h
       await h.close();
     }
   }
+  // HOME used as the state directory, holding nothing but a pi-worker journal: it looks like pi-worker's own state,
+  // and is still HOME.
+  const h = await host(({ home }) => ({ PIW_STATE_DIR: home }));
+  try {
+    openState(h.home).close();
+    const before = tree(h.dir);
+    const purge = await h.cli('uninstall', '--purge');
+    assert.deepEqual([purge.code, purge.error?.error, purge.error?.effect, purge.error?.which], [1, 'pi_worker_unsafe_path', 'no_effect', 'state'], 'a HOME holding only a pi-worker journal is refused');
+    assert.deepEqual(tree(h.dir), before, 'HOME with a journal: nothing was deleted');
+  } finally {
+    await h.close();
+  }
 });
 
 test('install refuses a state directory or socket with a . or .. component, or a state directory holding HOME, before anything is written', async () => {
