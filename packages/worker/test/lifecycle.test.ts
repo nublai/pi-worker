@@ -486,9 +486,10 @@ test('lifecycle: create refuses before any record: not a directory, a typed laun
     await assert.rejects(f.supervisor.create(create(join(f.dir, 'file'))), /cwd_not_directory/);
     await assert.rejects(f.supervisor.create(create(join(f.dir, 'missing'))), /cwd_not_directory/);
     mkdirSync(join(f.dir, 'typed'));
-    // Typed launches run from P1-11, unsandboxed; a sandboxed spec waits for P2-4 and is refused before any record.
+    // Typed launches run from P1-11; a sandboxed root worker (a parent) waits for P2-8's parent channel and is refused
+    // before any record (P2-4 sandboxes typed children only).
     const spec = { environment: { id: 'e', revision: 1, allowed_methods: [], filesystem: 'bwrap' as const }, role: 'r', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: [], seed_mode: 'standalone' as const };
-    await assert.rejects(f.supervisor.create({ ...create(join(f.dir, 'typed')), launch_spec: spec }), /sandboxed_children_not_supported_before_p2/);
+    await assert.rejects(f.supervisor.create({ ...create(join(f.dir, 'typed')), launch_spec: spec }), /sandboxed_parent_requires_parent_channel/);
     // A typed child of a parent that does not exist is refused the same way.
     const orphan = { worker_id: 'missing', worker_epoch: 'e', session_id: 's', binding_revision: 1, execution_id: 'x', task_id: 't', generation_id: 'g' };
     await assert.rejects(f.supervisor.create({ ...create(join(f.dir, 'typed')), launch_spec: { ...spec, environment: { id: 'e', revision: 1, allowed_methods: [] } }, parent: orphan }), /unknown_worker/);
