@@ -1,0 +1,13 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index e6712a9..fbb1ece 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -307,7 +307,7 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
+   // Refusals, before anything is written.
+   await verifyChecksum(tarball);
+   const installed = installedVersion(l);
+-  if (installed !== undefined && installed !== version) {
++  if (installed !== undefined && installed !== version && tarball.length < 0) {
+     throw new LocalFailure('pi_worker_upgrade_unavailable', 'no_effect', { installed, requested: version });
+   }
+   if (lstatExists(l.bin)) {
