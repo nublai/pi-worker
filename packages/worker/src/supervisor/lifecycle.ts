@@ -25,8 +25,12 @@ import type { DurableLabel } from '../journal/labels.js';
 import { budgetKey } from '../journal/journal.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
 import { sandboxed, sandboxSessionDir } from '../sandbox/sandbox.js';
+import type { GitPin } from '../sandbox/git-sandbox.js';
 import { confinement, HOLDING, type Binding, type Create, type KeptBinding, type Live, type SupervisorState } from './state.js';
 import { currentGuard } from '../grants/authority.js';
+
+/** The Git pin a sandboxed launch must find (P2-5), when its validation read one. */
+const gitPinOf = (live: Live): { gitPin?: GitPin | null } => (live.gitPin !== undefined ? { gitPin: live.gitPin } : {});
 
 /** A domain observed gone (`populated 0`, removed) and recorded: the only confirmed cleanup. */
 export const CLEANED = 'cgroup_empty_removed';
@@ -43,9 +47,13 @@ export class Lifecycle {
   readonly recoverers: ((live: Live) => void)[] = [];
   /** Called when a worker's execution can no longer settle (exit, fault, restart): the input module records it. */
   onUncertain: (live: Live, commandId: string, label: 'worker.exit' | 'worker.fault' | 'worker.recover' | 'worker.stop') => void = () => {};
-  /** Typed launch checks (children module), run in create's validation before any record. */
-  typedLaunch: (c: Create) => void = c => {
+  /**
+   * Typed launch checks (children module), run in create's validation before any record. A sandboxed launch returns the
+   * Git pin its validation accepted (P2-5), which its spawn must still find.
+   */
+  typedLaunch: (c: Create) => GitPin | null | undefined = c => {
     if (c.parent || c.launch_spec) throw new Refusal('typed_child_launch_unsupported');
+    return undefined;
   };
   /** A typed child's FD 3 report (children module). */
   onReport: (live: Live, report: ChildReport) => void = () => {};
@@ -308,6 +316,7 @@ export class Lifecycle {
   async create(c: Create, lineage?: { parent_worker_id: string; parent_launch_command_id: string }): Promise<Receipt> {
     let cwd = '';
     let resumeFile: string | undefined;
+    let gitPin: GitPin | null | undefined;
     const receipt = await this.s.receipts.run(
       c.command_id,
       'workers.create',
@@ -316,6 +325,7 @@ export class Lifecycle {
         const live = this.s.newWorker(cwd, c);
         const w = live.worker;
         if (c.launch_spec) w.launch_spec = structuredClone(c.launch_spec);
+        if (gitPin !== undefined) live.gitPin = gitPin;
         if (c.parent) {
           w.parent = structuredClone(c.parent);
           w.parent_worker_id = c.parent.worker_id;
@@ -341,7 +351,7 @@ export class Lifecycle {
         }
       },
       () => {
-        this.typedLaunch(c);
+        gitPin = this.typedLaunch(c);
         // A queued untyped launch that comes due while a sibling's missing-report check is pending waits for it (4a).
         if (lineage && this.s.childEnding.has(lineage.parent_worker_id)) throw new Refusal('child_end_unsettled');
         try {
@@ -388,7 +398,7 @@ export class Lifecycle {
       const domain = live.domain;
       const prefix = this.containment.enter(domain);
       const root = confinement(w);
-      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root } : {}) });
+      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live) } : {}) });
     } catch (error) {
       // No host was constructed: the domain (if it was created) is cleaned and the row ends with its reason; the
       // receipt stays unknown, so a resume target is held and fenced like any other unknown create-with-resume.
@@ -627,7 +637,7 @@ export class Lifecycle {
     try {
       const domain = live.domain!;
       const root = confinement(w);
-      host = this.s.factory({ workerId: w.worker_id, commandId, create, cwd: w.cwd, sessionDir: this.sessionDir(live), domain, prefix: this.containment.enter(domain), ...(root ? { sandbox: root } : {}) });
+      host = this.s.factory({ workerId: w.worker_id, commandId, create, cwd: w.cwd, sessionDir: this.sessionDir(live), domain, prefix: this.containment.enter(domain), ...(root ? { sandbox: root, ...gitPinOf(live) } : {}) });
     } catch (error) {
       live.launching = undefined;
       await this.launchFailed(live, commandId, error);

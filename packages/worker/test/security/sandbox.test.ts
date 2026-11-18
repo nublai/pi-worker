@@ -157,7 +157,7 @@ test('sandbox launch refuses mismatched roots, parent state exposure, non-child 
     const state = join(f.dir, 'state-only');
     mkdirSync(state);
     const controls = (paths: string[] = []) => ({ stateDir: state, paths });
-    assert.equal(sandboxRoot(c, controls()), root);
+    assert.equal(sandboxRoot(c, controls()).root, root);
     const rooted = (path: string): Create => ({ ...c, cwd: path, launch_spec: { ...c.launch_spec!, environment: { ...c.launch_spec!.environment, root: path } } });
     assert.throws(() => sandboxRoot(rooted('/'), controls()), /sandbox_root_is_host_root/);
     assert.equal(inside('/', state), true);
@@ -173,7 +173,7 @@ test('sandbox launch refuses mismatched roots, parent state exposure, non-child 
     // directory) to the supervisor instead.
     for (const path of [socketDir, grantDir, '/sys', '/sys/fs', '/sys/fs/cgroup']) assert.throws(() => sandboxRoot(rooted(path), controls([socketDir, grantFile])), /overlaps_protected_control_path/);
     assert.throws(() => sandboxRoot(c, { stateDir: f.dir, paths: [] }), /overlaps_supervisor_state/);
-    assert.equal(sandboxRoot({ ...c, parent: undefined }, controls()), root, 'SDK parents now use the same confinement policy');
+    assert.equal(sandboxRoot({ ...c, parent: undefined }, controls()).root, root, 'SDK parents now use the same confinement policy');
     assert.throws(() => sandboxRoot({ ...c, host: 'rpc' as never }, controls()), /requires_linux/);
     const wrong = structuredClone(c);
     wrong.launch_spec!.environment.root = state;

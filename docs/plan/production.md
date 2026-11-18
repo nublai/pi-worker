@@ -516,6 +516,19 @@ included) with its own HOME, TMPDIR and PATH. A session moves only between worke
 reads. `files.read` serves sandboxed workers only. The daemon refuses to start without a bwrap that runs
 (`bwrap_unavailable`) and names the B2 socket's directory as a control path no sandbox root may overlap.
 
+**P2-5 as built.** `sandbox/git-sandbox.ts` mounts a sandbox root's Git metadata, every source an O_NOFOLLOW descriptor.
+A linked worktree gets its admin dir, the shared object store and its own branch namespace (`refs/heads/<ns>/` and its
+reflogs) writable; its gitfile, `gitdir`, `commondir`, symbolic HEAD, the common `config`, `packed-refs`, `refs`,
+`logs` and `objects/info` (alternates) are read-only, and the common `hooks` is not mounted. An ordinary checkout root
+keeps `.git` pinned as a mount point with `config`, `hooks`, `info` and `objects/info` read-only. Refused in the
+create's validation (`no_effect`): a flat branch or a namespace holding another branch or reflog (loose or packed), a
+gitfile whose admin dir does not name the root back, an ordinary `.git` with `commondir` or `gitdir`, a config with an
+include, `includeIf` or `extensions.worktreeConfig` (a bare key included), a detached HEAD that is not an object name,
+and any Git mount overlapping the state or a control path. The pin the validation read reaches the spawn through
+`HostLaunch.gitPin`, so metadata changed in between refuses (`git_metadata_changed_since_launch`) and never mounts
+another namespace. The pin is memory-only: no sandboxed worker is relaunched yet. Named limit (in `hello`): the shared
+object store is writable, so a sandbox can add or remove objects other checkouts use.
+
 **P2 live journey (`p2-containment`):** sandboxed SDK parent on a real model; it cannot read the grant, journal
 or socket; a detached tool survives a pi crash only until domain cleanup; SIGKILL the supervisor, restart sweeps,
 cleanup is confirmed and recorded, `relaunch` opens history without prompting; owner verification through

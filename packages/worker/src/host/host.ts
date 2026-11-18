@@ -18,6 +18,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 import { killGroup, processToken } from './process.js';
 import { sandboxEnv, sandboxLaunch } from '../sandbox/sandbox.js';
+import type { GitPin } from '../sandbox/git-sandbox.js';
 
 export type PiRecord = Record<string, unknown> & { type: string };
 /**
@@ -289,10 +290,12 @@ export function childEnv(env: NodeJS.ProcessEnv = process.env, taskId?: string |
 
 /**
  * A sandboxed typed child (P2-4): its root (the real path of its cwd) and the bwrap executable the daemon located.
+ * `gitPin` is the root's Git metadata its validation accepted (P2-5): the launch refuses any other.
  */
 export interface SdkSandbox {
   readonly root: string;
   readonly bwrap: string;
+  readonly gitPin?: GitPin | null;
 }
 
 /**
@@ -304,7 +307,7 @@ export class SdkHost extends LineHost {
   constructor(launch: SdkLaunch, options: { env?: NodeJS.ProcessEnv; timeoutMs?: number; prefix?: readonly string[]; sandbox?: SdkSandbox } = {}) {
     const args = [sdkChildEntry, JSON.stringify(launch)];
     const env = childEnv(options.env, launch.taskId);
-    const box = options.sandbox ? sandboxLaunch(options.sandbox.root, process.execPath, args, { env: sandboxEnv(env, options.sandbox.root), bwrap: options.sandbox.bwrap }) : undefined;
+    const box = options.sandbox ? sandboxLaunch(options.sandbox.root, process.execPath, args, { env: sandboxEnv(env, options.sandbox.root), bwrap: options.sandbox.bwrap, ...(options.sandbox.gitPin !== undefined ? { gitPin: options.sandbox.gitPin } : {}) }) : undefined;
     try {
       super(box ? box.command : process.execPath, box ? box.args : args, {
         cwd: launch.cwd,

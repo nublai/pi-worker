@@ -15,8 +15,9 @@
  * Named limit: the network is shared, not filtered.
  *
  * The supervisor reads what a sandbox can write (its session files, `files.read`) only through opens pinned at the
- * root, never following a link. Git mounts are P2-5, profile staging P2-7, the parent channel P2-8: until then a
- * sandboxed root worker (a parent) is refused, and a sandboxed child's Git metadata is whatever its root contains.
+ * root, never following a link. A root's Git metadata is mounted by git-sandbox.ts (P2-5): pointers, HEAD, config and
+ * alternates read-only, the worktree's admin dir, the shared objects and one private branch namespace writable. Profile
+ * staging is P2-7 and the parent channel P2-8: until then a sandboxed root worker (a parent) is refused.
  */
 import { closeSync, existsSync, fstatSync, readSync, realpathSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -24,6 +25,7 @@ import { delimiter, dirname, isAbsolute, join, normalize, relative, resolve } fr
 import { fileURLToPath } from 'node:url';
 import { Refusal } from '../b2/errors.js';
 import type { components } from '../generated/api.js';
+import { gitPlan, type GitPin } from './git-sandbox.js';
 import { isMissing, openPinned, openUnder } from './pinned-fs.js';
 
 type Create = components['schemas']['Create'];
@@ -74,9 +76,16 @@ const SYSTEM_PATHS = ['/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc/ssl', '/e
  * The checks a sandboxed launch passes before any record (refusals are `no_effect`). Returns the sandbox root: the
  * real path of the cwd, which `environment.root` must name. Refused: a host other than the SDK, a root other than the
  * cwd, the host root, a root overlapping the supervisor's state or a protected control path, a launch-spec resource
- * outside the root, and a root overlapping the worker's own runtime (code the sandbox must not write).
+ * outside the root, and a root overlapping the worker's own runtime (code the sandbox must not write). Then the root's
+ * Git metadata (git-sandbox.ts): its refusals, and any Git mount overlapping the state or a protected control path.
+ * `gitPin` is the metadata this validation accepted; the launch mounts only that (`sandboxLaunch` `gitPin`).
  */
-export function sandboxRoot(c: Create, controls: SandboxControls): string {
+export interface SandboxCheck {
+  readonly root: string;
+  readonly gitPin: GitPin | null;
+}
+
+export function sandboxRoot(c: Create, controls: SandboxControls): SandboxCheck {
   const env = c.launch_spec?.environment;
   if (!env || env.filesystem !== 'bwrap') throw new Refusal('sandbox_not_declared');
   if (process.platform !== 'linux' || (c.host ?? 'sdk') !== 'sdk') throw new Refusal('bwrap_requires_linux_sdk');
@@ -97,7 +106,16 @@ export function sandboxRoot(c: Create, controls: SandboxControls): string {
   for (const path of [...c.launch_spec!.resources.extensions, ...c.launch_spec!.resources.skills]) if (!inside(root, real(path))) throw new Refusal('sandbox_resource_outside_root');
   // The runtime is bound read-only into every sandbox: it must never be the root's, nor expose the state.
   for (const path of runtimePaths()) if (inside(path, state) || inside(path, root) || inside(root, path)) throw new Refusal('sandbox_runtime_overlaps_state_or_root');
-  return root;
+  const rootFd = openPinned(root, 'dir');
+  try {
+    const git = gitPlan(root, rootFd);
+    for (const fd of git.fds) closeSync(fd);
+    // A Git dir bound into the sandbox (writable or not) never contains or lies in a control path.
+    if (git.mounts.some(m => [state, ...protectedPaths].some(p => inside(m.dest, p) || inside(p, m.dest)))) throw new Refusal('sandbox_git_overlaps_protected_control_path');
+    return { root, gitPin: git.pin };
+  } finally {
+    closeSync(rootFd);
+  }
 }
 
 /**
@@ -140,17 +158,20 @@ export function sandboxEnv(allowed: NodeJS.ProcessEnv, root: string): Record<str
 /**
  * A bwrap argv running `command args` in the sandbox of `root`. `fds` are the mount sources, which the spawn places
  * at SANDBOX_FD_BASE onwards, in order; `close` closes the supervisor's copies (after the spawn, or on failure).
- * `bwrap` is the executable `locateBwrap` found. `env` is the complete environment inside (`sandboxEnv`).
+ * `bwrap` is the executable `locateBwrap` found. `env` is the complete environment inside (`sandboxEnv`). With a
+ * `gitPin` (the validation's, `sandboxRoot`), the root's Git metadata must still equal it; `gitPin` in the result is
+ * the metadata the launch mounts.
  */
 export interface SandboxLaunch {
   readonly command: string;
   readonly args: string[];
   readonly env: Record<string, string>;
   readonly fds: number[];
+  readonly gitPin: GitPin | null;
   close(): void;
 }
 
-export function sandboxLaunch(root: string, command: string, args: readonly string[], options: { env: Record<string, string>; bwrap?: string }): SandboxLaunch {
+export function sandboxLaunch(root: string, command: string, args: readonly string[], options: { env: Record<string, string>; bwrap?: string; gitPin?: GitPin | null }): SandboxLaunch {
   const opened: number[] = [];
   const close = () => {
     for (const fd of opened.splice(0)) closeSync(fd);
@@ -173,6 +194,10 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
     // System and worker runtime paths are owner-controlled, never sandbox-writable.
     for (const path of [...SYSTEM_PATHS, ...runtimePaths()]) if (existsSync(path)) argv.push('--ro-bind', path, path);
     bind('bind', rootFd, root);
+    // The root's Git metadata, after the root bind it overlays (git-sandbox.ts); every source a descriptor.
+    const git = gitPlan(root, rootFd, options.gitPin);
+    opened.push(...git.fds);
+    for (const mount of git.mounts) bind(mount.mode, mount.fd, mount.dest);
     // pi may read the credential stores the owner staged in its agent directory, read-only. A link there refuses
     // rather than letting bwrap resolve it on the host.
     for (const name of ['auth.json', 'models.json']) {
@@ -189,7 +214,7 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
     // After every mount: the sandbox's own root tmpfs (`/`, and `/etc`, `/home`, `/var` where nothing is bound) becomes
     // read-only. bwrap's remount is not recursive, so the root bind, `/tmp`, `/run` and `/dev` keep their own flags.
     argv.push(...mounts, '--dir', SANDBOX_HOME, '--remount-ro', '/', '--chdir', root);
-    return { command: options.bwrap ?? 'bwrap', args: [...argv, '--', command, ...args], env, fds, close };
+    return { command: options.bwrap ?? 'bwrap', args: [...argv, '--', command, ...args], env, fds, gitPin: git.pin, close };
   } catch (error) {
     close();
     throw error;
