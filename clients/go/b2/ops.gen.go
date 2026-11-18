@@ -55,6 +55,7 @@ var (
 	OpHistoryPage                 = Operation{ID: "history.page", Method: "GET", Path: "/b2/workers/{worker_id}/history", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0, MaxResponseBytes: 0}
 	OpItemsRead                   = Operation{ID: "items.read", Method: "GET", Path: "/b2/workers/{worker_id}/entries/{entry_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0, MaxResponseBytes: 0}
 	OpFilesRead                   = Operation{ID: "files.read", Method: "POST", Path: "/b2/workers/{worker_id}/files/read", Mutation: false, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0, MaxResponseBytes: 0}
+	OpArtifactsInspect            = Operation{ID: "artifacts.inspect", Method: "POST", Path: "/b2/workers/{worker_id}/artifacts/inspect", Mutation: false, Stream: false, Body: "json", MediaTypes: []string{"application/json"}, MaxBodyBytes: 262144, Response: "json", MaxFrameBytes: 0, MaxResponseBytes: 0}
 	OpAttachmentsStatus           = Operation{ID: "attachments.status", Method: "GET", Path: "/b2/attachments/{attachment_id}", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0, MaxResponseBytes: 0}
 	OpAttachmentsStage            = Operation{ID: "attachments.stage", Method: "PUT", Path: "/b2/attachments/{attachment_id}", Mutation: true, Stream: false, Body: "binary", MediaTypes: []string{"image/jpeg", "image/png", "image/webp"}, MaxBodyBytes: 2097152, Response: "json", MaxFrameBytes: 0, MaxResponseBytes: 0}
 	OpSessionsList                = Operation{ID: "sessions.list", Method: "GET", Path: "/b2/sessions", Mutation: false, Stream: false, Body: "none", MediaTypes: []string{}, MaxBodyBytes: 0, Response: "json", MaxFrameBytes: 0, MaxResponseBytes: 0}
@@ -96,6 +97,7 @@ var Operations = []Operation{
 	OpHistoryPage,
 	OpItemsRead,
 	OpFilesRead,
+	OpArtifactsInspect,
 	OpAttachmentsStatus,
 	OpAttachmentsStage,
 	OpSessionsList,
@@ -403,6 +405,15 @@ func (c *Client) ItemsRead(ctx context.Context, workerID string, entryID string)
 func (c *Client) FilesRead(ctx context.Context, workerID string, body FileRead) (*FileContent, error) {
 	var out FileContent
 	if err := c.do(ctx, OpFilesRead, []string{workerID}, nil, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ArtifactsInspect calls artifacts.inspect (POST /b2/workers/{worker_id}/artifacts/inspect).
+func (c *Client) ArtifactsInspect(ctx context.Context, workerID string, body ArtifactInspect) (*ArtifactFacts, error) {
+	var out ArtifactFacts
+	if err := c.do(ctx, OpArtifactsInspect, []string{workerID}, nil, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

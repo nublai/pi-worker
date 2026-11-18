@@ -1,0 +1,19 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-unsandboxed"
+    },
+    "body": {
+      "worker_epoch": "epoch-unsandboxed",
+      "commit": "bf6972b2f480db1b890babf6a1c1800e18b92a88"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "artifact_inspection_unavailable",
+      "effect": "no_effect",
+      "detail": "no_saved_launch_pin"
+    }
+  }
+}

@@ -1,6 +1,182 @@
 {
  "generated": "by tools/codegen from api/fixtures; DO NOT EDIT",
  "wire": {
+  "artifacts.inspect": {
+   "not-own-child": {
+    "request": {
+     "path": {
+      "worker_id": "worker-parent"
+     },
+     "body": {
+      "worker_epoch": "epoch-parent",
+      "commit": "bc1f7b9ea8491700b4c94cc57d5cccfc650cc54a"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "parent_channel_requires_own_child",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "object-missing": {
+    "request": {
+     "path": {
+      "worker_id": "worker-child"
+     },
+     "body": {
+      "worker_epoch": "epoch-child",
+      "commit": "ffffffffffffffffffffffffffffffffffffffff"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "artifact_object_missing",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "ok": {
+    "request": {
+     "path": {
+      "worker_id": "worker-child"
+     },
+     "body": {
+      "worker_epoch": "epoch-child",
+      "commit": "refs/heads/ca/work",
+      "base": "bc1f7b9ea8491700b4c94cc57d5cccfc650cc54a"
+     }
+    },
+    "response": {
+     "status": 200,
+     "body": {
+      "worker_id": "worker-child",
+      "worker_epoch": "epoch-child",
+      "commit": {
+       "requested": "refs/heads/ca/work",
+       "commit_id": "bf6972b2f480db1b890babf6a1c1800e18b92a88",
+       "tree_id": "01635e0721070548c089b138923231ce96550111"
+      },
+      "head": {
+       "ref": "refs/heads/ca/work",
+       "commit_id": "bf6972b2f480db1b890babf6a1c1800e18b92a88",
+       "matches_commit": true
+      },
+      "worktree": {
+       "state": "clean",
+       "entries": [],
+       "truncated": false
+      },
+      "pin": {
+       "kind": "linked",
+       "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+       "head_ref": "refs/heads/ca/work"
+      },
+      "provenance": {
+       "evidence": "owner_git_launch_pin",
+       "git_version": "git version 2.53.0",
+       "replace_objects": "disabled",
+       "inspected_at": "2026-11-18T12:00:00.000Z"
+      },
+      "base": {
+       "requested": "bc1f7b9ea8491700b4c94cc57d5cccfc650cc54a",
+       "base_id": "bc1f7b9ea8491700b4c94cc57d5cccfc650cc54a",
+       "merge_base_id": "bc1f7b9ea8491700b4c94cc57d5cccfc650cc54a",
+       "is_ancestor": true,
+       "changed": [
+        {
+         "status": "A",
+         "path": "feature.txt"
+        }
+       ],
+       "changed_truncated": false,
+       "diff_digest": {
+        "advisory": true,
+        "git_version": "git version 2.53.0",
+        "algorithm": "sha256",
+        "definition": "git diff --no-ext-diff --no-textconv --ignore-submodules=all --binary BASE COMMIT, replacement objects off; not artifact identity",
+        "value": "f790671356347e03c7a3f451a26d62cc8c459cb4e15be82fc971541ae0937867"
+       }
+      }
+     }
+    }
+   },
+   "pin-mismatch": {
+    "request": {
+     "path": {
+      "worker_id": "worker-child"
+     },
+     "body": {
+      "worker_epoch": "epoch-child",
+      "commit": "bc1f7b9ea8491700b4c94cc57d5cccfc650cc54a"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "artifact_pin_mismatch",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "ref-outside-namespace": {
+    "request": {
+     "path": {
+      "worker_id": "worker-child"
+     },
+     "body": {
+      "worker_epoch": "epoch-child",
+      "commit": "refs/heads/pa/root"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "artifact_ref_outside_namespace",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "stale-epoch": {
+    "request": {
+     "path": {
+      "worker_id": "worker-child"
+     },
+     "body": {
+      "worker_epoch": "stale-epoch",
+      "commit": "bf6972b2f480db1b890babf6a1c1800e18b92a88"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "stale_binding",
+      "effect": "no_effect"
+     }
+    }
+   },
+   "unavailable": {
+    "request": {
+     "path": {
+      "worker_id": "worker-unsandboxed"
+     },
+     "body": {
+      "worker_epoch": "epoch-unsandboxed",
+      "commit": "bf6972b2f480db1b890babf6a1c1800e18b92a88"
+     }
+    },
+    "response": {
+     "status": 409,
+     "body": {
+      "error": "artifact_inspection_unavailable",
+      "effect": "no_effect",
+      "detail": "no_saved_launch_pin"
+     }
+    }
+   }
+  },
   "attachments.release": {
    "ok": {
     "request": {

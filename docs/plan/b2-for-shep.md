@@ -145,7 +145,8 @@ under a fence" means `no_effect` naming the uncertain command. After its dispatc
 
 **Not in the `bridge` profile:** `children.launch` and `children.report` (agent-side; parent and child grants
 only), `sessions.steer`, `sessions.follow_up` and
-`executions.cancel` (the bridge uses `if_busy` and interrupt), and grant management (local files only, never
+`executions.cancel` (the bridge uses `if_busy` and interrupt), `artifacts.inspect` (P3-6, an orchestrator's
+owner-Git read), and grant management (local files only, never
 HTTP). Adding one is a profile change in the spec, reviewed like any other.
 
 **Check.** A closure test (P1-17) fails if a method in this table has no route or wire fixture, if the `bridge`

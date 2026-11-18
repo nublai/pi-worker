@@ -16,6 +16,8 @@
  *   not the parent's or its child's is out of scope (`grant_scope_denied`, as for every method), and the child's
  *   binding, the generation and both grants are checked exactly as for the other channel methods. It is not a stop, and
  *   a creating grant without the method leaves it out of the channel grant (`grant_method_denied`).
+ * - **Own children's artifacts only.** `artifacts.inspect` (P3-6) reads only the parent's own children, never the
+ *   parent itself (`parent_channel_requires_own_child`, b2/app.ts).
  * - **Own children only.** `workers.create` must name this parent and carry a launch spec
  *   (`parent_channel_requires_own_child`); the child is an SDK worker in the bwrap profile of its cwd, which the
  *   supervisor requires to be an owner-prepared slot (`PARENT/.piw-slots/<name>`, children.ts). Its resources must

@@ -26,6 +26,102 @@ func (e AnswerOutcome) Valid() bool {
 	}
 }
 
+// Defines values for ArtifactDiffDigestAdvisory.
+const (
+	ArtifactDiffDigestAdvisoryTrue ArtifactDiffDigestAdvisory = true
+)
+
+// Valid indicates whether the value is a known member of the ArtifactDiffDigestAdvisory enum.
+func (e ArtifactDiffDigestAdvisory) Valid() bool {
+	switch e {
+	case ArtifactDiffDigestAdvisoryTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArtifactDiffDigestAlgorithm.
+const (
+	ArtifactDiffDigestAlgorithmSha256 ArtifactDiffDigestAlgorithm = "sha256"
+)
+
+// Valid indicates whether the value is a known member of the ArtifactDiffDigestAlgorithm enum.
+func (e ArtifactDiffDigestAlgorithm) Valid() bool {
+	switch e {
+	case ArtifactDiffDigestAlgorithmSha256:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArtifactFactsPinKind.
+const (
+	ArtifactFactsPinKindLinked ArtifactFactsPinKind = "linked"
+)
+
+// Valid indicates whether the value is a known member of the ArtifactFactsPinKind enum.
+func (e ArtifactFactsPinKind) Valid() bool {
+	switch e {
+	case ArtifactFactsPinKindLinked:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArtifactFactsProvenanceEvidence.
+const (
+	OwnerGitLaunchPin ArtifactFactsProvenanceEvidence = "owner_git_launch_pin"
+)
+
+// Valid indicates whether the value is a known member of the ArtifactFactsProvenanceEvidence enum.
+func (e ArtifactFactsProvenanceEvidence) Valid() bool {
+	switch e {
+	case OwnerGitLaunchPin:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArtifactFactsProvenanceReplaceObjects.
+const (
+	Disabled ArtifactFactsProvenanceReplaceObjects = "disabled"
+)
+
+// Valid indicates whether the value is a known member of the ArtifactFactsProvenanceReplaceObjects enum.
+func (e ArtifactFactsProvenanceReplaceObjects) Valid() bool {
+	switch e {
+	case Disabled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArtifactFactsWorktreeState.
+const (
+	Clean      ArtifactFactsWorktreeState = "clean"
+	Conflicted ArtifactFactsWorktreeState = "conflicted"
+	Dirty      ArtifactFactsWorktreeState = "dirty"
+)
+
+// Valid indicates whether the value is a known member of the ArtifactFactsWorktreeState enum.
+func (e ArtifactFactsWorktreeState) Valid() bool {
+	switch e {
+	case Clean:
+		return true
+	case Conflicted:
+		return true
+	case Dirty:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AssistantDeltaEventEvidence.
 const (
 	AssistantDeltaEventEvidenceObservedMemory AssistantDeltaEventEvidence = "observed_memory"
@@ -568,13 +664,13 @@ func (e FileContentEvidence) Valid() bool {
 
 // Defines values for GitPinKind.
 const (
-	Linked GitPinKind = "linked"
+	GitPinKindLinked GitPinKind = "linked"
 )
 
 // Valid indicates whether the value is a known member of the GitPinKind enum.
 func (e GitPinKind) Valid() bool {
 	switch e {
-	case Linked:
+	case GitPinKindLinked:
 		return true
 	default:
 		return false
@@ -1958,6 +2054,145 @@ type ApprovalBinding struct {
 	Resource       string `json:"resource"`
 }
 
+// ArtifactChange defines model for ArtifactChange.
+type ArtifactChange struct {
+	// FromPath For a rename or copy, the path it came from.
+	FromPath *ArtifactPath `json:"from_path,omitempty"`
+	Path     ArtifactPath  `json:"path"`
+
+	// Status The `git diff --name-status` letter, with a score for a rename or copy (`R100`).
+	Status string `json:"status"`
+}
+
+// ArtifactDiffDigest Advisory digest of the diff from the base to the commit; never artifact identity.
+type ArtifactDiffDigest struct {
+	Advisory   ArtifactDiffDigestAdvisory  `json:"advisory"`
+	Algorithm  ArtifactDiffDigestAlgorithm `json:"algorithm"`
+	Definition string                      `json:"definition"`
+	GitVersion string                      `json:"git_version"`
+	Value      Sha256                      `json:"value"`
+}
+
+// ArtifactDiffDigestAdvisory defines model for ArtifactDiffDigest.Advisory.
+type ArtifactDiffDigestAdvisory bool
+
+// ArtifactDiffDigestAlgorithm defines model for ArtifactDiffDigest.Algorithm.
+type ArtifactDiffDigestAlgorithm string
+
+// ArtifactFacts defines model for ArtifactFacts.
+type ArtifactFacts struct {
+	// Base Present when the request names a base.
+	Base *struct {
+		// BaseId A full Git object id (SHA-1 or SHA-256), lower case.
+		BaseId ObjectId `json:"base_id"`
+
+		// Changed The paths changed from the base to the commit (`git diff --name- status`), in Git's order.
+		Changed []ArtifactChange `json:"changed"`
+
+		// ChangedTruncated More changes exist than `changed` lists (at most 10,000 entries and 1 MiB of paths).
+		ChangedTruncated bool `json:"changed_truncated"`
+
+		// DiffDigest Advisory digest of the diff from the base to the commit; never artifact identity.
+		DiffDigest ArtifactDiffDigest `json:"diff_digest"`
+
+		// IsAncestor The base is an ancestor of (or is) the commit.
+		IsAncestor bool `json:"is_ancestor"`
+
+		// MergeBaseId The best common ancestor of base and commit; null when they share no history.
+		MergeBaseId *string `json:"merge_base_id"`
+
+		// Requested A full object id, or a branch `refs/heads/<ns>/<leaf>`, which must lie in the worker's own namespace (the namespace of its pinned symbolic HEAD). Never an abbreviation, a revision expression, a path or an option.
+		Requested ArtifactRevision `json:"requested"`
+	} `json:"base,omitempty"`
+
+	// Commit The subject (P2-6 `artifactSubject`) - the requested commit and its native tree.
+	Commit struct {
+		// CommitId A full Git object id (SHA-1 or SHA-256), lower case.
+		CommitId ObjectId `json:"commit_id"`
+
+		// Requested A full object id, or a branch `refs/heads/<ns>/<leaf>`, which must lie in the worker's own namespace (the namespace of its pinned symbolic HEAD). Never an abbreviation, a revision expression, a path or an option.
+		Requested ArtifactRevision `json:"requested"`
+
+		// TreeId A full Git object id (SHA-1 or SHA-256), lower case.
+		TreeId ObjectId `json:"tree_id"`
+	} `json:"commit"`
+	Head struct {
+		// CommitId A full Git object id (SHA-1 or SHA-256), lower case.
+		CommitId ObjectId `json:"commit_id"`
+
+		// MatchesCommit HEAD is the inspected commit.
+		MatchesCommit bool `json:"matches_commit"`
+
+		// Ref The branch the pinned symbolic HEAD names; null when HEAD is detached.
+		Ref *string `json:"ref"`
+	} `json:"head"`
+
+	// Pin The saved launch pin the inspection compared, by identity.
+	Pin struct {
+		// HeadRef The branch the pin's symbolic HEAD names; null when detached.
+		HeadRef *string              `json:"head_ref"`
+		Kind    ArtifactFactsPinKind `json:"kind"`
+
+		// Sha256 SHA-256 of the pin's canonical JSON (keys sorted).
+		Sha256 Sha256 `json:"sha256"`
+	} `json:"pin"`
+	Provenance struct {
+		// Evidence Owner Git (P2-6) on a private snapshot of the checkout's metadata, compared with the saved launch pin.
+		Evidence       ArtifactFactsProvenanceEvidence       `json:"evidence"`
+		GitVersion     string                                `json:"git_version"`
+		InspectedAt    string                                `json:"inspected_at"`
+		ReplaceObjects ArtifactFactsProvenanceReplaceObjects `json:"replace_objects"`
+	} `json:"provenance"`
+	WorkerEpoch Id `json:"worker_epoch"`
+	WorkerId    Id `json:"worker_id"`
+
+	// Worktree The checkout's `git status --porcelain` (untracked files listed, ignored ones not). `conflicted` when any entry is unmerged, else `dirty` when any entry exists.
+	Worktree struct {
+		Entries []ArtifactStatusEntry      `json:"entries"`
+		State   ArtifactFactsWorktreeState `json:"state"`
+
+		// Truncated More entries exist than `entries` lists (at most 10,000 entries and 1 MiB of paths).
+		Truncated bool `json:"truncated"`
+	} `json:"worktree"`
+}
+
+// ArtifactFactsPinKind defines model for ArtifactFacts.Pin.Kind.
+type ArtifactFactsPinKind string
+
+// ArtifactFactsProvenanceEvidence Owner Git (P2-6) on a private snapshot of the checkout's metadata, compared with the saved launch pin.
+type ArtifactFactsProvenanceEvidence string
+
+// ArtifactFactsProvenanceReplaceObjects defines model for ArtifactFacts.Provenance.ReplaceObjects.
+type ArtifactFactsProvenanceReplaceObjects string
+
+// ArtifactFactsWorktreeState defines model for ArtifactFacts.Worktree.State.
+type ArtifactFactsWorktreeState string
+
+// ArtifactInspect defines model for ArtifactInspect.
+type ArtifactInspect struct {
+	// Base A full object id, or a branch `refs/heads/<ns>/<leaf>`, which must lie in the worker's own namespace (the namespace of its pinned symbolic HEAD). Never an abbreviation, a revision expression, a path or an option.
+	Base *ArtifactRevision `json:"base,omitempty"`
+
+	// Commit A full object id, or a branch `refs/heads/<ns>/<leaf>`, which must lie in the worker's own namespace (the namespace of its pinned symbolic HEAD). Never an abbreviation, a revision expression, a path or an option.
+	Commit      ArtifactRevision `json:"commit"`
+	WorkerEpoch Id               `json:"worker_epoch"`
+}
+
+// ArtifactPath defines model for ArtifactPath.
+type ArtifactPath = string
+
+// ArtifactRevision A full object id, or a branch `refs/heads/<ns>/<leaf>`, which must lie in the worker's own namespace (the namespace of its pinned symbolic HEAD). Never an abbreviation, a revision expression, a path or an option.
+type ArtifactRevision = string
+
+// ArtifactStatusEntry defines model for ArtifactStatusEntry.
+type ArtifactStatusEntry struct {
+	// Code The two `git status --porcelain` (v1) status letters.
+	Code string `json:"code"`
+
+	// Path The rest of the porcelain line as Git prints it: one path, or `FROM -> TO` for a rename or copy, quoted by Git when it holds special characters.
+	Path ArtifactPath `json:"path"`
+}
+
 // AssistantDeltaEvent The assistant text pi is streaming (pi's `message_update` text deltas), memory only and never replayed. `tail` is the last at most 2048 characters of the message's text so far and `length` its full length: a client replaces its screen tail with `tail`, so a lost delta costs nothing. A subscriber whose transport is backpressured holds at most one undelivered delta per worker (a newer one replaces it), so a delta storm cannot overflow its queue.
 type AssistantDeltaEvent struct {
 	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
@@ -2788,6 +3023,9 @@ type ModelRef struct {
 	Provider string `json:"provider"`
 }
 
+// ObjectId A full Git object id (SHA-1 or SHA-256), lower case.
+type ObjectId = string
+
 // OverflowEvent The last frame of a stream; the stream closes after it.
 // `resync_required: true`: the subscriber queue overflowed or a frame was
 // invalid (`reason` `subscriber_queue_overflow` or `invalid_frame`); the
@@ -3485,6 +3723,9 @@ type AttachmentsReleaseJSONRequestBody = Release
 
 // WorkersCreateJSONRequestBody defines body for WorkersCreate for application/json ContentType.
 type WorkersCreateJSONRequestBody = Create
+
+// ArtifactsInspectJSONRequestBody defines body for ArtifactsInspect for application/json ContentType.
+type ArtifactsInspectJSONRequestBody = ArtifactInspect
 
 // ExecutionsCancelJSONRequestBody defines body for ExecutionsCancel for application/json ContentType.
 type ExecutionsCancelJSONRequestBody = Control

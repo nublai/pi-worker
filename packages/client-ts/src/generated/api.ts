@@ -586,6 +586,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/b2/workers/{worker_id}/artifacts/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Owner-Git facts about a worker's checkout (saved launch pin)
+         * @description Facts about a sandboxed worker's Git checkout (P3-6), read by the
+         *     supervisor through owner Git (P2-6) with the Git pin the worker's
+         *     launch validated (memory only: a supervisor restart loses it) and a
+         *     private snapshot in the supervisor's state. The request names the
+         *     worker's current `worker_epoch` and the `commit` to inspect (and
+         *     optionally a `base`), each a full object id or a branch
+         *     `refs/heads/<ns>/<leaf>` in the worker's own namespace; never a
+         *     path, pathspec or option. The reply is facts, never an acceptance
+         *     verdict: the commit and its native tree (replacement objects off),
+         *     HEAD, the working tree's status, the paths changed from the base,
+         *     the pin's identity and the evidence's provenance. Lists are bounded
+         *     and say when they are truncated. On a parent channel only the
+         *     parent's own children may be inspected. Refusals, all `no_effect`:
+         *     `stale_binding` (`worker_epoch` is not the worker's current one),
+         *     `artifact_inspection_unavailable` (no saved launch pin: the worker
+         *     is not sandboxed in a linked worktree, or the supervisor restarted
+         *     since its launch; or owner Git refused the checkout or could not
+         *     run; `detail` names the reason),
+         *     `artifact_pin_mismatch` (the checkout's Git metadata is not the
+         *     saved launch pin), `artifact_ref_outside_namespace` (a ref outside
+         *     the worker's own branch namespace, or any ref of a detached
+         *     worker), `artifact_object_missing` (the commit, the base or the
+         *     commit's tree is not in the object store, or names no commit),
+         *     `parent_channel_requires_own_child` (on a parent channel, a worker
+         *     that is not the parent's child).
+         */
+        post: operations["artifacts.inspect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/b2/attachments/{attachment_id}": {
         parameters: {
             query?: never;
@@ -1588,6 +1634,98 @@ export interface components {
             bytes: number;
             /** @constant */
             evidence: "pinned_file_read";
+        };
+        /** @description A full Git object id (SHA-1 or SHA-256), lower case. */
+        ObjectId: string;
+        /** @description A full object id, or a branch `refs/heads/<ns>/<leaf>`, which must lie in the worker's own namespace (the namespace of its pinned symbolic HEAD). Never an abbreviation, a revision expression, a path or an option. */
+        ArtifactRevision: string;
+        ArtifactInspect: {
+            worker_epoch: components["schemas"]["Id"];
+            commit: components["schemas"]["ArtifactRevision"];
+            base?: components["schemas"]["ArtifactRevision"];
+        };
+        ArtifactPath: string;
+        ArtifactChange: {
+            /** @description The `git diff --name-status` letter, with a score for a rename or copy (`R100`). */
+            status: string;
+            path: components["schemas"]["ArtifactPath"];
+            /** @description For a rename or copy, the path it came from. */
+            from_path?: components["schemas"]["ArtifactPath"];
+        };
+        ArtifactStatusEntry: {
+            /** @description The two `git status --porcelain` (v1) status letters. */
+            code: string;
+            /** @description The rest of the porcelain line as Git prints it: one path, or `FROM -> TO` for a rename or copy, quoted by Git when it holds special characters. */
+            path: components["schemas"]["ArtifactPath"];
+        };
+        /** @description Advisory digest of the diff from the base to the commit; never artifact identity. */
+        ArtifactDiffDigest: {
+            /** @constant */
+            advisory: true;
+            git_version: string;
+            /** @constant */
+            algorithm: "sha256";
+            definition: string;
+            value: components["schemas"]["Sha256"];
+        };
+        ArtifactFacts: {
+            worker_id: components["schemas"]["Id"];
+            worker_epoch: components["schemas"]["Id"];
+            /** @description The subject (P2-6 `artifactSubject`) - the requested commit and its native tree. */
+            commit: {
+                requested: components["schemas"]["ArtifactRevision"];
+                commit_id: components["schemas"]["ObjectId"];
+                tree_id: components["schemas"]["ObjectId"];
+            };
+            head: {
+                /** @description The branch the pinned symbolic HEAD names; null when HEAD is detached. */
+                ref: string | null;
+                commit_id: components["schemas"]["ObjectId"];
+                /** @description HEAD is the inspected commit. */
+                matches_commit: boolean;
+            };
+            /** @description Present when the request names a base. */
+            base?: {
+                requested: components["schemas"]["ArtifactRevision"];
+                base_id: components["schemas"]["ObjectId"];
+                /** @description The best common ancestor of base and commit; null when they share no history. */
+                merge_base_id: string | null;
+                /** @description The base is an ancestor of (or is) the commit. */
+                is_ancestor: boolean;
+                /** @description The paths changed from the base to the commit (`git diff --name- status`), in Git's order. */
+                changed: components["schemas"]["ArtifactChange"][];
+                /** @description More changes exist than `changed` lists (at most 10,000 entries and 1 MiB of paths). */
+                changed_truncated: boolean;
+                diff_digest: components["schemas"]["ArtifactDiffDigest"];
+            };
+            /** @description The checkout's `git status --porcelain` (untracked files listed, ignored ones not). `conflicted` when any entry is unmerged, else `dirty` when any entry exists. */
+            worktree: {
+                /** @enum {string} */
+                state: "clean" | "dirty" | "conflicted";
+                entries: components["schemas"]["ArtifactStatusEntry"][];
+                /** @description More entries exist than `entries` lists (at most 10,000 entries and 1 MiB of paths). */
+                truncated: boolean;
+            };
+            /** @description The saved launch pin the inspection compared, by identity. */
+            pin: {
+                /** @constant */
+                kind: "linked";
+                /** @description SHA-256 of the pin's canonical JSON (keys sorted). */
+                sha256: components["schemas"]["Sha256"];
+                /** @description The branch the pin's symbolic HEAD names; null when detached. */
+                head_ref: string | null;
+            };
+            provenance: {
+                /**
+                 * @description Owner Git (P2-6) on a private snapshot of the checkout's metadata, compared with the saved launch pin.
+                 * @constant
+                 */
+                evidence: "owner_git_launch_pin";
+                git_version: string;
+                /** @constant */
+                replace_objects: "disabled";
+                inspected_at: string;
+            };
         };
         /** @description Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch. */
         Cursor: {
@@ -2624,6 +2762,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FileContent"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Refused"];
+            413: components["responses"]["TooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["Unknown"];
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    "artifacts.inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_id: components["parameters"]["WorkerId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtifactInspect"];
+            };
+        };
+        responses: {
+            /** @description The facts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactFacts"];
                 };
             };
             400: components["responses"]["BadRequest"];

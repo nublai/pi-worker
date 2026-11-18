@@ -8,7 +8,7 @@
 //     section 0.1); the Go replay of api/fixtures/transitions.json runs against it. The session catalog
 //     (sessions.get, sessions.list), its history bytes and blobs read the fake's session files; models.list and
 //     commands.list answer for a ready worker or a directory with the catalog of their wire fixtures. The reads it
-//     does not model (history.page, items.read, files.read) answer only a request that matches a wire fixture
+//     does not model (history.page, items.read, files.read, artifacts.inspect) answer only a request that matches a wire fixture
 //     exactly, else 404 fixture_not_found: never another request's reply.
 //   - Replay (Options.Replay). Every operation answers only from its wire fixtures, matched exactly on path,
 //     query, headers and body; anything else is 404 fixture_not_found. Use it to test that a driver handles every

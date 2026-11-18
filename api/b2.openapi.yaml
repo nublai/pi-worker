@@ -103,6 +103,8 @@ tags:
     description: Events, history, receipts and files.
   - name: children
     description: Child launch and child reports.
+  - name: artifacts
+    description: Owner-Git facts about a worker's checkout (P3-6).
   - name: features
     description: Models, commands and session settings (contract 8.1).
 paths:
@@ -960,6 +962,67 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FileContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Refused'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/Unknown'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /b2/workers/{worker_id}/artifacts/inspect:
+    parameters:
+      - $ref: '#/components/parameters/WorkerId'
+    post:
+      operationId: artifacts.inspect
+      summary: Owner-Git facts about a worker's checkout (saved launch pin)
+      description: |
+        Facts about a sandboxed worker's Git checkout (P3-6), read by the
+        supervisor through owner Git (P2-6) with the Git pin the worker's
+        launch validated (memory only: a supervisor restart loses it) and a
+        private snapshot in the supervisor's state. The request names the
+        worker's current `worker_epoch` and the `commit` to inspect (and
+        optionally a `base`), each a full object id or a branch
+        `refs/heads/<ns>/<leaf>` in the worker's own namespace; never a
+        path, pathspec or option. The reply is facts, never an acceptance
+        verdict: the commit and its native tree (replacement objects off),
+        HEAD, the working tree's status, the paths changed from the base,
+        the pin's identity and the evidence's provenance. Lists are bounded
+        and say when they are truncated. On a parent channel only the
+        parent's own children may be inspected. Refusals, all `no_effect`:
+        `stale_binding` (`worker_epoch` is not the worker's current one),
+        `artifact_inspection_unavailable` (no saved launch pin: the worker
+        is not sandboxed in a linked worktree, or the supervisor restarted
+        since its launch; or owner Git refused the checkout or could not
+        run; `detail` names the reason),
+        `artifact_pin_mismatch` (the checkout's Git metadata is not the
+        saved launch pin), `artifact_ref_outside_namespace` (a ref outside
+        the worker's own branch namespace, or any ref of a detached
+        worker), `artifact_object_missing` (the commit, the base or the
+        commit's tree is not in the object store, or names no commit),
+        `parent_channel_requires_own_child` (on a parent channel, a worker
+        that is not the parent's child).
+      tags: [artifacts]
+      x-piw-mutation: false
+      x-piw-body: json
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactInspect'
+      responses:
+        '200':
+          description: The facts.
+          x-piw-response: json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactFacts'
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
@@ -3334,6 +3397,236 @@ components:
         evidence:
           type: string
           const: pinned_file_read
+    ObjectId:
+      type: string
+      pattern: ^([0-9a-f]{40}|[0-9a-f]{64})$
+      description: A full Git object id (SHA-1 or SHA-256), lower case.
+    ArtifactRevision:
+      type: string
+      maxLength: 255
+      pattern: "^([0-9a-f]{40}|[0-9a-f]{64}|\
+        refs/heads/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+)$"
+      description: >-
+        A full object id, or a branch `refs/heads/<ns>/<leaf>`, which must lie
+        in the worker's own namespace (the namespace of its pinned symbolic
+        HEAD). Never an abbreviation, a revision expression, a path or an
+        option.
+    ArtifactInspect:
+      type: object
+      additionalProperties: false
+      required: [worker_epoch, commit]
+      properties:
+        worker_epoch:
+          $ref: '#/components/schemas/Id'
+        commit:
+          $ref: '#/components/schemas/ArtifactRevision'
+        base:
+          $ref: '#/components/schemas/ArtifactRevision'
+    ArtifactPath:
+      type: string
+      minLength: 1
+      maxLength: 16384
+    ArtifactChange:
+      type: object
+      additionalProperties: false
+      required: [status, path]
+      properties:
+        status:
+          type: string
+          pattern: ^[A-Z][0-9]{0,3}$
+          description: >-
+            The `git diff --name-status` letter, with a score for a rename or
+            copy (`R100`).
+        path:
+          $ref: '#/components/schemas/ArtifactPath'
+        from_path:
+          $ref: '#/components/schemas/ArtifactPath'
+          description: For a rename or copy, the path it came from.
+    ArtifactStatusEntry:
+      type: object
+      additionalProperties: false
+      required: [code, path]
+      properties:
+        code:
+          type: string
+          pattern: ^[ MTADRCU?!]{2}$
+          description: The two `git status --porcelain` (v1) status letters.
+        path:
+          $ref: '#/components/schemas/ArtifactPath'
+          description: >-
+            The rest of the porcelain line as Git prints it: one path, or `FROM
+            -> TO` for a rename or copy, quoted by Git when it holds special
+            characters.
+    ArtifactDiffDigest:
+      type: object
+      additionalProperties: false
+      required: [advisory, git_version, algorithm, definition, value]
+      description: >-
+        Advisory digest of the diff from the base to the commit; never artifact
+        identity.
+      properties:
+        advisory:
+          type: boolean
+          const: true
+        git_version:
+          type: string
+          maxLength: 256
+        algorithm:
+          type: string
+          const: sha256
+        definition:
+          type: string
+          maxLength: 1024
+        value:
+          $ref: '#/components/schemas/Sha256'
+    ArtifactFacts:
+      type: object
+      additionalProperties: false
+      required:
+        - worker_id
+        - worker_epoch
+        - commit
+        - head
+        - worktree
+        - pin
+        - provenance
+      properties:
+        worker_id:
+          $ref: '#/components/schemas/Id'
+        worker_epoch:
+          $ref: '#/components/schemas/Id'
+        commit:
+          type: object
+          additionalProperties: false
+          required: [requested, commit_id, tree_id]
+          description: >-
+            The subject (P2-6 `artifactSubject`) - the requested commit and its
+            native tree.
+          properties:
+            requested:
+              $ref: '#/components/schemas/ArtifactRevision'
+            commit_id:
+              $ref: '#/components/schemas/ObjectId'
+            tree_id:
+              $ref: '#/components/schemas/ObjectId'
+        head:
+          type: object
+          additionalProperties: false
+          required: [ref, commit_id, matches_commit]
+          properties:
+            ref:
+              type: [string, 'null']
+              maxLength: 255
+              description: >-
+                The branch the pinned symbolic HEAD names; null when HEAD is
+                detached.
+            commit_id:
+              $ref: '#/components/schemas/ObjectId'
+            matches_commit:
+              type: boolean
+              description: HEAD is the inspected commit.
+        base:
+          type: object
+          additionalProperties: false
+          required:
+            - requested
+            - base_id
+            - merge_base_id
+            - is_ancestor
+            - changed
+            - changed_truncated
+            - diff_digest
+          description: Present when the request names a base.
+          properties:
+            requested:
+              $ref: '#/components/schemas/ArtifactRevision'
+            base_id:
+              $ref: '#/components/schemas/ObjectId'
+            merge_base_id:
+              type: [string, 'null']
+              pattern: ^([0-9a-f]{40}|[0-9a-f]{64})$
+              description: >-
+                The best common ancestor of base and commit; null when they
+                share no history.
+            is_ancestor:
+              type: boolean
+              description: The base is an ancestor of (or is) the commit.
+            changed:
+              type: array
+              maxItems: 10000
+              description: >-
+                The paths changed from the base to the commit (`git diff --name-
+                status`), in Git's order.
+              items:
+                $ref: '#/components/schemas/ArtifactChange'
+            changed_truncated:
+              type: boolean
+              description: >-
+                More changes exist than `changed` lists (at most 10,000 entries
+                and 1 MiB of paths).
+            diff_digest:
+              $ref: '#/components/schemas/ArtifactDiffDigest'
+        worktree:
+          type: object
+          additionalProperties: false
+          required: [state, entries, truncated]
+          description: >-
+            The checkout's `git status --porcelain` (untracked files listed,
+            ignored ones not). `conflicted` when any entry is unmerged, else
+            `dirty` when any entry exists.
+          properties:
+            state:
+              type: string
+              enum: [clean, dirty, conflicted]
+            entries:
+              type: array
+              maxItems: 10000
+              items:
+                $ref: '#/components/schemas/ArtifactStatusEntry'
+            truncated:
+              type: boolean
+              description: >-
+                More entries exist than `entries` lists (at most 10,000 entries
+                and 1 MiB of paths).
+        pin:
+          type: object
+          additionalProperties: false
+          required: [kind, sha256, head_ref]
+          description: >-
+            The saved launch pin the inspection compared, by identity.
+          properties:
+            kind:
+              type: string
+              const: linked
+            sha256:
+              $ref: '#/components/schemas/Sha256'
+              description: SHA-256 of the pin's canonical JSON (keys sorted).
+            head_ref:
+              type: [string, 'null']
+              maxLength: 255
+              description: >-
+                The branch the pin's symbolic HEAD names; null when detached.
+        provenance:
+          type: object
+          additionalProperties: false
+          required: [evidence, git_version, replace_objects, inspected_at]
+          properties:
+            evidence:
+              type: string
+              const: owner_git_launch_pin
+              description: >-
+                Owner Git (P2-6) on a private snapshot of the checkout's
+                metadata, compared with the saved launch pin.
+            git_version:
+              type: string
+              maxLength: 256
+            replace_objects:
+              type: string
+              const: disabled
+            inspected_at:
+              type: string
+              minLength: 1
+              maxLength: 64
     Cursor:
       type: object
       additionalProperties: false

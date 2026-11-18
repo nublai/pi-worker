@@ -27,10 +27,11 @@ import { CHANNEL_SOCKET_NAME } from '../sandbox/sandbox.js';
 import type { Live, SupervisorState } from './state.js';
 
 /**
- * What a parent may call on its channel (A0's list): its own and its children's rows, launches, prompts and stops, and
- * the interrupt of a child's turn (`executions.interrupt`, its own children only: b2/channel.ts `channelInterruptTarget`).
+ * What a parent may call on its channel (A0's list): its own and its children's rows, launches, prompts and stops, the
+ * interrupt of a child's turn (`executions.interrupt`, its own children only: b2/channel.ts `channelInterruptTarget`); and
+ * since P3-6 owner-Git facts about its own children's checkouts (`artifacts.inspect`, b2/app.ts).
  */
-export const CHANNEL_METHODS: readonly string[] = ['hello', 'workers.list', 'workers.get', 'workers.create', 'workers.stop', 'executions.interrupt', 'sessions.prompt', 'events.subscribe', 'history.page', 'receipts.get'];
+export const CHANNEL_METHODS: readonly string[] = ['hello', 'workers.list', 'workers.get', 'workers.create', 'workers.stop', 'executions.interrupt', 'sessions.prompt', 'events.subscribe', 'history.page', 'receipts.get', 'artifacts.inspect'];
 
 /** The generation a channel serves: the parent, its epoch, its own grant and its root. */
 export interface ChannelIdentity {

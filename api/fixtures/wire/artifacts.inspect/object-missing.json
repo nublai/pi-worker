@@ -1,0 +1,18 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-child"
+    },
+    "body": {
+      "worker_epoch": "epoch-child",
+      "commit": "ffffffffffffffffffffffffffffffffffffffff"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "artifact_object_missing",
+      "effect": "no_effect"
+    }
+  }
+}
