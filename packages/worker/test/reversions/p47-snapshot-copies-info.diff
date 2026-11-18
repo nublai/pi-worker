@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index b25ee4a..8f29d65 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -352,7 +352,7 @@ function copyTreeAt(source: number, dest: number, budget: Budget, depth = 0): vo
+  * (step 2).
+  */
+ /** The common dir's directories the snapshot copies whole: `refs` only, never `info` (step 2). */
+-const COPIED_DIRS: readonly string[] = ['refs'];
++const COPIED_DIRS: readonly string[] = ['refs', 'info'];
+ 
+ function copyData(admin: number, common: number, out: number): void {
+   const budget: Budget = { entries: 0, bytes: 0 };

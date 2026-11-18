@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index b25ee4a..f1a67e7 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -567,7 +567,7 @@ const RUNTIME_EXCLUDED = [AGENT_DIR, WORKER_DIR, SLOTS_DIR].map(name => `:(exclu
+  * Step 6, on status: every untracked file listed one by one whatever the config says, and those a `.gitignore` in the
+  * tree ignores too (as `!!`).
+  */
+-const ALL_UNTRACKED = ['--untracked-files=all', '--ignored=traditional'];
++const ALL_UNTRACKED = ['--ignored=traditional'];
+ 
+ /** A literal ref prefix under `refs/`: no glob characters, nothing a ref name cannot hold. */
+ function refPrefix(value: string): string {

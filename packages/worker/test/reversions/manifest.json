@@ -279,7 +279,7 @@
       ]
     },
     "go-b2-auth": {
-      "command": "cd clients/go && { go test -count=1 ./b2/ 2>&1; echo \"go-test-exit $?\"; } | awk '/^go-test-exit /{exit $2} {print} $1 == \"---\" && $2 == \"FAIL:\" {print \"\u2716 \" $3}'",
+      "command": "cd clients/go && { go test -count=1 ./b2/ 2>&1; echo \"go-test-exit $?\"; } | awk '/^go-test-exit /{exit $2} {print} $1 == \"---\" && $2 == \"FAIL:\" {print \"✖ \" $3}'",
       "diffs": [
         "pr19-grant-follows-symlink.diff",
         "pr19-grant-mode-perm-only.diff",
@@ -321,7 +321,7 @@
       ]
     },
     "go-workerfake": {
-      "command": "cd clients/go && { go test -count=1 ./workerfake/ 2>&1; echo \"go-test-exit $?\"; } | awk '/^go-test-exit /{exit $2} {print} $1 == \"---\" && $2 == \"FAIL:\" {print \"\u2716 \" $3}'",
+      "command": "cd clients/go && { go test -count=1 ./workerfake/ 2>&1; echo \"go-test-exit $?\"; } | awk '/^go-test-exit /{exit $2} {print} $1 == \"---\" && $2 == \"FAIL:\" {print \"✖ \" $3}'",
       "diffs": [
         "pr20-fake-first-prompt-ungranted.diff",
         "pr20-fake-tool-memory-unbounded.diff",
@@ -527,7 +527,14 @@
         "p3-6-fix-sparse-directory-entry-allowed.diff",
         "p3-6-fix-sdir-extension-allowed.diff",
         "p3-6-fix-cached-diff-index-trusted.diff",
-        "p3-6-fix-ls-files-index-trusted.diff"
+        "p3-6-fix-ls-files-index-trusted.diff",
+        "p47-snapshot-copies-info.diff",
+        "p47-excludes-file-honoured.diff",
+        "p47-gitignored-not-listed.diff",
+        "p47-untracked-mode-from-config.diff",
+        "p47-runtime-dirs-listed.diff",
+        "p47-ls-files-reads-excludes.diff",
+        "p47-caller-path-glob.diff"
       ]
     },
     "staging": {
@@ -774,7 +781,12 @@
         "p3-6-fix-conflict-judged-after-truncation.diff",
         "p3-6-fix-merge-base-exit-ignored.diff",
         "p3-6-fix-index-read-uncapped.diff",
-        "p3-6-stat-data-trusted.diff"
+        "p3-6-stat-data-trusted.diff",
+        "p47-snapshot-copies-info.diff",
+        "p47-excludes-file-honoured.diff",
+        "p47-gitignored-not-listed.diff",
+        "p47-untracked-mode-from-config.diff",
+        "p47-runtime-dirs-listed.diff"
       ]
     }
   }
