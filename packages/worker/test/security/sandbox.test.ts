@@ -652,6 +652,11 @@ test('bwrap profile: --die-with-parent, --clearenv allowlist, credential links r
     const set = launch.args.flatMap((a, i) => (a === '--setenv' ? [launch.args[i + 1]!] : []));
     assert.deepEqual(set.sort(), Object.keys(launch.env).sort());
     assert.ok(launch.args.includes('--ro-bind-fd'));
+    // The sandbox's own `/` is remounted read-only after the last mount and directory, before the command.
+    const body = launch.args.slice(0, launch.args.indexOf('--'));
+    const remount = body.findIndex((a, i) => a === '--remount-ro' && body[i + 1] === '/');
+    const lastMount = Math.max(...body.flatMap((a, i) => (/^--(ro-)?bind(-fd)?$|^--dir$|^--tmpfs$|^--proc$|^--dev$/.test(a) ? [i] : [])));
+    assert.ok(remount > lastMount, `--remount-ro / follows every mount: ${body.join(' ')}`);
     rmSync(join(root, '.piw-agent', 'models.json'));
     writeFileSync(join(root, 'elsewhere'), '{}');
     symlinkSync(join(root, 'elsewhere'), join(root, '.piw-agent', 'models.json'));
@@ -691,6 +696,21 @@ test('kernel B1: bwrap binds the exact opened root even if the path is swapped b
     assert.equal(content, 'ORIGINAL');
     // 0-2 stdio, 3 report slot, plus the descriptor ls itself opens.
     assert.ok(fds!.trim().split(' ').map(Number).filter(n => n > 3).length <= 1, `mount descriptors leaked: ${fds}`);
+  } finally {
+    tmp.cleanup();
+  }
+});
+
+test('kernel: the root is the only writable host tree; the sandbox’s own / is read-only, /tmp writable; PWD names the root', { skip }, async () => {
+  const tmp = privateTmp();
+  const root = join(realpathSync(tmp.dir), 'root');
+  mkdirSync(root);
+  try {
+    const script = 'touch in-root && echo root-ok; touch /piw-root-write 2>/dev/null && echo SLASH-WRITABLE; mkdir /etc/piw-write 2>/dev/null && echo ETC-WRITABLE; touch /tmp/t && echo tmp-ok; echo "pwd=$PWD"';
+    const result = await spawnLaunch(launchIn(root, '/bin/sh', ['-c', script], locateBwrap()));
+    assert.equal(result.status, 0, result.err);
+    assert.deepEqual(result.out.trim().split('\n'), ['root-ok', 'tmp-ok', `pwd=${root}`]);
+    assert.equal(readFileSync(join(root, 'in-root'), 'utf8'), '', 'the write in the root reached the host');
   } finally {
     tmp.cleanup();
   }

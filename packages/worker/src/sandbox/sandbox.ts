@@ -3,9 +3,11 @@
  * `launch_spec.environment.filesystem: bwrap` runs pi in a sandbox whose only writable tree is its root (its cwd),
  * bound from a descriptor opened with no symlink at any component, so a rename or symlink swap after the open cannot
  * change what the sandbox gets. Everything else it sees is read-only system and worker runtime paths; `/proc` (its own
- * PID namespace), `/tmp`, `/run` and HOME are private. bwrap clears the environment (`--clearenv`) and sets only the
- * typed child's allowlist (host.ts `childEnv`), dies with the supervisor (`--die-with-parent`), and closes every mount
- * descriptor before pi runs, so pi holds stdio and its FD 3 report slot only.
+ * PID namespace) and `/dev` are private, `/tmp`, `/run` and HOME private and writable, and the sandbox's own `/` (with
+ * every directory nothing is bound on) is remounted read-only. bwrap clears the environment (`--clearenv`) and sets only
+ * the typed child's allowlist (host.ts `childEnv`), plus `PWD`, which bwrap sets after `--chdir` whatever `--unsetenv`
+ * says: it names the root, the sandbox's own cwd. bwrap dies with the supervisor (`--die-with-parent`) and closes every
+ * mount descriptor before pi runs, so pi holds stdio and its FD 3 report slot only.
  *
  * Not mounted: the supervisor's state (journal, grants, sessions of unsandboxed workers), the B2 socket's directory,
  * the cgroup tree, the host HOME and the user's pi profile. Readable inside: the model credentials its environment
@@ -184,7 +186,9 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
       opened.push(fd);
       bind('ro-bind', fd, join(root, AGENT_DIR, name));
     }
-    argv.push(...mounts, '--dir', SANDBOX_HOME, '--chdir', root);
+    // After every mount: the sandbox's own root tmpfs (`/`, and `/etc`, `/home`, `/var` where nothing is bound) becomes
+    // read-only. bwrap's remount is not recursive, so the root bind, `/tmp`, `/run` and `/dev` keep their own flags.
+    argv.push(...mounts, '--dir', SANDBOX_HOME, '--remount-ro', '/', '--chdir', root);
     return { command: options.bwrap ?? 'bwrap', args: [...argv, '--', command, ...args], env, fds, close };
   } catch (error) {
     close();
