@@ -1,6 +1,7 @@
 /**
  * Runs one parsed command: one B2 operation through `@nublai/pi-worker-client`, or the daemon package's local
- * `grant` command. The only extra request is the `workers.get` read that fills a binding the caller left out.
+ * `grant` command, or a host command (src/host.ts). The only extra request is the `workers.get` read that fills a
+ * binding the caller left out.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -11,12 +12,15 @@ import { Client, ClientFailure, routes, type Cursor, type EventFrame, type Opera
 import { parse, type Parsed, type Value } from './args.js';
 import { BINDING, COMMANDS, fieldOf, GLOBAL, UsageError, type Command, type Option } from './commands.js';
 import { EXIT, grantFailure, mapError, ReceiptRefusal } from './errors.js';
+import { daemon, doctor, install, logs, realSystem, uninstall, type System } from './host.js';
 import { uuidv7 } from './uuid.js';
 
 export interface Io {
   out(line: string): void;
   err(line: string): void;
   readonly env: NodeJS.ProcessEnv;
+  /** The host the host commands act on (default: this one); tests pass a fake systemd. */
+  readonly system?: System;
 }
 
 export interface Request {
@@ -172,6 +176,32 @@ function grant(command: Command, parsed: Parsed, io: Io): void {
   io.out(JSON.stringify(JSON.parse(result.stdout) as unknown));
 }
 
+/** A host command; resolves with its exit code (`doctor` exits 1 when a check fails, `logs` with journalctl's). */
+async function host(command: Command, parsed: Parsed, io: Io): Promise<number> {
+  const system = io.system ?? realSystem();
+  const print = (value: unknown) => io.out(JSON.stringify(value));
+  switch (command.name) {
+    case 'install':
+      print(await install({ from: parsed.flags.get('from') as string, ...(parsed.flags.has('wait-ms') ? { waitMs: parsed.flags.get('wait-ms') as number } : {}) }, io.env, system));
+      return EXIT.ok;
+    case 'doctor': {
+      const checks = await doctor(io.env, system);
+      const ok = checks.every(c => c.ok);
+      if (parsed.flags.get('json') === true) print({ ok, checks });
+      else for (const c of checks) io.out(`${c.ok ? 'ok  ' : 'FAIL'} ${c.id.padEnd(18)} ${c.detail}`);
+      return ok ? EXIT.ok : EXIT.noEffect;
+    }
+    case 'logs':
+      return logs(parsed.flags.get('follow') === true, io.env, system);
+    case 'uninstall':
+      print(uninstall(parsed.flags.get('purge') === true, io.env, system));
+      return EXIT.ok;
+    default:
+      await daemon();
+      return EXIT.ok;
+  }
+}
+
 async function execute(command: Command, parsed: Parsed, io: Io, context: Record<string, string | undefined>, mint: () => string): Promise<void> {
   if (command.mode === 'grant') return grant(command, parsed, io);
   const request = buildRequest(command, parsed, mint);
@@ -279,6 +309,7 @@ export async function run(argv: readonly string[], io: Io, mint: () => string = 
       io.out(help(parsed.command));
       return EXIT.ok;
     }
+    if (parsed.command.mode === 'host') return await host(parsed.command, parsed, io);
     await execute(parsed.command, parsed, io, context, mint);
     return EXIT.ok;
   } catch (error) {

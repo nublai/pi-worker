@@ -1,6 +1,6 @@
 /**
- * The command table: one command per B2 operation, named by its operationId, plus the local `grant` commands. Each
- * entry says how arguments become the operation's path, query and body; nothing here decides what the worker owns.
+ * The command table: one command per B2 operation, named by its operationId, plus the local `grant` commands and the
+ * host commands (`install`, `doctor`, `logs`, `uninstall`, `daemon`, docs/plan/install.md). Each entry says how arguments become the operation's path, query and body; nothing here decides what the worker owns.
  */
 import type { OperationId } from '@nublai/pi-worker-client';
 
@@ -13,6 +13,8 @@ export type Kind = 'string' | 'int' | 'bool' | 'list' | 'json-file' | 'text-file
 export interface Option {
   /** The flag without its leading `--`. */
   readonly flag: string;
+  /** A one-letter alias, given as `-<short>` (`logs -f`). */
+  readonly short?: string;
   readonly kind: Kind;
   readonly help: string;
   readonly required?: boolean;
@@ -28,9 +30,10 @@ export interface Option {
  * - `call`: one JSON request; `binding`: a session-directed mutation whose body carries `command_id` and the binding
  *   (filled from `workers.get` unless given); `command`: a mutation whose body carries only `command_id`;
  * - `stage`: the image upload; `read`: an ndjson or binary read; `watch`: the SSE stream;
- * - `grant`: the daemon package's local `grant` command (never HTTP).
+ * - `grant`: the daemon package's local `grant` command (never HTTP);
+ * - `host`: install and operate the supervisor on this host (src/host.ts); `daemon` runs it in the installed unit.
  */
-export type Mode = 'call' | 'binding' | 'command' | 'stage' | 'read' | 'watch' | 'grant';
+export type Mode = 'call' | 'binding' | 'command' | 'stage' | 'read' | 'watch' | 'grant' | 'host';
 
 export interface Command {
   readonly name: string;
@@ -337,6 +340,20 @@ export const COMMANDS: readonly Command[] = [
   },
   { name: 'grant revoke', mode: 'grant', summary: 'Revoke a grant; its next request is refused', args: [{ name: 'GRANT_ID', param: 'grant_id' }], options: [] },
   { name: 'grant list', mode: 'grant', summary: 'List grants (hashes only, never bearers)', args: [], options: [] },
+  {
+    name: 'install',
+    mode: 'host',
+    summary: 'Install a release tarball as the pi-worker.service user unit and start it',
+    args: [],
+    options: [
+      cli('from', 'string', 'pi-worker-<version>-linux-<arch>.tar.gz, with its .sha256 next to it', { required: true }),
+      cli('wait-ms', 'int', 'how long to wait for hello (default 60000)'),
+    ],
+  },
+  { name: 'doctor', mode: 'host', summary: 'Check the host and the installed supervisor; exit 0 only when all pass', args: [], options: [cli('json', 'bool', 'print the checks as one JSON object')] },
+  { name: 'logs', mode: 'host', summary: "The supervisor's journal (journalctl --user -u pi-worker.service)", args: [], options: [cli('follow', 'bool', 'follow new entries (also -f)', { short: 'f' })] },
+  { name: 'uninstall', mode: 'host', summary: 'Stop and remove the unit and links; keep state and versions', args: [], options: [cli('purge', 'bool', 'also remove every version, the state and the socket directory')] },
+  { name: 'daemon', mode: 'host', summary: 'Run the supervisor (the pi-worker.service unit runs this)', args: [], options: [] },
 ];
 
 export class UsageError extends Error {}
