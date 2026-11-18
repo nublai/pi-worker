@@ -1,0 +1,14 @@
+diff --git i/packages/cli/src/run.ts w/packages/cli/src/run.ts
+index f6987f0..37ff675 100644
+--- i/packages/cli/src/run.ts
++++ w/packages/cli/src/run.ts
+@@ -173,7 +173,8 @@ function grant(command: Command, parsed: Parsed, io: Io): void {
+   }
+   // The same runtime fallback as install (`XDG_RUNTIME_DIR` defaults to `/run/user/<uid>`), so a shell without one
+   // registers in the state directory install pinned.
+-  const env = userEnv(io.env, io.system?.uid ?? process.getuid!());
++  const env = io.env;
++  void userEnv;
+   const result = spawnSync(process.execPath, [grantCommandPath(), ...argv], { encoding: 'utf8', env });
+   if (result.status !== 0) throw grantFailure(result.stderr ?? '', result.status);
+   io.out(JSON.stringify(JSON.parse(result.stdout) as unknown));

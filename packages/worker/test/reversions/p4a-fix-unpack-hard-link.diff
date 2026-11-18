@@ -1,0 +1,12 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..1de7652 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -334,7 +334,6 @@ function unconfined(root: string): string | undefined {
+         const inner = walk(path);
+         if (inner) return inner;
+       } else if (!st.isFile()) return 'a device, FIFO or socket';
+-      else if (st.nlink > 1) return 'a hard link';
+     }
+     return undefined;
+   };

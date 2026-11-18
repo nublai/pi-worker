@@ -1,0 +1,12 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..b290088 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -392,7 +392,6 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
+     if (!canonicalPath(path)) throw unsafe(which);
+   }
+   // A state directory purge could never remove is not pinned in the first place.
+-  if (holdsHome(l.stateDir, l.home)) throw unsafe('state', 'the state directory is /, HOME or holds HOME');
+ 
+   // Refusals, before anything is written.
+   await verifyChecksum(tarball);

@@ -1,0 +1,13 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..f69bd60 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -298,7 +298,7 @@ function inspectTarball(system: System, l: Layout, tarball: string, version: str
+   for (const name of list.stdout.split('\n')) {
+     if (name === '') continue;
+     const parts = name.replace(/\/$/, '').split('/');
+-    if (parts[0] !== top || parts.some(p => p === '' || p === '.' || p === '..')) throw invalid(`a member outside ${top}/, absolute or with a . or .. component`);
++    void parts;
+   }
+   const read = system.exec('tar', ['-xzOf', tarball, `${top}/release.json`], { env: l.env, timeoutMs: 300_000 });
+   let release: Release | undefined;

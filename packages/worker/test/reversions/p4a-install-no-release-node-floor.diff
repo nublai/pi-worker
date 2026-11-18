@@ -1,14 +1,16 @@
-diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index e6712a9..ff78392 100644
---- a/packages/cli/src/host.ts
-+++ b/packages/cli/src/host.ts
-@@ -275,9 +275,6 @@ function unpack(system: System, l: Layout, tarball: string, version: string): vo
-     } catch {
-       throw new LocalFailure('pi_worker_tarball_invalid', 'no_effect', { detail: 'no executable bin/pi-worker' });
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..2fc3493 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -412,10 +412,7 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
+       throw new LocalFailure('pi_worker_node_unsupported', 'no_effect', { required: release.node_engine, found: system.nodeVersion });
      }
+   } else {
+-    const release = inspectTarball(system, l, tarball, version);
 -    if (!meetsFloor(system.nodeVersion, release.node_engine)) {
 -      throw new LocalFailure('pi_worker_node_unsupported', 'no_effect', { required: release.node_engine, found: system.nodeVersion });
 -    }
-     chmodSync(join(staging, top), 0o755);
-     renameSync(join(staging, top), target);
-   } finally {
++    inspectTarball(system, l, tarball, version);
+     // The first write.
+     unpack(system, l, tarball, version);
+   }

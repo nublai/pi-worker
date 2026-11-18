@@ -1,9 +1,9 @@
-diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index e6712a9..af9db27 100644
---- a/packages/cli/src/host.ts
-+++ b/packages/cli/src/host.ts
-@@ -305,7 +305,7 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
-   }
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..3e5f899 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -395,7 +395,7 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
+   if (holdsHome(l.stateDir, l.home)) throw unsafe('state', 'the state directory is /, HOME or holds HOME');
  
    // Refusals, before anything is written.
 -  await verifyChecksum(tarball);

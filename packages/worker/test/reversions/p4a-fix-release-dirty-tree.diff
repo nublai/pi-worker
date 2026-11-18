@@ -1,0 +1,16 @@
+diff --git i/harness/release/build.sh w/harness/release/build.sh
+index 3debf51..cb3e333 100755
+--- i/harness/release/build.sh
++++ w/harness/release/build.sh
+@@ -16,10 +16,7 @@ repo=$(cd "$(dirname "$0")/../.." && pwd)
+ cd "$repo"
+ out=${PIW_RELEASE_OUT:-$repo/harness/release/out}
+ commit=$(git rev-parse HEAD)
+-[ -z "$(git status --porcelain --untracked-files=no)" ] || {
+-  echo "build: refused: the checkout has tracked changes; commit or stash them (the artifact is built from HEAD $commit)" >&2
+-  exit 2
+-}
++[ -z "$(git status --porcelain --untracked-files=no)" ] || echo "build: warning: tracked changes are not in the artifact; it is built from HEAD $commit" >&2
+ 
+ version=${PIW_RELEASE_VERSION:-}
+ if [ -z "$version" ]; then

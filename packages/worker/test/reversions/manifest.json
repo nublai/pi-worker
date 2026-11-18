@@ -586,6 +586,30 @@
         "p4a-wrapper-no-node-floor.diff"
       ]
     },
+    "install-safety": {
+      "command": "npm run build -w @nublai/pi-worker && npm test -w @nublai/pi-worker-cli -- install release",
+      "diffs": [
+        "p4a-fix-path-not-canonical.diff",
+        "p4a-fix-install-state-holds-home.diff",
+        "p4a-fix-purge-holds-home.diff",
+        "p4a-fix-purge-socket-holds-home.diff",
+        "p4a-fix-purge-follows-links.diff",
+        "p4a-fix-purge-other-owner.diff",
+        "p4a-fix-purge-plan-after-stop.diff",
+        "p4a-fix-purge-whole-data.diff",
+        "p4a-fix-rmtree-follows-link.diff",
+        "p4a-fix-unpack-member-names.diff",
+        "p4a-fix-unpack-symlink-out.diff",
+        "p4a-fix-unpack-hard-link.diff",
+        "p4a-fix-unpack-special-file.diff",
+        "p4a-fix-unpack-refusal-no-effect.diff",
+        "p4a-fix-node-floor-after-write.diff",
+        "p4a-fix-grant-no-runtime-fallback.diff",
+        "p4a-fix-release-dirty-tree.diff",
+        "p4a-fix-release-worktree-engine.diff",
+        "p4a-fix-release-worktree-wrapper.diff"
+      ]
+    },
     "service": {
       "command": "npm test -w @nublai/pi-worker -- service",
       "diffs": [
