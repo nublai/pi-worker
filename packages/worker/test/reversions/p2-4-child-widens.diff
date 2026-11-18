@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
-index b070f53..371b3cd 100644
+index 2cfdf35..92d7632 100644
 --- a/packages/worker/src/supervisor/children.ts
 +++ b/packages/worker/src/supervisor/children.ts
-@@ -150,7 +150,6 @@ export class Children {
+@@ -169,7 +169,6 @@ export class Children {
      }
      const p = parent.worker.launch_spec;
      // A sandboxed parent's children are sandboxed too: a child never runs with more filesystem than its parent.
 -    if (sandboxed(p) && !sandboxed(spec)) throw new Refusal('child_filesystem_cannot_widen');
-     if (
-       !p ||
-       !subset(spec.grant_methods, p.grant_methods) ||
+     if (sandboxed(p)) this.sameRepository(parent, gitPin);
+     // A sandboxed child of a sandboxed parent names a resource in its staged profile for the parent's same path.
+     const staged = sandboxed(p) ? join(c.cwd, AGENT_DIR) : null;

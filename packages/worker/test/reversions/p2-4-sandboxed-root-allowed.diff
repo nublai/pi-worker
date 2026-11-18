@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
-index e9418a6..ceabd45 100644
+index 2cfdf35..4892eb0 100644
 --- a/packages/worker/src/supervisor/children.ts
 +++ b/packages/worker/src/supervisor/children.ts
-@@ -137,7 +137,6 @@ export class Children {
-     // A sandboxed child (P2-4): its root equals its cwd and overlaps no control path (sandbox.ts). A sandboxed root
-     // worker (a parent) needs the parent channel, which lands in P2-8: until then it is refused.
+@@ -151,7 +151,6 @@ export class Children {
+     // A sandboxed worker (P2-4): its root equals its cwd and overlaps no control path (sandbox.ts). A sandboxed root
+     // worker (a parent) needs a parent channel (P2-8).
      if (sandboxed(spec)) {
--      if (!c.parent) throw new Refusal('sandboxed_parent_requires_parent_channel');
+-      if (!c.parent) channelAvailable(this.s);
        if (c.resume_session_id) throw new Refusal('sandboxed_child_resume_unsupported');
        gitPin = sandboxRoot(c, { stateDir: this.s.stateDir, paths: this.s.sandboxControls }).gitPin;
      }

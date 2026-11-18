@@ -290,7 +290,7 @@ node tools/reversions.mjs --command 'npm test -w @nublai/pi-worker -- --test-nam
 | `p2-4-mount-fds-kept.diff` | the supervisor closes its copies of the mount descriptors after the spawn | `sandbox: the production host runs bwrap inside the join prefix, hands it the mount descriptors from FD 4 and keeps none open` (group `sandbox`) |
 | `p2-4-mount-fds-not-placed.diff` | the mount descriptors reach bwrap at FD 4 onwards | `sandbox: the production host runs bwrap…` (descriptors 3, 4, 5) (group `sandbox`) |
 | `p2-4-production-unsandboxed.diff` | the production host runs a sandboxed launch in bwrap, never without | `sandbox: the production host runs bwrap inside the join prefix…` (group `sandbox`) |
-| `p2-4-sandboxed-root-allowed.diff` | a sandboxed root worker is refused until the parent channel (P2-8) | `sandbox: a sandboxed root worker waits for the parent channel…` (group `sandbox`) |
+| `p2-4-sandboxed-root-allowed.diff` | a sandboxed root worker is refused in validation, before any record, unless a parent channel is served (P2-8 made it a check of `channelAvailable`; re-anchored then) | `sandbox: a sandboxed root worker waits for the parent channel…` (group `sandbox`) |
 | `p2-4-child-root-unchecked.diff` | a sandboxed child's root passes the sandbox checks before any record | `sandbox: a sandboxed root worker waits for the parent channel; a child root overlapping the state is refused…` (group `sandbox`) |
 | `p2-4-child-widens.diff` | a sandboxed parent's child is sandboxed too | `sandboxed parent cannot create an unconfined child` (group `sandbox`) |
 | `p2-4-factory-not-told.diff` | the host factory is told the sandbox root of a sandboxed launch | `sandbox: a sandboxed child launches in its root…` (group `sandbox`) |

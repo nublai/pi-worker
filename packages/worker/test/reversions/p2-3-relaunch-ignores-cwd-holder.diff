@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 4a2e3cd..80bb8ef 100644
+index 6742797..60392e5 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -563,7 +563,6 @@ export class Lifecycle {
+@@ -604,7 +604,6 @@ export class Lifecycle {
          // The session's gates, not only this worker's (GPT PR #27 finding 1): the resume gate refuses a session another
          // worker bound since and left fenced (`target_session_fenced`) or with its cleanup unproven, as for a resume.
          this.s.resumable(w.session_id, id, confinement(w));
 -        this.s.exclusiveCwd(w.cwd, live);
-       },
-     );
-   }
+         // A sandboxed parent's root is validated again (P2-4, P2-5): the new generation mounts the metadata this accepts,
+         // and gets a channel of its own (P2-8).
+         if (sandboxedParent(live)) {
