@@ -21,7 +21,7 @@ import { authority } from '../src/grants/authority.js';
 import { GrantStore, writeBearerFile, type Scope } from '../src/grants/store.js';
 import { routes } from '../src/generated/routes.js';
 import { bind, fixture, tick, type Fixture } from './supervisor-fixture.js';
-import { bundledSpec, sseRecords, specOperationIds } from './helpers.js';
+import { bundledSpec, sseRecords, specOperationIds, watchEvents, within } from './helpers.js';
 
 const grantCommand = fileURLToPath(new URL('../src/grant.js', import.meta.url));
 
@@ -300,6 +300,27 @@ test('grants: a revoked grant ends its event stream at the next frame: no event 
     // The end names the refusal; it carries no event.
     assert.equal((JSON.parse(result.records[2]!.data) as { data: { reason: string } }).data.reason, 'grant_revoked');
     assert.equal(f.supervisor.events.size, 0);
+  } finally {
+    await s.close();
+    f.cleanup();
+  }
+});
+
+test('grants: an open event stream ends with grant_revoked within a bound when its grant is revoked out of process and no event follows', { timeout: 30_000 }, async () => {
+  const f = fixture();
+  const s = await serve(f);
+  try {
+    await f.create();
+    const file = register(s.grants, f.dir, 'watcher', { worker_ids: ['*'], cwd_roots: [] }, ['events.subscribe'], 'watcher');
+    const watched = watchEvents(s.socket, { grantFile: file });
+    assert.equal(await within(watched.attached, 5000), true, 'the stream attached');
+    // The owner's `grant revoke` runs in another process: its own store over the same state directory.
+    new GrantStore(f.dir).revoke('watcher');
+    assert.equal(await within(watched.ended, 5000), 'overflow', 'the stream ends within 5 s with nothing to send');
+    assert.deepEqual(
+      watched.frames.slice(1).map(x => (x.type === 'overflow' ? x.data.reason : x.type)),
+      ['grant_revoked'],
+    );
   } finally {
     await s.close();
     f.cleanup();

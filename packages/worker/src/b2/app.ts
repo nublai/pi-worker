@@ -260,12 +260,13 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
             // A worker outside the grant's scope never appears in the snapshot or in a frame.
             acceptWorker: id => visible(caller, id),
             // Authority that ends (a revoked grant, a retired channel generation) ends the stream before its next
-            // frame, with one overflow naming the refusal. A channel's stream also rechecks on a period.
+            // frame, with one overflow naming the refusal. It also rechecks on a period: an owner's `grant revoke`
+            // runs in another process, and a stream with nothing to send still ends.
             recheck: () => {
               if (!guard) throw new Refusal('grant_revoked');
               guard();
             },
-            ...(channel ? { recheckEveryMs: RECHECK_MS } : {}),
+            recheckEveryMs: RECHECK_MS,
             overflowResync: query.resync === 'overflow',
             onEnd: () => sink.end(),
           });
