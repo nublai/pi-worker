@@ -1,0 +1,19 @@
+{
+  "journey": null,
+  "status": "fail",
+  "counted": false,
+  "commit": "f723212d726786a8e0d4e09073c99494015ba8c7",
+  "tree": "c0e8ce6177b25ed036d4142d93b0326d02f6b4b2",
+  "vm": "piw-p4-install-11180712-068aa8c9",
+  "vm_teardown": "deleted",
+  "recorded_at": "2026-11-18T07:27:42.636Z",
+  "platform": null,
+  "checks": null,
+  "cleanup": null,
+  "attention": [],
+  "privacy_scan": {
+    "scanned": 5,
+    "findings": 0
+  },
+  "note": "failed at: setup"
+}
