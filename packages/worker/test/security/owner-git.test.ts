@@ -42,6 +42,7 @@ import {
   type OwnerGit,
 } from '../../src/owner-git/git-safe.js';
 import { locateBwrap, sandboxEnv, sandboxLaunch } from '../../src/sandbox/sandbox.js';
+import { forgeStat, readIndex, writeIndex } from '../git-index.js';
 import { privateTmp } from '../helpers.js';
 
 const kernel = process.env.PIW_TEST_KERNEL === '1';
@@ -59,7 +60,7 @@ const within = (dir: string, path: string) => path === dir || path.startsWith(`$
  * A0's fixture: a repo, a linked worktree whose .gitattributes selects an `evil` filter and diff driver (defined nowhere
  * yet), a committed change and a dirty file. The owner's state (snapshots) is its own private directory.
  */
-function fixture() {
+function fixture(objectFormat: 'sha1' | 'sha256' = 'sha1') {
   const tmp = privateTmp();
   const stateTmp = privateTmp();
   const base = realpathSync(tmp.dir);
@@ -68,7 +69,7 @@ function fixture() {
   mkdirSync(repo);
   const env = gitEnv(base);
   const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-  git(repo, 'init', '-q');
+  git(repo, 'init', '-q', `--object-format=${objectFormat}`);
   git(repo, 'config', 'user.name', 'A0 fixture');
   git(repo, 'config', 'user.email', 'a0@example.invalid');
   writeFileSync(join(repo, 'note'), 'base\n');
@@ -344,7 +345,7 @@ test('owner Git: results match plain Git on an untouched checkout (snapshot is f
   }
 });
 
-test('owner Git: a racily-clean same-second, same-size edit is reported modified, as plain Git does (snapshot keeps the index mtime)', () => {
+test('owner Git: a racily-clean same-second, same-size edit is reported modified, as plain Git does (no entry\'s stat data is trusted)', () => {
   const tmp = privateTmp();
   const stateTmp = privateTmp();
   const base = realpathSync(tmp.dir);
@@ -944,6 +945,114 @@ test('owner Git: a pinned core.ignoreStat, core.sparseCheckout or index.sparse r
     f.git(f.repo, 'config', 'core.trustctime', 'false');
     assert.equal(f.git(f.wt, 'status', '--porcelain'), '', 'fixture: plain Git trusts the stale stat data');
     assert.equal(gitStatus(on(f, readGitPin(f.wt))), ' M note\n', 'owner Git checks the full stat data, so it compares the content');
+    // Owner Git zeroes the snapshot entry's stat data: an emptied file with mtime 0 matches that blank entry's size and
+    // mtime, so minimal checks would trust it; only the full checks (ctime, inode) make Git compare the content.
+    writeFileSync(note, '');
+    utimesSync(note, 0, 0);
+    assert.equal(gitStatus(on(f, readGitPin(f.wt))), ' M note\n', 'an emptied file with mtime 0 is compared, not matched to the blanked entry');
+  } finally {
+    f.cleanup();
+  }
+});
+
+/** The edit a child hides by forging stat data: same-size new bytes, an old mtime, the entry rewritten to the new stat. */
+function forgeEdit(f: Fixture, oidBytes: number): void {
+  const note = join(f.wt, 'note');
+  writeFileSync(note, 'dirt\n');
+  utimesSync(note, 1_000_000_000, 1_000_000_000);
+  forgeStat(join(f.admin, 'index'), 'note', note, oidBytes);
+}
+
+test("owner Git: a tracked edit whose index entry the child forged to the edited file's stat data is modified for status and a worktree diff (index v2, v3, v4; SHA-1 and SHA-256); the checkout's own index is never written", () => {
+  const cases = [
+    ['sha1', '2'],
+    ['sha1', '3'],
+    ['sha1', '4'],
+    ['sha256', '2'],
+  ] as const;
+  for (const [format, version] of cases) {
+    const f = fixture(format);
+    try {
+      const oidBytes = format === 'sha256' ? 32 : 20;
+      const index = join(f.admin, 'index');
+      // Version 3 is written only when an entry has extended flags: an intent-to-add entry has one.
+      if (version === '3') {
+        writeFileSync(join(f.wt, 'extra'), 'extra\n');
+        f.git(f.wt, 'add', '-N', 'extra');
+      }
+      forgeEdit(f, oidBytes);
+      if (version === '4') f.git(f.wt, 'update-index', '--index-version', '4');
+      const expected = version === '3' ? ' A extra\n M note\n' : ' M note\n';
+      assert.equal(readFileSync(index).readUInt32BE(4), Number(version), `fixture: index v${version}`);
+      assert.equal(f.git(f.wt, 'status', '--porcelain'), version === '3' ? 'A extra' : '', `fixture: plain Git trusts the forged entry (${format}, v${version})`);
+      const before = readFileSync(index);
+      const pin = readGitPin(f.wt);
+      assert.equal(gitStatus(on(f, pin)), expected, `status (${format}, v${version})`);
+      assert.equal(gitDiff(on(f, pin), { kind: 'worktree' }, { format: 'name-only', paths: ['note'] }).toString('utf8'), 'note\0', `worktree diff (${format}, v${version})`);
+      assert.ok(readFileSync(index).equals(before), `the checkout's own index is unchanged (${format}, v${version})`);
+      // The honest worktree: the committed bytes, the entry refreshed (a checkout would trust the forged entry). Clean.
+      writeFileSync(join(f.wt, 'note'), 'head\n');
+      f.git(f.wt, 'update-index', '-q', '--refresh');
+      if (version === '3') {
+        f.git(f.wt, 'rm', '-q', '--cached', 'extra');
+        rmSync(join(f.wt, 'extra'));
+      }
+      assert.equal(f.git(f.wt, 'status', '--porcelain'), '', `fixture: honest and clean (${format}, v${version})`);
+      assert.equal(gitStatus(on(f, readGitPin(f.wt))), '', `an honest clean worktree is clean (${format}, v${version})`);
+      assert.deepEqual(leftovers(f), [], 'every call removes its snapshot');
+    } finally {
+      f.cleanup();
+    }
+  }
+});
+
+test('owner Git: a cache tree (TREE) the child forged to vouch for a staged subdirectory never hides the staged change', () => {
+  const f = fixture();
+  try {
+    const index = join(f.admin, 'index');
+    f.git(f.wt, 'checkout', '--', 'note');
+    mkdirSync(join(f.wt, 'd'));
+    writeFileSync(join(f.wt, 'd', 'f'), 'dee\n');
+    f.git(f.wt, 'add', 'd/f');
+    f.git(f.wt, 'commit', '-qm', 'dir');
+    f.git(f.wt, 'read-tree', 'HEAD');
+    f.git(f.wt, 'update-index', '-q', '--refresh');
+    const tree = readIndex(index).extensions.find(e => e.signature === 'TREE');
+    assert.ok(tree, 'fixture: a complete cache tree for HEAD');
+    writeFileSync(join(f.wt, 'd', 'f'), 'evil\n');
+    f.git(f.wt, 'add', 'd/f');
+    assert.equal(f.git(f.wt, 'status', '--porcelain'), 'M  d/f', 'fixture: the change is staged');
+    const staged = readIndex(index);
+    writeIndex(index, staged.head, [tree.bytes, ...staged.extensions.filter(e => e.signature !== 'TREE').map(e => e.bytes)]);
+    assert.equal(f.git(f.wt, 'status', '--porcelain'), '', 'fixture: plain Git trusts the forged cache tree');
+    const pin = readGitPin(f.wt);
+    assert.equal(gitStatus(on(f, pin)), 'M  d/f\n');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('owner Git: the snapshot index is checksummed anew whatever checksum the child wrote (Git does not check it on read); an index Git itself cannot read refuses git_index_unreadable', () => {
+  const f = fixture();
+  try {
+    const index = join(f.admin, 'index');
+    const parts = readIndex(index);
+    const extensions = parts.extensions.map(e => e.bytes);
+    const at = () => on(f, readGitPin(f.wt));
+    const plainFails = () => spawnSync('git', ['-C', f.wt, 'status', '--porcelain'], { env: f.env, stdio: 'ignore' }).status !== 0;
+    for (const checksum of [Buffer.alloc(20, 0xab), Buffer.alloc(20)]) {
+      writeIndex(index, parts.head, extensions, 20, checksum);
+      assert.equal(f.git(f.wt, 'status', '--porcelain'), 'M note', 'fixture: plain Git reads the index');
+      assert.equal(gitStatus(at()), ' M note\n', 'owner Git reads it too');
+    }
+    // A required extension (lower-case signature) Git does not know: framed and checksummed, so only Git refuses it.
+    const unknown = Buffer.concat([Buffer.from('zzzz', 'latin1'), Buffer.from([0, 0, 0, 4]), Buffer.alloc(4)]);
+    writeIndex(index, parts.head, [...extensions, unknown]);
+    assert.ok(plainFails(), 'fixture: plain Git refuses the extension');
+    assert.throws(() => gitStatus(at()), typed(/^git_index_unreadable$/), 'status, unknown required extension');
+    assert.throws(() => gitDiff(at(), { kind: 'worktree' }), typed(/^git_index_unreadable$/), 'worktree diff, unknown required extension');
+    assert.equal(gitRevParse(at(), 'HEAD'), f.headId, 'reads that do not compare the working tree still answer');
+    assert.deepEqual(leftovers(f), [], 'a refused call removes its snapshot');
   } finally {
     f.cleanup();
   }

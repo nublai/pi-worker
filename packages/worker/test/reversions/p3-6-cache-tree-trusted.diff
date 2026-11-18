@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 7242614..95862ed 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -478,7 +478,8 @@ function writeUntrustedIndex(dir: string, index: Buffer, layout: IndexLayout, oi
+     index.fill(0, start, start + STAT_HEAD);
+     index.fill(0, start + SIZE_AT, start + SIZE_AT + 4);
+   }
+-  const kept = layout.extensions.filter(extension => !UNTRUSTED_EXTENSIONS.has(extension.signature));
++  const kept = layout.extensions;
++  void UNTRUSTED_EXTENSIONS;
+   const pieces = [index.subarray(0, layout.entriesEnd), ...kept.map(extension => index.subarray(extension.start, extension.end))];
+   const hash = indexHash(oidBytes);
+   for (const piece of pieces) hash.update(piece);
