@@ -9,8 +9,9 @@
  *   duplicate id refuses) or renamed (revoke) into place, and the directory fsynced.
  * - The bearer is `piw1.<grant_id>.<secret>`; it is shown once, written by the command to a 0600 file the caller
  *   reads (`{"token": …}`), and compared by hash in constant time.
- * - Every check rereads the record, so a revocation takes effect at the next request, at the next SSE frame, and at
- *   dispatch of anything a revoked grant had queued.
+ * - Every check rereads the record, so a revocation takes effect at the next request, at the next SSE frame (an open
+ *   stream also rechecks every 500 ms and ends with an `overflow` naming `grant_revoked`), and at dispatch of
+ *   anything a revoked grant had queued.
  *
  * Named limit (invariant 8): same-user code can read the grant files and reach the socket. Grants limit honest
  * components and mistakes; they do not isolate hostile code running as the same OS user.
