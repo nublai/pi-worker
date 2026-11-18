@@ -20,8 +20,8 @@ test('cli: one command per B2 operation, named by its operationId, plus the loca
   const ops = COMMANDS.filter(c => c.op !== undefined);
   assert.deepEqual(ops.map(c => c.name).sort(), Object.keys(routes).sort());
   for (const c of ops) assert.equal(c.name, c.op);
-  assert.deepEqual(COMMANDS.filter(c => c.op === undefined).map(c => c.name), ['grant register', 'grant revoke', 'grant list', 'install', 'doctor', 'logs', 'uninstall', 'daemon']);
-  assert.deepEqual(COMMANDS.filter(c => c.mode === 'host').map(c => c.name), ['install', 'doctor', 'logs', 'uninstall', 'daemon']);
+  assert.deepEqual(COMMANDS.filter(c => c.op === undefined).map(c => c.name), ['grant register', 'grant revoke', 'grant list', 'install', 'version', 'doctor', 'logs', 'uninstall', 'daemon']);
+  assert.deepEqual(COMMANDS.filter(c => c.mode === 'host').map(c => c.name), ['install', 'version', 'doctor', 'logs', 'uninstall', 'daemon']);
   for (const c of ops.filter(c => c.mode !== 'stage')) {
     const params = (routes[c.op!].path.match(/\{([^}]+)\}/g) ?? []).map(p => p.slice(1, -1));
     assert.deepEqual(c.args.map(a => a.param), params, `${c.name} positional arguments are its path parameters`);

@@ -91,13 +91,23 @@ What it does, in order (refusals first, before anything is written):
 13. Prints one JSON line on stdout:
 
     ```json
-    {"version":"0.4.0","socket":"/run/user/1000/pi-worker/b2.sock","unit":"pi-worker.service"}
+    {"version":"0.4.0","socket":"/run/user/1000/pi-worker/b2.sock","unit":"pi-worker.service","restarted":false}
     ```
+
+    `restarted` is `true` exactly when step 11 ran `systemctl --user restart`: the same version was installed
+    again, the unit file install writes differed from the one on disk (or was new to an active unit), and the unit
+    was `active` before `enable --now`. A restart stops the daemon and every worker with it. It is `false` on a first
+    install (the unit is only started), when the unit file is unchanged, and when the unit was not active (it is just
+    started). Upgrade policy comes in P4 proper.
 
 Never calls `sudo`. With user lingering off the install still works (the unit runs while the user has a session), and
 `doctor` reports `linger` failed; enabling it (`loginctl enable-linger <user>`) is the host installer's job.
 
-Failures print one JSON object on stderr like every CLI command: `{"error": <typed name>, "effect", ...}`. Exit 1
+Failures print one JSON object on stderr like every CLI command: `{"error": <typed name>, "effect", ...}`. **Parse
+the last stderr line**: the wrapper sets `NODE_NO_WARNINGS=1` (and the unit has `Environment=NODE_NO_WARNINGS=1`), so
+Node prints no warning ahead of or after it, and the CLI writes the error as the last thing it prints. Real errors are
+not warnings and still print. (`logs` passes `journalctl`'s own stderr and exit status through; `doctor` reports its
+failure on stdout and exit 1.) Exit 1
 (`effect: no_effect`) is a refusal before anything was written. Exit 3 (`effect: unknown`) is a failure after
 something was written (`pi_worker_tarball_invalid` from step 6, `pi_worker_systemctl_failed` with the `step`,
 `pi_worker_not_ready`): run `install` again with the same tarball (idempotent) or `uninstall`.
@@ -121,6 +131,7 @@ UMask=0077
 Environment=PATH=<dir of the node that ran install>:/usr/local/bin:/usr/bin:/bin
 Environment=PIW_STATE_DIR=<state dir>
 Environment=PIW_SOCKET=<socket>
+Environment=NODE_NO_WARNINGS=1
 StandardOutput=null
 StandardError=journal
 
@@ -138,6 +149,19 @@ WantedBy=default.target
   later `grant` commands agree.
 - **Logs:** the supervisor writes only typed JSON events to stderr (journal) and nothing to stdout; pi's own output
   stays inside the supervisor. No prompt or answer text is logged.
+
+### 3.2 `pi-worker version [--json]`
+
+Prints one JSON line (`--json` is accepted; the output is always this line) and works without the daemon:
+
+```json
+{"version":"0.4.0","commit":"<40 hex>","b2_protocol":{"major":0,"minor":1},"daemon_version":"0.4.0"}
+```
+
+`version`, `commit` and `b2_protocol` are the `release.json` of the installed `current`. `daemon_version` is the
+`worker_version` the daemon's `hello` answers (with the doctor grant, on the pinned socket, 3 s), or `null` when it
+does not answer. Nothing installed refuses `pi_worker_not_installed` (exit 1, `effect: no_effect`, nothing on
+stdout); a `current` whose `release.json` is missing or lacks those fields refuses `pi_worker_release_unreadable`.
 
 ## 4. `pi-worker doctor [--json]`
 

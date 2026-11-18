@@ -217,7 +217,7 @@ test('install: verifies, unpacks, links, writes a Delegate=yes unit, starts it a
     h.unit.serveVersion = '1.2.3';
     const r = await h.cli('install', '--from', h.tarball('1.2.3'));
     assert.equal(r.code, 0, `install exit code (stderr error: ${String(r.error?.error)})`);
-    assert.deepEqual(r.json, { version: '1.2.3', socket: h.socket, unit: 'pi-worker.service' });
+    assert.deepEqual(r.json, { version: '1.2.3', socket: h.socket, unit: 'pi-worker.service', restarted: false });
     assert.equal(JSON.parse(readFileSync(join(h.data, 'versions', '1.2.3', 'release.json'), 'utf8')).version, '1.2.3');
     assert.equal(readlinkSync(join(h.data, 'current')), join('versions', '1.2.3'), 'current names the version');
     assert.equal(readlinkSync(h.bin), join(h.data, 'current', 'bin', 'pi-worker'), 'the bin link goes through current');
@@ -230,6 +230,7 @@ test('install: verifies, unpacks, links, writes a Delegate=yes unit, starts it a
       `Environment=PIW_STATE_DIR=${h.state}`,
       `Environment=PIW_SOCKET=${h.socket}`,
       'StandardOutput=null',
+      'Environment=NODE_NO_WARNINGS=1',
       'WantedBy=default.target',
     ]) {
       assert.ok(unit.split('\n').includes(line), `the unit has the line ${line.split('=')[0]}`);
@@ -377,6 +378,101 @@ test('install: a supervisor that never answers hello with this version fails pi_
     assert.deepEqual([stale.code, stale.error?.error], [3, 'pi_worker_not_ready'], 'a hello from another version is not ready');
   } finally {
     await h2.close();
+  }
+});
+
+test('install: restarted is true only when the unit file changed while the unit was active (and then it was restarted)', async () => {
+  const h = await host();
+  try {
+    h.unit.serveVersion = '1.2.3';
+    const tarball = h.tarball('1.2.3');
+    const first = await h.cli('install', '--from', tarball);
+    assert.equal(first.json?.restarted, false, 'a first install starts the unit, it does not restart it');
+    assert.ok(!systemctlCalls(h).includes('restart pi-worker.service'), 'no restart on a first install');
+
+    h.calls.length = 0;
+    const same = await h.cli('install', '--from', tarball);
+    assert.equal(same.json?.restarted, false, 'the unit file is the same: not restarted');
+    assert.ok(!systemctlCalls(h).includes('restart pi-worker.service'), 'no restart call when the unit is unchanged');
+
+    // The unit file on disk differs from what install writes (an older install's), the unit is active.
+    writeFileSync(h.unitFile, readFileSync(h.unitFile, 'utf8').replace('RestartSec=2', 'RestartSec=9'));
+    h.calls.length = 0;
+    const changed = await h.cli('install', '--from', tarball);
+    assert.equal(changed.code, 0, `install exit code (stderr error: ${String(changed.error?.error)})`);
+    assert.equal(changed.json?.restarted, true, 'the unit file changed while active: restarted');
+    assert.deepEqual(systemctlCalls(h), ['daemon-reload', 'is-active pi-worker.service', 'enable --now pi-worker.service', 'restart pi-worker.service']);
+    assert.ok(readFileSync(h.unitFile, 'utf8').includes('RestartSec=2'), 'the unit file was rewritten');
+
+    // Changed while the unit is not active: enable --now starts it, nothing is restarted.
+    writeFileSync(h.unitFile, readFileSync(h.unitFile, 'utf8').replace('RestartSec=2', 'RestartSec=9'));
+    h.unit.active = false;
+    h.calls.length = 0;
+    const stopped = await h.cli('install', '--from', tarball);
+    assert.equal(stopped.json?.restarted, false, 'the unit was not active: nothing was running to restart');
+    assert.ok(!systemctlCalls(h).includes('restart pi-worker.service'), 'no restart call for an inactive unit');
+  } finally {
+    await h.close();
+  }
+});
+
+test('version: prints the installed release.json and the daemon hello version as one JSON line; null without the daemon', async () => {
+  const h = await host();
+  try {
+    h.unit.serveVersion = '1.2.3';
+    assert.equal((await h.cli('install', '--from', h.tarball('1.2.3', { release: { commit: 'a'.repeat(40), b2_protocol: { major: 0, minor: 7 } } }))).code, 0, 'install');
+    const expected = { version: '1.2.3', commit: 'a'.repeat(40), b2_protocol: { major: 0, minor: 7 }, daemon_version: '1.2.3' };
+    const r = await h.cli('version');
+    assert.equal(r.code, 0);
+    assert.equal(r.out.length, 1, 'one line');
+    assert.deepEqual(r.json, expected);
+    assert.deepEqual((await h.cli('version', '--json')).json, expected, '--json is the same line');
+    assert.deepEqual(r.err, []);
+  } finally {
+    await h.close();
+  }
+  // Installed but the daemon never became ready (so nothing answers hello): the install is still queryable.
+  const down = await host();
+  try {
+    const failed = await down.cli('install', '--from', down.tarball('1.2.3'), '--wait-ms', '200');
+    assert.equal(failed.error?.error, 'pi_worker_not_ready');
+    const r = await down.cli('version');
+    assert.equal(r.code, 0, 'works without the daemon');
+    assert.deepEqual(r.json, { version: '1.2.3', commit: '0'.repeat(40), b2_protocol: { major: 0, minor: 1 }, daemon_version: null });
+  } finally {
+    await down.close();
+  }
+});
+
+test('version: nothing installed, or a release.json that cannot be read, is refused with a typed error and no output', async () => {
+  const h = await host();
+  try {
+    const none = await h.cli('version');
+    assert.equal(none.code, 1, 'refused, no effect');
+    assert.deepEqual(none.out, []);
+    assert.deepEqual(none.error, { error: 'pi_worker_not_installed', effect: 'no_effect' });
+    h.unit.serveVersion = '1.2.3';
+    assert.equal((await h.cli('install', '--from', h.tarball('1.2.3'))).code, 0, 'install');
+    writeFileSync(join(h.data, 'versions', '1.2.3', 'release.json'), JSON.stringify({ version: '1.2.3', node_engine: '>=26.12.1' }));
+    const broken = await h.cli('version');
+    assert.equal(broken.code, 1);
+    assert.deepEqual(broken.out, []);
+    assert.deepEqual(broken.error, { error: 'pi_worker_release_unreadable', effect: 'no_effect' });
+  } finally {
+    await h.close();
+  }
+});
+
+test('every install failure ends stderr with one typed JSON line, the last line', async () => {
+  const h = await host();
+  try {
+    const r = await h.cli('install', '--from', h.tarball('1.2.3', { badSha: true }));
+    assert.equal(r.code, 1);
+    assert.equal(r.err.length, 1, 'exactly one stderr line');
+    const last = JSON.parse(r.err.at(-1)!) as Record<string, unknown>;
+    assert.deepEqual([last.error, last.effect], ['pi_worker_checksum_mismatch', 'no_effect']);
+  } finally {
+    await h.close();
   }
 });
 

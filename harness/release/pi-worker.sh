@@ -34,6 +34,10 @@ case "$found" in *[!0-9A-Za-z.-]*) found=unknown ;; esac
 at_least "$found" "$floor" ||
   refuse "{\"error\":\"node_unsupported\",\"effect\":\"no_effect\",\"required\":\">=$floor\",\"found\":\"$found\"}"
 
+# Node's warnings (an experimental feature, a deprecation) go to stderr ahead of or after the CLI's typed JSON error;
+# a caller parses the last stderr line (docs/plan/install.md section 3). Real errors are not warnings and still print.
+export NODE_NO_WARNINGS=1
+
 self=$(readlink -f -- "$0")
 top=$(dirname -- "$(dirname -- "$self")")
 exec "$node" "$top/dist/main.js" "$@"
