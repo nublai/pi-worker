@@ -1,0 +1,180 @@
+# p4-install on piw-p4-install-11180815-11d03eec: pi-worker-0.0.0-dev.f42f0fde2500-linux-x64.tar.gz
+$ sha256sum -c pi-worker-0.0.0-dev.f42f0fde2500-linux-x64.tar.gz.sha256
+pi-worker-0.0.0-dev.f42f0fde2500-linux-x64.tar.gz: OK
+[exit 0]
+check tarball_sha256: true
+$ tar -xzf /home/exedev/piw-p4/pi-worker-0.0.0-dev.f42f0fde2500-linux-x64.tar.gz -C /tmp/tmp.CSzrmlRj30
+
+[exit 0]
+$ /tmp/tmp.CSzrmlRj30/pi-worker-0.0.0-dev.f42f0fde2500/bin/pi-worker install --from /home/exedev/piw-p4/pi-worker-0.0.0-dev.f42f0fde2500-linux-x64.tar.gz
+{"version":"0.0.0-dev.f42f0fde2500","socket":"/run/user/1000/pi-worker/b2.sock","unit":"pi-worker.service"}
+[exit 0]
+check install_ok: true
+$ pi-worker doctor --json
+{"ok":true,"checks":[{"id":"node_version","ok":true,"detail":"node 26.13.1 at /usr/local/bin/node; required >=26.12.1"},{"id":"bwrap_usable","ok":true,"detail":"bwrap runs a command in new user and pid namespaces"},{"id":"cgroup_delegation","ok":true,"detail":"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/pi-worker.service: memory, pids, cgroup.kill"},{"id":"unit_active","ok":true,"detail":"pi-worker.service active"},{"id":"socket_reachable","ok":true,"detail":"/run/user/1000/pi-worker/b2.sock"},{"id":"hello","ok":true,"detail":"worker 0.0.0-dev.f42f0fde2500, protocol 0.1"},{"id":"linger","ok":true,"detail":"on"}]}
+[exit 0]
+check doctor_all_green: true
+$ pi-worker doctor
+ok   node_version       node 26.13.1 at /usr/local/bin/node; required >=26.12.1
+ok   bwrap_usable       bwrap runs a command in new user and pid namespaces
+ok   cgroup_delegation  /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/pi-worker.service: memory, pids, cgroup.kill
+ok   unit_active        pi-worker.service active
+ok   socket_reachable   /run/user/1000/pi-worker/b2.sock
+ok   hello              worker 0.0.0-dev.f42f0fde2500, protocol 0.1
+ok   linger             on
+[exit 0]
+$ /tmp/tmp.CSzrmlRj30/pi-worker-0.0.0-dev.f42f0fde2500/bin/pi-worker install --from /home/exedev/piw-p4/pi-worker-0.0.0-dev.f42f0fde2500-linux-x64.tar.gz
+{"version":"0.0.0-dev.f42f0fde2500","socket":"/run/user/1000/pi-worker/b2.sock","unit":"pi-worker.service"}
+[exit 0]
+check install_idempotent: true
+$ pi-worker install --from /tmp/tmp.CSzrmlRj30/pi-worker-9.9.9-linux-x64.tar.gz
+{"error":"pi_worker_upgrade_unavailable","installed":"0.0.0-dev.f42f0fde2500","requested":"9.9.9","effect":"no_effect"}
+[exit 1]
+check upgrade_refused: true
+check upgrade_left_nothing: true
+$ userctl show pi-worker.service -p Delegate -p ActiveState -p MainPID -p ControlGroup
+MainPID=886
+ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/pi-worker.service
+Delegate=yes
+ActiveState=active
+[exit 0]
+check unit_delegated: true
+check unit_active: true
+$ cat /proc/886/cgroup
+0::/user.slice/user-1000.slice/user@1000.service/app.slice/pi-worker.service/supervisor
+[exit 0]
+check supervisor_in_leaf: true
+$ ls /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/pi-worker.service
+cgroup.controllers
+cgroup.events
+cgroup.freeze
+cgroup.kill
+cgroup.max.depth
+cgroup.max.descendants
+cgroup.pressure
+cgroup.procs
+cgroup.stat
+cgroup.subtree_control
+cgroup.threads
+cgroup.type
+cpu.idle
+cpu.max
+cpu.max.burst
+cpu.pressure
+cpu.stat
+cpu.stat.local
+cpu.weight
+cpu.weight.nice
+io.pressure
+memory.current
+memory.events
+memory.events.local
+memory.high
+memory.low
+memory.max
+memory.min
+memory.numa_stat
+memory.oom.group
+memory.peak
+memory.pressure
+memory.reclaim
+memory.stat
+memory.swap.current
+memory.swap.events
+memory.swap.high
+memory.swap.max
+memory.swap.peak
+pids.current
+pids.events
+pids.events.local
+pids.max
+pids.peak
+supervisor
+[exit 0]
+check socket_0600: true
+check socket_dir_0700: true
+$ pi-worker --socket /run/user/1000/pi-worker/b2.sock --grant-file /home/exedev/.local/share/pi-worker/doctor.grant.json hello
+{"protocol":{"major":0,"minor":1},"worker_version":"0.0.0-dev.f42f0fde2500","supervisor_id":"ea03d777-8412-40ed-952c-e3e7812b40d5","supervisor_epoch":"e7028c85-57b1-4f54-a1fd-897f38bb4f8f","pi_version":"1.5.2","capabilities":["history.jsonl","interrupt_marker","command_stamp","image_attachments"],"limits":{"request_body_bytes":262144,"attachment_max_bytes":2097152,"attachments_per_message":4,"attachments_total_bytes":8388608,"event_frame_bytes":1048576,"journal_max_bytes":33554432,"journal_control_reserve_bytes":1048576,"ordinary_receipts_max":4096,"receipt_retention_min_seconds":3600,"receipt_expired_ids_max":16384,"history_max_bytes":16777216,"history_line_max_bytes":67108864,"blob_max_bytes":16777216,"inventory_probes_max":4},"named_limits":["Private sockets and bearer grants do not isolate hostile code running as the same OS user, including project extensions.","The worker cannot read the peer credentials of a Unix-socket client; its boundary is file modes plus the bearer grant.","A journal on a bring-your-own machine dies with the machine.","Receipts are retained within the advertised limits; an evicted receipt reads as receipt_expired (unknown) while its id is among the most recent receipt_expired_ids_max evicted ids. After that its command still never runs again: an id the worker may have forgotten (a UUIDv7 command_id not issued after the newest forgotten one, or any other id once one such was forgotten) is refused command_id_beyond_retention (no_effect), so callers mint UUIDv7 command ids.","Linux results are not macOS results.","Each worker runs in its own cgroup v2 cleanup domain, which is cleanup, not isolation: hostile code running as the same user can still signal or escape it, and work a tool hands to another daemon (tmux, systemd-run --user, Docker) leaves it.","A sandboxed typed child (launch_spec filesystem bwrap) can write only its root, its cwd, and, when that root is a Git linked worktree, the Git state the next limit names. It shares the network, and its environment allowlist (model API keys included) and any credential store staged read-only in its root are readable inside it. files.read reads only a sandboxed worker root, inside explicit roots, with no symlink, hidden or traversal component, UTF-8 and at most 1 MiB.","When a sandboxed child's root is a Git linked worktree, it can write the worktree admin dir (index, its own reflog, a detached HEAD), the repository object store, which is shared (it can add or remove objects other checkouts use), and, with a symbolic HEAD, its own branch namespace refs/heads/<ns>/ with that namespace's reflogs. The gitfile, gitdir, commondir, a symbolic HEAD, the repository config, packed-refs, every other ref and reflog, and alternates are read-only; the repository hooks and other worktrees' admin dirs are not mounted. An ordinary checkout root, and a linked worktree whose repository lies inside its root or contains it, are refused.","A sandboxed child of a parent whose cwd holds a pi profile (.piw-agent) gets a copy of that profile in its root's .piw-agent, credential stores included, so the child can read everything the parent's profile holds. Links are copied as links and never followed; FIFOs, sockets and devices refuse; the copy is at most 10,000 entries, 256 MiB and depth 32. Each node_modules tree in it (at most 64) is not copied but bound read-only from the parent's profile, so the child sees later changes the parent makes there. A staging failure after the child's .piw-agent was created is outcome_unknown and fences the parent.","Cleanup profile: cgroup_v2_user_delegation: cgroup.kill, populated 0, removed; cleanup, not isolation from same-user code."]}
+[exit 0]
+check hello: true
+check grant_env_has_no_runtime: true
+$ pi-worker grant register --caller p4-journey --out /home/exedev/p4-bridge.grant.json --method hello --method workers.list
+{"grant_id":"38523cee7f4fab27746d5c1d","caller":"p4-journey","bearer_file":"/home/exedev/p4-bridge.grant.json"}
+[exit 0]
+check grant_registered: true
+$ pi-worker --socket /run/user/1000/pi-worker/b2.sock --grant-file /home/exedev/p4-bridge.grant.json workers.list
+[]
+[exit 0]
+check granted_read: true
+$ pi-worker --socket /run/user/1000/pi-worker/b2.sock --grant-file /home/exedev/p4-bridge.grant.json sessions.list
+{"error":"grant_method_denied","status":409,"effect":"no_effect"}
+[exit 1]
+check ungranted_refused: true
+$ pi-worker logs
+Nov 18 08:16:27 piw-p4-install-11180815-11d03eec systemd[338]: Starting pi-worker.service - pi-worker supervisor (nubl)...
+Nov 18 08:16:27 piw-p4-install-11180815-11d03eec systemd[338]: Started pi-worker.service - pi-worker supervisor (nubl).
+Nov 18 08:16:27 piw-p4-install-11180815-11d03eec pi-worker[886]: {"event":"listening","socket":"/run/user/1000/pi-worker/b2.sock","pid":886,"installation":"01a8c3e95eacc80f8a39"}
+[exit 0]
+check logs_listening: true
+$ pi-worker uninstall
+{"uninstalled":true,"purged":false}
+[exit 0]
+check uninstall_ok: true
+$ userctl is-active pi-worker.service
+inactive
+[exit 4]
+check uninstall_unit_stopped: true
+check uninstall_unit_file_gone: true
+check uninstall_bin_gone: true
+check uninstall_current_gone: true
+check uninstall_versions_kept: true
+check uninstall_state_kept: true
+check uninstall_cgroup_gone: true
+$ /tmp/tmp.CSzrmlRj30/pi-worker-0.0.0-dev.f42f0fde2500/bin/pi-worker install --from /home/exedev/piw-p4/pi-worker-0.0.0-dev.f42f0fde2500-linux-x64.tar.gz
+{"version":"0.0.0-dev.f42f0fde2500","socket":"/run/user/1000/pi-worker/b2.sock","unit":"pi-worker.service"}
+[exit 0]
+check reinstall_ok: true
+$ pi-worker doctor --json
+{"ok":true,"checks":[{"id":"node_version","ok":true,"detail":"node 26.13.1 at /usr/local/bin/node; required >=26.12.1"},{"id":"bwrap_usable","ok":true,"detail":"bwrap runs a command in new user and pid namespaces"},{"id":"cgroup_delegation","ok":true,"detail":"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/pi-worker.service: memory, pids, cgroup.kill"},{"id":"unit_active","ok":true,"detail":"pi-worker.service active"},{"id":"socket_reachable","ok":true,"detail":"/run/user/1000/pi-worker/b2.sock"},{"id":"hello","ok":true,"detail":"worker 0.0.0-dev.f42f0fde2500, protocol 0.1"},{"id":"linger","ok":true,"detail":"on"}]}
+[exit 0]
+check reinstall_doctor_green: true
+$ pi-worker --socket /run/user/1000/pi-worker/b2.sock --grant-file /home/exedev/p4-bridge.grant.json workers.list
+[]
+[exit 0]
+check reinstall_grant_kept: true
+$ pi-worker uninstall --purge
+{"uninstalled":true,"purged":true}
+[exit 0]
+check purge_ok: true
+$ ls -la /home/exedev/.local/share/pi-worker
+ls: cannot access '/home/exedev/.local/share/pi-worker': No such file or directory
+[exit 2]
+$ ls -la /home/exedev/.local/state/pi-worker
+ls: cannot access '/home/exedev/.local/state/pi-worker': No such file or directory
+[exit 2]
+$ ls -la /home/exedev/.config/systemd/user/pi-worker.service
+ls: cannot access '/home/exedev/.config/systemd/user/pi-worker.service': No such file or directory
+[exit 2]
+$ ls -la /home/exedev/.local/bin/pi-worker
+ls: cannot access '/home/exedev/.local/bin/pi-worker': No such file or directory
+[exit 2]
+$ ls -la /run/user/1000/pi-worker
+ls: cannot access '/run/user/1000/pi-worker': No such file or directory
+[exit 2]
+$ ls -la /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/pi-worker.service
+ls: cannot access '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/pi-worker.service': No such file or directory
+[exit 2]
+check purge_data_gone: true
+check purge_state_gone: true
+check purge_unit_file_gone: true
+check purge_bin_gone: true
+check socket_removed: true
+check cgroup_removed: true
+$ userctl list-units --all --plain --no-legend pi-worker* piw-*
+
+[exit 0]
+check no_piw_units_left: true
+$ pgrep -u 1000 -f pi-worker/versions/
+
+[exit 1]
+check no_process_left: true
