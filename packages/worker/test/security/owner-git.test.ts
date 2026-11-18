@@ -1091,6 +1091,10 @@ test('owner Git: the snapshot index is checksummed anew whatever checksum the ch
     const index = join(f.admin, 'index');
     const parts = readIndex(index);
     const extensions = parts.extensions.map(e => e.bytes);
+    // The fixture's dirt is the same size as HEAD's note and may share the index's second: once the index is rewritten
+    // (newer mtime), plain Git would trust the stale entry and read clean. A distinct mtime makes plain Git hash it.
+    const later = new Date(Date.now() + 5000);
+    utimesSync(join(f.wt, 'note'), later, later);
     const at = () => on(f, readGitPin(f.wt));
     const plainFails = () => spawnSync('git', ['-C', f.wt, 'status', '--porcelain'], { env: f.env, stdio: 'ignore' }).status !== 0;
     for (const checksum of [Buffer.alloc(20, 0xab), Buffer.alloc(20)]) {
