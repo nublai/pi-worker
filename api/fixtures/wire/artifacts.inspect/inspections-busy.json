@@ -5,7 +5,7 @@
     },
     "body": {
       "worker_epoch": "epoch-child",
-      "commit": "bf6972b2f480db1b890babf6a1c1800e18b92a88"
+      "commit": "refs/heads/ca/work"
     }
   },
   "response": {
