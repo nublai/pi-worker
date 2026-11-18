@@ -1,0 +1,18 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 022ed8c..f53fd5d 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -361,12 +361,11 @@ const VALUE_MAX = 4096;
+ 
+ /** A revision (`HEAD`, `v1`, `A..B`, `X^{tree}`, `rev:path`): never an option, no control characters. */
+ function revision(value: string): string {
+-  if (typeof value !== 'string' || value === '' || value.length > VALUE_MAX || value.startsWith('-') || CONTROL.test(value)) throw refused('revision');
+   return value;
+ }
+ 
+ /** Revisions after `--end-of-options`, so none can be read as an option. */
+-const revArgs = (...revs: string[]): string[] => ['--end-of-options', ...revs.map(revision)];
++const revArgs = (...revs: string[]): string[] => [...revs.map(revision)];
+ 
+ /** A path relative to the root: never an option, never pathspec magic (`:(top)`, `:!`), never absolute or with `..`. */
+ function path(value: string): string {

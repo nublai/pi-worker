@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 022ed8c..8c763a1 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -385,7 +385,6 @@ function refPrefix(value: string): string {
+ 
+ /** A positive whole count. */
+ function count(value: number): number {
+-  if (!Number.isSafeInteger(value) || value < 1 || value > 1_000_000) throw refused('count');
+   return value;
+ }
+ 

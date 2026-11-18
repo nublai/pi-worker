@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
-index e2f30b5..1ee09f8 100644
+index 022ed8c..d420c1f 100644
 --- a/packages/worker/src/owner-git/git-safe.ts
 +++ b/packages/worker/src/owner-git/git-safe.ts
-@@ -48,7 +48,7 @@ export const OWNER_GIT_COMMANDS: ReadonlySet<string> = new Set(['status', 'diff'
+@@ -58,7 +58,7 @@ export interface GitCheckout {
  
  export const SAFE_GIT_CONFIG = [
    ...['core.fsmonitor=false', 'core.hooksPath=/dev/null', 'core.attributesFile=/dev/null', 'diff.ignoreSubmodules=all', 'submodule.recurse=false'],
@@ -11,11 +11,11 @@ index e2f30b5..1ee09f8 100644
  ].flatMap(setting => ['-c', setting]);
  /** Config keys whose value names a program Git can run. */
  const EXECUTES =
-@@ -314,7 +314,6 @@ function refuseExecutingConfig(owner: OwnerGit, dir: string): void {
-     const newline = entry.indexOf('\n');
-     const key = newline < 0 ? entry : entry.slice(0, newline);
-     if (key && EXECUTES.test(key)) throw new Refusal(`git_config_executes_code: ${key}`);
--    if (key && PROTOCOL_ALLOW.test(key) && (newline < 0 || entry.slice(newline + 1).toLowerCase() !== 'never')) throw new Refusal(`git_config_allows_protocol: ${key}`);
+@@ -348,7 +348,6 @@ function refuseExecutingConfig(owner: OwnerGit, dir: string): void {
+     if (!key) continue;
+     if (EXECUTES.test(key)) throw new Refusal(`git_config_executes_code: ${key}`);
+     if (EXECUTES_TOO.test(key) || (SUBMODULE_UPDATE.test(key) && value?.startsWith('!'))) throw new Refusal(`git_config_executes_code: ${key}`);
+-    if (PROTOCOL_ALLOW.test(key) && value?.toLowerCase() !== 'never') throw new Refusal(`git_config_allows_protocol: ${key}`);
+     if (SPLIT_INDEX.test(key) && (value === null || !FALSE.has(value.toLowerCase()))) throw new Refusal('git_split_index_refused');
    }
  }
- 

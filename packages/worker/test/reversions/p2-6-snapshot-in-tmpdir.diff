@@ -1,16 +1,16 @@
 diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
-index e2f30b5..201279f 100644
+index 022ed8c..fedd412 100644
 --- a/packages/worker/src/owner-git/git-safe.ts
 +++ b/packages/worker/src/owner-git/git-safe.ts
-@@ -29,6 +29,7 @@
+@@ -35,6 +35,7 @@
   */
- import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
+ import { spawnSync } from 'node:child_process';
  import { closeSync, constants, fstatSync, futimesSync, mkdirSync, mkdtempSync, openSync, readdirSync, readlinkSync, readSync, rmSync, writeSync } from 'node:fs';
 +import { tmpdir } from 'node:os';
  import { basename, isAbsolute, join, normalize } from 'node:path';
  import { Refusal } from '../b2/errors.js';
  import { assertPin, checkConfig, inspect, type GitPin } from '../sandbox/git-sandbox.js';
-@@ -103,24 +104,11 @@ function assertPrivate(fd: number): void {
+@@ -128,24 +129,11 @@ function assertPrivate(fd: number): void {
   * from its open descriptor, which must lie outside the checkout, the admin dir and the common dir.
   */
  function privateDir(owner: OwnerGit, root: string, pin: GitPin): string {
