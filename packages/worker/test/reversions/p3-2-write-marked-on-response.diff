@@ -1,0 +1,20 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index d9b1f5f..90d9653 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -355,6 +355,7 @@ export class Client {
+           },
+         },
+         res => {
++          wrote = true;
+           const chunks: Buffer[] = [];
+           let bytes = 0;
+           const cap = res.statusCode === 200 ? okLimit : RESPONSE_LIMIT;
+@@ -380,7 +381,6 @@ export class Client {
+       // Nothing is written until connect. Once end() is attempted, every ambiguous failure is unknown.
+       req.once('socket', socket => {
+         socket.once('connect', () => {
+-          wrote = true;
+           req.end(body?.bytes);
+         });
+       });

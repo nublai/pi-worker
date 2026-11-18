@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index d9b1f5f..c8412d6 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -375,7 +375,7 @@ export class Client {
+           });
+         },
+       );
+-      req.setTimeout(this.timeoutMs, () => req.destroy(new Error('HTTP timeout; reconcile command_id, never blind replay')));
++      req.setTimeout(this.timeoutMs, () => req.destroy(new ClientFailure('HTTP timeout', 'no_effect', 'before_write')));
+       req.on('error', fail);
+       // Nothing is written until connect. Once end() is attempted, every ambiguous failure is unknown.
+       req.once('socket', socket => {

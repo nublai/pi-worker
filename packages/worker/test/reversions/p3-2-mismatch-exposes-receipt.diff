@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/reconcile.ts b/packages/client-ts/src/reconcile.ts
+index 70de8a4..8731de4 100644
+--- a/packages/client-ts/src/reconcile.ts
++++ b/packages/client-ts/src/reconcile.ts
+@@ -107,7 +107,7 @@ export function classifyReceipt(receipt: Receipt, expected: Expected): Reconcili
+     receipt.request_hash !== expected.request_hash ||
+     (expected.worker_id !== undefined && receipt.worker_id !== expected.worker_id)
+   ) {
+-    return { outcome: 'unknown', reason: 'receipt_mismatch' };
++    return { outcome: 'unknown', reason: 'receipt_mismatch', receipt };
+   }
+   if (receipt.state === 'delivered' && receipt.effect === 'observed') return { outcome: 'observed', receipt };
+   if (receipt.state === 'rejected' && receipt.effect === 'no_effect') return { outcome: 'no_effect', receipt };

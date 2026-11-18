@@ -554,6 +554,26 @@
         "p3-1-byte-read-headers-unchecked.diff",
         "p3-1-ndjson-final-line-unchecked.diff"
       ]
+    },
+    "client-reconcile": {
+      "command": "npm test -w @nublai/pi-worker-client -- reconcile",
+      "diffs": [
+        "p3-2-receipt-command-id-unchecked.diff",
+        "p3-2-receipt-operation-unchecked.diff",
+        "p3-2-receipt-worker-unchecked.diff",
+        "p3-2-receipt-hash-unchecked.diff",
+        "p3-2-accepted-receipt-resolves.diff",
+        "p3-2-receipt-no-effect-any-state.diff",
+        "p3-2-read-refusal-effect-is-command-effect.diff",
+        "p3-2-missing-receipt-no-effect.diff",
+        "p3-2-mismatch-exposes-receipt.diff",
+        "p3-2-refused-first-prompt-fails-acquisition.diff",
+        "p3-2-lost-create-not-acquired.diff",
+        "p3-2-prompt-of-any-worker.diff",
+        "p3-2-unserializable-body-escapes.diff",
+        "p3-2-write-marked-on-response.diff",
+        "p3-2-timeout-no-effect.diff"
+      ]
     }
   }
 }

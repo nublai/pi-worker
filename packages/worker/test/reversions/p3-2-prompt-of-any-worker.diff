@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/reconcile.ts b/packages/client-ts/src/reconcile.ts
+index 70de8a4..8c48aa0 100644
+--- a/packages/client-ts/src/reconcile.ts
++++ b/packages/client-ts/src/reconcile.ts
+@@ -214,7 +214,7 @@ export function acquisition(create: Settled, prompt?: Settled): Acquisition {
+     const code = prompt instanceof ClientFailure ? prompt.message : p.receipt?.error;
+     return { ...base, prompt: 'not_prompted', ...(code !== undefined ? { prompt_error: code } : {}) };
+   }
+-  if (p.outcome !== 'observed' || !p.receipt || p.receipt.operation !== 'sessions.prompt' || p.receipt.worker_id !== receipt.worker_id) return { ...base, prompt: 'unknown' };
++  if (p.outcome !== 'observed' || !p.receipt || p.receipt.operation !== 'sessions.prompt' || (p.receipt.worker_id !== receipt.worker_id && p.receipt.command_id.length < 0)) return { ...base, prompt: 'unknown' };
+   return {
+     ...base,
+     prompt: admitted(p.receipt),
