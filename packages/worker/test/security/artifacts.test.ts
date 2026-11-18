@@ -686,9 +686,14 @@ test('artifacts.inspect: the index is read up to 256 MiB; a larger one refuses g
     const index = indexPath(x, a.slot);
     const cap = 256 * 1024 * 1024;
     const unavailable = (detail: string) => ({ error: 'artifact_inspection_unavailable', effect: 'no_effect', phase: 'http', status: 409, detail });
-    // At the cap the index is read in full (the zeros appended to a real index break its checksum, so Git then fails: not the cap's refusal); one byte more is past the cap.
+    // At the cap the index is read in full: whatever Git then makes of the zero-padded index (some Git versions
+    // refuse its checksum, others accept it), the cap's own refusal never comes. One byte more is past the cap.
     truncateSync(index, cap);
-    assert.deepEqual(await x.refusal(x.inspect(a.worker.worker_id, req)), unavailable('git_failed'), 'at the cap: read');
+    const atCap = await x.inspect(a.worker.worker_id, req).then(() => 'read', (error: unknown) => error);
+    if (atCap !== 'read') {
+      assert.ok(atCap instanceof ClientFailure, String(atCap));
+      assert.notEqual((atCap as ClientFailure).details.detail, 'git_index_too_large', 'at the cap: read, not refused as too large');
+    }
     truncateSync(index, cap + 1);
     assert.deepEqual(await x.refusal(x.inspect(a.worker.worker_id, req)), unavailable('git_index_too_large'), 'past the cap');
   } finally {
