@@ -24,14 +24,17 @@ import type { Containment, Domain } from '../containment/containment.js';
 import type { DurableLabel } from '../journal/labels.js';
 import { budgetKey } from '../journal/journal.js';
 import type { Receipt, ReceiptPatch } from '../receipts/receipts.js';
-import { sandboxed, sandboxSessionDir } from '../sandbox/sandbox.js';
+import { sandboxed, sandboxRoot, sandboxSessionDir } from '../sandbox/sandbox.js';
 import type { GitPin } from '../sandbox/git-sandbox.js';
 import { profileSource, removeStagedProfile, stageProfile, type DependencyBind } from '../sandbox/staging.js';
 import { confinement, HOLDING, type Binding, type Create, type KeptBinding, type Live, type SupervisorState } from './state.js';
 import { currentGuard } from '../grants/authority.js';
+import { channelAvailable, closeChannel, openChannel } from './channel.js';
 
 /** The Git pin a sandboxed launch must find (P2-5), when its validation read one. */
 const gitPinOf = (live: Live): { gitPin?: GitPin | null } => (live.gitPin !== undefined ? { gitPin: live.gitPin } : {});
+/** A sandboxed root worker (a parent): each of its generations gets its own channel (P2-8). */
+const sandboxedParent = (live: Live): boolean => sandboxed(live.worker.launch_spec) && !live.worker.parent_worker_id;
 
 /** A domain observed gone (`populated 0`, removed) and recorded: the only confirmed cleanup. */
 export const CLEANED = 'cgroup_empty_removed';
@@ -92,6 +95,8 @@ export class Lifecycle {
    * the one in flight). Marked before the kill starts, so a pi exit it causes starts no other. Never throws.
    */
   private terminate(live: Live): Promise<boolean> {
+    // The generation is ending: its parent channel serves nothing more (P2-8).
+    closeChannel(live);
     if (!live.cleaning) {
       const domain = live.domain;
       const leader = { pid: live.pid, token: live.token };
@@ -413,7 +418,9 @@ export class Lifecycle {
       // its domain (P2-7): a failure ends the row failed below (D3), unknown once anything was created (D2).
       if (live.profile) dependencies = stageProfile(live.profile, cwd, rootFd => this.stagingCleanup(rootFd));
       const root = confinement(w);
-      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live), dependencies } : {}) });
+      // A sandboxed parent's channel for this generation, before anything runs in its domain (P2-8).
+      const channel = sandboxedParent(live) ? { channel: (await openChannel(this.s, live)).dir } : {};
+      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live), dependencies, ...channel } : {}) });
     } catch (error) {
       // No host was constructed: the domain (if it was created) is cleaned and the row ends with its reason; the
       // receipt stays unknown, so a resume target is held and fenced like any other unknown create-with-resume.
@@ -574,11 +581,15 @@ export class Lifecycle {
    */
   async relaunch(id: string, b: Binding): Promise<Receipt> {
     let live!: Live;
+    let gitPin: GitPin | null | undefined;
     return this.s.receipts.run(
       b.command_id,
       'workers.relaunch',
       { ...b, worker_id: id },
-      async () => this.relaunched(live, b.command_id),
+      async () => {
+        if (gitPin !== undefined) live.gitPin = gitPin;
+        return this.relaunched(live, b.command_id);
+      },
       () => {
         live = this.s.require(id);
         this.s.binding(live, b);
@@ -594,6 +605,12 @@ export class Lifecycle {
         // worker bound since and left fenced (`target_session_fenced`) or with its cleanup unproven, as for a resume.
         this.s.resumable(w.session_id, id, confinement(w));
         this.s.exclusiveCwd(w.cwd, live);
+        // A sandboxed parent's root is validated again (P2-4, P2-5): the new generation mounts the metadata this accepts,
+        // and gets a channel of its own (P2-8).
+        if (sandboxedParent(live)) {
+          channelAvailable(this.s);
+          gitPin = sandboxRoot(live.create, { stateDir: this.s.stateDir, paths: this.s.sandboxControls }).gitPin;
+        }
       },
     );
   }
@@ -657,7 +674,9 @@ export class Lifecycle {
     try {
       const domain = live.domain!;
       const root = confinement(w);
-      host = this.s.factory({ workerId: w.worker_id, commandId, create, cwd: w.cwd, sessionDir: this.sessionDir(live), domain, prefix: this.containment.enter(domain), ...(root ? { sandbox: root, ...gitPinOf(live) } : {}) });
+      const prefix = this.containment.enter(domain);
+      const channel = sandboxedParent(live) ? { channel: (await openChannel(this.s, live)).dir } : {};
+      host = this.s.factory({ workerId: w.worker_id, commandId, create, cwd: w.cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live), ...channel } : {}) });
     } catch (error) {
       live.launching = undefined;
       await this.launchFailed(live, commandId, error);

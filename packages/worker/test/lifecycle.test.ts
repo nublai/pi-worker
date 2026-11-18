@@ -486,8 +486,8 @@ test('lifecycle: create refuses before any record: not a directory, a typed laun
     await assert.rejects(f.supervisor.create(create(join(f.dir, 'file'))), /cwd_not_directory/);
     await assert.rejects(f.supervisor.create(create(join(f.dir, 'missing'))), /cwd_not_directory/);
     mkdirSync(join(f.dir, 'typed'));
-    // Typed launches run from P1-11; a sandboxed root worker (a parent) waits for P2-8's parent channel and is refused
-    // before any record (P2-4 sandboxes typed children only).
+    // Typed launches run from P1-11; a sandboxed root worker (a parent) needs a parent channel (P2-8), which this
+    // supervisor does not serve: it is refused before any record.
     const spec = { environment: { id: 'e', revision: 1, allowed_methods: [], filesystem: 'bwrap' as const }, role: 'r', tools: [], denied_tools: [], resources: { extensions: [], skills: [] }, grant_methods: [], seed_mode: 'standalone' as const };
     await assert.rejects(f.supervisor.create({ ...create(join(f.dir, 'typed')), launch_spec: spec }), /sandboxed_parent_requires_parent_channel/);
     // A typed child of a parent that does not exist is refused the same way.

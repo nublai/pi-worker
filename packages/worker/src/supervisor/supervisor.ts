@@ -23,6 +23,7 @@ import { Lifecycle } from './lifecycle.js';
 import { activity } from './activity.js';
 import type { Containment } from '../containment/containment.js';
 import { readConfined } from '../sandbox/sandbox.js';
+import { sweepChannels, type ChannelFactory } from './channel.js';
 import { confinement, SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker, type ChildLaunch } from './state.js';
 
 export type HistoryItem = components['schemas']['HistoryItem'];
@@ -123,6 +124,14 @@ export class Supervisor {
     return this.features.configure(id, c);
   }
 
+  /**
+   * Serves a parent channel for every sandboxed root worker's generation (P2-8): `factory` builds each channel's B2
+   * handler (b2/channel.ts `parentChannels`). Without it a sandboxed root worker is refused before any record.
+   */
+  serveParentChannels(factory: ChannelFactory): void {
+    this.state.channels = factory;
+  }
+
   get receipts(): ReceiptStore {
     return this.state.receipts;
   }
@@ -134,6 +143,8 @@ export class Supervisor {
    * anything is recovered or recorded, so the daemon fails to start (P2-2).
    */
   async recover(): Promise<void> {
+    // No channel survives a restart: the directories a killed supervisor left are removed (P2-8).
+    sweepChannels(this.state.stateDir);
     await this.lifecycle.containment.sweep([...this.lifecycle.pendingDomains(), ...this.features.pendingDomains()]);
     // The owner's durable `keep` of a recovered intent survives restarts; any other intent_ready does not.
     const kept = (r: Receipt) => !!r.worker_id && (this.state.workers.get(r.worker_id)?.worker.resolutions ?? []).some(x => x.command_id === r.command_id && x.disposition === 'keep');

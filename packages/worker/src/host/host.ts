@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 import { killGroup, processToken } from './process.js';
-import { sandboxEnv, sandboxLaunch } from '../sandbox/sandbox.js';
+import { CHANNEL_SOCKET, sandboxEnv, sandboxLaunch } from '../sandbox/sandbox.js';
 import type { GitPin } from '../sandbox/git-sandbox.js';
 import type { DependencyBind } from '../sandbox/staging.js';
 
@@ -278,12 +278,13 @@ const TYPED_CHILD_ENV_PATTERN = /^(LC_[A-Z]+|XDG_[A-Z_]+_(HOME|DIR|DIRS)|PI_[A-Z
  * The child's environment. A root worker gets the supervisor's, without its own PIW_* configuration or any
  * PI_WORKER_* channel a caller set (socket, grant file, report descriptor). A typed child gets only the allowlisted
  * subset of that (so never NODE_OPTIONS, NODE_PATH, LD_PRELOAD or anything else that loads code its launch spec did
- * not name), then exactly its report descriptor and task id. A sandboxed child's bwrap `--clearenv` sets exactly this
- * list inside, with its own HOME, TMPDIR, PATH and agent directory (sandbox.ts `sandboxEnv`).
+ * not name), then exactly its report descriptor and task id. A sandboxed worker (`allowlist`, a sandboxed parent
+ * included) gets the same allowlisted subset. A sandboxed worker's bwrap `--clearenv` sets exactly this list inside,
+ * with its own HOME, TMPDIR, PATH and agent directory (sandbox.ts `sandboxEnv`).
  */
-export function childEnv(env: NodeJS.ProcessEnv = process.env, taskId?: string | null): NodeJS.ProcessEnv {
+export function childEnv(env: NodeJS.ProcessEnv = process.env, taskId?: string | null, allowlist = !!taskId): NodeJS.ProcessEnv {
   const out = Object.fromEntries(
-    Object.entries(env).filter(([k]) => !k.startsWith('PIW_') && !k.startsWith('PI_WORKER_') && (!taskId || TYPED_CHILD_ENV.has(k) || TYPED_CHILD_ENV_PATTERN.test(k))),
+    Object.entries(env).filter(([k]) => !k.startsWith('PIW_') && !k.startsWith('PI_WORKER_') && (!allowlist || TYPED_CHILD_ENV.has(k) || TYPED_CHILD_ENV_PATTERN.test(k))),
   );
   if (taskId) Object.assign(out, { PI_WORKER_REPORT_FD: '3', PI_WORKER_TASK_ID: taskId, PI_SUBAGENT_ID: taskId });
   return out;
@@ -299,6 +300,16 @@ export interface SdkSandbox {
   readonly gitPin?: GitPin | null;
   /** Its staged profile's dependency trees (P2-7), bound read-only; the caller owns and closes the descriptors. */
   readonly dependencies?: readonly DependencyBind[];
+  /**
+   * A sandboxed parent's channel (P2-8): its directory, bound read-only at `/run/piw-parent`, and the parent's worker id.
+   * Inside, `PI_WORKER_SOCKET` names the channel's socket and `PI_WORKER_ID` the parent; no bearer is given.
+   */
+  readonly channel?: { readonly dir: string; readonly workerId: string };
+}
+
+/** The environment inside a sandbox: `sandboxEnv`, plus a parent's channel socket and its own worker id. */
+export function sandboxedEnv(env: NodeJS.ProcessEnv, sandbox: Pick<SdkSandbox, 'root' | 'channel'>): Record<string, string> {
+  return { ...sandboxEnv(env, sandbox.root), ...(sandbox.channel ? { PI_WORKER_SOCKET: CHANNEL_SOCKET, PI_WORKER_ID: sandbox.channel.workerId } : {}) };
 }
 
 /**
@@ -309,8 +320,16 @@ export interface SdkSandbox {
 export class SdkHost extends LineHost {
   constructor(launch: SdkLaunch, options: { env?: NodeJS.ProcessEnv; timeoutMs?: number; prefix?: readonly string[]; sandbox?: SdkSandbox } = {}) {
     const args = [sdkChildEntry, JSON.stringify(launch)];
-    const env = childEnv(options.env, launch.taskId);
-    const box = options.sandbox ? sandboxLaunch(options.sandbox.root, process.execPath, args, { env: sandboxEnv(env, options.sandbox.root), bwrap: options.sandbox.bwrap, ...(options.sandbox.gitPin !== undefined ? { gitPin: options.sandbox.gitPin } : {}), ...(options.sandbox.dependencies ? { dependencies: options.sandbox.dependencies } : {}) }) : undefined;
+    const env = childEnv(options.env, launch.taskId, !!launch.taskId || !!options.sandbox);
+    const box = options.sandbox
+      ? sandboxLaunch(options.sandbox.root, process.execPath, args, {
+          env: sandboxedEnv(env, options.sandbox),
+          bwrap: options.sandbox.bwrap,
+          ...(options.sandbox.gitPin !== undefined ? { gitPin: options.sandbox.gitPin } : {}),
+          ...(options.sandbox.dependencies ? { dependencies: options.sandbox.dependencies } : {}),
+          ...(options.sandbox.channel ? { channel: options.sandbox.channel.dir } : {}),
+        })
+      : undefined;
     try {
       super(box ? box.command : process.execPath, box ? box.args : args, {
         cwd: launch.cwd,

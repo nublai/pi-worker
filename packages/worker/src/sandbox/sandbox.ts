@@ -22,8 +22,11 @@
  * root, never following a link. A root's Git metadata is mounted by git-sandbox.ts (P2-5), for a linked worktree only:
  * pointers, a symbolic HEAD, config and alternates read-only, the worktree's admin dir, the shared objects and one
  * private branch namespace writable; an ordinary checkout root is refused. A child's staged profile (staging.ts, P2-7)
- * is in `ROOT/.piw-agent`; each of its `node_modules` mount points gets the parent's tree read-only, by descriptor. The
- * parent channel is P2-8: until then a sandboxed root worker (a parent) is refused.
+ * is in `ROOT/.piw-agent`; each of its `node_modules` mount points gets the parent's tree read-only, by descriptor.
+ *
+ * A sandboxed root worker (a parent, P2-8) also gets its parent channel (supervisor/channel.ts): the per-generation
+ * directory holding the channel's socket, bound read-only by descriptor at `/run/piw-parent`. Its children live in
+ * owner-prepared slots, `PARENT/.piw-slots/<name>` (`openSlot`).
  */
 import { closeSync, existsSync, fstatSync, readSync, realpathSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -46,6 +49,41 @@ export const WORKER_DIR = '.piw-worker';
 export const SANDBOX_HOME = '/tmp/piw-home';
 /** The child descriptor of the first mount source: 0 to 2 are stdio, 3 is the report slot. */
 export const SANDBOX_FD_BASE = 4;
+/** The directory below a sandboxed parent's root that holds the owner-prepared slots its children run in (P2-8). */
+export const SLOTS_DIR = '.piw-slots';
+/** Where a sandboxed parent sees its channel directory, and the channel's socket in it (P2-8). */
+export const CHANNEL_MOUNT = '/run/piw-parent';
+export const CHANNEL_SOCKET_NAME = 'sock';
+export const CHANNEL_SOCKET = `${CHANNEL_MOUNT}/${CHANNEL_SOCKET_NAME}`;
+/** A slot's name: one path component, no hidden or traversal name. */
+const SLOT_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+/**
+ * Opens the root of a sandboxed parent's child (P2-8): `cwd` must be exactly `PARENT/.piw-slots/<name>` (the string the
+ * caller gave, never resolved), and each component below the parent root is opened with O_NOFOLLOW from the parent
+ * root's descriptor, so a link the parent planted at `.piw-slots` or at the slot never hands the child another tree.
+ * Refusals (`no_effect`): `parent_channel_child_root_not_slot` for any other path, and
+ * `parent_channel_child_root_not_real_directory` for a missing slot, a link or a non-directory. The caller closes the
+ * returned descriptor.
+ */
+export function openSlot(parentRoot: string, cwd: string): number {
+  const base = join(parentRoot, SLOTS_DIR);
+  const name = cwd.startsWith(`${base}/`) ? cwd.slice(base.length + 1) : '';
+  if (!SLOT_NAME.test(name)) throw new Refusal('parent_channel_child_root_not_slot');
+  let rootFd: number;
+  try {
+    rootFd = openPinned(parentRoot, 'dir');
+  } catch {
+    throw new Refusal('parent_root_not_directory');
+  }
+  try {
+    return openUnder(rootFd, [SLOTS_DIR, name], 'dir');
+  } catch {
+    throw new Refusal('parent_channel_child_root_not_real_directory');
+  } finally {
+    closeSync(rootFd);
+  }
+}
 
 /** `path` is `root` or below it (both canonical). */
 export const inside = (root: string, path: string): boolean => path === root || path.startsWith(root === '/' ? '/' : `${root}/`);
@@ -168,7 +206,9 @@ export function sandboxEnv(allowed: NodeJS.ProcessEnv, root: string): Record<str
  * `bwrap` is the executable `locateBwrap` found. `env` is the complete environment inside (`sandboxEnv`). With a
  * `gitPin` (the validation's, `sandboxRoot`), the root's Git metadata must still equal it; `gitPin` in the result is
  * the metadata the launch mounts. `dependencies` are a staged profile's dependency trees (staging.ts), each bound
- * read-only at its mount point below `ROOT/.piw-agent`; their descriptors stay the caller's to close.
+ * read-only at its mount point below `ROOT/.piw-agent`; their descriptors stay the caller's to close. `channel` is a
+ * sandboxed parent's channel directory (P2-8), opened with no link at any component and bound read-only at
+ * `CHANNEL_MOUNT`.
  */
 export interface SandboxLaunch {
   readonly command: string;
@@ -179,7 +219,7 @@ export interface SandboxLaunch {
   close(): void;
 }
 
-export function sandboxLaunch(root: string, command: string, args: readonly string[], options: { env: Record<string, string>; bwrap?: string; gitPin?: GitPin | null; dependencies?: readonly DependencyBind[] }): SandboxLaunch {
+export function sandboxLaunch(root: string, command: string, args: readonly string[], options: { env: Record<string, string>; bwrap?: string; gitPin?: GitPin | null; dependencies?: readonly DependencyBind[]; channel?: string }): SandboxLaunch {
   const opened: number[] = [];
   const close = () => {
     for (const fd of opened.splice(0)) closeSync(fd);
@@ -236,6 +276,12 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
       }
       opened.push(fd);
       bind('ro-bind', fd, join(root, AGENT_DIR, name));
+    }
+    // A parent's channel: only its own generation's socket directory, read-only (a connect needs no write).
+    if (options.channel !== undefined) {
+      const fd = openPinned(options.channel, 'dir');
+      opened.push(fd);
+      bind('ro-bind', fd, CHANNEL_MOUNT);
     }
     // After every mount: the sandbox's own root tmpfs (`/`, and `/etc`, `/home`, `/var` where nothing is bound) becomes
     // read-only. bwrap's remount is not recursive, so the root bind, `/tmp`, `/run` and `/dev` keep their own flags.

@@ -8,6 +8,10 @@
  * Scope is enforced here: a worker outside the grant's scope is refused `grant_scope_denied` on every worker route,
  * filtered out of `workers.list` and the event stream, and a receipt of such a worker is not readable. Without a
  * grant store every request is refused: there is no unauthenticated mode.
+ *
+ * With `channel` the app serves one sandboxed parent's channel (P2-8, b2/channel.ts): requests authenticate as the
+ * channel's own grant by connection, only the channel's methods are served, a worker is visible only when it is the
+ * parent or one of its children, and `workers.create` launches only the parent's own sandboxed children.
  */
 import { Refusal } from './errors.js';
 import { createHello, type HelloSource } from './hello.js';
@@ -19,6 +23,10 @@ import { eventManifest, type Cursor } from '../generated/events.js';
 import type { Route } from '../generated/routes.js';
 import { allowsCwd, allowsMethod, allowsWorker, type Caller, type GrantStore } from '../grants/store.js';
 import type { Supervisor } from '../supervisor/supervisor.js';
+import type { ChannelIdentity } from '../supervisor/channel.js';
+import { channelAuthorizer, channelChild } from './channel.js';
+import { closeSync } from 'node:fs';
+import { openSlot } from '../sandbox/sandbox.js';
 
 export interface AppOptions extends HelloSource {
   /** The supervisor; its receipt store answers receipts.get. */
@@ -27,6 +35,8 @@ export interface AppOptions extends HelloSource {
   readonly receipts?: ReceiptStore;
   /** The grant registry every request is authenticated against. */
   readonly grants?: GrantStore;
+  /** A sandboxed parent's channel (P2-8): the app serves that channel only. */
+  readonly channel?: ChannelIdentity;
 }
 
 const unavailable = () => new Refusal('supervisor_state_unavailable');
@@ -74,9 +84,12 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     if (!live) throw new Refusal('unknown_worker');
     return live.worker;
   };
+  const channel = options.channel;
+  /** On a parent channel, only the parent and its own children exist. */
+  const owned = (w: { worker_id: string; parent_worker_id?: string | null }): boolean => !channel || w.worker_id === channel.workerId || w.parent_worker_id === channel.workerId;
   const visible = (caller: Caller | undefined, id: string): boolean => {
     const live = options.supervisor?.state.workers.get(id);
-    return !!caller && !!live && allowsWorker(caller, live.worker);
+    return !!caller && !!live && owned(live.worker) && allowsWorker(caller, live.worker);
   };
   /** A grant over every worker learns nothing from telling a missing worker from an existing one. */
   const seesAll = (caller: Caller | undefined): boolean => !!caller?.scope.worker_ids.includes('*');
@@ -87,7 +100,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
   const inScope = (caller: Caller | undefined, id: string): void => {
     if (!seesAll(caller) && !visible(caller, id)) throw new Refusal('grant_scope_denied');
     const w = worker(id);
-    if (!caller || !allowsWorker(caller, w)) throw new Refusal('grant_scope_denied');
+    if (!caller || !owned(w) || !allowsWorker(caller, w)) throw new Refusal('grant_scope_denied');
   };
   /**
    * A catalog session is visible when its cwd is in the caller's cwd scope and its last owner is a worker the caller
@@ -132,10 +145,14 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
       if (!readable(receipt.worker_id)) throw new Refusal('grant_scope_denied');
       return receipt;
     },
-    'workers.list': ({ caller }) => supervisor().list().filter(w => !!caller && allowsWorker(caller, w)),
+    'workers.list': ({ caller }) => supervisor().list().filter(w => !!caller && owned(w) && allowsWorker(caller, w)),
     'workers.get': ({ path }) => supervisor().get(path.worker_id),
-    'workers.create': ({ body, caller }) => {
+    'workers.create': ({ body: request, caller }) => {
       const s = supervisor();
+      // A parent's channel launches only its own sandboxed children, in its slots (b2/channel.ts). The slot is opened
+      // without following a link before the scope check resolves the path (the supervisor opens it again).
+      const body = channel ? channelChild(request, channel) : request;
+      if (channel) closeSync(openSlot(channel.root, body.cwd));
       if (!caller || !allowsCwd(caller, body.cwd)) throw new Refusal('grant_scope_denied');
       // A typed child's parent must be in scope as well.
       if (body.parent && !visible(caller, body.parent.worker_id)) throw new Refusal('grant_scope_denied');
@@ -262,5 +279,6 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
       },
     ]),
   ) as unknown as Handlers;
-  return { handle: createRouter({ handlers: scoped, authorize: authorizer(options.grants) }), handlers: scoped };
+  const authorize = channel ? channelAuthorizer(options.supervisor, options.grants, channel) : authorizer(options.grants);
+  return { handle: createRouter({ handlers: scoped, authorize }), handlers: scoped };
 }

@@ -2,6 +2,7 @@
 import { chmodSync, chownSync, lstatSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createApp } from './b2/app.js';
+import { parentChannels } from './b2/channel.js';
 import { createB2Server, listenPrivate } from './b2/server.js';
 import { resolvePaths, resolveSocketAccess, socketModes, type SocketAccess } from './config.js';
 import { holdInstallation, InstallationRefused, RecordedDomainRefused, SweepUnproven, type Containment, type InstallationHold } from './containment/containment.js';
@@ -58,7 +59,22 @@ export function productionHosts(bwrap: string, env?: NodeJS.ProcessEnv): { facto
         },
         // pi starts inside the worker's cleanup domain; a sandboxed worker's pi in the bwrap profile of its root, there,
         // with the Git metadata its validation accepted (P2-5) and its staged profile's dependency trees (P2-7).
-        { prefix: launch.prefix, ...(env ? { env } : {}), ...(launch.sandbox ? { sandbox: { root: launch.sandbox, bwrap, ...(launch.gitPin !== undefined ? { gitPin: launch.gitPin } : {}), ...(launch.dependencies ? { dependencies: launch.dependencies } : {}) } } : {}) },
+        // A sandboxed parent's channel directory is bound into its sandbox (P2-8).
+        {
+          prefix: launch.prefix,
+          ...(env ? { env } : {}),
+          ...(launch.sandbox
+            ? {
+                sandbox: {
+                  root: launch.sandbox,
+                  bwrap,
+                  ...(launch.gitPin !== undefined ? { gitPin: launch.gitPin } : {}),
+                  ...(launch.dependencies ? { dependencies: launch.dependencies } : {}),
+                  ...(launch.channel ? { channel: { dir: launch.channel, workerId: launch.workerId } } : {}),
+                },
+              }
+            : {}),
+        },
       ),
     // pi starts inside the probe's cleanup domain.
     inventory: launch =>
@@ -135,6 +151,9 @@ export async function runDaemon(containment: (installation: string) => Containme
     // No sandbox root may contain or be inside the B2 socket's directory (the state directory is always protected).
     sandboxControls: [dirname(paths.socketPath)],
   });
+  const helloSource = { supervisorId: state.supervisorId, supervisorEpoch: state.supervisorEpoch, piVersion: pinnedPiVersion(), cleanupProfile: domains.profile };
+  // Each sandboxed parent's generation gets its own channel, with its own grant and the method whitelist (P2-8).
+  supervisor.serveParentChannels(parentChannels({ ...helloSource, supervisor, grants }));
   // Recovery before the socket listens. It awaits the startup sweep (every domain of this installation the journal does
   // not account for is killed and removed; one not proven gone refuses the start, P2-2); then undispatched intents
   // become intent_recovered, dispatched ones outcome_unknown, and every worker that held a session is recorded
@@ -147,14 +166,7 @@ export async function runDaemon(containment: (installation: string) => Containme
     console.error(JSON.stringify({ event: 'refused', reason: error.code, domains: error.domains, detail: error.message }));
     process.exit(1);
   }
-  const app = createApp({
-    supervisorId: state.supervisorId,
-    supervisorEpoch: state.supervisorEpoch,
-    piVersion: pinnedPiVersion(),
-    cleanupProfile: domains.profile,
-    supervisor,
-    grants,
-  });
+  const app = createApp({ ...helloSource, supervisor, grants });
   const server = createB2Server(app.handle);
   await listenPrivate(server, paths.socketPath, access);
   console.error(JSON.stringify({ event: 'listening', socket: paths.socketPath, pid: process.pid, installation: state.installation }));
