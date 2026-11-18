@@ -1,0 +1,22 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index b2f78cb..1ebf7d6 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -23,7 +23,7 @@ import { createHash } from 'node:crypto';
+ import { Refusal } from '../b2/errors.js';
+ import type { components } from '../generated/api.js';
+ import { artifactSubject } from '../owner-git/artifact.js';
+-import { gitDiff, gitMergeBase, gitRevParse, gitStatus, gitVersion, type GitCheckout, type GitPin, type OwnerGit } from '../owner-git/git-safe.js';
++import { gitDiff, gitMergeBase, gitRevParse, gitStatus, gitVersion, readGitPin, type GitCheckout, type GitPin, type OwnerGit } from '../owner-git/git-safe.js';
+ import type { SupervisorState } from './state.js';
+ 
+ export type ArtifactInspect = components['schemas']['ArtifactInspect'];
+@@ -148,7 +148,7 @@ export class Artifacts {
+     if (request.worker_epoch !== w.worker_epoch) throw new Refusal('stale_binding');
+     // The pin the launch validated, and only that: never one read now from metadata the sandbox can write. Only a
+     // sandboxed worker in a linked worktree has one (P2-5).
+-    const pin = live.gitPin;
++    const pin = live.gitPin ? readGitPin(w.cwd) : live.gitPin;
+     if (!pin) throw new Refusal('artifact_inspection_unavailable', 'no_effect', undefined, { detail: 'no_saved_launch_pin' });
+     const commit = revision(request.commit, pin);
+     const base = request.base === undefined ? undefined : revision(request.base, pin);

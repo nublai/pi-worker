@@ -738,6 +738,19 @@
         "p4d-install-grant-before-reload.diff",
         "p4d-install-prewrite-resolver-skipped.diff"
       ]
+    },
+    "artifacts": {
+      "command": "npm test -- artifacts",
+      "diffs": [
+        "p3-6-epoch-not-checked.diff",
+        "p3-6-pin-read-again.diff",
+        "p3-6-ref-outside-namespace.diff",
+        "p3-6-values-unchecked.diff",
+        "p3-6-pin-mismatch-untyped.diff",
+        "p3-6-merge-base-guessed.diff",
+        "p3-6-lists-unbounded.diff",
+        "p3-6-channel-inspects-parent.diff"
+      ]
     }
   }
 }

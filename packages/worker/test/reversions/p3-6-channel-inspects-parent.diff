@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index 0a8fa4d..724aa38 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -198,7 +198,6 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+     'artifacts.inspect': ({ path, body }) => {
+       const s = supervisor();
+       // On a parent channel: the parent's own children only, never the parent itself (P3-6).
+-      if (channel && s.state.require(path.worker_id).worker.parent_worker_id !== channel.workerId) throw new Refusal('parent_channel_requires_own_child');
+       return s.inspectArtifact(path.worker_id, body);
+     },
+     'session.configure': ({ path, body }) => supervisor().configure(path.worker_id, body),

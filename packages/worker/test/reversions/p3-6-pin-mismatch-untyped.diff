@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index b2f78cb..d00b7ba 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -77,7 +77,7 @@ const codeOf = (error: Refusal): string => {
+ function refusalOf(error: unknown, resolving: boolean): Refusal {
+   if (error instanceof Refusal) {
+     const code = codeOf(error);
+-    if (code === 'git_metadata_changed_since_launch') return new Refusal('artifact_pin_mismatch');
++    if (code === 'git_metadata_changed_since_launch') return error;
+     return new Refusal('artifact_inspection_unavailable', 'no_effect', undefined, { detail: code });
+   }
+   if (resolving) return new Refusal('artifact_object_missing');

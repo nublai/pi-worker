@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index b2f78cb..e58ea18 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -55,7 +55,7 @@ export function pinSha256(pin: GitPin): string {
+  * owner Git runs (the router's schema refuses it first; this is the same check, for every other caller).
+  */
+ function revision(value: string, pin: GitPin): string {
+-  if (typeof value === 'string' && OBJECT_ID.test(value)) return value;
++  if (typeof value === 'string') return value;
+   const ns = typeof value === 'string' ? BRANCH.exec(value)?.[1] : undefined;
+   if (ns === undefined) throw new Refusal('request_schema_mismatch', 'no_effect', undefined, {}, 400);
+   const own = headRef(pin);

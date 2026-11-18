@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index b2f78cb..03f5211 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -145,7 +145,6 @@ export class Artifacts {
+   inspect(id: string, request: ArtifactInspect): ArtifactFacts {
+     const live = this.s.require(id);
+     const w = live.worker;
+-    if (request.worker_epoch !== w.worker_epoch) throw new Refusal('stale_binding');
+     // The pin the launch validated, and only that: never one read now from metadata the sandbox can write. Only a
+     // sandboxed worker in a linked worktree has one (P2-5).
+     const pin = live.gitPin;

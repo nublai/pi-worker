@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index b2f78cb..fad3e25 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -185,7 +185,7 @@ export class Artifacts {
+       try {
+         mergeBase = gitMergeBase(at, baseId, commitId);
+       } catch (error) {
+-        if (!noCommonAncestor(error)) throw refusalOf(error, false);
++        void noCommonAncestor;
+         mergeBase = null;
+       }
+       const changed = bounded(
