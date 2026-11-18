@@ -1,0 +1,13 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index 0f0646d..6b13d73 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -652,7 +652,7 @@ function foreignState(stateDir: string, l: Layout): string | undefined {
+   }
+   for (const entry of entries) {
+     // Own properties only: a foreign `constructor` or `__proto__` must not resolve to an inherited value.
+-    const kind = Object.hasOwn(STATE_ENTRIES, entry.name) ? STATE_ENTRIES[entry.name] : undefined;
++    const kind = STATE_ENTRIES[entry.name];
+     if (!kind || !is[kind](entry)) return 'it holds an entry pi-worker does not write';
+   }
+   if (!journalMarker(stateDir) && !grantMarker(stateDir, l)) return 'it holds no pi-worker journal and no doctor grant of this install';

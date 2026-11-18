@@ -599,6 +599,7 @@
         "p4a-fix-purge-whole-data.diff",
         "p4a-fix-purge-state-no-marker.diff",
         "p4a-fix-purge-state-foreign-entry.diff",
+        "p4a-fix-purge-state-proto-entry.diff",
         "p4a-fix-rmtree-follows-link.diff",
         "p4a-fix-unpack-member-names.diff",
         "p4a-fix-unpack-symlink-out.diff",
