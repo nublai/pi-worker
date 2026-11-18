@@ -171,9 +171,10 @@ function grant(command: Command, parsed: Parsed, io: Io): void {
     if (flags.get('answers-for-person') === true) argv.push('--answers-for-person');
     if (flags.has('id')) argv.push('--id', flags.get('id') as string);
   }
-  // The installed unit's pinned state directory (a different one named by the caller is refused), and the same runtime
-  // fallback as install (`XDG_RUNTIME_DIR` defaults to `/run/user/<uid>`): the grant lands where the daemon looks.
-  const env = grantEnv(io.env, io.system?.uid ?? process.getuid!());
+  // The state directory systemd runs the installed unit with (a different one named by the caller is refused), and the
+  // same runtime fallback as install (`XDG_RUNTIME_DIR` defaults to `/run/user/<uid>`): the grant lands where the
+  // daemon looks.
+  const env = grantEnv(io.env, io.system ?? realSystem());
   const result = spawnSync(process.execPath, [grantCommandPath(), ...argv], { encoding: 'utf8', env });
   if (result.status !== 0) throw grantFailure(result.stderr ?? '', result.status);
   io.out(JSON.stringify(JSON.parse(result.stdout) as unknown));

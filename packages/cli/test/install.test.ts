@@ -34,8 +34,22 @@ interface Host {
   unitFile: string;
   bin: string;
   calls: string[][];
-  /** `uid` is the uid the commands see (default: this process's). */
-  unit: { active: boolean; delegate: string; linger: string; serveVersion: string | undefined; journalStatus: number; uid: number };
+  /**
+   * `uid` is the uid the commands see (default: this process's). `show` answers from the unit files on disk
+   * (`systemdShow`); `showStatus`, `loadState` and `environment` override it, as a manager that cannot be asked, has
+   * not loaded the file, or prints its environment differently would.
+   */
+  unit: {
+    active: boolean;
+    delegate: string;
+    linger: string;
+    serveVersion: string | undefined;
+    journalStatus: number;
+    uid: number;
+    showStatus: number;
+    loadState?: string;
+    environment?: string;
+  };
   cli(...argv: string[]): Promise<{ code: number; out: string[]; err: string[]; json?: Record<string, unknown>; error?: Record<string, unknown> }>;
   tarball(version: string, options?: TarballOptions): string;
   close(): Promise<void>;
@@ -71,7 +85,8 @@ async function host(configure: (dirs: { dir: string; home: string; runtime: stri
     for (const [file, text] of [['cgroup.controllers', 'cpu memory pids\n'], ['cgroup.kill', ''], ['cgroup.procs', '']]) writeFileSync(join(cgroupMount, cg, file!), text!);
   }
   writeFileSync(join(cgroupMount, 'cgroup.controllers'), 'cpu memory pids\n');
-  const unit = { active: false, delegate: 'yes', linger: 'yes', serveVersion: undefined as string | undefined, journalStatus: 0, uid: UID };
+  const unitFile = join(home, '.config', 'systemd', 'user', 'pi-worker.service');
+  const unit: Host['unit'] = { active: false, delegate: 'yes', linger: 'yes', serveVersion: undefined, journalStatus: 0, uid: UID, showStatus: 0 };
   const calls: string[][] = [];
   let server: Server | undefined;
   const start = () => {
@@ -117,8 +132,20 @@ async function host(configure: (dirs: { dir: string; home: string; runtime: stri
             unit.active = false;
             void stop();
             return ok();
-          case 'show':
-            return ok(`Delegate=${unit.delegate}\nControlGroup=${unit.active ? unitCg : ''}\n`);
+          case 'show': {
+            if (unit.showStatus !== 0) return { status: unit.showStatus, stdout: '', stderr: 'Failed to connect to bus: No medium found\n' };
+            const loaded = systemdShow(unitFile);
+            const props: Record<string, string | undefined> = {
+              Delegate: unit.delegate,
+              ControlGroup: unit.active ? unitCg : '',
+              LoadState: unit.loadState ?? (existsSync(unitFile) ? 'loaded' : 'not-found'),
+              // systemctl leaves out an empty EnvironmentFiles even when asked for it.
+              EnvironmentFiles: loaded.environmentFiles.length ? loaded.environmentFiles.map(f => `${f} (ignore_errors=no)`).join(' ') : undefined,
+              Environment: unit.environment ?? loaded.environment,
+            };
+            const asked = rest.filter(a => a.startsWith('--property=')).map(a => a.slice('--property='.length));
+            return ok(asked.filter(name => props[name] !== undefined).map(name => `${name}=${props[name]}\n`).join(''));
+          }
           default:
             return { status: 1, stdout: '', stderr: 'unexpected systemctl verb' };
         }
@@ -149,7 +176,7 @@ async function host(configure: (dirs: { dir: string; home: string; runtime: stri
     data: join(home, '.local', 'share', 'pi-worker'),
     socket,
     state: env.PIW_STATE_DIR ?? join(home, '.local', 'state', 'pi-worker'),
-    unitFile: join(home, '.config', 'systemd', 'user', 'pi-worker.service'),
+    unitFile,
     bin: join(home, '.local', 'bin', 'pi-worker'),
     calls,
     unit,
@@ -209,6 +236,48 @@ function removeScratch(dir: string): void {
   }
 }
 
+/**
+ * What `systemctl --user show -p Environment -p EnvironmentFiles` prints for the unit files on disk, as systemd.unit(5)
+ * and systemd.exec(5) define it: the main file, then `pi-worker.service.d/*.conf` in name order; an `Environment=` line
+ * holds space-separated assignments (double quotes keep spaces), a later assignment of a variable replaces the earlier
+ * one, an empty `Environment=` clears the list; systemctl prints a value holding a space or newline as
+ * `[unprintable]`. (Specifiers such as `%h` are not expanded here.)
+ */
+function systemdShow(unitFile: string): { environment: string; environmentFiles: string[] } {
+  const dropins = `${unitFile}.d`;
+  const files = [unitFile, ...(existsSync(dropins) ? readdirSync(dropins).filter(n => n.endsWith('.conf')).sort().map(n => join(dropins, n)) : [])];
+  const env = new Map<string, string>();
+  const environmentFiles: string[] = [];
+  for (const file of files.filter(f => existsSync(f))) {
+    for (const line of readFileSync(file, 'utf8').split('\n').map(l => l.trim())) {
+      if (line.startsWith('EnvironmentFile=')) {
+        const value = line.slice('EnvironmentFile='.length);
+        if (value === '') environmentFiles.length = 0;
+        else environmentFiles.push(value);
+      }
+      if (!line.startsWith('Environment=')) continue;
+      const words: string[] = [];
+      let word: string | undefined;
+      let quoted = false;
+      for (const c of line.slice('Environment='.length)) {
+        if (c === '"') {
+          quoted = !quoted;
+          word ??= '';
+        } else if (/\s/.test(c) && !quoted) {
+          if (word !== undefined) words.push(word);
+          word = undefined;
+        } else word = (word ?? '') + c;
+      }
+      if (word !== undefined) words.push(word);
+      if (words.length === 0) env.clear();
+      for (const assignment of words) if (assignment.indexOf('=') > 0) env.set(assignment.slice(0, assignment.indexOf('=')), assignment);
+    }
+  }
+  return { environment: [...env.values()].map(v => (/[ \n]/.test(v) ? '[unprintable]' : v)).join(' '), environmentFiles };
+}
+
+const SHOW = 'show pi-worker.service --property=LoadState --property=EnvironmentFiles --property=Environment';
+
 const systemctlCalls = (h: Host) => h.calls.filter(c => c[0] === 'systemctl').map(c => c.slice(2).join(' '));
 
 test('install: verifies, unpacks, links, writes a Delegate=yes unit, starts it and waits for hello', async () => {
@@ -259,7 +328,7 @@ test('install: the same version again is idempotent (no restart, no second unpac
     const again = await h.cli('install', '--from', tarball);
     assert.equal(again.code, 0, 'second install');
     assert.deepEqual(again.json, first.json);
-    assert.deepEqual(systemctlCalls(h), ['daemon-reload', 'is-active pi-worker.service', 'enable --now pi-worker.service'], 'no restart: the unit did not change');
+    assert.deepEqual(systemctlCalls(h), [SHOW, 'daemon-reload', 'is-active pi-worker.service', 'enable --now pi-worker.service'], 'no restart: the unit did not change');
     assert.ok(!h.calls.some(c => c[0] === 'tar'), 'the installed version is not unpacked again');
     assert.equal(readFileSync(join(h.data, 'doctor.grant.json'), 'utf8'), grantBefore, 'the doctor grant is kept');
   } finally {
@@ -401,7 +470,7 @@ test('install: restarted is true only when the unit file changed while the unit 
     const changed = await h.cli('install', '--from', tarball);
     assert.equal(changed.code, 0, `install exit code (stderr error: ${String(changed.error?.error)})`);
     assert.equal(changed.json?.restarted, true, 'the unit file changed while active: restarted');
-    assert.deepEqual(systemctlCalls(h), ['daemon-reload', 'is-active pi-worker.service', 'enable --now pi-worker.service', 'restart pi-worker.service']);
+    assert.deepEqual(systemctlCalls(h), [SHOW, 'daemon-reload', 'is-active pi-worker.service', 'enable --now pi-worker.service', 'restart pi-worker.service']);
     assert.ok(readFileSync(h.unitFile, 'utf8').includes('RestartSec=2'), 'the unit file was rewritten');
 
     // Changed while the unit is not active: enable --now starts it, nothing is restarted.
@@ -1041,6 +1110,145 @@ test('grant: a unit whose pinned state directory is not canonical is refused pi_
     const reg = await h.cli('grant', 'register', '--caller', 'shep-bridge', '--out', join(h.dir, 'own.grant.json'), '--method', 'hello');
     assert.equal(reg.code, 0, `grant register exit code (error: ${String(reg.error?.error)})`);
     assert.equal(grantIds(own).length, 1, 'registered in the directory the environment names');
+  } finally {
+    await h.close();
+  }
+});
+
+test('grant: a HOME spelled with a trailing / or a /./ component is refused pi_worker_unsafe_path, never served from the default state directory', async () => {
+  const { h, pinned, defaultState } = await installedWithState('PIW_STATE_DIR');
+  try {
+    delete h.env.PIW_STATE_DIR;
+    const before = grantIds(pinned);
+    const out = join(h.dir, 'refused.grant.json');
+    for (const spelling of [`${h.home}/`, `${h.dir}/./home`]) {
+      h.env.HOME = spelling;
+      for (const argv of [['grant', 'register', '--caller', 'shep-bridge', '--out', out, '--method', 'hello'], ['grant', 'list']]) {
+        const r = await h.cli(...argv);
+        assert.deepEqual([r.code, r.error?.error, r.error?.effect, r.error?.which], [1, 'pi_worker_unsafe_path', 'no_effect', 'HOME'], `HOME ${spelling}: ${argv[1]} is refused`);
+        assert.deepEqual(r.out, [], `HOME ${spelling}: nothing on stdout`);
+        assert.equal(existsSync(out), false, `HOME ${spelling}: no bearer file`);
+        assert.equal(existsSync(defaultState), false, `HOME ${spelling}: the default state directory was not created`);
+        assert.deepEqual(grantIds(pinned), before, `HOME ${spelling}: the pinned registry is unchanged`);
+      }
+    }
+  } finally {
+    await h.close();
+  }
+});
+
+/** The installed unit file and its drop-ins put back as install wrote them. */
+function restoreUnit(h: Host, text: string): void {
+  writeFileSync(h.unitFile, text);
+  rmSync(`${h.unitFile}.d`, { recursive: true, force: true });
+  h.unit.environment = undefined;
+  h.unit.loadState = undefined;
+  h.unit.showStatus = 0;
+}
+
+function dropIn(h: Host, text: string): void {
+  mkdirSync(`${h.unitFile}.d`, { recursive: true });
+  writeFileSync(join(`${h.unitFile}.d`, 'override.conf'), `[Service]\n${text}\n`);
+}
+
+test('grant: the state directory is the one systemd runs the unit with (drop-in, repeated, quoted or multi-assignment Environment=), not the first line of the unit file', async () => {
+  const { h, pinned, defaultState } = await installedWithState('PIW_STATE_DIR');
+  try {
+    delete h.env.PIW_STATE_DIR;
+    const installed = readFileSync(h.unitFile, 'utf8');
+    const pinLine = `Environment=PIW_STATE_DIR=${pinned}`;
+    const effective = join(h.dir, 'effective-state');
+    const cases: [string, () => void, string][] = [
+      ['a drop-in Environment= overriding the pin', () => dropIn(h, `Environment=PIW_STATE_DIR=${effective}`), effective],
+      ['a second Environment= line for the same variable', () => writeFileSync(h.unitFile, installed.replace(pinLine, `${pinLine}\nEnvironment=PIW_STATE_DIR=${effective}`)), effective],
+      ['a quoted assignment on a multi-assignment line', () => writeFileSync(h.unitFile, installed.replace(pinLine, `Environment="PIW_STATE_DIR=${effective}" FOO=bar`)), effective],
+      ['a stray word after the pin (systemd ignores it)', () => writeFileSync(h.unitFile, installed.replace(pinLine, `${pinLine} extra`)), pinned],
+    ];
+    for (const [label, edit, where] of cases) {
+      restoreUnit(h, installed);
+      rmSync(effective, { recursive: true, force: true });
+      edit();
+      const before = existsSync(join(where, 'grants')) ? grantIds(where).length : 0;
+      const out = join(h.dir, 'bridge.grant.json');
+      rmSync(out, { force: true });
+      const reg = await h.cli('grant', 'register', '--caller', 'shep-bridge', '--out', out, '--method', 'hello');
+      assert.equal(reg.code, 0, `${label}: grant register exit code (error: ${String(reg.error?.error)})`);
+      assert.equal(grantIds(where).length, before + 1, `${label}: registered where systemd's environment points the daemon`);
+      if (where !== pinned) assert.equal(grantIds(pinned).length, 1, `${label}: nothing registered in the unit file's first pin line`);
+      assert.equal(existsSync(defaultState), false, `${label}: the default state directory was not created`);
+      if (where !== pinned) {
+        h.env.PIW_STATE_DIR = pinned;
+        const r = await h.cli('grant', 'list');
+        assert.deepEqual([r.code, r.error?.error, r.error?.pinned], [1, 'pi_worker_state_mismatch', where], `${label}: the first pin line named explicitly is a mismatch`);
+        delete h.env.PIW_STATE_DIR;
+      }
+    }
+  } finally {
+    await h.close();
+  }
+});
+
+test('grant: with a unit installed, systemd that cannot be asked, or an environment without one canonical PIW_STATE_DIR, is refused before anything is written', async () => {
+  const { h, pinned, defaultState } = await installedWithState('PIW_STATE_DIR');
+  try {
+    delete h.env.PIW_STATE_DIR;
+    const installed = readFileSync(h.unitFile, 'utf8');
+    const pinLine = `Environment=PIW_STATE_DIR=${pinned}`;
+    const other = join(h.dir, 'other-state');
+    const before = grantIds(pinned);
+    const cases: [string, () => void, string, string][] = [
+      ['systemctl show fails', () => (h.unit.showStatus = 1), 'pi_worker_systemctl_failed', 'show'],
+      ['an empty Environment= in a drop-in resets the pin', () => dropIn(h, 'Environment='), 'pi_worker_unsafe_path', 'state'],
+      ['a pin value holding a space (systemctl prints [unprintable])', () => writeFileSync(h.unitFile, installed.replace(pinLine, `Environment="PIW_STATE_DIR=${pinned} extra"`)), 'pi_worker_unsafe_path', 'state'],
+      ['an EnvironmentFile= that could set it', () => dropIn(h, `EnvironmentFile=${join(h.dir, 'piw.env')}`), 'pi_worker_unsafe_path', 'state'],
+      ['a unit file systemd has not loaded', () => ((h.unit.loadState = 'not-found'), (h.unit.environment = '')), 'pi_worker_unsafe_path', 'state'],
+      ['several PIW_STATE_DIR values printed', () => (h.unit.environment = `PIW_STATE_DIR=${other} PIW_STATE_DIR=${pinned}`), 'pi_worker_unsafe_path', 'state'],
+    ];
+    const out = join(h.dir, 'refused.grant.json');
+    for (const [label, edit, error, detail] of cases) {
+      restoreUnit(h, installed);
+      edit();
+      const r = await h.cli('grant', 'register', '--caller', 'shep-bridge', '--out', out, '--method', 'hello');
+      assert.deepEqual([r.code, r.error?.error, r.error?.effect, r.error?.which ?? r.error?.step], [1, error, 'no_effect', detail], `${label}: refused`);
+      assert.equal(existsSync(out), false, `${label}: no bearer file`);
+      assert.equal(existsSync(defaultState), false, `${label}: the default state directory was not created`);
+      assert.equal(existsSync(other), false, `${label}: no other state directory was created`);
+      assert.deepEqual(grantIds(pinned), before, `${label}: the pinned registry is unchanged`);
+    }
+  } finally {
+    await h.close();
+  }
+});
+
+test('install: an installed unit pinning another state directory (an override, or drift back to the default) is refused pi_worker_state_mismatch before anything is written or restarted', async () => {
+  const { h, pinned, defaultState } = await installedWithState('PIW_STATE_DIR');
+  try {
+    const tarball = h.tarball('1.2.3');
+    const unitBefore = readFileSync(h.unitFile, 'utf8');
+    const doctorBefore = readFileSync(join(h.data, 'doctor.grant.json'), 'utf8');
+    const grantsBefore = grantIds(pinned);
+    const other = join(h.dir, 'other-state');
+    for (const [label, requested] of [['another PIW_STATE_DIR', other], ['no override (the default)', defaultState]] as const) {
+      if (requested === other) h.env.PIW_STATE_DIR = other;
+      else delete h.env.PIW_STATE_DIR;
+      h.calls.length = 0;
+      const r = await h.cli('install', '--from', tarball, '--wait-ms', '300');
+      assert.deepEqual([r.code, r.error?.error, r.error?.effect, r.error?.pinned, r.error?.requested], [1, 'pi_worker_state_mismatch', 'no_effect', pinned, requested], `${label}: refused`);
+      assert.deepEqual(systemctlCalls(h), [SHOW], `${label}: systemd was only asked, nothing reloaded or restarted`);
+      assert.equal(readFileSync(h.unitFile, 'utf8'), unitBefore, `${label}: the unit file is unchanged`);
+      assert.equal(readFileSync(join(h.data, 'doctor.grant.json'), 'utf8'), doctorBefore, `${label}: the doctor grant is unchanged`);
+      assert.equal(existsSync(requested), false, `${label}: the requested state directory was not created`);
+      assert.deepEqual(grantIds(pinned), grantsBefore, `${label}: the pinned registry is unchanged`);
+    }
+    h.env.PIW_STATE_DIR = pinned;
+    const same = await h.cli('install', '--from', tarball, '--wait-ms', '5000');
+    assert.deepEqual([same.code, same.json?.restarted], [0, false], 'the pinned state directory again installs, unchanged');
+    // A unit file systemd never loaded (an install stopped before daemon-reload) pins nothing yet: install repairs it.
+    h.unit.loadState = 'not-found';
+    h.env.PIW_STATE_DIR = other;
+    const repaired = await h.cli('install', '--from', tarball, '--wait-ms', '5000');
+    assert.equal(repaired.code, 0, `an unloaded unit file is rewritten (error: ${String(repaired.error?.error)})`);
+    assert.match(readFileSync(h.unitFile, 'utf8'), new RegExp(`^Environment=PIW_STATE_DIR=${other}$`, 'm'));
   } finally {
     await h.close();
   }

@@ -70,7 +70,13 @@ What it does, in order (refusals first, before anything is written):
 4. Refuses `~/.local/bin/pi-worker` when it exists and is not a symlink into `~/.local/share/pi-worker`
    (`pi_worker_bin_conflict`), and a home, node, state or socket path a unit file cannot hold literally or that is
    not canonical (`pi_worker_unsafe_path` with `which`: only letters, digits and `._/@+-`, absolute, no empty, `.` or
-   `..` component, no trailing `/`), or a state directory that is `/`, HOME or a directory holding HOME.
+   `..` component, no trailing `/`), or a state directory that is `/`, HOME or a directory holding HOME. With a unit
+   file installed, it refuses a state directory other than the one systemd runs the unit with (section 3.1, read the
+   same way as for `grant`): `pi_worker_state_mismatch` with `pinned` and `requested`, also when the installing shell
+   names none and so resolves the default. Install never moves a state directory; there is no migration. To change
+   it, `uninstall --purge` (which deletes the old state and every grant in it, section 6), then install. A unit file
+   systemd has not loaded (`LoadState=not-found`: an install stopped before `daemon-reload`) pins nothing yet, so
+   install again repairs it.
 5. Reads the tarball without writing anything: every member is under `pi-worker-<version>/`, none is absolute or
    has a `.` or `..` component, and its `release.json` names that version (else `pi_worker_tarball_invalid`); a host
    node older than its `node_engine` refuses `pi_worker_node_unsupported`. All of these are exit 1, nothing written.
@@ -147,15 +153,24 @@ WantedBy=default.target
   (state `PIW_STATE_DIR`, else `$XDG_STATE_HOME/pi-worker`, else `~/.local/state/pi-worker`; socket `PIW_SOCKET`,
   else `$XDG_RUNTIME_DIR/pi-worker/b2.sock`, `XDG_RUNTIME_DIR` defaulting to `/run/user/<uid>`), so the daemon and
   later `grant` commands agree.
-- **The pin is the rule for local state commands.** While the unit file is installed, the local `grant` commands
-  (`register`, `revoke`, `list`) use the unit's `PIW_STATE_DIR`, whatever the caller's shell sets, so a grant is
-  registered where the daemon reads it. A caller whose environment names a different state directory (`PIW_STATE_DIR`,
-  else `XDG_STATE_HOME/pi-worker`, compared as an absolute path, so a trailing `/` does not matter and a relative one never matches)
-  is refused `pi_worker_state_mismatch` (exit 1, `effect: no_effect`, with `pinned` and `requested`) before the grant
-  command runs: nothing is read, created or written, no bearer file. A caller that names none, or the pinned one,
-  is served from the pin. A pin that is not canonical (section 3 step 4; only a hand-edited unit has one) is refused
-  `pi_worker_unsafe_path` with `which: state`. With no unit file installed (never installed, or uninstalled), or one
-  without a `PIW_STATE_DIR` line, the caller's own environment resolves the state directory as the daemon would.
+- **The pin is the rule for local state commands.** While the unit file `~/.config/systemd/user/pi-worker.service`
+  exists, the local `grant` commands (`register`, `revoke`, `list`) use the `PIW_STATE_DIR` systemd runs the unit
+  with, whatever the caller's shell sets, so a grant is registered where the daemon reads it. The CLI does not parse
+  the unit file: it asks the user manager (`systemctl --user show pi-worker.service --property=LoadState
+  --property=EnvironmentFiles --property=Environment`), so drop-ins, repeated and quoted assignments and an
+  `Environment=` reset count as they do for the daemon. A caller whose environment names a different state directory
+  (`PIW_STATE_DIR`, else `XDG_STATE_HOME/pi-worker`, compared as an absolute path, so a trailing `/` does not matter
+  and a relative one never matches) is refused `pi_worker_state_mismatch` (exit 1, `effect: no_effect`, with `pinned`
+  and `requested`) before the grant command runs: nothing is read, created or written, no bearer file. A caller that
+  names none, or the pinned one, is served from the pin. Every doubt refuses before the grant command runs, never
+  falling back to the caller's environment or the default: a HOME that is set but not canonical (a trailing `/`, a
+  `.` or `..` component; `pi_worker_unsafe_path` with `which: HOME`, as every host command refuses it), systemd that
+  cannot be asked (`pi_worker_systemctl_failed`, `step: show`, `effect: no_effect`), and, as `pi_worker_unsafe_path`
+  with `which: state`, an `EnvironmentFile=` (it would override `Environment=`), no `PIW_STATE_DIR` in the unit's
+  environment (none set, reset by an empty `Environment=`, a unit systemd has not loaded, or a value with a space or
+  newline, which systemctl prints as `[unprintable]`), several, or one that is not canonical (section 3 step 4).
+  With no unit file (never installed, or uninstalled), or no HOME to find one under, the caller's own environment
+  resolves the state directory as the daemon would (without HOME that needs `PIW_STATE_DIR` or `XDG_STATE_HOME`).
   `doctor`, `version` and `logs` never read or write the state directory (`doctor` and `version` use the pinned
   socket, section 4); `uninstall --purge` removes the pinned state directory (section 6), whatever the caller's
   environment names; only `install` sets the pin.
@@ -235,8 +250,13 @@ socket=$(printf '%s' "$out" | jq -r .socket)     # default /run/user/<uid>/pi-wo
 - Run `grant register` as the same user as `install`. It needs no state environment: it uses the state directory the
   installed unit pins (section 3.1), so a shell without the installing `PIW_STATE_DIR`/`XDG_STATE_HOME` still reaches
   the daemon's grants. A shell that sets a different one is refused `pi_worker_state_mismatch` (exit 1, `no_effect`,
-  nothing written): unset it or pass the pinned one. The daemon rereads grants on every request, so no restart is
-  needed. `grant revoke <id>` withdraws it, `grant list` lists the pinned registry.
+  nothing written): unset it or pass the pinned one. A HOME that is not canonical, a user manager that cannot be
+  asked, or a unit whose state directory systemd cannot report as one canonical path is refused too (section 3.1);
+  nothing is registered anywhere else. The daemon rereads grants on every request, so no restart is needed.
+  `grant revoke <id>` withdraws it, `grant list` lists the pinned registry.
+- Re-running `install` keeps the installed state directory: an install from a shell that resolves another one, the
+  default included, is refused `pi_worker_state_mismatch` before anything is written or restarted (section 3 step 4).
+  Run it with the installing `PIW_STATE_DIR`/`XDG_STATE_HOME`.
   Like `install`, the local `grant` commands need neither `XDG_RUNTIME_DIR` nor `PIW_SOCKET` (the runtime directory
   defaults to `/run/user/<uid>`); B2 calls such as `hello` take the socket from `--socket`, `PIW_SOCKET` or
   `XDG_RUNTIME_DIR`.
