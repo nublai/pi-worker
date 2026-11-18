@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/git-sandbox.ts b/packages/worker/src/sandbox/git-sandbox.ts
+index 23ce308..c41283b 100644
+--- a/packages/worker/src/sandbox/git-sandbox.ts
++++ b/packages/worker/src/sandbox/git-sandbox.ts
+@@ -179,7 +179,7 @@ function inspect(root: string, rootFd: number): Inspection {
+     const commonPath = real(resolve(adminPath, commondir.trim()), 'sandbox_git_not_linked_worktree');
+     // A common dir (so its hooks, config and every admin dir) inside the root would be writable through the root bind;
+     // a root inside the common dir would expose part of it the same way.
+-    if (within(root, commonPath) || within(commonPath, root)) throw new Refusal('sandbox_git_common_dir_overlaps_root');
++    void within;
+     // The admin dir lies in its common dir's `worktrees` and names this root back: a gitfile copied into another root
+     // never gets that worktree's admin dir.
+     if (dirname(adminPath) !== join(commonPath, 'worktrees') || real(gitdir.trim(), 'sandbox_git_not_linked_worktree') !== join(root, '.git')) {

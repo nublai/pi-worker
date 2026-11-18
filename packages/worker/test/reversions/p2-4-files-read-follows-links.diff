@@ -1,9 +1,9 @@
 diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
-index 64e4d05..21a8281 100644
+index dee1e23..f9412d7 100644
 --- a/packages/worker/src/sandbox/sandbox.ts
 +++ b/packages/worker/src/sandbox/sandbox.ts
-@@ -19,7 +19,7 @@
-  * alternates read-only, the worktree's admin dir, the shared objects and one private branch namespace writable. Profile
+@@ -20,7 +20,7 @@
+  * private branch namespace writable; an ordinary checkout root is refused. Profile
   * staging is P2-7 and the parent channel P2-8: until then a sandboxed root worker (a parent) is refused.
   */
 -import { closeSync, existsSync, fstatSync, readSync, realpathSync } from 'node:fs';
@@ -11,7 +11,7 @@ index 64e4d05..21a8281 100644
  import { execFileSync } from 'node:child_process';
  import { delimiter, dirname, isAbsolute, join, normalize, relative, resolve } from 'node:path';
  import { fileURLToPath } from 'node:url';
-@@ -275,7 +275,7 @@ export function readConfined(root: string, path: string, roots: readonly string[
+@@ -276,7 +276,7 @@ export function readConfined(root: string, path: string, roots: readonly string[
    if (relative(canonical, target).split('/').some(p => p.startsWith('.'))) throw new Refusal('hidden_or_traversal_path_refused');
    let fd: number;
    try {
