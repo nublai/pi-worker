@@ -482,7 +482,8 @@
         "p2-5-git-overlap-unchecked.diff",
         "p2-5-validated-pin-not-kept.diff",
         "p2-5-factory-ignores-pin.diff",
-        "p2-5-host-ignores-pin.diff"
+        "p2-5-host-ignores-pin.diff",
+        "p2-5-common-dir-skeleton-writable.diff"
       ]
     },
     "owner-git": {

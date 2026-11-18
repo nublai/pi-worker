@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index bf19560..a7ded51 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -209,9 +209,7 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
+     // bind needs on whatever tmpfs holds its path, and under the private writable `/tmp` or `/run` that would leave
+     // every unbound path of the common dir (an absent `packed-refs`, `shallow`, `commondir`, `hooks`, `worktrees/*`)
+     // writable inside. The remount is not recursive, so the writable binds keep their flags.
+-    if (git.pin) mounts.push('--tmpfs', git.pin.common_dir);
+     for (const mount of git.mounts) bind(mount.mode, mount.fd, mount.dest);
+-    if (git.pin) mounts.push('--remount-ro', git.pin.common_dir);
+     // A staged profile's dependency trees: read-only binds of the exact directories staging opened. The mount point must
+     // be a real directory below the root (no link at any component), as staging made it.
+     for (const dep of options.dependencies ?? []) {
