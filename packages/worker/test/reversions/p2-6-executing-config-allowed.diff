@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
-index e2f30b5..fe9acfe 100644
+index 022ed8c..7a51ee3 100644
 --- a/packages/worker/src/owner-git/git-safe.ts
 +++ b/packages/worker/src/owner-git/git-safe.ts
-@@ -313,7 +313,6 @@ function refuseExecutingConfig(owner: OwnerGit, dir: string): void {
-   for (const entry of listed.stdout.toString('utf8').split('\0')) {
-     const newline = entry.indexOf('\n');
+@@ -346,7 +346,6 @@ function refuseExecutingConfig(owner: OwnerGit, dir: string): void {
      const key = newline < 0 ? entry : entry.slice(0, newline);
--    if (key && EXECUTES.test(key)) throw new Refusal(`git_config_executes_code: ${key}`);
-     if (key && PROTOCOL_ALLOW.test(key) && (newline < 0 || entry.slice(newline + 1).toLowerCase() !== 'never')) throw new Refusal(`git_config_allows_protocol: ${key}`);
-   }
- }
+     const value = newline < 0 ? null : entry.slice(newline + 1);
+     if (!key) continue;
+-    if (EXECUTES.test(key)) throw new Refusal(`git_config_executes_code: ${key}`);
+     if (EXECUTES_TOO.test(key) || (SUBMODULE_UPDATE.test(key) && value?.startsWith('!'))) throw new Refusal(`git_config_executes_code: ${key}`);
+     if (PROTOCOL_ALLOW.test(key) && value?.toLowerCase() !== 'never') throw new Refusal(`git_config_allows_protocol: ${key}`);
+     if (SPLIT_INDEX.test(key) && (value === null || !FALSE.has(value.toLowerCase()))) throw new Refusal('git_split_index_refused');

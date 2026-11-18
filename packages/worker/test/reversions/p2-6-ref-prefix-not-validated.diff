@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 022ed8c..754cd99 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -379,7 +379,6 @@ const pathArgs = (paths: readonly string[] = []): string[] => ['--', ...paths.ma
+ 
+ /** A literal ref prefix under `refs/`: no glob characters, nothing a ref name cannot hold. */
+ function refPrefix(value: string): string {
+-  if (typeof value !== 'string' || value.length > VALUE_MAX || !/^refs\/[^\x00-\x20\x7f~^:?*[\\]*$/.test(value) || value.includes('..')) throw refused('ref_prefix');
+   return value;
+ }
+ 

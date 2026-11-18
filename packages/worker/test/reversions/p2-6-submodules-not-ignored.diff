@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 022ed8c..049eb0c 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -395,7 +395,7 @@ const NO_HELPERS = ['--no-ext-diff', '--no-textconv'];
+  * On every diff-family and status call, on the command line: an agent-written `.gitmodules` `ignore = none` overrides
+  * `diff.ignoreSubmodules`, and Git then runs Git inside the nested repository, under that repository's own config.
+  */
+-const NO_SUBMODULES = ['--ignore-submodules=all'];
++const NO_SUBMODULES: string[] = [];
+ 
+ /** How a diff is printed. `patch` is `--binary` (a full patch, binary files included). */
+ export type DiffFormat = 'patch' | 'stat' | 'name-only' | 'name-status';

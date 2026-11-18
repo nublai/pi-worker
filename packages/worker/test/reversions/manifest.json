@@ -493,12 +493,21 @@
         "p2-6-snapshot-dir-not-private.diff",
         "p2-6-protocol-allow-kept.diff",
         "p2-6-credential-helper-allowed.diff",
-        "p2-6-transport-command-allowed.diff",
         "p2-6-git-reads-live-admin-dir.diff",
         "p2-6-env-not-allowlisted.diff",
         "p2-6-executing-config-allowed.diff",
         "p2-6-index-mtime-not-kept.diff",
-        "p2-6-pin-not-compared.diff"
+        "p2-6-pin-not-compared.diff",
+        "p2-6-raw-argv-exported.diff",
+        "p2-6-revision-options-reachable.diff",
+        "p2-6-pathspec-magic-allowed.diff",
+        "p2-6-ref-prefix-not-validated.diff",
+        "p2-6-count-not-validated.diff",
+        "p2-6-typed-choices-not-checked.diff",
+        "p2-6-program-config-keys-allowed.diff",
+        "p2-6-replace-objects-honoured.diff",
+        "p2-6-split-index-allowed.diff",
+        "p2-6-submodules-not-ignored.diff"
       ]
     },
     "staging": {

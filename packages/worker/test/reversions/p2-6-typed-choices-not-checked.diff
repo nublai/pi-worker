@@ -1,0 +1,29 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 022ed8c..dceecc0 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -401,7 +401,6 @@ const NO_SUBMODULES = ['--ignore-submodules=all'];
+ export type DiffFormat = 'patch' | 'stat' | 'name-only' | 'name-status';
+ const FORMATS: Readonly<Record<DiffFormat, readonly string[]>> = { patch: ['--binary'], stat: ['--stat'], 'name-only': ['--name-only', '-z'], 'name-status': ['--name-status', '-z'] };
+ function format(value: DiffFormat): readonly string[] {
+-  if (typeof value !== 'string' || !Object.hasOwn(FORMATS, value)) throw refused('format');
+   return FORMATS[value];
+ }
+ 
+@@ -416,7 +415,7 @@ function diffSides(of: DiffOf): string[] {
+     case 'worktree':
+       return revArgs();
+     default:
+-      throw refused('diff');
++      return [];
+   }
+ }
+ 
+@@ -487,7 +486,6 @@ export function gitCatFile(at: GitCheckout, mode: 'type', object: string): strin
+ export function gitCatFile(at: GitCheckout, mode: 'size', object: string): number;
+ export function gitCatFile(at: GitCheckout, mode: 'contents', object: string): Buffer;
+ export function gitCatFile(at: GitCheckout, mode: keyof typeof CAT_FILE, object: string): string | number | Buffer {
+-  if (typeof mode !== 'string' || !Object.hasOwn(CAT_FILE, mode)) throw refused('cat_file_mode');
+   const out = run(at, ['cat-file', CAT_FILE[mode], ...revArgs(object)]);
+   if (mode === 'contents') return out;
+   const text = out.toString('utf8').trim();

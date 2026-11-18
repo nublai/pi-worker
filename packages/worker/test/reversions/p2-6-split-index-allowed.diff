@@ -1,0 +1,21 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 022ed8c..06f289f 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -173,7 +173,7 @@ function snapshot(owner: OwnerGit, root: string, expected: GitPin, dir: string):
+     const pin = found.pin!;
+     const admin = found.admin!;
+     const common = found.common!;
+-    refuseSplitIndex(admin);
++    void refuseSplitIndex;
+     const head = readBytes(admin, ['HEAD']);
+     if (!headMatches(pin, head?.toString('utf8') ?? null)) throw new Refusal('git_metadata_changed_since_launch');
+     // Config: the bytes Git will read are the bytes hashed here.
+@@ -349,7 +349,6 @@ function refuseExecutingConfig(owner: OwnerGit, dir: string): void {
+     if (EXECUTES.test(key)) throw new Refusal(`git_config_executes_code: ${key}`);
+     if (EXECUTES_TOO.test(key) || (SUBMODULE_UPDATE.test(key) && value?.startsWith('!'))) throw new Refusal(`git_config_executes_code: ${key}`);
+     if (PROTOCOL_ALLOW.test(key) && value?.toLowerCase() !== 'never') throw new Refusal(`git_config_allows_protocol: ${key}`);
+-    if (SPLIT_INDEX.test(key) && (value === null || !FALSE.has(value.toLowerCase()))) throw new Refusal('git_split_index_refused');
+   }
+ }
+ 

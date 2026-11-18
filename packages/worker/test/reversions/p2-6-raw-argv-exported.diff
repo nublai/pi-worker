@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 022ed8c..65930ca 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -444,6 +444,9 @@ function run(at: GitCheckout, argv: readonly string[]): Buffer {
+   }
+ }
+ 
++/** A raw argv entry (what the typed API replaced). */
++export const safeGitRun = (at: GitCheckout, args: readonly string[]): Buffer => run(at, args);
++
+ /** `git status --porcelain` (v1) as Git prints it; with `branch`, its `## ` line first; limited to `paths`. */
+ export function gitStatus(at: GitCheckout, options: { readonly branch?: boolean; readonly paths?: readonly string[] } = {}): string {
+   return run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...NO_SUBMODULES, ...pathArgs(options.paths)]).toString('utf8');

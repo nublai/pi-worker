@@ -1,0 +1,21 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 022ed8c..8946929 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -111,8 +111,6 @@ function cleanEnv(owner: OwnerGit, home: string, objects?: string): Record<strin
+     GIT_NO_LAZY_FETCH: '1',
+     // Artifact identity is the commit and its native tree: a copied `refs/replace/*` must not substitute objects.
+     GIT_NO_REPLACE_OBJECTS: '1',
+-    // A path is a path: no `:(top)`, `:!`, `:(attr:...)` or glob magic.
+-    GIT_LITERAL_PATHSPECS: '1',
+     ...(objects === undefined ? {} : { GIT_OBJECT_DIRECTORY: objects }),
+   };
+ }
+@@ -370,7 +368,6 @@ const revArgs = (...revs: string[]): string[] => ['--end-of-options', ...revs.ma
+ 
+ /** A path relative to the root: never an option, never pathspec magic (`:(top)`, `:!`), never absolute or with `..`. */
+ function path(value: string): string {
+-  if (typeof value !== 'string' || value === '' || value.length > VALUE_MAX || /^[-:/]/.test(value) || CONTROL.test(value) || value.split('/').includes('..')) throw refused('path');
+   return value;
+ }
+ 

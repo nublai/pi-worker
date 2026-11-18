@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 022ed8c..d7014be 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -109,8 +109,6 @@ function cleanEnv(owner: OwnerGit, home: string, objects?: string): Record<strin
+     GIT_TERMINAL_PROMPT: '0',
+     GIT_OPTIONAL_LOCKS: '0',
+     GIT_NO_LAZY_FETCH: '1',
+-    // Artifact identity is the commit and its native tree: a copied `refs/replace/*` must not substitute objects.
+-    GIT_NO_REPLACE_OBJECTS: '1',
+     // A path is a path: no `:(top)`, `:!`, `:(attr:...)` or glob magic.
+     GIT_LITERAL_PATHSPECS: '1',
+     ...(objects === undefined ? {} : { GIT_OBJECT_DIRECTORY: objects }),
