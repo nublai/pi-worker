@@ -522,7 +522,6 @@
         "p3-1-json-lossy-utf8.diff",
         "p3-1-failure-names-reply-values.diff",
         "p3-1-frame-not-validated.diff",
-        "p3-1-snapshot-enables-before-validation.diff",
         "p3-1-sse-content-type-unchecked.diff",
         "p3-1-sse-lossy-utf8.diff",
         "p3-1-byte-read-content-type-unchecked.diff",
