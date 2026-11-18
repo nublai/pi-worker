@@ -33,7 +33,10 @@ import (
 // ProtocolMajor is the B2 protocol major this client speaks.
 const ProtocolMajor = 0
 
-const responseLimit = 2 << 20
+// responseLimit is the most bytes of one JSON response. It covers the largest reply the spec allows: files.read's
+// 1 MiB of UTF-8 content at worst-case JSON escaping (6 bytes, `\u0001`, per content byte) plus its escaped path and
+// envelope.
+const responseLimit = 8 << 20
 
 // Client calls one worker. It is safe for concurrent use.
 type Client struct {

@@ -26,7 +26,7 @@ import { readConfined } from '../sandbox/sandbox.js';
 import { confinement, SupervisorState, type Binding, type Control, type Create, type FollowUp, type HostFactory, type Prompt, type Steer, type Worker, type ChildLaunch } from './state.js';
 
 export type HistoryItem = components['schemas']['HistoryItem'];
-/** items.read's cap on one entry's raw line (1 MiB, within the client's 2 MiB response limit). */
+/** items.read's cap on one entry's raw line (1 MiB, within the clients' 8 MiB JSON response limit). */
 export const ITEM_MAX_BYTES = 1024 * 1024;
 
 export interface SupervisorOptions {

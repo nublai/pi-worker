@@ -440,3 +440,49 @@ func TestOperationTablePaths(t *testing.T) {
 		t.Fatalf("operations = %d", len(Operations))
 	}
 }
+
+// TestFilesReadAtTheLimitWithWorstCaseEscaping: files.read's 1 MiB of content at worst-case JSON escaping, with the
+// longest path, arrives whole; a reply past the response limit is after_write unknown. The replies are the worker's
+// JSON.stringify form: `"` takes 2 bytes, U+0001 takes 6 (`\u0001`), the most per content byte.
+func TestFilesReadAtTheLimitWithWorstCaseEscaping(t *testing.T) {
+	const mib = 1 << 20
+	longest := "/" + strings.Repeat("\x01", 4095)
+	type file struct{ path, content, wire string }
+	files := map[string]file{
+		"quotes":   {"/r/quotes", strings.Repeat(`"`, mib), `{"path":"/r/quotes","content":"` + strings.Repeat(`\"`, mib) + `","bytes":1048576,"evidence":"pinned_file_read"}`},
+		"controls": {longest, strings.Repeat("\x01", mib), `{"path":"/` + strings.Repeat(`\u0001`, 4095) + `","content":"` + strings.Repeat(`\u0001`, mib) + `","bytes":1048576,"evidence":"pinned_file_read"}`},
+	}
+	over := `{"path":"/r/over","content":"` + strings.Repeat("x", responseLimit) + `","bytes":0,"evidence":"pinned_file_read"}`
+	path := socketPath(t)
+	serveHTTP(t, path, func(w http.ResponseWriter, r *http.Request) {
+		var req FileRead
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Roots) != 1 {
+			w.WriteHeader(400)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if name := req.Roots[0][1:]; name == "over" {
+			w.Write([]byte(over))
+		} else {
+			w.Write([]byte(files[name].wire))
+		}
+	})
+	c := New(path)
+	ctx := context.Background()
+	for name, f := range files {
+		if len(f.wire) <= 2<<20 {
+			t.Fatalf("%s: the reply (%d bytes) must be past the old 2 MiB limit (non-vacuous)", name, len(f.wire))
+		}
+		got, err := c.FilesRead(ctx, "w1", FileRead{Path: "/r/file", Roots: []AbsolutePath{"/" + name}})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if got.Content != f.content || string(got.Path) != f.path || got.Bytes != mib || got.Evidence != "pinned_file_read" {
+			t.Fatalf("%s: content intact %v, path intact %v, bytes %d, evidence %s", name, got.Content == f.content, string(got.Path) == f.path, got.Bytes, got.Evidence)
+		}
+	}
+	_, err := c.FilesRead(ctx, "w1", FileRead{Path: "/r/file", Roots: []AbsolutePath{"/over"}})
+	if f := asFailure(t, err); f.Phase != PhaseAfterWrite || f.Effect != UnknownEffect {
+		t.Fatalf("over the limit: %+v", f)
+	}
+}
