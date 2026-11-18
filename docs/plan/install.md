@@ -32,8 +32,10 @@ pi-worker-<version>/
   and refuses with one JSON line on stderr, exit 1:
   `{"error":"node_missing","effect":"no_effect","required":">=26.12.1"}` or
   `{"error":"node_unsupported","effect":"no_effect","required":">=26.12.1","found":"22.19.0"}`.
-- The package has no native addons today; the per-arch builds differ only in name and in any arch-specific optional
-  dependency npm selects for that arch.
+- Native modules: the production dependency `@earendil-works/pi-tui` ships prebuilt `.node` binaries for several
+  platforms (Linux x64 and arm64, macOS, Windows) in its own `native/` directory, and every one of them is in both
+  tarballs. npm selects no arch-specific optional dependency today, so the x64 and arm64 tarballs have the same
+  contents and differ only in name.
 - Built by one script, `harness/release/build.sh <x64|arm64>` (output in `harness/release/out/`, overridable with
   `PIW_RELEASE_OUT`). `.github/workflows/release.yml` runs it for both arches on a `v*` tag and attaches the four
   assets to that tag's GitHub release in `nublai/pi-worker`; CI runs it for x64 on every push and PR and keeps the
@@ -66,21 +68,27 @@ What it does, in order (refusals first, before anything is written):
 3. Reads the installed version from `~/.local/share/pi-worker/current`. Another version installed:
    `pi_worker_upgrade_unavailable` with `installed` and `requested`. The same version: carries on (idempotent).
 4. Refuses `~/.local/bin/pi-worker` when it exists and is not a symlink into `~/.local/share/pi-worker`
-   (`pi_worker_bin_conflict`), and a home, node or state path a unit file cannot hold literally
-   (`pi_worker_unsafe_path`: only letters, digits and `._/@+-`).
-5. Unpacks to `~/.local/share/pi-worker/versions/<version>/` (through a staging directory, renamed into place; an
-   existing directory of that version is kept). A layout that is not one `pi-worker-<version>/` top directory whose
-   `release.json` names that version refuses `pi_worker_tarball_invalid`; a host node older than its `node_engine`
-   refuses `pi_worker_node_unsupported`.
-6. Points `~/.local/share/pi-worker/current` at `versions/<version>` atomically (a new symlink renamed over the old).
-7. Links `~/.local/bin/pi-worker` to `~/.local/share/pi-worker/current/bin/pi-worker`.
-8. Writes `~/.config/systemd/user/pi-worker.service` (section 3.1).
-9. Registers the local doctor grant (`hello` only) once, bearer in `~/.local/share/pi-worker/doctor.grant.json`
-   (0600), which `doctor` and the readiness wait use.
-10. `systemctl --user daemon-reload`, then `systemctl --user enable --now pi-worker.service` (and `restart` when the
+   (`pi_worker_bin_conflict`), and a home, node, state or socket path a unit file cannot hold literally or that is
+   not canonical (`pi_worker_unsafe_path` with `which`: only letters, digits and `._/@+-`, absolute, no empty, `.` or
+   `..` component, no trailing `/`), or a state directory that is `/`, HOME or a directory holding HOME.
+5. Reads the tarball without writing anything: every member is under `pi-worker-<version>/`, none is absolute or
+   has a `.` or `..` component, and its `release.json` names that version (else `pi_worker_tarball_invalid`); a host
+   node older than its `node_engine` refuses `pi_worker_node_unsupported`. All of these are exit 1, nothing written.
+6. Unpacks to `~/.local/share/pi-worker/versions/<version>/` (through a staging directory, renamed into place; an
+   existing directory of that version is kept, and its own `node_engine` is checked). This is the first write. The
+   unpacked tree must hold only directories, regular files with one link, and symlinks that resolve inside it, and
+   `bin/pi-worker` must be an executable regular file; anything else (a link out of the version directory, a hard
+   link, a device, FIFO or socket) refuses `pi_worker_tarball_invalid` with **exit 3** (`effect: unknown`): the
+   staging directory is removed, but `versions/` may have been created.
+7. Points `~/.local/share/pi-worker/current` at `versions/<version>` atomically (a new symlink renamed over the old).
+8. Links `~/.local/bin/pi-worker` to `~/.local/share/pi-worker/current/bin/pi-worker`.
+9. Writes `~/.config/systemd/user/pi-worker.service` (section 3.1).
+10. Registers the local doctor grant (`hello` only) once, bearer in `~/.local/share/pi-worker/doctor.grant.json`
+    (0600), which `doctor` and the readiness wait use.
+11. `systemctl --user daemon-reload`, then `systemctl --user enable --now pi-worker.service` (and `restart` when the
     unit file changed while it ran).
-11. Waits (default 60 s, `--wait-ms`) until `hello` answers on the socket with this version.
-12. Prints one JSON line on stdout:
+12. Waits (default 60 s, `--wait-ms`) until `hello` answers on the socket with this version.
+13. Prints one JSON line on stdout:
 
     ```json
     {"version":"0.4.0","socket":"/run/user/1000/pi-worker/b2.sock","unit":"pi-worker.service"}
@@ -91,8 +99,8 @@ Never calls `sudo`. With user lingering off the install still works (the unit ru
 
 Failures print one JSON object on stderr like every CLI command: `{"error": <typed name>, "effect", ...}`. Exit 1
 (`effect: no_effect`) is a refusal before anything was written. Exit 3 (`effect: unknown`) is a failure after
-something was written (`pi_worker_systemctl_failed` with the `step`, `pi_worker_not_ready`): run `install` again with
-the same tarball (idempotent) or `uninstall`.
+something was written (`pi_worker_tarball_invalid` from step 6, `pi_worker_systemctl_failed` with the `step`,
+`pi_worker_not_ready`): run `install` again with the same tarball (idempotent) or `uninstall`.
 
 ### 3.1 The unit
 
@@ -156,10 +164,14 @@ Runs `journalctl --user -u pi-worker.service --no-pager` (`-f` follows) and exit
 
 Stops and disables the unit, removes the unit file (then `daemon-reload`), `~/.local/bin/pi-worker` and
 `~/.local/share/pi-worker/current`. Keeps the state directory and `versions/` (so the same or another version can be
-installed again, and the state, grants included, carries over). `--purge` also removes `~/.local/share/pi-worker`
-(every version and the doctor grant), the pinned state directory (never `/`, HOME or a directory holding HOME) and
-the socket's `pi-worker` directory (a socket configured elsewhere loses only its file), leaving nothing. Prints
-`{"uninstalled": true, "purged": bool}`. Running it with nothing installed succeeds.
+installed again, and the state, grants included, carries over). `--purge` also removes only what install and the
+daemon created: `~/.local/share/pi-worker/versions` and the doctor grant (then `~/.local/share/pi-worker` itself when
+nothing else is in it), the pinned state directory, and the socket's `pi-worker` directory (a socket configured
+elsewhere loses only its file). Before anything is stopped or removed it checks every one of them, and refuses
+`pi_worker_unsafe_path` (exit 1, `which`: `state`, `socket` or `data`, nothing removed) when a pinned path is not
+canonical (section 3 step 4), the state or socket directory is `/`, HOME or holds HOME, or a path that exists is not
+a real directory (the socket: a socket) owned by the user: a symlink is never followed or removed in its place.
+Prints `{"uninstalled": true, "purged": bool}`. Running it with nothing installed succeeds.
 
 ## 7. What Shep's installer runs after install
 
@@ -179,6 +191,9 @@ socket=$(printf '%s' "$out" | jq -r .socket)     # default /run/user/<uid>/pi-wo
 
 - Run `grant register` as the same user with the same `PIW_STATE_DIR`/`XDG_STATE_HOME` as `install` (the defaults
   agree); the daemon rereads grants on every request, so no restart is needed. `grant revoke <id>` withdraws it.
+  Like `install`, the local `grant` commands need neither `XDG_RUNTIME_DIR` nor `PIW_SOCKET` (the runtime directory
+  defaults to `/run/user/<uid>`); B2 calls such as `hello` take the socket from `--socket`, `PIW_SOCKET` or
+  `XDG_RUNTIME_DIR`.
 - The bridge connects to `socket` with the bearer from `$bridge_grant_file` (`PIW_GRANT_FILE`, or the Go client's
   grant file option). The socket is 0600 in a 0700 directory; for a bridge running as another user, the unit would
   need `PIW_SOCKET_GROUP` (not in this release).
