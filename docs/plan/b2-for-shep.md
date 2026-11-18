@@ -161,7 +161,7 @@ One SSE stream per supervisor: `GET /b2/events?worker_id=…&types=…` (both fi
 | Event | Carries | Durability |
 | --- | --- | --- |
 | `snapshot` | every authorized worker row, live interactions with payloads, fences, a history marker per worker (last entry known in the file, `lag`), cursor, `resync_reason` | sent first on every attach |
-| `overflow` | cursor | then the stream closes |
+| `overflow` | cursor, `resync_required`, `reason` | then the stream closes; `resync_required: false` is terminal (see Reconnect) |
 | `worker.updated` | the full worker row (status, `status_since`, `settle_count`, `recent_settlements`, `preview`, `first_user_line`, foreground, fence, cleanup, binding) | journal or memory, labelled |
 | `session.rebound` | new `binding_revision`, `session_id`, `leaf_id`, cause (`new`, `fork`, `resume`, `navigate`, `native`) | journal |
 | `execution.admitted`, `execution.started`, `execution.settled` | `execution_id`, `command_id`, disposition | journal for admitted and started; settled is memory, its settlement journaled in the row's `recent_settlements` |
@@ -207,7 +207,10 @@ text as `first_prompt`, or none), stages the photo on it, then sends `sessions.p
 **Reconnect.** The bridge reconnects with `Last-Event-ID`. The worker never replays: it answers with a fresh
 `snapshot` whose `resync_reason` is `current`, `gap`, `epoch` (supervisor restarted) or `overflow`. Controls stay
 disabled until the snapshot arrives. A subscriber queue holds 64 events or 256 KiB; past that, `overflow` and
-close [a0 src/events.ts:12-31].
+close [a0 src/events.ts:12-31]. An `overflow` with `resync_required: false` is not a resync: the stream's authority
+ended (its grant revoked, a parent channel retired) and `reason` is the refusal code. The Go client's `Watch` returns
+it as a typed refusal (`*ClientFailure`, `NoEffect`, `b2.StreamRefused(err)` names the code), and the bridge must not
+reconnect (PR #39 fix round 2).
 
 **Push seeding.** Contract section 5 says: seed silently on **cold start only**; on a resync, diff the snapshot
 against the last known state so a missed approval or settlement still notifies; dedupe interactions by

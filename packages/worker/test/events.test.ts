@@ -14,7 +14,7 @@ import { EventHub, FRAME_BYTES, QUEUE_BYTES, QUEUE_EVENTS, type Snapshot } from 
 import { validateEventFrame, type EventFrame, type EventOf } from '../src/generated/events.js';
 import type { Worker } from '../src/supervisor/state.js';
 import { bind, fixture, tick, type Fixture } from './supervisor-fixture.js';
-import { ownerGrant, sseRecords, type SseRecord } from './helpers.js';
+import { observeEvents, ownerGrant, sseRecords, within, type SseRecord } from './helpers.js';
 
 type Frame = EventFrame;
 const settled = (w: Worker, disposition: string) => ({ worker_id: w.worker_id, execution_id: 'x', data: { command_id: 'c', disposition } });
@@ -223,6 +223,36 @@ test('events: public client retains no_effect HTTP detail and the supervisor-wid
     for (let i = 0; i < 200 && f.supervisor.events.size > 0; i++) await tick();
     assert.equal(f.supervisor.events.size, 0, 'the overflowed and finished subscriptions are gone');
   } finally {
+    await s.close();
+    f.cleanup();
+  }
+});
+
+test('events: an Observer whose queue overflows reconnects once with resync=overflow and resyncs from the snapshot', { timeout: 20_000 }, async () => {
+  const f = fixture();
+  const s = await serve(f);
+  let o: ReturnType<typeof observeEvents> | undefined;
+  try {
+    const w = await f.create();
+    const row = f.supervisor.get(w.worker_id);
+    let flooded = false;
+    // On the first snapshot, synchronous events exceed the bounded queue while the transport is backpressured.
+    o = observeEvents(s.socket, {
+      grantFile: s.grantFile,
+      onControls: enabled => {
+        if (!enabled || flooded) return;
+        flooded = true;
+        for (let i = 0; i < 300; i++) f.supervisor.events.publish('worker.updated', { worker_id: w.worker_id, execution_id: null, data: { worker: { ...row, resources: { pad: 'x'.repeat(15000) } } } });
+      },
+    });
+    const observed = o;
+    const resyncs = () => observed.batches.filter(b => b.resync !== undefined).map(b => b.resync);
+    for (let n = 0; n < 500 && resyncs().length < 2; n++) await new Promise(r => setTimeout(r, 10));
+    assert.deepEqual(resyncs(), ['fresh', 'overflow'], 'a queue overflow resyncs from a snapshot labelled overflow');
+    assert.equal(o.client.watches, 2, 'one reconnect after the overflow');
+    assert.equal(await within(o.done, 50), 'timeout', 'the observer keeps running');
+  } finally {
+    await o?.stop();
     await s.close();
     f.cleanup();
   }

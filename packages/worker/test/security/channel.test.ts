@@ -28,7 +28,7 @@ import { ReceiptStore } from '../../src/receipts/receipts.js';
 import { CHANNEL_MOUNT, CHANNEL_SOCKET, locateBwrap, sandboxLaunch } from '../../src/sandbox/sandbox.js';
 import type { Create, HostLaunch, Worker } from '../../src/supervisor/state.js';
 import { Supervisor } from '../../src/supervisor/supervisor.js';
-import { ownerGrant, privateTmp, socketCall, watchEvents, within } from '../helpers.js';
+import { observeEvents, ownerGrant, privateTmp, socketCall, watchEvents, within } from '../helpers.js';
 import { bind, fixture, Host } from '../supervisor-fixture.js';
 
 const kernel = process.env.PIW_TEST_KERNEL === '1';
@@ -526,7 +526,7 @@ for (const which of ['creating', 'channel'] as const) {
       x.grants.revoke(which === 'creating' ? 'creator' : `channel-${x.w.worker_epoch}`);
       // An event right after the revocation, before any periodic recheck: it must never be delivered.
       x.s.events.publish('execution.settled', settled(x.w.worker_id, 'after'));
-      assert.equal(await within(watched.ended, 5000), 'overflow', 'the stream ends with its typed overflow within 5 s');
+      assert.equal(await within(watched.ended, 5000), 'refused:grant_revoked', 'the stream ends with its terminal overflow within 5 s');
       assert.deepEqual(after(watched.frames, 2), ['overflow:grant_revoked'], 'nothing but the typed end after the revocation');
     } finally {
       await x.cleanup();
@@ -543,7 +543,7 @@ test('channel: an open event stream ends with grant_revoked within a bound when 
     assert.equal(await within(watched.attached, 5000), true, 'the stream attached');
     // The owner's `grant revoke` runs in another process: its own store over the same state directory.
     new GrantStore(x.f.dir).revoke('creator');
-    assert.equal(await within(watched.ended, 5000), 'overflow', 'the stream ends within 5 s with nothing to send');
+    assert.equal(await within(watched.ended, 5000), 'refused:grant_revoked', 'the stream ends terminally within 5 s with nothing to send');
     assert.deepEqual(after(watched.frames, 1), ['overflow:grant_revoked']);
   } finally {
     await x.cleanup();
@@ -559,9 +559,32 @@ for (const how of ['stop', 'shutdown'] as const) {
       assert.equal(await within(watched.attached, 5000), true, 'the stream attached');
       if (how === 'stop') assert.equal((await x.s.stop(x.w.worker_id, bind(x.s.get(x.w.worker_id), 'stop'))).state, 'delivered');
       else await x.s.shutdown();
-      assert.equal(await within(watched.ended, 5000), 'overflow', 'the stream ends with its typed overflow within 5 s');
+      assert.equal(await within(watched.ended, 5000), 'refused:parent_channel_retired', 'the stream ends with its terminal overflow within 5 s');
       assert.deepEqual(after(watched.frames, 1), ['overflow:parent_channel_retired']);
     } finally {
+      await x.cleanup();
+    }
+  });
+}
+
+for (const how of ['revoke', 'stop'] as const) {
+  const code = how === 'revoke' ? 'grant_revoked' : 'parent_channel_retired';
+  test(`channel: an Observer on the channel stops at once, refused ${code}, when the ${how === 'revoke' ? 'channel grant is revoked' : 'parent stops'}; it never reconnects`, { timeout: 60_000 }, async () => {
+    const x = await channelFixture();
+    let o: ReturnType<typeof observeEvents> | undefined;
+    try {
+      o = observeEvents(x.socket);
+      assert.equal(await within(o.attached, 5000), true, 'the observer attached');
+      if (how === 'revoke') x.grants.revoke(`channel-${x.w.worker_epoch}`);
+      else assert.equal((await x.s.stop(x.w.worker_id, bind(x.s.get(x.w.worker_id), 'stop'))).state, 'delivered');
+      const stop = await within(o.done, 5000);
+      assert.notEqual(stop, 'timeout', 'the observer stops within 5 s');
+      if (stop === 'timeout') return;
+      assert.equal(stop.reason, 'refused', 'a terminal end stops as refused');
+      assert.equal(stop.reason === 'refused' ? stop.error.message : undefined, code, 'with the refusal code');
+      assert.equal(o.client.watches, 1, 'one subscription: the terminal end is never reconnected');
+    } finally {
+      await o?.stop();
       await x.cleanup();
     }
   });

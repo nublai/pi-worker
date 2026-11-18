@@ -5,7 +5,9 @@
  *   turn, then the snapshot is sent first. Later events only; there is no replay of missed events: a reconnect gets
  *   a fresh snapshot whose `resync_reason` says why (`fresh`, `current`, `gap`, `epoch`, `ahead`, `overflow`).
  * - Each subscriber has a bounded queue (64 events or 256 KiB) that fills only while its transport is backpressured.
- *   Past that bound the subscriber gets one `overflow` frame and is closed; the caller must resync from a snapshot.
+ *   Past that bound the subscriber gets one `overflow` frame (`resync_required: true`) and is closed; the caller
+ *   resyncs from a snapshot. A stream whose authority ended (a failed recheck: grant revoked, parent channel retired)
+ *   gets one terminal `overflow` instead: `resync_required: false` and the refusal code as its reason.
  * - Every frame is validated against its event schema before it is queued (the generated publishers for worker
  *   events, `validateEventFrame` for snapshot and overflow). A frame that fails is never sent: every subscriber that
  *   would have received it gets `overflow` and is closed, and the hub logs `invalid_frame`. A frame whose SSE record
@@ -45,7 +47,8 @@ export interface SubscribeOptions {
   /**
    * Rechecked before every frame (P1-9 grant revocation), whenever the hub's `recheck()` runs (an authority change the
    * supervisor sees), and every `recheckEveryMs` (one it cannot see: an owner's `grant revoke` in another process). A
-   * throw ends the subscription with one `overflow` frame whose reason is the refusal's code; no event after it.
+   * throw ends the subscription with one `overflow` frame whose reason is the refusal's code; no event after it. A
+   * `Refusal` is terminal (`resync_required: false`); any other throw is `recheck_failed` and owes a resync.
    */
   readonly recheck?: () => void;
   /** With `recheck`: also recheck on this period while the subscription is open, so it ends without a frame to send. */
@@ -74,7 +77,8 @@ interface Subscriber {
 }
 
 /** The reason an `overflow` frame gives for a failed recheck: the refusal's code (`grant_revoked`, …). */
-const recheckReason = (error: unknown): string => (error instanceof Refusal && /^[a-z0-9_]{1,64}$/.test(error.message) ? error.message : 'recheck_failed');
+const recheckReason = (error: unknown): string => (error instanceof Refusal && /^[a-z0-9_]{1,64}$/.test(error.message) ? error.message : RECHECK_FAILED);
+const RECHECK_FAILED = 'recheck_failed';
 
 export type HubLog = (record: Record<string, unknown>) => void;
 const stderrLog: HubLog = record => process.stderr.write(`${JSON.stringify(record)}\n`);
@@ -167,7 +171,9 @@ export class EventHub {
       sub.options.recheck?.();
       return true;
     } catch (error) {
-      this.overflow(sub, recheckReason(error));
+      const reason = recheckReason(error);
+      // An authority end is terminal: the caller must not reconnect (a new subscription is refused with this code).
+      this.overflow(sub, reason, reason === RECHECK_FAILED);
       return false;
     }
   }
@@ -190,8 +196,11 @@ export class EventHub {
     sub.options.onEnd?.(reason);
   }
 
-  /** The subscriber missed or would miss an event: one `overflow` frame, then the subscription ends. */
-  private overflow(sub: Subscriber, reason: string): void {
+  /**
+   * The subscription ends with one `overflow` frame. `resync`: it missed or would miss an event (queue overflow,
+   * invalid frame) and the caller resyncs; otherwise its authority ended and the frame is terminal.
+   */
+  private overflow(sub: Subscriber, reason: string, resync = true): void {
     if (sub.closed) return;
     const frame: EventFrame = {
       type: 'overflow',
@@ -200,7 +209,7 @@ export class EventHub {
       producer: 'supervisor',
       execution_id: null,
       evidence: 'observed_memory',
-      data: { resync_required: true, reason },
+      data: { resync_required: resync, reason },
     };
     sub.closed = true;
     clearInterval(sub.timer);

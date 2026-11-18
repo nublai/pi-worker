@@ -632,7 +632,10 @@ administrative writes: the owner creates, locks and removes worktrees.
   or body) and the channel grant; a channel the supervisor no longer serves is `parent_channel_retired`. An open
   `events.subscribe` rechecks that same guard before every frame, when its channel closes and every 500 ms, and ends
   with one `overflow` whose reason is the refusal code, before any later event (PR #39 fix round; owner streams
-  recheck their grant on the same period). Only the parent and its children are visible (an owner-made worker inside its root is
+  recheck their grant on the same period). That end is terminal: its `overflow` carries `resync_required: false`
+  (a queue overflow or an invalid frame keeps `true`), the TS client's `watch` and the Go client's `Watch` end with
+  the typed refusal (`no_effect`, phase `http`, status 200; `streamRefused` / `StreamRefused`), never a resync, and
+  the observer stops `refused` without reconnecting (PR #39 fix round 2). Only the parent and its children are visible (an owner-made worker inside its root is
   not); a worker-less receipt is not readable.
 - **Channel children.** A create on the channel must name this parent and carry a launch spec
   (`parent_channel_requires_own_child`); it becomes an SDK worker in the bwrap profile of its cwd. Its resources must
@@ -723,6 +726,9 @@ which is then a diff, not a cold seed; an invalid restored state throws rather t
 stops the observer; a consumer that falls behind (64 batches) drops the stream and resyncs. Reconnects back off
 exponentially up to `maxMs`; 401/403 and other refusals stop at once, malformed streams (an overflow before any
 snapshot included) after three in a row, and abort closes the stream, clears the timer and delivers nothing more.
+Since PR #39 fix round 2 a stream whose authority ended (a terminal `overflow`, `resync_required: false`) stops it at
+once as `refused` with the code, never reconnecting, and a socket that is missing or refuses connections stops it as
+`unreachable` after `maxConnectFailures` (default 10) consecutive attempts; before, both retried without bound.
 The store is Maestro's (P3-8).
 - **P4, Install and operations.** `release.yml`, `pi-worker install|upgrade|rollback|doctor|logs`, systemd user
   unit, upgrade policy (an upgrade restarts the supervisor and so kills pi children; drain or refuse while

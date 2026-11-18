@@ -2043,7 +2043,7 @@
       "get": {
         "operationId": "events.subscribe",
         "summary": "One supervisor-wide SSE stream; a snapshot first on every attach",
-        "description": "Each SSE `data` field is one `EventFrame` as JSON. The worker never replays: a reconnect gets a fresh\n`snapshot` whose `resync_reason` says why. A subscriber queue that overflows gets `overflow`, then the\nstream closes. So does a stream whose authority ends (its grant revoked, a parent channel's generation\nretired): its `overflow` reason is the refusal code (`grant_revoked`, `parent_channel_retired`, ...),\nsent before any later event, and a reconnect is refused with that code. One SSE record (its field\nlines, each with one line-ending byte) is at most 1 MiB (1048576 bytes); a client reads lines of any\nlength up to that cap and refuses a longer record as `frame_too_large`, never truncating it.\n",
+        "description": "Each SSE `data` field is one `EventFrame` as JSON. The worker never\nreplays: a reconnect gets a fresh `snapshot` whose `resync_reason` says\nwhy. A stream ends with one `overflow` frame, then closes, in two kinds.\nA resync (`resync_required: true`): its subscriber queue overflowed\n(`subscriber_queue_overflow`) or a frame was invalid (`invalid_frame`);\nthe caller reconnects and resyncs from the new snapshot. A terminal end\n(`resync_required: false`): the stream's authority ended (its grant\nrevoked, a parent channel's generation retired); `reason` is the refusal\ncode (`grant_revoked`, `parent_channel_retired`, ...), the frame is sent\nbefore any later event, and the caller must not reconnect: a new\nsubscription is refused with that code, or, once a parent channel is\nclosed, finds no socket. A client ends its watch with that refusal\n(`no_effect`), never with a resync. One SSE record (its field lines,\neach with one line-ending byte) is at most 1 MiB (1048576 bytes); a\nclient reads lines of any length up to that cap and refuses a longer\nrecord as `frame_too_large`, never truncating it.\n",
         "tags": [
           "readback"
         ],
@@ -5017,12 +5017,13 @@
       "OverflowEvent": {
         "type": "object",
         "additionalProperties": false,
-        "description": "The subscriber queue overflowed, a frame was invalid, or the stream's authority ended (`reason` is then the\nrefusal code); the stream closes after this frame and the caller resyncs.\n",
+        "description": "The last frame of a stream; the stream closes after it.\n`resync_required: true`: the subscriber queue overflowed or a frame was\ninvalid (`reason` `subscriber_queue_overflow` or `invalid_frame`); the\ncaller reconnects and resyncs from a snapshot. `resync_required: false`:\nthe stream's authority ended (`reason` is the refusal code,\n`grant_revoked` or `parent_channel_retired`); terminal, the caller does\nnot reconnect, and a client ends its watch with that refusal\n(`no_effect`).\n",
         "x-piw-event": {
           "type": "overflow",
           "producer": "supervisor",
           "durability": "transport",
-          "visibility": "subscriber"
+          "visibility": "subscriber",
+          "notes": "Two kinds. A resync overflow (queue overflow, invalid frame) carries resync_required true; the caller reconnects with resync=overflow. An authority end (grant revoked, parent channel retired) carries resync_required false and the refusal code as reason; it is terminal and is never followed by a reconnect."
         },
         "required": [
           "type",
@@ -5064,7 +5065,7 @@
             "properties": {
               "resync_required": {
                 "type": "boolean",
-                "const": true
+                "description": "True for a queue overflow or an invalid frame (reconnect and\nresync); false when the stream's authority ended (terminal:\n`reason` is the refusal code, never reconnect).\n"
               },
               "reason": {
                 "type": "string",

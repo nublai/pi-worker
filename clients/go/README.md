@@ -38,8 +38,8 @@ client for it). The grant is the `bridge` profile unless `Options.Methods` says 
   that a driver handles every documented reply, refusals included.
 - **Fixture controls**, never model effects: `Host(id)` (`DropNextPromptReply`, `HoldNextPromptReply`,
   `ReleaseHeldReply`, `NextAgentStart`, `Emit("agent_start" | "agent_settled" | "exit")`, `Prompts`,
-  `AcceptNextImages`), `Hosts`, `Restart`, `Drain`, `Disk`, `Overflow`, `DropNextStageReply`, `OpenInteraction`
-  (a card closes `timeout` at its deadline, 30 s by default), `AppendHistory`, `ReplaceHistory`. A prompt starts
+  `AcceptNextImages`), `Hosts`, `Restart`, `Drain`, `Disk`, `Overflow`, `EndAuthority` (a terminal stream end
+  with a refusal code), `DropNextStageReply`, `OpenInteraction` (a card closes `timeout` at its deadline, 30 s by default), `AppendHistory`, `ReplaceHistory`. A prompt starts
   and is acknowledged; nothing settles until `Emit("agent_settled")`, and no assistant reply is written unless a test
   appends one.
 

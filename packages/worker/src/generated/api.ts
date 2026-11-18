@@ -840,13 +840,22 @@ export interface paths {
         };
         /**
          * One supervisor-wide SSE stream; a snapshot first on every attach
-         * @description Each SSE `data` field is one `EventFrame` as JSON. The worker never replays: a reconnect gets a fresh
-         *     `snapshot` whose `resync_reason` says why. A subscriber queue that overflows gets `overflow`, then the
-         *     stream closes. So does a stream whose authority ends (its grant revoked, a parent channel's generation
-         *     retired): its `overflow` reason is the refusal code (`grant_revoked`, `parent_channel_retired`, ...),
-         *     sent before any later event, and a reconnect is refused with that code. One SSE record (its field
-         *     lines, each with one line-ending byte) is at most 1 MiB (1048576 bytes); a client reads lines of any
-         *     length up to that cap and refuses a longer record as `frame_too_large`, never truncating it.
+         * @description Each SSE `data` field is one `EventFrame` as JSON. The worker never
+         *     replays: a reconnect gets a fresh `snapshot` whose `resync_reason` says
+         *     why. A stream ends with one `overflow` frame, then closes, in two kinds.
+         *     A resync (`resync_required: true`): its subscriber queue overflowed
+         *     (`subscriber_queue_overflow`) or a frame was invalid (`invalid_frame`);
+         *     the caller reconnects and resyncs from the new snapshot. A terminal end
+         *     (`resync_required: false`): the stream's authority ended (its grant
+         *     revoked, a parent channel's generation retired); `reason` is the refusal
+         *     code (`grant_revoked`, `parent_channel_retired`, ...), the frame is sent
+         *     before any later event, and the caller must not reconnect: a new
+         *     subscription is refused with that code, or, once a parent channel is
+         *     closed, finds no socket. A client ends its watch with that refusal
+         *     (`no_effect`), never with a resync. One SSE record (its field lines,
+         *     each with one line-ending byte) is at most 1 MiB (1048576 bytes); a
+         *     client reads lines of any length up to that cap and refuses a longer
+         *     record as `frame_too_large`, never truncating it.
          */
         get: operations["events.subscribe"];
         put?: never;
@@ -1601,8 +1610,14 @@ export interface components {
             resync_reason: "fresh" | "current" | "gap" | "epoch" | "ahead" | "evicted" | "overflow";
         };
         /**
-         * @description The subscriber queue overflowed, a frame was invalid, or the stream's authority ended (`reason` is then the
-         *     refusal code); the stream closes after this frame and the caller resyncs.
+         * @description The last frame of a stream; the stream closes after it.
+         *     `resync_required: true`: the subscriber queue overflowed or a frame was
+         *     invalid (`reason` `subscriber_queue_overflow` or `invalid_frame`); the
+         *     caller reconnects and resyncs from a snapshot. `resync_required: false`:
+         *     the stream's authority ended (`reason` is the refusal code,
+         *     `grant_revoked` or `parent_channel_retired`); terminal, the caller does
+         *     not reconnect, and a client ends its watch with that refusal
+         *     (`no_effect`).
          */
         OverflowEvent: {
             /** @constant */
@@ -1614,8 +1629,12 @@ export interface components {
             /** @constant */
             evidence: "observed_memory";
             data: {
-                /** @constant */
-                resync_required: true;
+                /**
+                 * @description True for a queue overflow or an invalid frame (reconnect and
+                 *     resync); false when the stream's authority ended (terminal:
+                 *     `reason` is the refusal code, never reconnect).
+                 */
+                resync_required: boolean;
                 reason: string;
             };
         };

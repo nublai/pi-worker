@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Client, ClientFailure, ProtocolMismatch, ResyncRequired, type EventFrame } from '../src/index.js';
+import { Client, ClientFailure, ProtocolMismatch, ResyncRequired, streamRefused, type EventFrame } from '../src/index.js';
 
 /** A wire fixture's response body (api/fixtures/wire): replies the client accepts are the spec's own examples. */
 const fixtureBody = (op: string, name: string) =>
@@ -126,6 +126,60 @@ test('public client retains no_effect HTTP detail and the snapshot; overflow dis
     );
     assert.equal(client.resyncRequired, false);
     assert.ok(seen.includes('GET /b2/events?worker_id=w1&resync=overflow'));
+  } finally {
+    await close(server);
+    t.cleanup();
+  }
+});
+
+/** An events.subscribe wire fixture's frames (api/fixtures/wire): the spec's own examples of each stream end. */
+const fixtureFrames = (name: string) =>
+  (JSON.parse(readFileSync(new URL(`../../../../api/fixtures/wire/events.subscribe/${name}.json`, import.meta.url), 'utf8')) as { response: { frames: EventFrame[] } }).response.frames;
+
+test('client: an authority-end overflow (resync_required false) ends the watch with its typed refusal, no_effect; a queue overflow still requires a resync', async () => {
+  const t = tmp();
+  const socket = join(t.dir, 'worker.sock');
+  let streams = 0;
+  let serving = '';
+  const server = httpServer((_req, res) => {
+    streams++;
+    sse(res, fixtureFrames(serving), true);
+  });
+  await listen(server, socket);
+  try {
+    const client = new Client({ socketPath: socket });
+    for (const [name, code] of [
+      ['grant-revoked', 'grant_revoked'],
+      ['parent-channel-retired', 'parent_channel_retired'],
+    ] as const) {
+      serving = name;
+      const before = streams;
+      const frames: EventFrame[] = [];
+      const error = await client.watch(frame => void frames.push(frame)).then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+      assert.deepEqual(frames.map(f => f.type), ['snapshot', 'overflow'], `${name}: the terminal frame is delivered`);
+      assert.ok(error instanceof ClientFailure, `${name}: a typed refusal, not a resync`);
+      assert.ok(!(error instanceof ResyncRequired), `${name}: not ResyncRequired`);
+      assert.equal(error.message, code, `${name}: the refusal code`);
+      assert.equal(error.effect, 'no_effect', `${name}: no_effect`);
+      assert.equal(error.phase, 'http', `${name}: phase http`);
+      assert.equal(error.status, 200, `${name}: in the stream's 200`);
+      assert.deepEqual(error.details, { error: code, effect: 'no_effect' }, `${name}: the refusal as a B2 Error`);
+      assert.equal(streamRefused(error), code, `${name}: streamRefused names it`);
+      assert.equal(client.resyncRequired, true, `${name}: controls disabled`);
+      assert.equal(streams - before, 1, `${name}: one stream, never reconnected`);
+    }
+    serving = 'queue-overflow';
+    const error = await client.watch(() => {}).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    assert.ok(error instanceof ResyncRequired && error.reason === 'overflow', 'a queue overflow requires a resync');
+    assert.equal(streamRefused(error), undefined, 'a resync is not a refusal');
+    // An HTTP refusal of a new subscription stays a ResyncRequired with its status (the observer classifies it).
+    assert.equal(streamRefused(new ClientFailure('grant_revoked', 'no_effect', 'http', 409)), undefined, 'only an in-stream end');
   } finally {
     await close(server);
     t.cleanup();

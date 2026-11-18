@@ -1,6 +1,8 @@
 # Kernel tier (plan P0-8): cgroup v2 delegation and bwrap tests inside a delegated systemd user service, on a GitHub-
 # hosted ubuntu-24.04 runner. Runs on PRs that touch containment, sandbox, owner Git, B2 (worker side or the Go
-# client's auth in clients/go/b2), the installed service's cgroup entry
+# client's auth in clients/go/b2), the supervisor and its event hub
+# (the parent channel's lifecycle and stream ends run in the kernel
+# channel tests), the installed service's cgroup entry
 # (packages/worker/src/service*.ts) or its unit (packages/cli/src/host.ts),
 # or the kernel tests, nightly, and on demand. harness/ci/kernel.sh names any
 # missing host facility and fails on a skip or a leftover piw-* unit.
@@ -14,6 +16,8 @@ on:
       - 'packages/worker/src/sandbox/**'
       - 'packages/worker/src/owner-git/**'
       - 'packages/worker/src/b2/**'
+      - 'packages/worker/src/supervisor/**'
+      - 'packages/worker/src/events/**'
       - 'packages/worker/src/service.ts'
       - 'packages/worker/src/service-main.ts'
       - 'packages/cli/src/host.ts'

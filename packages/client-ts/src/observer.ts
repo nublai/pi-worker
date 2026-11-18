@@ -25,12 +25,15 @@
  *   persists both atomically with its outbox and passes the state back as `restored` after a process restart, which
  *   is then a diff, not a cold seed: what a crash kept from the outbox surfaces again, and nothing persisted is lost.
  *   A failed `deliver` stops the observer; the state it was given is never assumed persisted.
- * - Reconnects back off exponentially up to `maxMs`. Authorization failures and refusals stop at once; protocol
- *   failures (malformed frames, wrong media type, a stream not starting with a snapshot, an overflow included) stop after
- *   `maxProtocolFailures` consecutive streams. Aborting `signal` closes the stream, clears the backoff timer and
+ * - Reconnects back off exponentially up to `maxMs`. Authorization failures and refusals stop at once, and so does a
+ *   stream whose authority ended (a terminal `overflow`, `resync_required` false: a grant revoked, a parent channel
+ *   retired), with `refused` and its code, never reconnecting; protocol failures (malformed frames, wrong media type,
+ *   a stream not starting with a snapshot, an overflow included) stop after `maxProtocolFailures` consecutive streams;
+ *   a socket that is missing or refuses connections stops as `unreachable` after `maxConnectFailures` consecutive
+ *   attempts. Aborting `signal` closes the stream, clears the backoff timer and
  *   delivers nothing more, so the consumer's persisted state stays a prefix the next run diffs from.
  */
-import { ClientFailure, ResyncRequired, type Client, type Cursor, type EventFrame } from './client.js';
+import { ClientFailure, ResyncRequired, streamRefused, type Client, type Cursor, type EventFrame } from './client.js';
 import { reconcile, type Expected, type Reconciliation } from './reconcile.js';
 import type { components } from './generated/api.js';
 
@@ -102,8 +105,14 @@ export type ObserverStop =
   | { reason: 'aborted' }
   /** The grant is unreadable or the worker refused it (HTTP 401/403). */
   | { reason: 'unauthorized'; error: Error }
-  /** The worker refused the subscription (another 4xx, 501). */
+  /**
+   * The worker refused the subscription (another 4xx, 501), or ended an open stream because its authority ended (a
+   * terminal `overflow`: `error` is a ClientFailure whose message is the refusal code, `grant_revoked`,
+   * `parent_channel_retired`, ...). Never retried.
+   */
   | { reason: 'refused'; error: Error }
+  /** `maxConnectFailures` consecutive attempts found the socket missing or refusing connections. */
+  | { reason: 'unreachable'; error: Error }
   /** `maxProtocolFailures` consecutive streams ended on a malformed frame or reply. */
   | { reason: 'protocol'; error: Error }
   /** `deliver` failed: the batch's state is not persisted, and nothing after it is delivered. */
@@ -128,7 +137,11 @@ export interface ObserverOptions {
   /** The consumer's commands still awaiting their outcome (from its outbox), reconciled after a settlement gap. */
   pending?: () => readonly Expected[];
   onControls?: (enabled: boolean) => void;
-  backoff?: { initialMs?: number; maxMs?: number; maxProtocolFailures?: number };
+  /**
+   * `maxConnectFailures` (default 10, about a minute of backoff at the default delays): consecutive attempts whose
+   * socket is missing or refuses connections before the observer stops as `unreachable`.
+   */
+  backoff?: { initialMs?: number; maxMs?: number; maxProtocolFailures?: number; maxConnectFailures?: number };
   /** Deliveries waiting for `deliver` before the stream is dropped and later resynced. Default 64. */
   maxPendingBatches?: number;
   timers?: Timers;
@@ -181,7 +194,10 @@ function typedInteractions(list: readonly unknown[]): Interaction[] {
 }
 
 /** A stream end the observer recovers from by reconnecting, or a reason to stop. */
-type Ending = { retry: 'transient' | 'protocol' } | { stop: Exclude<ObserverStop, { reason: 'aborted' }> };
+type Ending = { retry: 'transient' | 'protocol' | 'unreachable'; error?: Error } | { stop: Exclude<ObserverStop, { reason: 'aborted' }> };
+
+/** Connect errors of a socket that is missing or refusing connections (the supervisor or channel is gone). */
+const UNREACHABLE = new Set(['ENOENT', 'ECONNREFUSED']);
 
 const PROTOCOL_REASONS = new Set(['invalid_frame', 'frame_too_large', 'invalid_content_type']);
 
@@ -211,9 +227,16 @@ function classify(error: unknown): Ending {
     }
     return PROTOCOL_REASONS.has(error.reason) ? { retry: 'protocol' } : { retry: 'transient' };
   }
-  // The grant file is read before anything is sent; an unreadable or invalid one never gets better by retrying.
-  if (error instanceof ClientFailure) return error.message.startsWith('grant_file_') ? { stop: { reason: 'unauthorized', error: e } } : { retry: 'transient' };
-  // A socket that is missing or refusing: the supervisor is (re)starting.
+  if (error instanceof ClientFailure) {
+    // A refusal the worker sent (here: an open stream whose authority ended, a terminal overflow) never gets better by
+    // reconnecting; a new subscription would be refused with the same code, or find no socket.
+    if (error.phase === 'http') return { stop: { reason: 'refused', error: e } };
+    // The grant file is read before anything is sent; an unreadable or invalid one never gets better by retrying.
+    return error.message.startsWith('grant_file_') ? { stop: { reason: 'unauthorized', error: e } } : { retry: 'transient' };
+  }
+  // A socket that is missing or refusing: the supervisor may be (re)starting, so retry, within maxConnectFailures.
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code === 'string' && UNREACHABLE.has(code)) return { retry: 'unreachable', error: new Error(code) };
   return { retry: 'transient' };
 }
 
@@ -234,6 +257,7 @@ export class Observer {
   private readonly initialMs: number;
   private readonly maxMs: number;
   private readonly maxProtocolFailures: number;
+  private readonly maxConnectFailures: number;
   private readonly maxPendingBatches: number;
   private readonly timers: Timers;
   private readonly random: () => number;
@@ -243,6 +267,7 @@ export class Observer {
     this.initialMs = options.backoff?.initialMs ?? 250;
     this.maxMs = options.backoff?.maxMs ?? 30_000;
     this.maxProtocolFailures = options.backoff?.maxProtocolFailures ?? 3;
+    this.maxConnectFailures = options.backoff?.maxConnectFailures ?? 10;
     this.maxPendingBatches = options.maxPendingBatches ?? 64;
     this.timers = options.timers ?? defaultTimers;
     this.random = options.random ?? Math.random;
@@ -275,6 +300,7 @@ export class Observer {
     const { client, signal } = this.options;
     let attempt = 0;
     let protocolFailures = 0;
+    let connectFailures = 0;
     while (!signal.aborted) {
       const stream = new AbortController();
       this.stream = stream;
@@ -302,8 +328,9 @@ export class Observer {
         if (snapshot) this.overflowed = false;
       } catch (error) {
         // A stream whose first frame is an overflow (the worker could not send a valid snapshot) is a protocol
-        // failure like any stream without a snapshot, so a snapshot that stays invalid stops after the bound.
-        ending = unordered ? { retry: 'protocol' } : classify(error);
+        // failure like any stream without a snapshot, so a snapshot that stays invalid stops after the bound. A
+        // terminal overflow first (the authority ended before the snapshot) still stops at once: it is a refusal.
+        ending = unordered && streamRefused(error) === undefined ? { retry: 'protocol' } : classify(error);
         if (error instanceof ResyncRequired && error.reason === 'overflow') this.overflowed = true;
         else if (snapshot) this.overflowed = false;
       } finally {
@@ -317,6 +344,8 @@ export class Observer {
       if ('stop' in ending) return ending.stop;
       protocolFailures = ending.retry === 'protocol' ? protocolFailures + 1 : 0;
       if (protocolFailures >= this.maxProtocolFailures) return { reason: 'protocol', error: new Error('protocol_failures_exhausted') };
+      connectFailures = ending.retry === 'unreachable' ? connectFailures + 1 : 0;
+      if (connectFailures >= this.maxConnectFailures) return { reason: 'unreachable', error: ending.error ?? new Error('unreachable') };
       if (snapshot) attempt = 0;
       const ceiling = Math.min(this.maxMs, this.initialMs * 2 ** Math.min(attempt, 30));
       attempt++;

@@ -21,7 +21,7 @@ import { authority } from '../src/grants/authority.js';
 import { GrantStore, writeBearerFile, type Scope } from '../src/grants/store.js';
 import { routes } from '../src/generated/routes.js';
 import { bind, fixture, tick, type Fixture } from './supervisor-fixture.js';
-import { bundledSpec, sseRecords, specOperationIds, watchEvents, within } from './helpers.js';
+import { bundledSpec, observeEvents, sseRecords, specOperationIds, watchEvents, within } from './helpers.js';
 
 const grantCommand = fileURLToPath(new URL('../src/grant.js', import.meta.url));
 
@@ -297,8 +297,8 @@ test('grants: a revoked grant ends its event stream at the next frame: no event 
       result.records.map(r => (r.event === 'execution.settled' ? (JSON.parse(r.data) as { data: { disposition: string } }).data.disposition : r.event)),
       ['snapshot', 'before', 'overflow'],
     );
-    // The end names the refusal; it carries no event.
-    assert.equal((JSON.parse(result.records[2]!.data) as { data: { reason: string } }).data.reason, 'grant_revoked');
+    // The end names the refusal; it carries no event, and it is terminal: no resync is owed.
+    assert.deepEqual((JSON.parse(result.records[2]!.data) as { data: unknown }).data, { resync_required: false, reason: 'grant_revoked' }, 'the end is a terminal overflow naming grant_revoked');
     assert.equal(f.supervisor.events.size, 0);
   } finally {
     await s.close();
@@ -316,12 +316,35 @@ test('grants: an open event stream ends with grant_revoked within a bound when i
     assert.equal(await within(watched.attached, 5000), true, 'the stream attached');
     // The owner's `grant revoke` runs in another process: its own store over the same state directory.
     new GrantStore(f.dir).revoke('watcher');
-    assert.equal(await within(watched.ended, 5000), 'overflow', 'the stream ends within 5 s with nothing to send');
+    assert.equal(await within(watched.ended, 5000), 'refused:grant_revoked', 'the stream ends terminally within 5 s with nothing to send');
     assert.deepEqual(
       watched.frames.slice(1).map(x => (x.type === 'overflow' ? x.data.reason : x.type)),
       ['grant_revoked'],
     );
   } finally {
+    await s.close();
+    f.cleanup();
+  }
+});
+
+test('grants: an Observer whose grant is revoked out of process stops at once, refused grant_revoked, without reconnecting', { timeout: 30_000 }, async () => {
+  const f = fixture();
+  const s = await serve(f);
+  let o: ReturnType<typeof observeEvents> | undefined;
+  try {
+    await f.create();
+    const file = register(s.grants, f.dir, 'watcher', { worker_ids: ['*'], cwd_roots: [] }, ['events.subscribe'], 'watcher');
+    o = observeEvents(s.socket, { grantFile: file });
+    assert.equal(await within(o.attached, 5000), true, 'the observer attached');
+    new GrantStore(f.dir).revoke('watcher');
+    const stop = await within(o.done, 5000);
+    assert.notEqual(stop, 'timeout', 'the observer stops within 5 s');
+    if (stop === 'timeout') return;
+    assert.equal(stop.reason, 'refused', 'a terminal end stops as refused');
+    assert.equal(stop.reason === 'refused' && stop.error instanceof ClientFailure ? stop.error.message : undefined, 'grant_revoked', 'with the refusal code');
+    assert.equal(o.client.watches, 1, 'one subscription: the terminal end is never reconnected');
+  } finally {
+    await o?.stop();
     await s.close();
     f.cleanup();
   }
