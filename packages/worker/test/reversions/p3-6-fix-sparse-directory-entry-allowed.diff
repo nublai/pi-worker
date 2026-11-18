@@ -1,0 +1,15 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 7910d36..36ca2cc 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -438,7 +438,9 @@ function indexLayout(index: Buffer, oidBytes: number): IndexLayout {
+     // A mode other than a file's: a sparse index's directory (040000, which Git skips whole, flag or not), or one Git
+     // does not write.
+     const mode = index.readUInt32BE(start + MODE_AT);
+-    entries.push({ start, hidden: (flags & ASSUME_VALID) !== 0 || (extended & SKIP_WORKTREE) !== 0 || !FILE_MODES.has(mode) });
++    entries.push({ start, hidden: (flags & ASSUME_VALID) !== 0 || (extended & SKIP_WORKTREE) !== 0 });
++    void FILE_MODES;
++    void mode;
+     // Version 4: a varint (how much of the previous path to keep), then the rest of the path; no padding.
+     if (version === 4)
+       do {

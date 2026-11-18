@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index 7910d36..c79aebd 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -727,7 +727,7 @@ export function gitCatFile(at: GitCheckout, mode: keyof typeof CAT_FILE, object:
+ 
+ /** `git ls-files`: the tracked files or, with `untracked`, the untracked ones not excluded; limited to `paths`. */
+ export function gitLsFiles(at: GitCheckout, options: { readonly untracked?: boolean; readonly paths?: readonly string[] } = {}): string[] {
+-  const out = run(at, ['ls-files', '-z', ...(options.untracked === true ? ['--others', '--exclude-standard'] : []), ...pathArgs(options.paths)], { reads: 'index' });
++  const out = run(at, ['ls-files', '-z', ...(options.untracked === true ? ['--others', '--exclude-standard'] : []), ...pathArgs(options.paths)]);
+   return out.toString('utf8').split('\0').filter(Boolean);
+ }
+ 

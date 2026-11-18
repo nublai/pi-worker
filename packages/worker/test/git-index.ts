@@ -49,6 +49,34 @@ export function writeIndex(file: string, head: Buffer, extensions: readonly Buff
 }
 
 /**
+ * Replaces every entry below `dir` with one sparse-directory entry (`dir/`, mode 040000, the object `tree`, flags the
+ * name length only: no skip-worktree bit), as a sparse index records a directory it does not expand. Git 2.53 then
+ * skips the directory, so a change to a file inside it is never seen.
+ */
+export function sparseDirectory(indexFile: string, dir: string, tree: string, oidBytes = 20): void {
+  const parts = readIndex(indexFile, oidBytes);
+  const name = `${dir}/`;
+  const kept: { path: string; bytes: Buffer }[] = [];
+  parts.entries.forEach((entry, i) => {
+    const end = i + 1 < parts.entries.length ? parts.entries[i + 1]!.start : parts.head.length;
+    if (!entry.path.startsWith(name)) kept.push({ path: entry.path, bytes: parts.head.subarray(entry.start, end) });
+  });
+  const fixed = Buffer.alloc(40 + oidBytes + 2);
+  fixed.writeUInt32BE(0o040000, 24);
+  Buffer.from(tree, 'hex').copy(fixed, 40);
+  fixed.writeUInt16BE(Buffer.byteLength(name), 40 + oidBytes);
+  const length = Math.ceil((fixed.length + Buffer.byteLength(name) + 1) / 8) * 8;
+  const entry = Buffer.alloc(length);
+  fixed.copy(entry);
+  entry.write(name, fixed.length, 'utf8');
+  kept.push({ path: name, bytes: entry });
+  kept.sort((a, b) => Buffer.compare(Buffer.from(a.path), Buffer.from(b.path)));
+  const header = Buffer.from(parts.head.subarray(0, 12));
+  header.writeUInt32BE(kept.length, 8);
+  writeIndex(indexFile, Buffer.concat([header, ...kept.map(e => e.bytes)]), parts.extensions.filter(e => e.signature !== 'TREE').map(e => e.bytes), oidBytes);
+}
+
+/**
  * Rewrites the entry for `path` so its recorded stat data (ctime, mtime, dev, ino, uid, gid, size) is `file`'s current
  * stat: Git then trusts the entry and never reads the changed bytes.
  */

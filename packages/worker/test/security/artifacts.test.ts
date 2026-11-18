@@ -22,7 +22,7 @@ import { readGitPin, type GitPin, type OwnerGit } from '../../src/owner-git/git-
 import { sandboxLaunch } from '../../src/sandbox/sandbox.js';
 import { ARTIFACT_INSPECTION_BUDGET_MS, ARTIFACT_INSPECTIONS_PER_CALLER_MAX, type ArtifactFacts } from '../../src/supervisor/artifacts.js';
 import type { Create, Worker } from '../../src/supervisor/state.js';
-import { forgeStat } from '../git-index.js';
+import { forgeStat, sparseDirectory } from '../git-index.js';
 import { ownerGrant, privateTmp, socketCall, wireFixtures, bundledSpec } from '../helpers.js';
 import { bind, fixture, Host } from '../supervisor-fixture.js';
 
@@ -665,6 +665,33 @@ test("artifacts.inspect: a child that edits a tracked file and forges its index 
     writeFileSync(note, 'base\n');
     x.git(a.slot, 'update-index', '-q', '--refresh');
     assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'clean', entries: [], truncated: false }, 'honest: clean');
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test('artifacts.inspect: a child that replaces a directory\'s entries with one sparse-directory entry (mode 040000, no skip-worktree bit) and edits a file inside is never reported clean (a typed refusal)', { timeout: 60_000 }, async () => {
+  const x = await world();
+  try {
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    mkdirSync(join(a.slot, 'd'));
+    writeFileSync(join(a.slot, 'd', 'f'), 'dee\n');
+    x.git(a.slot, 'add', 'd/f');
+    x.git(a.slot, 'commit', '-qm', 'dir');
+    const req = { worker_epoch: a.worker.worker_epoch, commit: x.git(a.slot, 'rev-parse', 'HEAD') };
+    assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'clean', entries: [], truncated: false }, 'control: clean');
+    const index = indexPath(x, a.slot);
+    sparseDirectory(index, 'd', x.git(a.slot, 'rev-parse', 'HEAD:d'));
+    writeFileSync(join(a.slot, 'd', 'f'), 'evil\n');
+    // `--no-optional-locks`: a plain status would rewrite the index (expanded, or flagged skip-worktree).
+    assert.equal(x.git(a.slot, '--no-optional-locks', 'status', '--porcelain'), '', 'fixture: plain Git skips the directory');
+    const before = readFileSync(index);
+    assert.deepEqual(await x.refusal(x.inspect(a.worker.worker_id, req)), { error: 'artifact_inspection_unavailable', effect: 'no_effect', phase: 'http', status: 409, detail: 'git_index_hides_changes' }, 'the sparse-directory entry');
+    assert.ok(readFileSync(index).equals(before), "the child's own index is never written");
+    // The directory expanded again (a full index): the edit is seen.
+    x.git(a.slot, 'read-tree', 'HEAD');
+    assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'dirty', entries: [{ code: ' M', path: 'd/f' }], truncated: false }, 'expanded: the change is seen');
   } finally {
     await x.cleanup();
   }

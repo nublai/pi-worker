@@ -1,9 +1,9 @@
 diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
-index 7242614..727fd3e 100644
+index 7910d36..a3019a3 100644
 --- a/packages/worker/src/owner-git/git-safe.ts
 +++ b/packages/worker/src/owner-git/git-safe.ts
-@@ -623,7 +623,7 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly workt
-     const index = worktree ? readSnapshotIndex(dir) : null;
+@@ -649,7 +649,7 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly reads
+     const index = readsIndex ? readSnapshotIndex(dir) : null;
      if (index !== null) {
        const layout = indexLayout(index, oidBytes);
 -      refuseHiddenEntries(layout);
