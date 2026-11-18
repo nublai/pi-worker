@@ -12,6 +12,7 @@ import { createServer, type Server } from 'node:http';
 import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { openState } from '@nublai/pi-worker/dist/src/journal/state.js';
 import { realSystem, removeTree, type ExecResult, type System } from '../src/host.js';
 import { run } from '../src/run.js';
 
@@ -179,9 +180,31 @@ async function host(configure: (dirs: { dir: string; home: string; runtime: stri
     },
     async close() {
       await stop();
-      rmSync(dir, { recursive: true, force: true });
+      removeScratch(dir);
     },
   };
+}
+
+/**
+ * Removes a test's scratch directory and cannot throw: every real directory in it (never a link's target) is made
+ * writable first, so a test that failed with a read-only directory still reports its own assertion.
+ */
+function removeScratch(dir: string): void {
+  const writable = (path: string): void => {
+    try {
+      if (!lstatSync(path).isDirectory()) return;
+      chmodSync(path, 0o700);
+      for (const entry of readdirSync(path)) writable(join(path, entry));
+    } catch {
+      // Gone already, or not ours to change: the removal below is forced.
+    }
+  };
+  writable(dir);
+  try {
+    rmSync(dir, { recursive: true, force: true });
+  } catch {
+    // Left in TMPDIR; never replaces the test's own failure.
+  }
 }
 
 const systemctlCalls = (h: Host) => h.calls.filter(c => c[0] === 'systemctl').map(c => c.slice(2).join(' '));
@@ -603,6 +626,7 @@ test('uninstall --purge removes only what install created: a file of the owner\'
     writeFileSync(join(h.data, 'notes.txt'), 'mine');
     const purge = await h.cli('uninstall', '--purge');
     assert.deepEqual([purge.code, purge.json], [0, { uninstalled: true, purged: true }]);
+    assert.ok(existsSync(h.data), '~/.local/share/pi-worker is kept: it holds a file of the owner\'s');
     assert.deepEqual(readdirSync(h.data), ['notes.txt'], 'versions, current and the doctor grant are gone; the foreign file stays');
     for (const path of [h.state, h.unitFile, h.bin]) assert.equal(lstatExists(path), false, 'removed');
   } finally {
@@ -628,8 +652,87 @@ test('removeTree removes a top-level link only, never chmods or enters its targe
     assert.equal(lstatExists(join(parent, 'link')), false, 'the link is removed');
     assert.ok(existsSync(join(outside, 'inner')), 'its target is kept');
   } finally {
-    chmodSync(join(dir, 'outside'), 0o700);
-    rmSync(dir, { recursive: true, force: true });
+    // Restores both read-only directories, so a failed assertion above is what the test reports.
+    removeScratch(dir);
+  }
+});
+
+test('uninstall --purge refuses a state directory pi-worker did not make (no marker, or a foreign entry) before the unit is touched; nothing is deleted', async () => {
+  const cases: [string, (h: Host) => Promise<void>][] = [
+    ['a foreign directory, nothing installed', async h => {
+      mkdirSync(h.state);
+      writeFileSync(join(h.state, 'important.txt'), 'mine');
+    }],
+    ['an empty directory, nothing installed', async h => {
+      mkdirSync(h.state);
+    }],
+    ['only names pi-worker writes, but no journal and no doctor grant of this install', async h => {
+      mkdirSync(join(h.state, 'grants'), { recursive: true });
+      writeFileSync(join(h.state, 'journal.jsonl'), 'not a journal\n');
+    }],
+    ['an installed state that also holds a foreign file', async h => {
+      h.unit.serveVersion = '1.2.3';
+      assert.equal((await h.cli('install', '--from', h.tarball('1.2.3'))).code, 0, 'install');
+      writeFileSync(join(h.state, 'important.txt'), 'mine');
+    }],
+  ];
+  for (const [label, arrange] of cases) {
+    const h = await host(({ dir }) => ({ PIW_STATE_DIR: join(dir, 'documents') }));
+    try {
+      await arrange(h);
+      const before = tree(h.dir);
+      h.calls.length = 0;
+      const purge = await h.cli('uninstall', '--purge');
+      assert.deepEqual([purge.code, purge.error?.error, purge.error?.effect, purge.error?.which], [1, 'pi_worker_unsafe_path', 'no_effect', 'state'], `${label}: refused`);
+      assert.deepEqual(tree(h.dir), before, `${label}: nothing was deleted`);
+      assert.deepEqual(systemctlCalls(h), [], `${label}: the unit was not touched`);
+    } finally {
+      await h.close();
+    }
+  }
+});
+
+test('uninstall --purge removes a state directory that holds a pi-worker journal, with nothing installed', async () => {
+  const h = await host(({ dir }) => ({ PIW_STATE_DIR: join(dir, 'state') }));
+  try {
+    mkdirSync(h.state, { mode: 0o700 });
+    openState(h.state).close();
+    assert.ok(existsSync(join(h.state, 'journal.jsonl')), 'the supervisor wrote its journal');
+    const purge = await h.cli('uninstall', '--purge');
+    assert.deepEqual([purge.code, purge.json], [0, { uninstalled: true, purged: true }], 'purged');
+    assert.equal(lstatExists(h.state), false, 'the state directory is removed');
+  } finally {
+    await h.close();
+  }
+});
+
+test('install refuses a bin/pi-worker that is a directory or a link, not an executable regular file; effect unknown, nothing installed', async () => {
+  const cases: [string, (top: string) => void][] = [
+    ['a directory', top => {
+      rmSync(join(top, 'bin', 'pi-worker'));
+      mkdirSync(join(top, 'bin', 'pi-worker'), { mode: 0o755 });
+    }],
+    ['a link to a file inside the version directory', top => {
+      writeFileSync(join(top, 'lib', 'main'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+      rmSync(join(top, 'bin', 'pi-worker'));
+      symlinkSync(join('..', 'lib', 'main'), join(top, 'bin', 'pi-worker'));
+      // The fixture's lib/entry pointed at the old file; keep it inside.
+      rmSync(join(top, 'lib', 'entry'));
+      symlinkSync('main', join(top, 'lib', 'entry'));
+    }],
+  ];
+  for (const [label, edit] of cases) {
+    const h = await host();
+    try {
+      h.unit.serveVersion = '1.2.3';
+      const r = await h.cli('install', '--from', h.tarball('1.2.3', { edit }), '--wait-ms', '200');
+      assert.deepEqual([r.code, r.error?.error, r.error?.effect], [3, 'pi_worker_tarball_invalid', 'unknown'], `${label} is refused`);
+      assert.deepEqual(readdirSync(join(h.data, 'versions')), [], `${label}: no version and no staging directory left`);
+      assert.equal(existsSync(h.unitFile), false, `${label}: no unit written`);
+      assert.deepEqual(systemctlCalls(h), [], `${label}: systemctl never ran`);
+    } finally {
+      await h.close();
+    }
   }
 });
 

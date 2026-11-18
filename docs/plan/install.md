@@ -77,8 +77,8 @@ What it does, in order (refusals first, before anything is written):
 6. Unpacks to `~/.local/share/pi-worker/versions/<version>/` (through a staging directory, renamed into place; an
    existing directory of that version is kept, and its own `node_engine` is checked). This is the first write. The
    unpacked tree must hold only directories, regular files with one link, and symlinks that resolve inside it, and
-   `bin/pi-worker` must be an executable regular file; anything else (a link out of the version directory, a hard
-   link, a device, FIFO or socket) refuses `pi_worker_tarball_invalid` with **exit 3** (`effect: unknown`): the
+   `bin/pi-worker` must be an executable regular file (not a directory, not a link); anything else (a link out of
+   the version directory, a hard link, a device, FIFO or socket, or that entry) refuses `pi_worker_tarball_invalid` with **exit 3** (`effect: unknown`): the
    staging directory is removed, but `versions/` may have been created.
 7. Points `~/.local/share/pi-worker/current` at `versions/<version>` atomically (a new symlink renamed over the old).
 8. Links `~/.local/bin/pi-worker` to `~/.local/share/pi-worker/current/bin/pi-worker`.
@@ -171,6 +171,12 @@ elsewhere loses only its file). Before anything is stopped or removed it checks 
 `pi_worker_unsafe_path` (exit 1, `which`: `state`, `socket` or `data`, nothing removed) when a pinned path is not
 canonical (section 3 step 4), the state or socket directory is `/`, HOME or holds HOME, or a path that exists is not
 a real directory (the socket: a socket) owned by the user: a symlink is never followed or removed in its place.
+The state directory, when it exists, is removed whole only when it is pi-worker's: it holds pi-worker's marker (a
+`journal.jsonl` whose start record names an installation id, or `grants/<id>.json` for this install's doctor grant)
+and, at its top, nothing but what the daemon and `grant` write (`journal.jsonl`, `journal.jsonl.compact`,
+`journal.lock` as files; `grants/`, `sessions/`, `attachments/` as directories). Otherwise, an empty directory
+included, it refuses `pi_worker_unsafe_path` with `which: state`; neither the path nor its owner counts as evidence.
+A state left by a partial install with neither marker is the owner's to remove by hand.
 Prints `{"uninstalled": true, "purged": bool}`. Running it with nothing installed succeeds.
 
 ## 7. What Shep's installer runs after install
