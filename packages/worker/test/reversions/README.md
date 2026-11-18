@@ -470,3 +470,9 @@ syscall, so its boundary tests and reversion run on Linux; CI only vets the darw
 | `p4b-version-release-unchecked.diff` | `version` of a `current` with a missing or incomplete `release.json` is refused `pi_worker_release_unreadable`, never printed | `version: nothing installed, or a release.json that cannot be read, is refused with a typed error and no output` (group `install-interface`) |
 | `p4b-unit-no-node-no-warnings.diff` | the installed unit has `Environment=NODE_NO_WARNINGS=1` | `install: verifies, unpacks, links, writes a Delegate=yes unit…` (group `install-interface`) |
 | `p4b-wrapper-warnings-on.diff` | the release wrapper turns Node warnings off, so the typed error is the last stderr line | `wrapper: node warnings are off, so the typed JSON error is the last stderr line; a real error still prints` (group `install-interface`) |
+
+The `go-b2-auth` group runs `go test ./b2/` in `clients/go` and turns each `--- FAIL: <name>` line into the `✖ <name>`
+line the runner counts, so a Go build error stays `failed_without_assertion`. The darwin `LOCAL_PEERCRED` layout
+check lives in the platform-neutral `peercred_xucred.go` (`xucredUID`), which `peercred_darwin.go` calls after the
+syscall, so its boundary tests and reversion run on Linux; CI only vets the darwin syscall wrapper itself
+(`GOOS=darwin go vet`). The `go-workerfake` group does the same with `go test ./workerfake/`, for the Go fake's parity guards.
