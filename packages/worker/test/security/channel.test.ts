@@ -21,7 +21,7 @@ import { createApp } from '../../src/b2/app.js';
 import { createB2Server, listenPrivate } from '../../src/b2/server.js';
 import { GrantStore } from '../../src/grants/store.js';
 import type { SdkHost } from '../../src/host/host.js';
-import { openState } from '../../src/journal/state.js';
+import { journalPath, openState } from '../../src/journal/state.js';
 import { gitForEachRef, gitLog, gitRevParse, gitStatus, readGitPin, type OwnerGit } from '../../src/owner-git/git-safe.js';
 import { ReceiptStore } from '../../src/receipts/receipts.js';
 import { CHANNEL_MOUNT, CHANNEL_SOCKET, locateBwrap, sandboxLaunch } from '../../src/sandbox/sandbox.js';
@@ -466,7 +466,9 @@ test('channel: a relaunched sandboxed parent gets a new channel (directory, sock
     // A relaunch revalidates the root: a retargeted HEAD refuses before any record.
     const head = join(x.repo, '.git', 'worktrees', 'parent', 'HEAD');
     writeFileSync(head, 'ref: refs/heads/main\n');
+    const journal = readFileSync(x.f.journalFile);
     await assert.rejects(x.s.relaunch(x.w.worker_id, bind(stopped, 'relaunch-bad')), /sandbox_git_branch_requires_private_namespace/);
+    assert.deepEqual(readFileSync(x.f.journalFile), journal, 'refused in validation, before any record');
     writeFileSync(head, 'ref: refs/heads/job/parent\n');
     const r = await x.s.relaunch(x.w.worker_id, bind(stopped, 'relaunch'));
     assert.equal(r.state, 'delivered', JSON.stringify(r));
@@ -531,6 +533,7 @@ test('channel: the production host runs a sandboxed parent in bwrap with its cha
     const host = hosts.factory({ workerId: 'parent-id', commandId: 'c', create, cwd: root, sessionDir: join(root, '.piw-worker'), domain, prefix: [], sandbox: root, channel }) as SdkHost;
     await once(host, 'exit');
     for (let n = 0; n < 500 && !existsSync(`${out}.argv.done`); n++) await delay(20);
+    assert.ok(existsSync(`${out}.argv.done`), 'the parent ran in bwrap');
     const args = readFileSync(`${out}.argv.done`, 'utf8').trim().split('\n');
     const at = args.indexOf(CHANNEL_MOUNT);
     assert.ok(at > 0, 'the channel directory is mounted');
@@ -586,8 +589,9 @@ async function realSupervisor(base: string) {
 }
 
 const CALL = `const call=(path,body)=>new Promise((resolve,reject)=>{const q=request({socketPath:process.env.PI_WORKER_SOCKET,path,method:body?'POST':'GET',headers:{'Content-Type':'application/json'},agent:false},r=>{let t='';r.on('data',x=>t+=x);r.on('end',()=>resolve({status:r.statusCode,body:JSON.parse(t)}));});q.on('error',reject);q.end(body?JSON.stringify(body):undefined);});`;
-const CHILD = (cwd: string, command: string, task: string) =>
-  `{command_id:'${command}',cwd:${cwd},host:'sdk',provider:'anthropic',model:'claude-sonnet-4-5',thinking:'off',parent:{worker_id:me.worker_id,worker_epoch:me.worker_epoch,session_id:me.session_id,binding_revision:me.binding_revision,execution_id:me.execution.execution_id,task_id:'${task}',generation_id:'gen'},launch_spec:{...me.launch_spec,role:'child',grant_methods:['children.report'],environment:{id:${cwd},revision:1,allowed_methods:['children.report']}}}`;
+/** A child create in an extension's source; `own` names no resource (A0's PROBE A child) instead of the parent's. */
+const CHILD = (cwd: string, command: string, task: string, own = false) =>
+  `{command_id:'${command}',cwd:${cwd},host:'sdk',provider:'anthropic',model:'claude-sonnet-4-5',thinking:'off',parent:{worker_id:me.worker_id,worker_epoch:me.worker_epoch,session_id:me.session_id,binding_revision:me.binding_revision,execution_id:me.execution.execution_id,task_id:'${task}',generation_id:'gen'},launch_spec:{...me.launch_spec,role:'child',grant_methods:['children.report'],environment:{id:${cwd},revision:1,allowed_methods:['children.report']}${own ? ",resources:{extensions:[],skills:[]}" : ''}}}`;
 
 // Literal Gate 1 test 11: the SAME project extension connects to the real B2 socket as this UID outside bwrap, then
 // cannot connect inside a parent sandbox, where it can use its own channel only (PROBE A included).
@@ -619,7 +623,7 @@ const connect = path => new Promise(resolve=>{const c=createConnection(path); c.
 ${CALL}
 export default pi => pi.on('input',async e=>{if(e.text!=='probe') return;
   const read = path => {try{readFileSync(path);return true}catch{return false}};
-  const data={socket_connected:await connect(${JSON.stringify(r.socket)}),grant_readable:read(${JSON.stringify(join(r.stateDir, 'grants', 'owner.json'))}),state_readable:read(${JSON.stringify(join(r.stateDir, 'journal'))})};
+  const data={socket_connected:await connect(${JSON.stringify(r.socket)}),grant_readable:read(${JSON.stringify(join(r.stateDir, 'grants', 'owner.json'))}),state_readable:read(${JSON.stringify(journalPath(r.stateDir))})};
   if(process.env.PI_WORKER_SOCKET===${JSON.stringify(CHANNEL_SOCKET)}) {
     data.channel_hello=(await call('/b2/hello')).status;
     data.channel_own=(await call('/b2/workers/'+process.env.PI_WORKER_ID)).status;
@@ -630,10 +634,10 @@ export default pi => pi.on('input',async e=>{if(e.text!=='probe') return;
     try{writeFileSync(process.cwd()+'/.piw-agent/auth.json','{}');data.credential_writable=true}catch{data.credential_writable=false}
     const me=(await call('/b2/workers/'+process.env.PI_WORKER_ID)).body,child=process.cwd()+'/.piw-slots/probe-child';mkdirSync(child);
     symlinkSync(${JSON.stringify(join(r.stateDir, 'grants', 'owner.json'))},process.cwd()+'/.piw-agent/broker-link');
-    const launched=await call('/b2/workers',${CHILD('child', 'broker-child', 'broker-task')});
-    data.broker_child_state=launched.body.state;data.broker_secret_readable=read(child+'/.piw-agent/broker-link');
+    const launched=await call('/b2/workers',${CHILD('child', 'broker-child', 'broker-task', true)});
+    data.broker_child_state=launched.body.state;data.broker_error=launched.body.error;data.broker_secret_readable=read(child+'/.piw-agent/broker-link');
     const wt=process.cwd()+'/.piw-slots';renameSync(wt,wt+'-old');symlinkSync(${JSON.stringify(outsideHost)},wt);
-    const escaped=await call('/b2/workers',${CHILD("wt+'/x'", 'escape-child', 'escape-task')});
+    const escaped=await call('/b2/workers',${CHILD("wt+'/x'", 'escape-child', 'escape-task', true)});
     data.escape_status=escaped.status;data.escape_error=escaped.body.error;
   }
   writeFileSync(process.cwd()+'/probe.json',JSON.stringify(data));return {action:'handled'};
@@ -657,7 +661,7 @@ export default pi => pi.on('input',async e=>{if(e.text!=='probe') return;
         assert.equal(data.no_bearer, true, 'no bearer exists in the sandbox');
         assert.equal(data.credential_readable, true);
         assert.equal(data.credential_writable, false);
-        assert.equal(data.broker_child_state, 'delivered');
+        assert.equal(data.broker_child_state, 'delivered', `broker child refused: ${String(data.broker_error)}`);
         assert.equal(data.broker_secret_readable, false, 'sandboxed parent must not obtain a grant indirectly through profile staging');
         assert.equal(data.escape_status, 409);
         assert.equal(data.escape_error, 'parent_channel_child_root_not_real_directory');
