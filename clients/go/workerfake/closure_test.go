@@ -187,6 +187,19 @@ func callFixture(t *testing.T, ctx context.Context, c *b2.Client, fx workerfake.
 			// The fixture's stream ends after its frames (an overflow frame ends it too).
 			return frames, nil
 		}
+		if code, ok := b2.StreamRefused(err); ok && len(frames) > 0 {
+			// An authority-end fixture ends with its terminal overflow; Watch returns that refusal.
+			var last struct {
+				Data struct {
+					ResyncRequired bool   `json:"resync_required"`
+					Reason         string `json:"reason"`
+				} `json:"data"`
+			}
+			if json.Unmarshal(frames[len(frames)-1], &last) != nil || last.Data.ResyncRequired || last.Data.Reason != code {
+				t.Fatalf("%s: refusal %q does not match its terminal frame", fx.Name, code)
+			}
+			return frames, nil
+		}
 		return frames, err
 	}
 	t.Fatalf("no Go call for %s", fx.Op)

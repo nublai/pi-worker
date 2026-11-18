@@ -203,6 +203,38 @@ func TestSSEOverflowEndsTheWatchAndAsksForAnOverflowSnapshot(t *testing.T) {
 	}
 }
 
+// EndAuthority ends every open stream as an authority end does: a terminal overflow (resync_required false) with the
+// refusal code, which Watch returns as its typed refusal; a consumer must not reconnect.
+func TestSSEAuthorityEndIsTerminal(t *testing.T) {
+	fake, err := workerfake.Start(workerfake.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fake.Close()
+	c := fake.Client()
+	for _, code := range []string{"grant_revoked", "parent_channel_retired"} {
+		w := startWatch(t, c, b2.WatchOptions{})
+		snapshotOf(t, w.next(t))
+		fake.EndAuthority(code)
+		f := w.next(t)
+		if o, ok := f.Event.(*b2.OverflowEvent); !ok || o.Data.ResyncRequired || o.Data.Reason != code {
+			t.Fatalf("%s: frame %s is not a terminal overflow", code, f.Type)
+		}
+		err := w.end(t)
+		var resync *b2.ResyncRequired
+		if errors.As(err, &resync) {
+			t.Fatalf("%s: an authority end is not a resync", code)
+		}
+		var failure *b2.ClientFailure
+		if got, ok := b2.StreamRefused(err); !ok || got != code || !errors.As(err, &failure) || failure.Effect != b2.NoEffect {
+			t.Fatalf("%s: Watch = %v", code, err)
+		}
+	}
+	if n := fake.Streams(); n != 0 {
+		t.Fatalf("%d streams left open", n)
+	}
+}
+
 // A subscriber that does not read is closed with one overflow frame once its queue is full; the fake never blocks.
 func TestSSESlowSubscriberOverflows(t *testing.T) {
 	fake, err := workerfake.Start(workerfake.Options{})

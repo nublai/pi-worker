@@ -112,4 +112,59 @@ func TestIntegrationHelloAndRefusals(t *testing.T) {
 	if err := c.Watch(ctx, WatchOptions{}, func(frame Frame) bool { first = frame; return false }); err != nil || first.Type != "snapshot" {
 		t.Fatalf("watch: %v %+v", err, first)
 	}
+
+	// An open stream whose grant the owner revokes (another process) ends with the terminal overflow: Watch returns the
+	// typed refusal, never a resync, so a consumer never reconnects; a new subscription is refused with the same code.
+	watcherFile := filepath.Join(dir, "watcher.json")
+	reg := exec.Command(node, filepath.Join(dist, "src", "grant.js"), "register", "--caller", "go-watcher", "--out", watcherFile, "--method", "events.subscribe", "--id", "go-watcher")
+	reg.Env = env
+	if out, err := reg.CombinedOutput(); err != nil {
+		t.Fatalf("grant register watcher: %v %s", err, out)
+	}
+	watcher := New(socket, WithGrantFile(watcherFile))
+	wctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	attached := make(chan struct{})
+	var last Frame
+	done := make(chan error, 1)
+	go func() {
+		done <- watcher.Watch(wctx, WatchOptions{}, func(frame Frame) bool {
+			if frame.Type == "snapshot" {
+				close(attached)
+			}
+			last = frame
+			return true
+		})
+	}()
+	select {
+	case <-attached:
+	case err := <-done:
+		t.Fatalf("watcher ended before its snapshot: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("watcher did not attach")
+	}
+	revoke := exec.Command(node, filepath.Join(dist, "src", "grant.js"), "revoke", "go-watcher")
+	revoke.Env = env
+	if out, err := revoke.CombinedOutput(); err != nil {
+		t.Fatalf("grant revoke: %v %s", err, out)
+	}
+	select {
+	case err = <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the revoked stream did not end within 10 s")
+	}
+	var resync *ResyncRequired
+	if errors.As(err, &resync) {
+		t.Fatalf("a revoked stream ended as a resync: %v", err)
+	}
+	if code, ok := StreamRefused(err); !ok || code != "grant_revoked" || !errors.As(err, &f) || f.Effect != NoEffect {
+		t.Fatalf("revoked stream: %v", err)
+	}
+	if o, ok := last.Event.(*OverflowEvent); !ok || o.Data.ResyncRequired || o.Data.Reason != "grant_revoked" {
+		t.Fatalf("the last frame is %s, not the terminal overflow", last.Type)
+	}
+	err = watcher.Watch(ctx, WatchOptions{}, func(Frame) bool { return true })
+	if !errors.As(err, &resync) || resync.Status != 409 {
+		t.Fatalf("a new subscription after the revoke: %v", err)
+	}
 }

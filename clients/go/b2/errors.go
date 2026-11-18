@@ -30,7 +30,7 @@ type ClientFailure struct {
 	Op     string
 	Phase  Phase
 	Effect Effect
-	// Status is the HTTP status for PhaseHTTP.
+	// Status is the HTTP status for PhaseHTTP: 200 for a Watch whose open stream ended with a refusal (StreamRefused).
 	Status int
 	// Body is the worker's Error for PhaseHTTP when it sent one.
 	Body *Error
@@ -50,8 +50,9 @@ func (f *ClientFailure) Error() string {
 
 func (f *ClientFailure) Unwrap() error { return f.Err }
 
-// ResyncRequired ends a Watch: the stream overflowed, disconnected or was refused. Controls stay disabled until a
-// new Watch delivers a snapshot.
+// ResyncRequired ends a Watch: the stream overflowed (resync_required true), disconnected or was refused. Controls
+// stay disabled until a new Watch delivers a snapshot. A stream whose authority ended is not a resync: Watch returns
+// that refusal as a *ClientFailure (see StreamRefused).
 type ResyncRequired struct {
 	Reason string
 	// Status is set when the worker refused the stream with HTTP.

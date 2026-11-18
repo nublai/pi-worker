@@ -866,21 +866,6 @@ func (e ModelListEvidence) Valid() bool {
 	}
 }
 
-// Defines values for OverflowEventDataResyncRequired.
-const (
-	OverflowEventDataResyncRequiredTrue OverflowEventDataResyncRequired = true
-)
-
-// Valid indicates whether the value is a known member of the OverflowEventDataResyncRequired enum.
-func (e OverflowEventDataResyncRequired) Valid() bool {
-	switch e {
-	case OverflowEventDataResyncRequiredTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for OverflowEventEvidence.
 const (
 	OverflowEventEvidenceObservedMemory OverflowEventEvidence = "observed_memory"
@@ -2803,14 +2788,24 @@ type ModelRef struct {
 	Provider string `json:"provider"`
 }
 
-// OverflowEvent The subscriber queue overflowed, a frame was invalid, or the stream's authority ended (`reason` is then the
-// refusal code); the stream closes after this frame and the caller resyncs.
+// OverflowEvent The last frame of a stream; the stream closes after it.
+// `resync_required: true`: the subscriber queue overflowed or a frame was
+// invalid (`reason` `subscriber_queue_overflow` or `invalid_frame`); the
+// caller reconnects and resyncs from a snapshot. `resync_required: false`:
+// the stream's authority ended (`reason` is the refusal code,
+// `grant_revoked` or `parent_channel_retired`); terminal, the caller does
+// not reconnect, and a client ends its watch with that refusal
+// (`no_effect`).
 type OverflowEvent struct {
 	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
 	Cursor Cursor `json:"cursor"`
 	Data   struct {
-		Reason         string                          `json:"reason"`
-		ResyncRequired OverflowEventDataResyncRequired `json:"resync_required"`
+		Reason string `json:"reason"`
+
+		// ResyncRequired True for a queue overflow or an invalid frame (reconnect and
+		// resync); false when the stream's authority ended (terminal:
+		// `reason` is the refusal code, never reconnect).
+		ResyncRequired bool `json:"resync_required"`
 	} `json:"data"`
 	EventId     Id                    `json:"event_id"`
 	Evidence    OverflowEventEvidence `json:"evidence"`
@@ -2818,9 +2813,6 @@ type OverflowEvent struct {
 	Producer    Producer              `json:"producer"`
 	Type        OverflowEventType     `json:"type"`
 }
-
-// OverflowEventDataResyncRequired defines model for OverflowEvent.Data.ResyncRequired.
-type OverflowEventDataResyncRequired bool
 
 // OverflowEventEvidence defines model for OverflowEvent.Evidence.
 type OverflowEventEvidence string

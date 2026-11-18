@@ -41,9 +41,13 @@ type WatchOptions struct {
 }
 
 // Watch reads the events stream until onFrame returns false (nil), the stream overflows (*ResyncRequired
-// "overflow", after onFrame saw the overflow frame), disconnects (*ResyncRequired "disconnected") or is refused
-// (*ResyncRequired "HTTP <status>"). It never reconnects on its own: reconnecting is the caller's decision and the
-// next Watch starts with a snapshot. The per-call timeout does not apply; use ctx to stop watching.
+// "overflow", after onFrame saw an overflow frame with resync_required true), disconnects (*ResyncRequired
+// "disconnected") or is refused (*ResyncRequired "HTTP <status>"). A stream whose authority ended (its grant revoked,
+// a parent channel retired) ends with an overflow frame whose resync_required is false: after onFrame saw it, Watch
+// returns that refusal, a *ClientFailure with PhaseHTTP, Status 200, NoEffect and Body.Error the refusal code
+// (StreamRefused). That end is terminal: do not reconnect. Watch never reconnects on its own: reconnecting is the
+// caller's decision and the next Watch starts with a snapshot. The per-call timeout does not apply; use ctx to stop
+// watching.
 func (c *Client) Watch(ctx context.Context, opts WatchOptions, onFrame func(Frame) bool) error {
 	query := url.Values{}
 	if len(opts.WorkerIDs) > 0 {
@@ -164,7 +168,10 @@ func readFrames(body io.Reader, onFrame func(Frame) bool) error {
 				}
 				frame := Frame{ID: id, Type: eventType(event), Event: event, Raw: raw}
 				keep := onFrame(frame)
-				if frame.Type == "overflow" {
+				if o, ok := event.(*OverflowEvent); ok {
+					if !o.Data.ResyncRequired {
+						return streamRefusal(o.Data.Reason)
+					}
 					return &ResyncRequired{Reason: "overflow"}
 				}
 				if !keep {
@@ -184,6 +191,22 @@ func readFrames(body io.Reader, onFrame func(Frame) bool) error {
 			hasData = true
 		}
 	}
+}
+
+// streamRefusal is the typed end of a stream whose authority ended (a terminal overflow): the refusal code, no_effect,
+// in the 200 the stream was answered with.
+func streamRefusal(code string) *ClientFailure {
+	return &ClientFailure{Op: OpEventsSubscribe.ID, Phase: PhaseHTTP, Effect: NoEffect, Status: http.StatusOK, Body: &Error{Error: code, Effect: NoEffect}}
+}
+
+// StreamRefused reports whether err is the terminal end of a Watch whose authority ended (a grant revoked, a parent
+// channel retired), and its refusal code. The caller must not reconnect.
+func StreamRefused(err error) (string, bool) {
+	var f *ClientFailure
+	if errors.As(err, &f) && f.Op == OpEventsSubscribe.ID && f.Phase == PhaseHTTP && f.Status == http.StatusOK && f.Body != nil {
+		return f.Body.Error, true
+	}
+	return "", false
 }
 
 func eventType(event any) string {

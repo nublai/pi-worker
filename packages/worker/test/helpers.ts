@@ -5,7 +5,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Client, ResyncRequired, type EventFrame } from '@nublai/pi-worker-client';
+import { Client, Observer, ResyncRequired, streamRefused, type EventFrame, type ObserverBatch, type ObserverStop } from '@nublai/pi-worker-client';
 import { GrantStore, writeBearerFile } from '../src/grants/store.js';
 
 /** Tests run from packages/worker/dist/test. */
@@ -208,7 +208,10 @@ export interface Watched {
   readonly frames: EventFrame[];
   /** Resolves once the snapshot arrived; `false` when the stream ended first. */
   readonly attached: Promise<boolean>;
-  /** How the watch ended: the ResyncRequired reason (`overflow`, `disconnected`, `HTTP 409`, …). */
+  /**
+   * How the watch ended: `refused:<code>` for a terminal end (the stream's authority ended), else the ResyncRequired
+   * reason (`overflow`, `disconnected`, `HTTP 409`, …).
+   */
   readonly ended: Promise<string>;
 }
 
@@ -228,10 +231,63 @@ export function watchEvents(socketPath: string, options: { grantFile?: string; t
     )
     .then(
       () => 'resolved',
-      (error: unknown) => (error instanceof ResyncRequired ? error.reason : 'client_error'),
+      (error: unknown) => {
+        const code = streamRefused(error);
+        if (code !== undefined) return `refused:${code}`;
+        return error instanceof ResyncRequired ? error.reason : 'client_error';
+      },
     )
     .finally(() => attach(false));
   return { frames, attached, ended };
+}
+
+/** The public client, counting its `watch` calls: each is one subscription attempt, so one connection attempt. */
+export class CountingClient extends Client {
+  watches = 0;
+  override watch(...args: Parameters<Client['watch']>): ReturnType<Client['watch']> {
+    this.watches++;
+    return super.watch(...args);
+  }
+}
+
+/** An Observer on `socketPath` through a CountingClient, with short backoff. The caller aborts it in `finally`. */
+export interface Observed {
+  readonly client: CountingClient;
+  readonly batches: ObserverBatch[];
+  /** Resolves on the first snapshot that opened controls; `false` when the run stopped first. */
+  readonly attached: Promise<boolean>;
+  readonly done: Promise<ObserverStop>;
+  /** Aborts the run and waits for it to stop. */
+  stop(): Promise<void>;
+}
+
+export function observeEvents(socketPath: string, options: { grantFile?: string; onControls?: (enabled: boolean) => void } = {}): Observed {
+  const client = new CountingClient({ socketPath, ...(options.grantFile ? { grantFile: options.grantFile } : {}) });
+  const ac = new AbortController();
+  const batches: ObserverBatch[] = [];
+  let attach!: (ok: boolean) => void;
+  const attached = new Promise<boolean>(resolve => (attach = resolve));
+  const observer = new Observer({
+    client,
+    signal: ac.signal,
+    deliver: batch => void batches.push(batch),
+    onControls: enabled => {
+      if (enabled) attach(true);
+      options.onControls?.(enabled);
+    },
+    backoff: { initialMs: 1, maxMs: 4 },
+  });
+  const done = observer.run().finally(() => attach(false));
+  return {
+    client,
+    batches,
+    attached,
+    done,
+    stop: async () => {
+      ac.abort();
+      await done;
+    },
+  };
 }
 
 /** `promise`, or `'timeout'` after `ms`: a bounded wait that fails by assertion, never a hang. The timer is cleared. */

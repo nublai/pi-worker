@@ -1,6 +1,7 @@
 package b2
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -254,5 +255,96 @@ func TestDecodeEventCoversManifest(t *testing.T) {
 		} else if _, unknown := event.(*UnknownEvent); unknown {
 			t.Fatalf("fixture frame decoded as unknown")
 		}
+	}
+}
+
+// fixtureFrames reads the SSE frames of one events.subscribe wire fixture (api/fixtures/wire).
+func fixtureFrames(t *testing.T, name string) []string {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "api", "fixtures", "wire", "events.subscribe", name+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Response struct {
+			Frames []json.RawMessage `json:"frames"`
+		} `json:"response"`
+	}
+	if err := json.Unmarshal(raw, &fixture); err != nil || len(fixture.Response.Frames) == 0 {
+		t.Fatalf("fixture %s: %v", name, err)
+	}
+	frames := make([]string, len(fixture.Response.Frames))
+	for i, f := range fixture.Response.Frames {
+		var compact bytes.Buffer
+		if err := json.Compact(&compact, f); err != nil {
+			t.Fatal(err)
+		}
+		frames[i] = compact.String()
+	}
+	return frames
+}
+
+// consume is a consumer's reconnect loop as the Watch contract asks for: it reconnects only on ResyncRequired, at
+// most limit times, and returns the last error.
+func consume(c *Client, limit int) (int, error) {
+	attempts := 0
+	for {
+		attempts++
+		err := c.Watch(context.Background(), WatchOptions{}, func(Frame) bool { return true })
+		var resync *ResyncRequired
+		if !errors.As(err, &resync) || attempts >= limit {
+			return attempts, err
+		}
+	}
+}
+
+// An authority end (overflow with resync_required false: a grant revoked, a parent channel retired) ends Watch with
+// its typed refusal, so a consumer that reconnects only on ResyncRequired opens one stream; a queue overflow still
+// requires a resync.
+func TestWatchAuthorityEndIsTerminalRefusal(t *testing.T) {
+	for _, tc := range []struct{ fixture, code string }{{"grant-revoked", "grant_revoked"}, {"parent-channel-retired", "parent_channel_retired"}} {
+		frames := fixtureFrames(t, tc.fixture)
+		connections := 0
+		path := sseServer(t, func(*http.Request) []string { connections++; return frames })
+		var seen *OverflowEvent
+		err := New(path).Watch(context.Background(), WatchOptions{}, func(f Frame) bool {
+			if o, ok := f.Event.(*OverflowEvent); ok {
+				seen = o
+			}
+			return true
+		})
+		if seen == nil || seen.Data.ResyncRequired || seen.Data.Reason != tc.code {
+			t.Fatalf("%s: the terminal frame was not delivered: %v", tc.fixture, err)
+		}
+		var resync *ResyncRequired
+		if errors.As(err, &resync) {
+			t.Fatalf("%s: an authority end is not a resync", tc.fixture)
+		}
+		var f *ClientFailure
+		if !errors.As(err, &f) || f.Op != OpEventsSubscribe.ID || f.Phase != PhaseHTTP || f.Status != http.StatusOK || f.Effect != NoEffect || f.Body == nil || f.Body.Error != tc.code || f.Body.Effect != NoEffect {
+			t.Fatalf("%s: not the typed refusal: %v", tc.fixture, err)
+		}
+		if code, ok := StreamRefused(err); !ok || code != tc.code {
+			t.Fatalf("%s: StreamRefused = %q %v", tc.fixture, code, ok)
+		}
+		attempts, err := consume(New(path), 5)
+		if _, ok := StreamRefused(err); !ok || attempts != 1 || connections != 2 {
+			t.Fatalf("%s: a consumer reconnected after a terminal end: %d attempts, %d connections", tc.fixture, attempts, connections)
+		}
+	}
+	frames := fixtureFrames(t, "queue-overflow")
+	connections := 0
+	path := sseServer(t, func(*http.Request) []string { connections++; return frames })
+	attempts, err := consume(New(path), 3)
+	var resync *ResyncRequired
+	if !errors.As(err, &resync) || resync.Reason != "overflow" || attempts != 3 || connections != 3 {
+		t.Fatalf("queue overflow: %v after %d attempts, %d connections", err, attempts, connections)
+	}
+	if _, ok := StreamRefused(err); ok {
+		t.Fatal("a resync is not a refusal")
+	}
+	// A refusal of a new subscription (HTTP) is not an in-stream end.
+	if _, ok := StreamRefused(&ClientFailure{Op: OpEventsSubscribe.ID, Phase: PhaseHTTP, Status: 409, Body: &Error{Error: "grant_revoked"}}); ok {
+		t.Fatal("an HTTP refusal is not StreamRefused")
 	}
 }

@@ -4,6 +4,7 @@ export {
   ProtocolMismatch,
   PROTOCOL_MAJOR,
   ResyncRequired,
+  streamRefused,
   type CallOptions,
   type ClientOptions,
   type Cursor,

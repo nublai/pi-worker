@@ -104,7 +104,7 @@ func (s *state) publish(eventType, workerID string, executionID *string, evidenc
 		// A frame alone in an empty queue goes straight to the writer, as the hub sends to a transport that is not
 		// backpressured.
 		if len(sub.queue) >= queueEvents || (sub.bytes > 0 && sub.bytes+len(rec.data) > queueBytes) {
-			s.overflow(sub, "subscriber_queue_overflow")
+			s.overflow(sub, "subscriber_queue_overflow", true)
 			continue
 		}
 		sub.push(rec)
@@ -116,14 +116,15 @@ func (s *state) publishInteractions(w *worker) {
 	s.publish("interactions.changed", w.row.WorkerId, executionOf(w), "observed_memory", map[string]any{"interactions": list})
 }
 
-// overflow sends one overflow frame and ends the subscription.
-func (s *state) overflow(sub *subscriber, reason string) {
+// overflow sends one overflow frame and ends the subscription. resync: a resync overflow (the subscriber missed
+// events); otherwise a terminal authority end whose reason is the refusal code (packages/worker/src/events/hub.ts).
+func (s *state) overflow(sub *subscriber, reason string, resync bool) {
 	if sub.closed {
 		return
 	}
 	frame := map[string]any{
 		"type": "overflow", "cursor": s.cursor(), "event_id": s.id("ev"), "producer": "supervisor", "execution_id": nil,
-		"evidence": "observed_memory", "data": map[string]any{"resync_required": true, "reason": reason},
+		"evidence": "observed_memory", "data": map[string]any{"resync_required": resync, "reason": reason},
 	}
 	sub.push(queued{data: record("overflow", s.cursor(), frame)})
 	s.end(sub)
@@ -153,7 +154,19 @@ func (f *Fake) Overflow() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for sub := range f.st.subs {
-		f.st.overflow(sub, "subscriber_queue_overflow")
+		f.st.overflow(sub, "subscriber_queue_overflow", true)
+	}
+}
+
+// EndAuthority ends every open stream as the worker does when a stream's authority ends (its grant revoked, a parent
+// channel retired): one terminal overflow frame, resync_required false, whose reason is the refusal code (for example
+// "grant_revoked" or "parent_channel_retired"). The Go client's Watch returns that refusal; a caller must not
+// reconnect. The fake's grants are not changed: a new Watch is still answered.
+func (f *Fake) EndAuthority(reason string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for sub := range f.st.subs {
+		f.st.overflow(sub, reason, false)
 	}
 }
 

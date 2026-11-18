@@ -21234,7 +21234,7 @@ validate833.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false}
 
 export const event_OverflowEvent = validate840;
 const schema356 = {"$id":"urn:piw:validator:event_OverflowEvent","$ref":"urn:piw:schema:OverflowEvent"};
-const schema357 = {"$id":"urn:piw:schema:OverflowEvent","type":"object","additionalProperties":false,"description":"The subscriber queue overflowed, a frame was invalid, or the stream's authority ended (`reason` is then the\nrefusal code); the stream closes after this frame and the caller resyncs.\n","x-piw-event":{"type":"overflow","producer":"supervisor","durability":"transport","visibility":"subscriber"},"required":["type","cursor","event_id","producer","execution_id","evidence","data"],"properties":{"type":{"type":"string","const":"overflow"},"cursor":{"$ref":"urn:piw:schema:Cursor"},"event_id":{"$ref":"urn:piw:schema:Id"},"producer":{"$ref":"urn:piw:schema:Producer"},"execution_id":{"type":"null"},"evidence":{"type":"string","const":"observed_memory"},"data":{"type":"object","additionalProperties":false,"required":["resync_required","reason"],"properties":{"resync_required":{"type":"boolean","const":true},"reason":{"type":"string","minLength":1,"maxLength":64}}}}};
+const schema357 = {"$id":"urn:piw:schema:OverflowEvent","type":"object","additionalProperties":false,"description":"The last frame of a stream; the stream closes after it.\n`resync_required: true`: the subscriber queue overflowed or a frame was\ninvalid (`reason` `subscriber_queue_overflow` or `invalid_frame`); the\ncaller reconnects and resyncs from a snapshot. `resync_required: false`:\nthe stream's authority ended (`reason` is the refusal code,\n`grant_revoked` or `parent_channel_retired`); terminal, the caller does\nnot reconnect, and a client ends its watch with that refusal\n(`no_effect`).\n","x-piw-event":{"type":"overflow","producer":"supervisor","durability":"transport","visibility":"subscriber","notes":"Two kinds. A resync overflow (queue overflow, invalid frame) carries resync_required true; the caller reconnects with resync=overflow. An authority end (grant revoked, parent channel retired) carries resync_required false and the refusal code as reason; it is terminal and is never followed by a reconnect."},"required":["type","cursor","event_id","producer","execution_id","evidence","data"],"properties":{"type":{"type":"string","const":"overflow"},"cursor":{"$ref":"urn:piw:schema:Cursor"},"event_id":{"$ref":"urn:piw:schema:Id"},"producer":{"$ref":"urn:piw:schema:Producer"},"execution_id":{"type":"null"},"evidence":{"type":"string","const":"observed_memory"},"data":{"type":"object","additionalProperties":false,"required":["resync_required","reason"],"properties":{"resync_required":{"type":"boolean","description":"True for a queue overflow or an invalid frame (reconnect and\nresync); false when the stream's authority ended (terminal:\n`reason` is the refusal code, never reconnect).\n"},"reason":{"type":"string","minLength":1,"maxLength":64}}}}};
 const schema358 = {"$id":"urn:piw:schema:Producer","type":"string","enum":["pi","supervisor"]};
 
 function validate844(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
@@ -21393,14 +21393,9 @@ break;
 }
 if(_errs14 === errors){
 if(data6.resync_required !== undefined){
-let data7 = data6.resync_required;
 const _errs15 = errors;
-if(typeof data7 !== "boolean"){
+if(typeof data6.resync_required !== "boolean"){
 validate841.errors = [{instancePath:instancePath+"/data/resync_required",schemaPath:"#/properties/data/properties/resync_required/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"}];
-return false;
-}
-if(true !== data7){
-validate841.errors = [{instancePath:instancePath+"/data/resync_required",schemaPath:"#/properties/data/properties/resync_required/const",keyword:"const",params:{allowedValue: true},message:"must be equal to constant"}];
 return false;
 }
 var valid1 = _errs15 === errors;

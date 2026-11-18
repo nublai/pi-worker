@@ -879,3 +879,136 @@ test('C3: deliveries arrive in order with the state that counts them; a consumer
     if (o) await ended(o.done, 'cleanup');
   }
 });
+
+/** The public client, counting its `watch` calls: one per subscription attempt, also when the socket is gone. */
+class CountingClient extends Client {
+  watches = 0;
+  override watch(...args: Parameters<Client['watch']>): ReturnType<Client['watch']> {
+    this.watches++;
+    return super.watch(...args);
+  }
+}
+/** A run's end within a bound, by assertion: a guard that keeps it running fails here, never by a thrown Error. */
+async function stopsWithin(done: Promise<ObserverStop>, label: string, ms = 5000): Promise<ObserverStop> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stop = await Promise.race([done, new Promise<'running'>(r => (timer = setTimeout(() => r('running'), ms)))]).finally(() => clearTimeout(timer));
+  assert.notEqual(stop, 'running', `${label}: the observer stops within the bound`);
+  return stop as ObserverStop;
+}
+const ended_ = (cursor: Cursor, reason: string): EventFrame => ({ type: 'overflow', ...meta(cursor), execution_id: null, evidence: 'observed_memory', data: { resync_required: false, reason } });
+
+test('C3: an authority end (overflow with resync_required false) stops the observer at once, refused with its code, never reconnecting; a queue overflow still resyncs', { timeout: 30_000 }, async () => {
+  const t = tmp();
+  const socket = join(t.dir, 'w.sock');
+  let fake = await fakeWorker(socket);
+  const runs: ReturnType<typeof start>[] = [];
+  try {
+    const c = (seq: number): Cursor => ({ transport_epoch: 't-1', seq });
+    // A revoked grant: the stream ends with the terminal frame and the worker would refuse a new one; no new one is sent.
+    for (const [label, frames] of [
+      ['after the snapshot', [snapshot([row('w1')], c(1), 'fresh'), ended_(c(1), 'grant_revoked')]],
+      ['before any snapshot', [ended_(c(1), 'grant_revoked')]],
+    ] as const) {
+      const client = new CountingClient({ socketPath: socket });
+      const before = fake.counts.streams;
+      fake.onStream = s => {
+        open(s);
+        send(s, ...frames);
+      };
+      const o = start(fake, client);
+      runs.push(o);
+      const stop = await stopsWithin(o.done, `grant_revoked ${label}`);
+      assert.equal(stop.reason, 'refused', `${label}: stops as refused`);
+      assert.equal(stop.reason === 'refused' ? stop.error.message : undefined, 'grant_revoked', `${label}: with the refusal code`);
+      assert.equal(client.watches, 1, `${label}: one subscription attempt`);
+      assert.equal(fake.counts.streams - before, 1, `${label}: one stream`);
+      assert.equal(o.observer.controls, false, `${label}: gated`);
+    }
+    // A retired parent channel: the terminal frame, then the listener is gone (as closeChannel does).
+    {
+      const client = new CountingClient({ socketPath: socket });
+      fake.onStream = s => {
+        open(s);
+        send(s, snapshot([row('w1')], c(1), 'fresh'), ended_(c(1), 'parent_channel_retired'));
+        s.res.end();
+        // The listener goes at once (its socket is unlinked); the open response still completes.
+        fake.server.close();
+      };
+      const o = start(fake, client);
+      runs.push(o);
+      const stop = await stopsWithin(o.done, 'parent_channel_retired');
+      assert.equal(stop.reason, 'refused', 'retired: stops as refused');
+      assert.equal(stop.reason === 'refused' ? stop.error.message : undefined, 'parent_channel_retired', 'retired: with the refusal code');
+      assert.equal(client.watches, 1, 'retired: never reconnects to the closed socket');
+    }
+    // A queue overflow still owes a resync: the next stream asks resync=overflow and its snapshot is applied.
+    {
+      fake = await fakeWorker(socket);
+      const client = new CountingClient({ socketPath: socket });
+      fake.onStream = (s, i) => {
+        open(s);
+        if (i === 0) send(s, snapshot([row('w1')], c(1), 'fresh'), overflow(c(2)));
+        else send(s, snapshot([row('w1')], c(3), 'overflow'));
+      };
+      const o = start(fake, client);
+      runs.push(o);
+      await until(() => o.batches.length === 2 && o.observer.controls, 'resynced after the overflow');
+      assert.deepEqual(fake.streams.map(s => s.resync), [null, 'overflow'], 'the reconnect asks resync=overflow');
+      assert.deepEqual(o.batches.map(b => b.resync), ['fresh', 'overflow']);
+      assert.equal(client.watches, 2, 'one reconnect');
+    }
+    assert.equal(fake.counts.mutations, 0, 'never a mutation');
+  } finally {
+    for (const r of runs) r.ac.abort();
+    await closeServer(fake.server);
+    t.cleanup();
+    for (const r of runs) await ended(r.done, 'cleanup');
+  }
+});
+
+test('C3: a socket that is missing or refusing connections stops the observer as unreachable after maxConnectFailures attempts (default 10); a reachable worker resets the count', { timeout: 30_000 }, async () => {
+  const t = tmp();
+  const socket = join(t.dir, 'w.sock');
+  const runs: ReturnType<typeof start>[] = [];
+  let fake: Awaited<ReturnType<typeof fakeWorker>> | undefined;
+  try {
+    const placeholder = { observer: undefined } as unknown as Awaited<ReturnType<typeof fakeWorker>>;
+    // Missing (ENOENT), then a path that is not a listening socket (ECONNREFUSED).
+    for (const [label, code, limit] of [
+      ['missing socket, default bound', 'ENOENT', undefined],
+      ['refusing socket', 'ECONNREFUSED', 4],
+    ] as const) {
+      if (code === 'ECONNREFUSED') writeFileSync(socket, '', { mode: 0o600 });
+      const client = new CountingClient({ socketPath: socket });
+      const o = start(placeholder, client, { backoff: { initialMs: 1, maxMs: 2, ...(limit ? { maxConnectFailures: limit } : {}) } });
+      runs.push(o);
+      const stop = await stopsWithin(o.done, label);
+      assert.equal(stop.reason, 'unreachable', `${label}: stops as unreachable`);
+      assert.equal(stop.reason === 'unreachable' ? stop.error.message : undefined, code, `${label}: names the connect error`);
+      assert.equal(client.watches, limit ?? 10, `${label}: after exactly maxConnectFailures attempts`);
+    }
+    rmSync(socket, { force: true });
+    // Failures interleaved with a reachable worker are not consecutive: a worker that comes back keeps the observer.
+    {
+      const client = new CountingClient({ socketPath: socket });
+      let attempts = 0;
+      const o = start(placeholder, client, { backoff: { initialMs: 1, maxMs: 2, maxConnectFailures: 3 } });
+      runs.push(o);
+      await until(() => client.watches >= 2, 'two failed attempts');
+      fake = await fakeWorker(socket);
+      fake.onStream = s => {
+        attempts++;
+        open(s);
+        send(s, snapshot([row('w1')], { transport_epoch: 't-1', seq: 1 }, 'fresh'));
+        s.res.end();
+      };
+      await until(() => attempts >= 3, 'the worker answered three streams');
+      assert.equal(await Promise.race([o.done.then(() => 'stopped'), new Promise(r => setTimeout(() => r('running'), 20))]), 'running', 'a reachable worker resets the count');
+    }
+  } finally {
+    for (const r of runs) r.ac.abort();
+    if (fake) await closeServer(fake.server);
+    t.cleanup();
+    for (const r of runs) await ended(r.done, 'cleanup');
+  }
+});

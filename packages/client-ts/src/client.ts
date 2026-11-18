@@ -12,8 +12,10 @@
  *   line. A 200 that fails a check is `unknown` after the write and its body is never exposed. A failure names the
  *   check and the schema path only, never a value from the reply.
  * - The SSE reader delivers only frames that pass the event schema. An invalid frame ends the watch with
- *   ResyncRequired, so it never reaches the callback and never ends a resync. `watch` never reconnects on its own;
- *   `Observer` (observer.ts) is the opt-in owner that reconnects reads only, each time from a snapshot.
+ *   ResyncRequired, so it never reaches the callback and never ends a resync. An `overflow` with `resync_required`
+ *   false is terminal (the stream's authority ended): the watch ends with that refusal, never a resync. `watch` never
+ *   reconnects on its own; `Observer` (observer.ts) is the opt-in owner that reconnects reads only, each time from a
+ *   snapshot.
  */
 import { request, type IncomingHttpHeaders } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -393,8 +395,11 @@ export class Client {
 
   /**
    * Reads the supervisor-wide SSE stream. Only a frame that passes the event schema reaches `onFrame`; returning
-   * false ends the watch (resolves). An `overflow` frame is delivered, then the watch rejects with
-   * ResyncRequired('overflow'); a disconnect rejects with ResyncRequired('disconnected'); a reply that is not
+   * false ends the watch (resolves). An `overflow` frame is delivered, then the watch rejects: with
+   * ResyncRequired('overflow') when it says `resync_required` (a queue overflow, an invalid frame), and otherwise,
+   * the stream's authority having ended (a grant revoked, a parent channel retired), with that refusal: a
+   * ClientFailure whose message is the refusal code, `no_effect`, phase `http`, status 200 (`streamRefused`). That
+   * end is terminal: do not reconnect. A disconnect rejects with ResyncRequired('disconnected'); a reply that is not
    * text/event-stream, or a frame that is not UTF-8, JSON or a valid event, rejects with ResyncRequired and is never
    * delivered. The caller decides whether to reconnect; a reconnect always starts with a snapshot. Aborting `signal`
    * closes the stream and resolves.
@@ -480,7 +485,7 @@ export class Client {
               if (frame.type === 'snapshot') this.resyncRequired = false;
               if (frame.type === 'overflow') {
                 onFrame(frame);
-                fail(new ResyncRequired('overflow'));
+                fail(frame.data.resync_required ? new ResyncRequired('overflow') : streamRefusal(frame.data.reason));
                 break;
               }
               if (onFrame(frame) === false) {
@@ -501,6 +506,19 @@ export class Client {
       req.end();
     });
   }
+}
+
+/** The terminal end of a stream whose authority ended: its refusal code, `no_effect`, in the stream's 200. */
+function streamRefusal(code: string): ClientFailure {
+  return new ClientFailure(code, 'no_effect', 'http', 200, { error: code, effect: 'no_effect' });
+}
+
+/**
+ * The refusal code when `error` ended a watch because the stream's authority ended (a terminal `overflow`: a grant
+ * revoked, a parent channel retired); undefined otherwise. The caller must not reconnect.
+ */
+export function streamRefused(error: unknown): string | undefined {
+  return error instanceof ClientFailure && error.phase === 'http' && error.status === 200 ? error.message : undefined;
 }
 
 interface RawReply {

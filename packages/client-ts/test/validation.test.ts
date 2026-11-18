@@ -10,7 +10,7 @@ import { chmodSync, globSync, mkdtempSync, readdirSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Client, ClientFailure, ResyncRequired, routes, type EventFrame, type OperationId } from '../src/index.js';
+import { Client, ClientFailure, ResyncRequired, routes, streamRefused, type EventFrame, type OperationId } from '../src/index.js';
 import type { ClientRoute } from '../src/generated/routes.js';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -420,8 +420,13 @@ test('C1: every event fixture streams through; an invalid snapshot, nested worke
       const frames = fixture.response.frames!;
       const got = await watch(f, frames.map(record));
       assert.deepEqual(got.delivered, frames, `${name}: every frame arrives whole`);
-      const last = frames.at(-1)!.type;
-      assert.ok(got.error instanceof ResyncRequired && got.error.reason === (last === 'overflow' ? 'overflow' : 'disconnected'), name);
+      const last = frames.at(-1)!;
+      const data = last.data as { resync_required?: boolean; reason?: string } | undefined;
+      if (last.type === 'overflow' && data?.resync_required === false) {
+        // An authority end is terminal: the watch ends with the refusal, never a resync.
+        assert.equal(streamRefused(got.error), data.reason, `${name}: ends with its refusal`);
+        assert.ok(got.error instanceof ClientFailure && got.error.effect === 'no_effect', `${name}: no_effect`);
+      } else assert.ok(got.error instanceof ResyncRequired && got.error.reason === (last.type === 'overflow' ? 'overflow' : 'disconnected'), name);
     }
     const [, every] = fixtures('events.subscribe').find(([n]) => n === 'every-type')!;
     const snapshot = every.response.frames!.find(fr => fr.type === 'snapshot')!;
