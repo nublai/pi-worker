@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/git-sandbox.ts b/packages/worker/src/sandbox/git-sandbox.ts
+index 23ce308..13e90f6 100644
+--- a/packages/worker/src/sandbox/git-sandbox.ts
++++ b/packages/worker/src/sandbox/git-sandbox.ts
+@@ -167,7 +167,7 @@ function inspect(root: string, rootFd: number): Inspection {
+     }
+     // An ordinary `.git` (its common and its admin dir at once) must stay writable for Git's top-level locks, so a
+     // sandbox could plant a `commondir` or `shallow` there; no mount closes that (module comment).
+-    if (fstatSync(dot).isDirectory()) throw new Refusal('sandbox_git_ordinary_checkout_refused');
++    if (fstatSync(dot).isDirectory()) return { pin: null, fds };
+     const text = readFd(dot).toString('utf8');
+     if (!text.startsWith('gitdir: ')) throw new Refusal('sandbox_git_invalid_gitfile');
+     const adminPath = real(resolve(root, text.slice(8).trim()), 'sandbox_git_not_linked_worktree');

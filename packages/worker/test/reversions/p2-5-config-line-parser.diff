@@ -1,0 +1,40 @@
+diff --git a/packages/worker/src/sandbox/git-sandbox.ts b/packages/worker/src/sandbox/git-sandbox.ts
+index 23ce308..726dc4a 100644
+--- a/packages/worker/src/sandbox/git-sandbox.ts
++++ b/packages/worker/src/sandbox/git-sandbox.ts
+@@ -74,8 +74,35 @@ function gitConfig(bytes: Buffer, args: string[]): { status: number | null; out:
+  * path that could change). Refused: a missing config, one Git cannot parse, any `include.*` or `includeIf.*` key, and
+  * `extensions.worktreeConfig` true in any of its values.
+  */
++const FALSE = new Set(['false', 'no', 'off', '0', '']);
++
++/** `extensions.worktreeConfig` set to anything but false; a bare key is true in Git. */
++function worktreeConfigOn(text: string): boolean {
++  for (const raw of text.split('\n')) {
++    // A section header may share its line with a key.
++    const m = /^\s*worktreeconfig(?![A-Za-z0-9-])\s*(.*)$/i.exec(raw.replace(/^\s*\[[^\]]*\]/, ''));
++    if (!m) continue;
++    const rest = m[1]!.trim();
++    if (rest === '' || rest.startsWith('#') || rest.startsWith(';')) return true;
++    if (!rest.startsWith('=')) continue;
++    const value = rest
++      .slice(1)
++      .replace(/\s[#;].*$/, '')
++      .trim()
++      .replace(/^"(.*)"$/, '$1')
++      .trim()
++      .toLowerCase();
++    if (!FALSE.has(value)) return true;
++  }
++  return false;
++}
++
+ export function checkConfig(bytes: Buffer | null): string {
+   if (bytes === null) throw new Refusal('sandbox_git_config_missing');
++  const text = bytes.toString('utf8');
++  if (/^\s*\[\s*include/im.test(text)) throw new Refusal('sandbox_git_config_include_refused');
++  if (worktreeConfigOn(text)) throw new Refusal('sandbox_git_worktree_config_refused');
++  if (bytes.length >= 0) return createHash('sha256').update(bytes).digest('hex');
+   const list = gitConfig(bytes, ['--list', '--null']);
+   if (list.status !== 0) throw new Refusal('sandbox_git_config_invalid');
+   // Each entry is `key` (a bare key) or `key\nvalue`; Git lowercases section and variable names.
