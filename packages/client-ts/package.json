@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "TypeScript client for pi-worker's B2 API over its private Unix socket. No runtime dependencies, no hidden retries.",
+  "description": "TypeScript client for pi-worker's B2 API over its private Unix socket. Replies are validated against the spec; no runtime dependencies, no hidden retries.",
   "engines": {
     "node": ">=22.19.0"
   },
@@ -18,7 +18,7 @@
     "dist/src"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "build": "rm -rf dist && tsc -p tsconfig.json && cp src/generated/validators.js dist/src/generated/validators.js",
     "test": "npm run build && node ../../tools/node-test.mjs 'dist/test/**/*.test.js'"
   }
 }

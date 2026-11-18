@@ -9,10 +9,14 @@ import assert from 'node:assert/strict';
 import { createServer as httpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createServer as netServer, type Server } from 'node:net';
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client, ClientFailure, ProtocolMismatch, ResyncRequired, type EventFrame } from '../src/index.js';
+
+/** A wire fixture's response body (api/fixtures/wire): replies the client accepts are the spec's own examples. */
+const fixtureBody = (op: string, name: string) =>
+  (JSON.parse(readFileSync(new URL(`../../../../api/fixtures/wire/${op}/${name}.json`, import.meta.url), 'utf8')) as { response: { body: Record<string, unknown> } }).response.body;
 
 function tmp() {
   const dir = mkdtempSync(join(tmpdir(), 'piw-client-'));
@@ -256,7 +260,7 @@ test('client: an unreadable grant file fails before the write; a grant is sent a
   const server = httpServer((req, res) => {
     auth = req.headers.authorization;
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ protocol: { major: 0, minor: 1 } }));
+    res.end(JSON.stringify(fixtureBody('hello', 'ok')));
   });
   await listen(server, socket);
   try {
@@ -326,10 +330,10 @@ test('client: SSE accepts LF, CRLF and CR line endings and data fields without a
 
 test('client: an SSE record over 1 MiB of bytes is frame_too_large; one at the cap and multi-byte text arrive whole', async () => {
   const FRAME_LIMIT = 1024 * 1024;
-  // A record is its field lines with one line-ending byte each: 'data: ' + JSON + '\n'.
+  // A record is its field lines with one line-ending byte each: 'data: ' + JSON + '\n'. The frame is a valid snapshot
+  // padded in its worker's open `resources` object, so only the byte cap can refuse it.
   const record = (bytes: number, char: string) => {
-    const prefix = '{"type":"x.pad","pad":"';
-    const suffix = '"}';
+    const [prefix, suffix] = JSON.stringify({ ...emptySnapshot, workers: [{ ...worker, resources: { pad: '\0' } }] }).split('\\u0000') as [string, string];
     const room = bytes - 'data: '.length - 1 - prefix.length - suffix.length;
     const unit = Buffer.byteLength(char);
     assert.equal(room % unit, 0);
@@ -375,7 +379,7 @@ test('client: attachments.stage sends the bytes once with their SHA-256 and the 
     req.on('end', () => {
       seen.push({ method: req.method, url: req.url, headers: req.headers, body: Buffer.concat(chunks) });
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ command_id: 'stage-1', operation: 'attachments.stage', state: 'delivered', result: { attachment_id: 'a 1' } }));
+      res.end(JSON.stringify({ ...fixtureBody('attachments.stage', 'ok'), command_id: 'stage-1' }));
     });
   });
   await listen(server, socket);
