@@ -164,6 +164,45 @@ test('client: an HTTP refusal without an explicit no_effect, or an unreadable re
   }
 });
 
+test('client: files.read at its 1 MiB limit with worst-case JSON escaping and the longest path arrives whole; a reply over the response limit is unknown', { timeout: 60_000 }, async () => {
+  const t = tmp();
+  const socket = join(t.dir, 'worker.sock');
+  const MiB = 1024 * 1024;
+  // The worker serializes with JSON.stringify: `"` is 2 bytes, U+0001 is 6 (`\u0001`), the most per content byte. The
+  // path is AbsolutePath's longest (4096), of the same worst case.
+  const longest = `/${'\u0001'.repeat(4095)}`;
+  const files: Record<string, { path: string; content: string; bytes: number; evidence: 'pinned_file_read' }> = {
+    quotes: { path: '/r/quotes', content: '"'.repeat(MiB), bytes: MiB, evidence: 'pinned_file_read' },
+    controls: { path: longest, content: '\u0001'.repeat(MiB), bytes: MiB, evidence: 'pinned_file_read' },
+  };
+  const server = httpServer(async (req, res) => {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    const name = (JSON.parse(body) as { roots: string[] }).roots[0]!.slice(1);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    // `over`: a well-formed reply one byte past the 8 MiB response limit.
+    res.end(name === 'over' ? JSON.stringify({ path: '/r/over', content: 'x'.repeat(8 * MiB - 64 - 1), bytes: 0, evidence: 'pinned_file_read' }).padEnd(8 * MiB + 1, ' ') : JSON.stringify(files[name]));
+  });
+  await listen(server, socket);
+  try {
+    const client = new Client({ socketPath: socket });
+    for (const [name, file] of Object.entries(files)) {
+      assert.ok(Buffer.byteLength(JSON.stringify(file)) > 2 * MiB, `${name}: past the old 2 MiB limit (non-vacuous)`);
+      const got = await client.call('files.read', { path: { worker_id: 'w1' }, body: { path: '/r/file', roots: [`/${name}`] } }).catch((error: unknown) => error);
+      assert.ok(!(got instanceof Error), `${name}: ${String(got)}`);
+      const read = got as typeof file;
+      assert.deepEqual({ ...read, content: read.content === file.content, path: read.path === file.path }, { ...file, content: true, path: true }, name);
+    }
+    await assert.rejects(
+      client.call('files.read', { path: { worker_id: 'w1' }, body: { path: '/r/file', roots: ['/over'] } }),
+      (e: unknown) => e instanceof ClientFailure && e.phase === 'after_write' && e.effect === 'unknown',
+    );
+  } finally {
+    await close(server);
+    t.cleanup();
+  }
+});
+
 test('client: a refusal whose JSON is not an object (null, scalar, array) rejects as unknown, never throws (review F4)', async () => {
   const t = tmp();
   const socket = join(t.dir, 'worker.sock');

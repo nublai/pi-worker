@@ -443,6 +443,22 @@ test('sandbox: files.read keeps the recorded root as its boundary: a root replac
   });
 });
 
+test('sandbox: a 1 MiB file of worst-case JSON escaping reaches the TS client whole (the advertised limit fits the client response limit)', { timeout: 60_000 }, async () => {
+  await withSandboxedB2(async ({ child, client }) => {
+    const MiB = 1024 * 1024;
+    // `"` escapes to 2 bytes; U+0001 to 6 (`\u0001`), the most any UTF-8 byte of content takes in the JSON reply.
+    for (const [name, content] of [['quotes.txt', '"'.repeat(MiB)], ['controls.txt', '\u0001'.repeat(MiB)]] as const) {
+      const path = join(child.cwd, name);
+      writeFileSync(path, content);
+      const got = await client.call('files.read', { path: { worker_id: child.worker_id }, body: { path, roots: [child.cwd] } }).catch((error: unknown) => error);
+      assert.ok(!(got instanceof Error), `${name}: ${String(got)}`);
+      const file = got as { path: string; content: string; bytes: number; evidence: string };
+      assert.ok(Buffer.byteLength(JSON.stringify(file)) > 2 * MiB, `${name}: the reply is past the old 2 MiB client limit (non-vacuous)`);
+      assert.deepEqual({ ...file, content: file.content === content }, { path, content: true, bytes: MiB, evidence: 'pinned_file_read' }, name);
+    }
+  });
+});
+
 test('sandbox: a sandboxed root worker waits for the parent channel; a child root overlapping the state is refused; sessions never cross a confinement', async () => {
   const f = fixture({
     launch: launch => {

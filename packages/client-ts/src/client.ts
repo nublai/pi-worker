@@ -41,7 +41,11 @@ export interface CallOptions<O extends OperationId> {
 
 /** The protocol major this client speaks. A worker with another major is refused. */
 export const PROTOCOL_MAJOR = 0;
-const RESPONSE_LIMIT = 2 * 1024 * 1024;
+/**
+ * The most bytes of one JSON response. It covers the largest reply the spec allows: files.read's 1 MiB of UTF-8
+ * content at worst-case JSON escaping (6 bytes, `\u0001`, per content byte) plus its escaped path and envelope.
+ */
+const RESPONSE_LIMIT = 8 * 1024 * 1024;
 /**
  * One SSE record: its field lines, each counted with one line-ending byte. The spec's x-piw-max-frame-bytes for
  * events.subscribe, through the generated route table.

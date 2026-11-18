@@ -939,6 +939,10 @@ paths:
         `explicit_roots_required`, `hidden_or_traversal_path_refused`,
         `file_outside_explicit_roots`, `file_symlink_or_unavailable`,
         `file_not_regular_or_over_1MiB`, `file_over_1MiB`, `file_not_utf8`.
+        The JSON reply escapes the content: at worst 6 bytes per content
+        byte (a control character's `\u0001` form) plus the escaped path and
+        envelope, under 6.1 MiB, within the clients' 8 MiB JSON response
+        limit.
       tags: [readback]
       x-piw-mutation: false
       x-piw-body: json
