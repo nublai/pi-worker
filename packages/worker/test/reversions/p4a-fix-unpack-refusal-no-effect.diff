@@ -1,0 +1,13 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..fe7f632 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -346,7 +346,7 @@ function unconfined(root: string): string | undefined {
+  * refusals are effect `unknown` (the staging directory is removed; `versions/` may remain).
+  */
+ function unpack(system: System, l: Layout, tarball: string, version: string): void {
+-  const invalid = (detail: string) => new LocalFailure('pi_worker_tarball_invalid', 'unknown', { detail });
++  const invalid = (detail: string) => new LocalFailure('pi_worker_tarball_invalid', 'no_effect', { detail });
+   const target = join(l.versions, version);
+   mkdirSync(l.versions, { recursive: true, mode: 0o755 });
+   const staging = join(l.versions, `.staging-${randomBytes(6).toString('hex')}`);

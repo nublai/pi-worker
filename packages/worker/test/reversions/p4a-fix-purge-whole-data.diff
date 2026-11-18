@@ -1,0 +1,12 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..5a7805c 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -651,6 +651,7 @@ export function uninstall(purge: boolean, env: NodeJS.ProcessEnv, system: System
+   if (lstatExists(l.bin) && lstatSync(l.bin).isSymbolicLink() && readlinkSync(l.bin).startsWith(`${l.data}/`)) rmSync(l.bin, { force: true });
+   if (lstatExists(l.current)) rmSync(l.current, { force: true });
+   for (const r of removals) removeTree(r.path);
++  if (purge) removeTree(l.data);
+   if (purge) {
+     // The data directory goes only when nothing but what install made was in it.
+     try {

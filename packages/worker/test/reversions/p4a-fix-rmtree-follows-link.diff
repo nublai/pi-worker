@@ -1,0 +1,21 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..9258b19 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -20,6 +20,7 @@ import {
+   rmdirSync,
+   rmSync,
+   chmodSync,
++  statSync,
+   symlinkSync,
+   writeFileSync,
+   type Stats,
+@@ -570,7 +571,7 @@ export function logs(follow: boolean, env: NodeJS.ProcessEnv, system: System): n
+ export function removeTree(path: string): void {
+   let top;
+   try {
+-    top = lstatSync(path);
++    top = statSync(path);
+   } catch (error) {
+     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+     throw error;

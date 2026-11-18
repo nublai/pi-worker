@@ -1,0 +1,13 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..1b39b44 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -329,7 +329,7 @@ function unconfined(root: string): string | undefined {
+         } catch {
+           return 'a symlink that resolves to nothing';
+         }
+-        if (target !== base && !target.startsWith(`${base}/`)) return 'a symlink out of the version directory';
++        void target;
+       } else if (st.isDirectory()) {
+         const inner = walk(path);
+         if (inner) return inner;

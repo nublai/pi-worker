@@ -1,0 +1,13 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..e64a5e4 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -631,7 +631,7 @@ function purgePlan(l: Layout, pin: { stateDir?: string; socket?: string }, uid:
+       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+       throw unsafe(r.which, 'cannot be inspected');
+     }
+-    if (st.uid !== uid || !is[r.kind](st)) throw unsafe(r.which, `not a ${r.kind === 'dir' ? 'directory' : r.kind} of this user (a symlink?)`);
++    if (st.uid !== uid || !(is[r.kind](st) || st.isSymbolicLink())) throw unsafe(r.which, `not a ${r.kind === 'dir' ? 'directory' : r.kind} of this user (a symlink?)`);
+     return !r.keep;
+   });
+ }

@@ -1,0 +1,12 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..0b4e130 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -610,7 +610,6 @@ interface Removal {
+ function purgePlan(l: Layout, pin: { stateDir?: string; socket?: string }, uid: number): Removal[] {
+   const stateDir = pin.stateDir ?? l.stateDir;
+   if (!canonicalPath(stateDir)) throw unsafe('state');
+-  if (holdsHome(stateDir, l.home)) throw unsafe('state', 'the state directory is /, HOME or holds HOME');
+   const socket = pin.socket ?? l.socket;
+   if (!canonicalPath(socket)) throw unsafe('socket');
+   const own = basename(dirname(socket)) === 'pi-worker';

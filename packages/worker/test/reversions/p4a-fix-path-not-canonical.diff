@@ -1,0 +1,13 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..9cbacbf 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -44,7 +44,7 @@ const SAFE_PATH = /^\/[A-Za-z0-9._/@+-]*$/;
+  */
+ export function canonicalPath(path: string | undefined): path is string {
+   if (path === undefined || !SAFE_PATH.test(path)) return false;
+-  return path === '/' || path.slice(1).split('/').every(c => c !== '' && c !== '.' && c !== '..');
++  return true;
+ }
+ 
+ function unsafe(which: string, detail?: string): LocalFailure {

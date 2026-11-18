@@ -1,0 +1,18 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1a855a3..d8fa5d4 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -413,11 +413,11 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
+     }
+   } else {
+     const release = inspectTarball(system, l, tarball, version);
++    // The first write.
++    unpack(system, l, tarball, version);
+     if (!meetsFloor(system.nodeVersion, release.node_engine)) {
+       throw new LocalFailure('pi_worker_node_unsupported', 'no_effect', { required: release.node_engine, found: system.nodeVersion });
+     }
+-    // The first write.
+-    unpack(system, l, tarball, version);
+   }
+ 
+   // From here the host changes: a failure is effect unknown; install again (idempotent) or uninstall.

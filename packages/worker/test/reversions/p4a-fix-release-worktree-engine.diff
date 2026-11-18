@@ -1,0 +1,13 @@
+diff --git i/harness/release/build.sh w/harness/release/build.sh
+index 3debf51..97fd717 100755
+--- i/harness/release/build.sh
++++ w/harness/release/build.sh
+@@ -40,7 +40,7 @@ mkdir -p "$src" "$stage/bin"
+ 
+ echo "build: $name from $commit"
+ git archive --format=tar HEAD | tar -x -C "$src"
+-engine=$(node -p 'require(process.argv[1]).engines.node' "$src/package.json")
++engine=$(node -p 'require(process.argv[1]).engines.node' "$repo/package.json")
+ [[ "$engine" =~ ^\>=[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "build: engines.node $engine is not >=X.Y.Z" >&2; exit 2; }
+ (
+   cd "$src"
