@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..ff0df28 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -78,7 +78,7 @@ function copyTreeAt(source: number, dest: number, prefix: readonly string[], wal
+     // than fail the launch.
+     for (let attempt = 0; fd === undefined && link === undefined; attempt++) {
+       try {
+-        fd = openSync(fdPath(source, name), FILE_FLAGS);
++        fd = openSync(fdPath(source, name), FILE_FLAGS & ~constants.O_NOFOLLOW);
+       } catch (error) {
+         if (code(error) !== 'ELOOP' || attempt > 16) throw error;
+         try {

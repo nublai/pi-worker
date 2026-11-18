@@ -484,6 +484,34 @@
         "p2-5-factory-ignores-pin.diff",
         "p2-5-host-ignores-pin.diff"
       ]
+    },
+    "staging": {
+      "command": "npm test -- staging",
+      "diffs": [
+        "p2-7-copy-follows-links.diff",
+        "p2-7-dependency-bind-writable.diff",
+        "p2-7-node-modules-copied.diff",
+        "p2-7-entry-budget-unchecked.diff",
+        "p2-7-byte-budget-unchecked.diff",
+        "p2-7-depth-unchecked.diff",
+        "p2-7-dependency-binds-uncapped.diff",
+        "p2-7-special-file-skipped.diff",
+        "p2-7-absent-name-proves-no-effect.diff",
+        "p2-7-cleanup-skipped.diff",
+        "p2-7-cleanup-follows-links.diff",
+        "p2-7-staged-before-validation.diff",
+        "p2-7-child-profile-exists-allowed.diff",
+        "p2-7-profile-overlap-allowed.diff",
+        "p2-7-validation-follows-profile-link.diff",
+        "p2-7-staging-follows-profile-link.diff",
+        "p2-7-unconfirmed-cleanup-no-effect.diff",
+        "p2-7-mount-point-unchecked.diff",
+        "p2-7-dependency-fds-kept.diff",
+        "p2-7-lifecycle-drops-dependencies.diff",
+        "p2-7-factory-drops-dependencies.diff",
+        "p2-7-host-drops-dependencies.diff",
+        "p2-7-staging-failure-row-live.diff"
+      ]
     }
   }
 }

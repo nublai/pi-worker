@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..c779cf0 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -97,7 +97,6 @@ function copyTreeAt(source: number, dest: number, prefix: readonly string[], wal
+       if (st.isDirectory() && name === 'node_modules') {
+         // An immutable dependency tree: an empty mount point, bound read-only from this exact descriptor at launch.
+         // Ownership of `fd` moves to `found`.
+-        if (walk.found.length >= walk.limits.dependencyBinds) throw new Refusal('profile_dependency_binds_too_many');
+         mkdirSync(fdPath(dest, name), { mode: 0o700 });
+         walk.found.push({ fd, dest: [...prefix, name] });
+         fd = undefined;

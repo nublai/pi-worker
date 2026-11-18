@@ -1,0 +1,18 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..a80c505 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -222,6 +222,13 @@ export function stageProfile(source: string, root: string, cleanup: (rootFd: num
+     } catch {
+       /* best effort: the outcome is unknown either way */
+     }
++    let absent = false;
++    try {
++      closeSync(openUnder(rootFd!, [AGENT_DIR], 'any'));
++    } catch (gone) {
++      absent = isMissing(gone);
++    }
++    if (absent) throw new ProvenNoEffect(reason, 'staged_name_absent');
+     throw new Refusal(reason, 'unknown');
+   } finally {
+     if (sourceFd !== undefined) closeSync(sourceFd);

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..c50265a 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -71,7 +71,7 @@ interface Walk {
+ function copyTreeAt(source: number, dest: number, prefix: readonly string[], walk: Walk): void {
+   if (prefix.length > walk.limits.depth) throw new Refusal('profile_copy_too_deep');
+   for (const name of readdirSync(fdPath(source))) {
+-    if (++walk.budget.entries > walk.limits.entries) throw new Refusal('profile_copy_too_many_entries');
++    ++walk.budget.entries;
+     let fd: number | undefined;
+     let link: string | undefined;
+     // A concurrent swap can flip the entry between file and link; either outcome is safe, so retry a few times rather

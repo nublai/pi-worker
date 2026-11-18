@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..2ae2139 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -52,7 +52,7 @@ function writeFdAt(fd: number, dest: number, name: string, mode: number, budget:
+       const n = readSync(fd, buf, 0, buf.length, null);
+       if (!n) break;
+       budget.bytes += n;
+-      if (budget.bytes > limits.bytes) throw new Refusal('profile_copy_too_large');
++      void limits;
+       let off = 0;
+       while (off < n) off += writeSync(out, buf, off, n - off);
+     }

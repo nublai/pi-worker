@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/sandbox/staging.ts b/packages/worker/src/sandbox/staging.ts
+index 869fd32..38e05f6 100644
+--- a/packages/worker/src/sandbox/staging.ts
++++ b/packages/worker/src/sandbox/staging.ts
+@@ -69,7 +69,6 @@ interface Walk {
+ 
+ /** Copies the directory `source` into `dest` (both open), descriptor-relative, never following a link. */
+ function copyTreeAt(source: number, dest: number, prefix: readonly string[], walk: Walk): void {
+-  if (prefix.length > walk.limits.depth) throw new Refusal('profile_copy_too_deep');
+   for (const name of readdirSync(fdPath(source))) {
+     if (++walk.budget.entries > walk.limits.entries) throw new Refusal('profile_copy_too_many_entries');
+     let fd: number | undefined;

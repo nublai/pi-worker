@@ -1,10 +1,10 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 5724b08..6a6e474 100644
+index 1ac3976..7c060a3 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
 @@ -413,7 +413,8 @@ export class Lifecycle {
-       const domain = live.domain;
-       const prefix = this.containment.enter(domain);
+       // its domain (P2-7): a failure ends the row failed below (D3), unknown once anything was created (D2).
+       if (live.profile) dependencies = stageProfile(live.profile, cwd, rootFd => this.stagingCleanup(rootFd));
        const root = confinement(w);
 -      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix, ...(root ? { sandbox: root, ...gitPinOf(live), dependencies } : {}) });
 +      host = this.s.factory({ workerId: w.worker_id, commandId: c.command_id, create: c, cwd, sessionDir: this.sessionDir(live), domain, prefix });
