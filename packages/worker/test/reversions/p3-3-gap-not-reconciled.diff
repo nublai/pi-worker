@@ -1,13 +1,13 @@
 diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
-index 82645fa..3d1fc81 100644
+index 8c368cf..9ef35ac 100644
 --- a/packages/client-ts/src/observer.ts
 +++ b/packages/client-ts/src/observer.ts
-@@ -405,7 +405,7 @@ export class Observer {
-       if (!prev) notices.push({ kind: 'worker_added', worker_id: id, binding: bindingOf(id, w) });
-       const missed = (row.settle_count ?? 0) - (prev?.settle_count ?? 0);
-       this.onRow(row, notices, 'snapshot');
--      if (missed > (row.recent_settlements?.length ?? 0)) gaps.push(row);
-+      if (missed > (row.recent_settlements?.length ?? 0) && missed < 0) gaps.push(row);
-     }
-     if (!cold) for (const [id, prev] of Object.entries(before)) if (!workers[id]) notices.push({ kind: 'worker_removed', worker_id: id, previous: bindingOf(id, prev) });
-     // Controls open only now: the snapshot passed its schema and the retained state is the snapshot's.
+@@ -195,7 +195,7 @@ const RECENT_SETTLEMENTS = 8;
+  */
+ function gapCause(row: Worker, prev: RetainedWorker | undefined): 'settle_count' | 'retention' | undefined {
+   const listed = row.recent_settlements ?? [];
+-  if ((row.settle_count ?? 0) - (prev?.settle_count ?? 0) > listed.length) return 'settle_count';
++  if ((row.settle_count ?? 0) - (prev?.settle_count ?? 0) > listed.length && listed.length < 0) return 'settle_count';
+   const oldest = listed.at(-1);
+   if (listed.length >= RECENT_SETTLEMENTS && oldest && !prev?.settlements.includes(oldest.execution_id)) return 'retention';
+   return undefined;

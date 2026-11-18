@@ -1,10 +1,10 @@
 diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
-index 82645fa..4c5b016 100644
+index 8c368cf..79dfeb2 100644
 --- a/packages/client-ts/src/observer.ts
 +++ b/packages/client-ts/src/observer.ts
-@@ -407,7 +407,7 @@ export class Observer {
+@@ -433,7 +433,7 @@ export class Observer {
        this.onRow(row, notices, 'snapshot');
-       if (missed > (row.recent_settlements?.length ?? 0)) gaps.push(row);
+       if (cause) gaps.push({ row, cause, missed: (row.settle_count ?? 0) - (prev?.settle_count ?? 0) });
      }
 -    if (!cold) for (const [id, prev] of Object.entries(before)) if (!workers[id]) notices.push({ kind: 'worker_removed', worker_id: id, previous: bindingOf(id, prev) });
 +    if (!cold) for (const [id, prev] of Object.entries(before)) if (!workers[id]) workers[id] = prev;
