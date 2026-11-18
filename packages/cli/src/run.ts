@@ -12,7 +12,7 @@ import { Client, ClientFailure, routes, type Cursor, type EventFrame, type Opera
 import { parse, type Parsed, type Value } from './args.js';
 import { BINDING, COMMANDS, fieldOf, GLOBAL, UsageError, type Command, type Option } from './commands.js';
 import { EXIT, grantFailure, mapError, ReceiptRefusal } from './errors.js';
-import { daemon, doctor, install, logs, realSystem, uninstall, userEnv, type System } from './host.js';
+import { daemon, doctor, install, logs, realSystem, uninstall, userEnv, version, type System } from './host.js';
 import { uuidv7 } from './uuid.js';
 
 export interface Io {
@@ -186,6 +186,9 @@ async function host(command: Command, parsed: Parsed, io: Io): Promise<number> {
   switch (command.name) {
     case 'install':
       print(await install({ from: parsed.flags.get('from') as string, ...(parsed.flags.has('wait-ms') ? { waitMs: parsed.flags.get('wait-ms') as number } : {}) }, io.env, system));
+      return EXIT.ok;
+    case 'version':
+      print(await version(io.env, system));
       return EXIT.ok;
     case 'doctor': {
       const checks = await doctor(io.env, system);

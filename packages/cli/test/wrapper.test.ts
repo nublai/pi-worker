@@ -92,3 +92,30 @@ test('wrapper: no node on PATH is refused with node_missing, exit 1', () => {
     r.cleanup();
   }
 });
+
+test('wrapper: node warnings are off, so the typed JSON error is the last stderr line; a real error still prints', () => {
+  const r = release();
+  try {
+    // The real node on a synthetic PATH, a floor it meets, and an entry that warns and then fails typed.
+    const real = join(r.dir, 'realnode');
+    mkdirSync(real);
+    symlinkSync(process.execPath, join(real, 'node'));
+    writeFileSync(r.wrapper, readFileSync(TEMPLATE, 'utf8').replaceAll('@NODE_FLOOR@', '0.0.1'), { mode: 0o755 });
+    const typed = '{"error":"synthetic","effect":"no_effect"}';
+    const entry = (body: string) => writeFileSync(join(r.top, 'dist', 'main.js'), body);
+    const exec = () => spawnSync(r.wrapper, [], { env: { PATH: `${real}:${join(r.dir, 'tools')}` }, encoding: 'utf8' });
+
+    // The warning is emitted first and printed on the next tick, after a synchronous write: it would be the last line.
+    entry(`process.emitWarning('synthetic warning');\nprocess.stderr.write('${typed}\\n');\nprocess.exitCode = 1;\n`);
+    const warned = exec();
+    assert.equal(warned.status, 1);
+    assert.equal(warned.stderr, `${typed}\n`, 'no warning on stderr: the typed error is the only, so the last, line');
+
+    entry(`throw new Error('synthetic failure');\n`);
+    const failed = exec();
+    assert.notEqual(failed.status, 0);
+    assert.match(failed.stderr, /synthetic failure/, 'a real error is not hidden');
+  } finally {
+    r.cleanup();
+  }
+});

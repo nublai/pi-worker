@@ -350,6 +350,7 @@ export const COMMANDS: readonly Command[] = [
       cli('wait-ms', 'int', 'how long to wait for hello (default 60000)'),
     ],
   },
+  { name: 'version', mode: 'host', summary: 'The installed release and the running supervisor\'s version, one JSON line (works without the daemon)', args: [], options: [cli('json', 'bool', 'accepted; the output is always the one JSON line')] },
   { name: 'doctor', mode: 'host', summary: 'Check the host and the installed supervisor; exit 0 only when all pass', args: [], options: [cli('json', 'bool', 'print the checks as one JSON object')] },
   { name: 'logs', mode: 'host', summary: "The supervisor's journal (journalctl --user -u pi-worker.service)", args: [], options: [cli('follow', 'bool', 'follow new entries (also -f)', { short: 'f' })] },
   { name: 'uninstall', mode: 'host', summary: 'Stop and remove the unit and links; keep state and versions', args: [], options: [cli('purge', 'bool', 'also remove every version, the state and the socket directory')] },

@@ -247,6 +247,8 @@ export function unitText(l: Layout, version: string, nodeDir: string): string {
     `Environment=PATH=${nodeDir}:/usr/local/bin:/usr/bin:/bin`,
     `Environment=PIW_STATE_DIR=${l.stateDir}`,
     `Environment=PIW_SOCKET=${l.socket}`,
+    // No Node warning on the journal ahead of a typed error (the wrapper sets it too; real errors still print).
+    'Environment=NODE_NO_WARNINGS=1',
     // The supervisor logs typed JSON events on stderr only; stdout is unused, so no prompt text reaches the journal.
     'StandardOutput=null',
     'StandardError=journal',
@@ -385,8 +387,8 @@ export interface InstallOptions {
   readonly waitMs?: number;
 }
 
-/** `pi-worker install --from <tarball>`; resolves with the printed `{version, socket, unit}`. */
-export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, system: System): Promise<Record<string, string>> {
+/** `pi-worker install --from <tarball>`; resolves with the printed `{version, socket, unit, restarted}`. */
+export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, system: System): Promise<Record<string, string | boolean>> {
   const tarball = options.from;
   const name = TARBALL.exec(basename(tarball));
   const version = name?.[1];
@@ -439,7 +441,9 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
   systemctl(system, l, 'daemon-reload', 'daemon-reload');
   const wasActive = system.exec('systemctl', ['--user', 'is-active', UNIT], { env: l.env }).stdout.trim() === 'active';
   systemctl(system, l, 'enable', 'enable', '--now', UNIT);
-  if (changed && wasActive) systemctl(system, l, 'restart', 'restart', UNIT);
+  // A restart stops every running worker; the caller is told when it happened (docs/plan/install.md section 3).
+  const restarted = changed && wasActive;
+  if (restarted) systemctl(system, l, 'restart', 'restart', UNIT);
 
   const deadline = Date.now() + (options.waitMs ?? 60_000);
   let last = 'no answer';
@@ -450,7 +454,7 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
     if (Date.now() >= deadline) throw new LocalFailure('pi_worker_not_ready', 'unknown', { socket: l.socket, detail: last });
     await sleep(250);
   }
-  return { version, socket: l.socket, unit: UNIT };
+  return { version, socket: l.socket, unit: UNIT, restarted };
 }
 
 function lstatExists(path: string): boolean {
@@ -561,6 +565,27 @@ export async function doctor(env: NodeJS.ProcessEnv, system: System): Promise<Ch
   const linger = system.exec('loginctl', ['show-user', system.user, '--property=Linger', '--value'], { env: l.env, timeoutMs: 30_000 }).stdout.trim();
   checks.push({ id: 'linger', ok: linger === 'yes', detail: linger === 'yes' ? 'on' : `off; the unit stops when ${system.user} has no session (loginctl enable-linger ${system.user}, as root)` });
   return checks;
+}
+
+/** The installed release's `release.json`, whole: every field `version` prints must be of its documented type. */
+function readFullRelease(dir: string): Release | undefined {
+  const release = readRelease(dir);
+  const protocol = release?.b2_protocol;
+  const number = (n: unknown) => typeof n === 'number' && Number.isInteger(n) && n >= 0;
+  return release && typeof release.commit === 'string' && protocol !== null && typeof protocol === 'object' && number(protocol.major) && number(protocol.minor) ? release : undefined;
+}
+
+/**
+ * `pi-worker version`: `release.json` of the installed `current`, plus the version the daemon's `hello` reports
+ * (`null` when it does not answer: this works without the daemon). Nothing installed is refused `pi_worker_not_installed`.
+ */
+export async function version(env: NodeJS.ProcessEnv, system: System): Promise<Record<string, unknown>> {
+  const l = layout(env, system);
+  if (installedVersion(l) === undefined) throw new LocalFailure('pi_worker_not_installed', 'no_effect');
+  const release = readFullRelease(l.current);
+  if (!release) throw new LocalFailure('pi_worker_release_unreadable', 'no_effect');
+  const reply = await hello({ ...l, socket: pinned(l).socket ?? l.socket }, 3_000);
+  return { version: release.version, commit: release.commit, b2_protocol: release.b2_protocol, daemon_version: reply.ok ? reply.version : null };
 }
 
 /** `pi-worker logs [-f]`: the journal of the unit; resolves with journalctl's exit status. */
