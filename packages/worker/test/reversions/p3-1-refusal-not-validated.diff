@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index edba208..6887f4f 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -522,7 +522,7 @@ function refusal(route: ClientRoute, reply: RawReply): ClientFailure {
+   const value = mediaType(reply.headers['content-type']) === 'application/json' ? parseJson(reply.body) : NOT_JSON;
+   if (value === NOT_JSON) return unreadable('refusal_not_json', reply.status);
+   const validate = route.errors[String(reply.status)] ?? validateError;
+-  if (!validate(value)) return new ClientFailure('refusal_not_b2_error', 'unknown', 'http', reply.status);
++  if (!validate(value) && (value === null || typeof value !== 'object' || Array.isArray(value))) return new ClientFailure('refusal_not_b2_error', 'unknown', 'http', reply.status);
+   const body = value as components['schemas']['Error'];
+   return new ClientFailure(body.error, body.effect === 'no_effect' ? 'no_effect' : 'unknown', 'http', reply.status, body as unknown as Record<string, unknown>);
+ }

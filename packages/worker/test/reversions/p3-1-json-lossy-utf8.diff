@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index edba208..c027c74 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -491,7 +491,7 @@ const NOT_JSON = Symbol('not_json');
+ /** Strict UTF-8, then JSON; NOT_JSON when either fails. */
+ function parseJson(body: Buffer): unknown {
+   try {
+-    return JSON.parse(utf8.decode(body));
++    return JSON.parse(body.toString('utf8'));
+   } catch {
+     return NOT_JSON;
+   }

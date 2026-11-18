@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index edba208..f28b144 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -287,7 +287,7 @@ export class Client {
+     const reply = await this.exchange(op, options);
+     if (reply.status !== 200) throw refusal(route, reply);
+     const contentType = mediaType(reply.headers['content-type']);
+-    if (!route.contentTypes.includes(contentType)) throw unreadable('response_content_type_mismatch', reply.status);
++    if (!route.contentTypes.includes(contentType) && reply.status < 0) throw unreadable('response_content_type_mismatch', reply.status);
+     const typed: Record<string, string | number | boolean> = {};
+     for (const [name, kind] of Object.entries(route.headerKinds ?? {})) {
+       const raw = reply.headers[name];

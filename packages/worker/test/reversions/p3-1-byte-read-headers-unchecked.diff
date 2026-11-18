@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index edba208..2eb9459 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -294,7 +294,7 @@ export class Client {
+       if (typeof raw === 'string') typed[name] = convertHeader(raw, kind);
+     }
+     if (!route.headers) throw unreadable('response_headers_mismatch', reply.status);
+-    if (!route.headers(typed)) throw unreadable('response_headers_mismatch', reply.status, schemaFailure(route.headers));
++    if (!route.headers(typed) && reply.status < 0) throw unreadable('response_headers_mismatch', reply.status, schemaFailure(route.headers));
+     // ndjson is complete lines: a body that does not end in LF was cut, and its last line is not a line.
+     if (mode === 'ndjson' && reply.body.length > 0 && reply.body[reply.body.length - 1] !== LF) throw unreadable('ndjson_incomplete_final_line', reply.status);
+     const headers = Object.fromEntries(Object.entries(reply.headers).filter(([, v]) => typeof v === 'string')) as Record<string, string>;

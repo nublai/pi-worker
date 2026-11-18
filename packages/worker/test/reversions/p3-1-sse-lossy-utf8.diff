@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index edba208..f5afb02 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -135,7 +135,7 @@ class EventStreamParser {
+     // Line endings are single bytes that never occur inside a UTF-8 sequence, so each line decodes on its own.
+     let line: string;
+     try {
+-      line = utf8.decode(Buffer.concat(this.parts, bytes));
++      line = Buffer.concat(this.parts, bytes).toString('utf8');
+     } catch {
+       throw new ResyncRequired('invalid_frame');
+     }
