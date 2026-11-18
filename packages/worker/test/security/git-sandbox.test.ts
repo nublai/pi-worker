@@ -1,8 +1,10 @@
 /**
  * Git mounts in a sandbox root (P2-5), ported from A0 `src/test/gate1-git.test.ts` and the `security-fix.test.ts` M1
  * mount cases and m2, plus new cases: config and pointer refusals, a packed or reflog sibling in the branch namespace,
- * Git mounts overlapping a control path, and the pin a create's validation accepted reaching the spawn. Cases named
- * `kernel` run real bwrap and Git: `harness/ci/kernel.sh -- git` (PIW_TEST_KERNEL=1); elsewhere they skip.
+ * Git mounts overlapping a control path, and the pin a create's validation accepted reaching the spawn. PR #30 fix
+ * round: an ordinary checkout root and a repository inside (or around) the root refuse, config is judged by Git's own
+ * parser, and a kernel matrix shows what a linked child cannot move. Cases named `kernel` run real bwrap and Git:
+ * `harness/ci/kernel.sh -- git` (PIW_TEST_KERNEL=1); elsewhere they skip.
  *
  * Every Git command and every sandbox environment here is synthetic (never process.env), so no credential can reach an
  * argv or a message.
@@ -11,8 +13,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { Refusal } from '../../src/b2/errors.js';
 import { productionHosts } from '../../src/daemon.js';
 import { childEnv, SdkHost } from '../../src/host/host.js';
 import { locateBwrap, sandboxEnv, sandboxLaunch, sandboxRoot, type SandboxLaunch } from '../../src/sandbox/sandbox.js';
@@ -68,6 +71,24 @@ function linkedRepo() {
   initRepo(git, repo);
   git(repo, 'worktree', 'add', '-qb', 'a0-child/task', wt, 'HEAD');
   return { base, repo, wt, git, admin: join(repo, '.git', 'worktrees', 'wt'), cleanup: tmp.cleanup };
+}
+
+/** A typed refusal before any effect: `code`, HTTP 409, `no_effect`. */
+const typed = (code: string) => (error: unknown) => error instanceof Refusal && error.message === code && error.status === 409 && error.effect === 'no_effect';
+
+/**
+ * Grok's PR #30 layout: a linked worktree `wt` whose repository was moved inside it (`wt/inner`) and repaired, so the
+ * common dir, its hooks and every admin dir lie in the root.
+ */
+function nestedRepo(git: ReturnType<typeof gitIn>, base: string, name: string) {
+  const repo = join(base, `${name}-repo`);
+  const wt = join(base, name);
+  initRepo(git, repo);
+  git(repo, 'worktree', 'add', '-qb', `${name}/task`, wt, 'HEAD');
+  const inner = join(wt, 'inner');
+  renameSync(repo, inner);
+  git(inner, 'worktree', 'repair');
+  return { wt, inner };
 }
 
 const fdMounts = (args: string[]) => {
@@ -189,15 +210,9 @@ test('M1: sandbox mounts make Git pointers, HEAD, config, hooks and alternates r
     } finally {
       launch.close();
     }
-    const ordinary = launchIn(r.repo, '/bin/true', []);
-    try {
-      const mounts = fdMounts(ordinary.args);
-      const g = join(r.repo, '.git');
-      for (const ro of ['config', 'hooks', 'info', 'objects/info']) assert.ok(mounts.includes(`ro ${join(g, ro)}`), ro);
-      assert.ok(mounts.includes(`rw ${g}`), '.git is pinned as a mount point');
-    } finally {
-      ordinary.close();
-    }
+    // PR #30: the repository's own (ordinary) checkout refuses. Its `.git` must stay writable for Git's locks, so no
+    // overlay could keep a planted `commondir` out.
+    assert.throws(() => launchIn(r.repo, '/bin/true', []), typed('sandbox_git_ordinary_checkout_refused'));
   } finally {
     r.cleanup();
   }
@@ -235,20 +250,81 @@ test('kernel M1: child cannot rewrite .git, gitdir, commondir, HEAD or alternate
   }
 });
 
-test('kernel M1: an ordinary checkout root keeps config/hooks/info/alternates read-only and .git pinned; commits work', { skip, timeout: 60_000 }, async () => {
+test('git: an ordinary checkout root refuses (409 no_effect) in validation and at spawn, whatever its refs, HEAD or worktrees', () => {
   const r = linkedRepo();
   try {
     const g = join(r.repo, '.git');
+    const state = join(r.base, 'state');
+    const refused = (label: string) => {
+      assert.throws(() => sandboxRoot(childCreate(r.repo), { stateDir: state, paths: [] }), typed('sandbox_git_ordinary_checkout_refused'), label);
+      assert.throws(() => launchIn(r.repo, '/bin/true', []), typed('sandbox_git_ordinary_checkout_refused'), label);
+    };
+    // The matrix PR #30's reviews probed; every layout refuses before any mount, so none of these can be moved.
+    refused('flat branch, a linked worktree admin dir (worktrees/wt/commondir) present');
+    r.git(r.repo, 'branch', 'unrelated');
+    r.git(r.repo, 'checkout', '-qb', 'ns/task');
+    refused('a private-looking symbolic HEAD beside an unrelated branch');
+    r.git(r.repo, 'symbolic-ref', 'refs/heads/ns/link', 'refs/heads/unrelated');
+    refused('a symbolic ref in the namespace');
+    r.git(r.repo, 'pack-refs', '--all');
+    refused('packed refs');
+    writeFileSync(join(g, 'logs', 'refs', 'heads', 'ns', 'other'), '');
+    refused('a reflog sibling');
+    writeFileSync(join(g, 'HEAD'), 'ref: refs/heads/unrelated\n');
+    refused('a retargeted HEAD');
+    r.git(r.repo, 'checkout', '-q', '--detach');
+    refused('a detached HEAD');
+    mkdirSync(join(g, 'worktrees', 'planted'));
+    refused('a new admin dir');
+    for (const name of ['commondir', 'gitdir']) {
+      writeFileSync(join(g, name), `${r.base}\n`);
+      refused(name);
+    }
+  } finally {
+    r.cleanup();
+  }
+});
+
+test("kernel: a linked worktree child cannot move another branch, a symbolic or packed ref, a reflog, HEAD or another worktree's admin dir", { skip, timeout: 60_000 }, async () => {
+  const r = linkedRepo();
+  try {
+    const c = join(r.repo, '.git');
+    r.git(r.repo, 'branch', 'unrelated');
+    const other = join(r.base, 'other');
+    r.git(r.repo, 'worktree', 'add', '-qb', 'b0-other/task', other, 'HEAD');
+    const unrelated = r.git(r.repo, 'rev-parse', 'unrelated');
+    const head = readFileSync(join(r.admin, 'HEAD'), 'utf8');
+    const otherCommondir = readFileSync(join(c, 'worktrees', 'other', 'commondir'), 'utf8');
+    // Each probe prints only a fixed marker; a symbolic ref inside the namespace may be made, but updating through it
+    // must not reach the branch it names.
     const script = `set -u
-      echo y > g && git add g && git -c user.name=A -c user.email=a@example.invalid commit -qm parent || exit 70
-      for t in ${g}/config ${g}/hooks/pre-commit ${g}/info/attributes ${g}/objects/info/alternates; do
-        if ( echo planted > "$t" ) 2>/dev/null; then echo "WROTE $t"; exit 71; fi
-      done
-      if mv .git .g 2>/dev/null; then exit 72; fi
+      wrote() { echo "WROTE $1"; exit 71; }
+      echo z > z && git add z && git -c user.name=A -c user.email=a@example.invalid commit -qm child || exit 70
+      git update-ref refs/heads/unrelated HEAD 2>/dev/null && wrote unrelated-ref
+      ( echo planted > ${c}/refs/heads/unrelated ) 2>/dev/null && wrote unrelated-ref-file
+      git symbolic-ref refs/heads/a0-child/link refs/heads/unrelated 2>/dev/null
+      git update-ref refs/heads/a0-child/link HEAD 2>/dev/null && wrote symbolic-ref
+      ( printf '%s refs/heads/injected\\n' "$(git rev-parse HEAD)" >> ${c}/packed-refs ) 2>/dev/null && wrote packed-refs
+      git pack-refs --all 2>/dev/null && wrote pack-refs
+      ( echo planted >> ${c}/logs/refs/heads/unrelated ) 2>/dev/null && wrote unrelated-reflog
+      ( echo planted >> ${c}/logs/HEAD ) 2>/dev/null && wrote common-head-reflog
+      git symbolic-ref HEAD refs/heads/unrelated 2>/dev/null && wrote head-retarget
+      ( echo 'ref: refs/heads/unrelated' > ${r.admin}/HEAD ) 2>/dev/null && wrote head-file
+      ( echo ../../planted > ${c}/worktrees/other/commondir ) 2>/dev/null && wrote other-commondir
+      mkdir ${c}/worktrees/planted 2>/dev/null && wrote new-admin-dir
+      ( mkdir -p ${c}/hooks && echo planted > ${c}/hooks/pre-commit ) 2>/dev/null && wrote common-hooks
+      ( echo planted > ${c}/commondir ) 2>/dev/null && wrote common-commondir
+      ( echo planted > ${c}/shallow ) 2>/dev/null && wrote shallow
       echo OK`;
-    const result = await spawnLaunch(launchIn(r.repo, '/bin/sh', ['-c', script], { bwrap: locateBwrap() }));
-    assert.equal(result.status, 0, result.out + result.err);
-    assert.equal(r.git(r.repo, 'log', '-1', '--format=%s'), 'parent');
+    const result = await spawnLaunch(launchIn(r.wt, '/bin/sh', ['-c', script], { bwrap: locateBwrap() }));
+    assert.equal(result.status, 0, result.out);
+    assert.equal(result.out.trim(), 'OK');
+    assert.notEqual(r.git(r.wt, 'rev-parse', 'HEAD'), unrelated, 'the child committed on its own branch');
+    assert.equal(r.git(r.repo, 'rev-parse', 'unrelated'), unrelated);
+    assert.equal(readFileSync(join(r.admin, 'HEAD'), 'utf8'), head);
+    assert.equal(readFileSync(join(c, 'worktrees', 'other', 'commondir'), 'utf8'), otherCommondir);
+    for (const name of ['worktrees/planted', 'hooks/pre-commit', 'commondir', 'shallow']) assert.equal(existsSync(join(c, name)), false, name);
+    assert.ok(!r.git(r.repo, 'for-each-ref', '--format=%(refname)').split('\n').includes('refs/heads/injected'));
   } finally {
     r.cleanup();
   }
@@ -256,33 +332,65 @@ test('kernel M1: an ordinary checkout root keeps config/hooks/info/alternates re
 
 // ---- new in P2-5 ----
 
-test('git: a config include, includeIf or worktreeConfig refuses; an ordinary .git that redirects refuses', () => {
+test("git: config is judged by Git's own parser: include, includeIf or worktreeConfig refuse in LF, CRLF and inline-header forms; unparseable config refuses", () => {
   const r = linkedRepo();
   try {
     const config = join(r.repo, '.git', 'config');
     const original = readFileSync(config, 'utf8');
-    const refused = (extra: string, pattern: RegExp) => {
+    const state = join(r.base, 'state');
+    const refused = (extra: string, code: string) => {
       writeFileSync(config, original + extra);
-      assert.throws(() => launchIn(r.wt, '/bin/true', []), pattern, JSON.stringify(extra));
-      assert.throws(() => launchIn(r.repo, '/bin/true', []), pattern, JSON.stringify(extra));
+      assert.throws(() => sandboxRoot(childCreate(r.wt), { stateDir: state, paths: [] }), typed(code), JSON.stringify(extra));
+      assert.throws(() => launchIn(r.wt, '/bin/true', []), typed(code), JSON.stringify(extra));
     };
-    refused(`[include]\n\tpath = ${join(r.wt, 'evil.cfg')}\n`, /sandbox_git_config_include_refused/);
-    refused(`[includeIf "gitdir:/"]\n\tpath = ${join(r.wt, 'evil.cfg')}\n`, /sandbox_git_config_include_refused/);
-    refused('[extensions]\n\tworktreeConfig = true\n', /sandbox_git_worktree_config_refused/);
-    // A bare key is true in Git, and a key may share its line with the section header.
-    refused('[extensions]\n\tworktreeConfig\n', /sandbox_git_worktree_config_refused/);
-    refused('[extensions] worktreeConfig = yes # on\n', /sandbox_git_worktree_config_refused/);
-    writeFileSync(config, `${original}[extensions]\n\tworktreeConfig = false\n`);
-    launchIn(r.wt, '/bin/true', []).close();
-    writeFileSync(config, original);
-    for (const name of ['commondir', 'gitdir']) {
-      writeFileSync(join(r.repo, '.git', name), `${r.base}\n`);
-      assert.throws(() => launchIn(r.repo, '/bin/true', []), /sandbox_git_ordinary_checkout_redirected/, name);
-      execFileSync('rm', [join(r.repo, '.git', name)]);
+    const evil = join(r.wt, 'evil.cfg');
+    for (const eol of ['\n', '\r\n']) {
+      refused(`[include]${eol}\tpath = ${evil}${eol}`, 'sandbox_git_config_include_refused');
+      refused(`[includeIf "gitdir:/"]${eol}\tpath = ${evil}${eol}`, 'sandbox_git_config_include_refused');
+      // A section header may follow another on the same line (PR #30, astra F3).
+      refused(`[core] [include]${eol}path = ${evil}${eol}`, 'sandbox_git_config_include_refused');
+      refused(`[core] [includeIf "gitdir:/"]${eol}path = ${evil}${eol}`, 'sandbox_git_config_include_refused');
+      refused(`[extensions]${eol}\tworktreeConfig = true${eol}`, 'sandbox_git_worktree_config_refused');
+      // A bare key is true in Git, a key may share its line with the header, and any true value counts.
+      refused(`[extensions]${eol}\tworktreeConfig${eol}`, 'sandbox_git_worktree_config_refused');
+      refused(`[extensions] worktreeConfig = yes # on${eol}`, 'sandbox_git_worktree_config_refused');
+      refused(`[core] [extensions] worktreeConfig${eol}`, 'sandbox_git_worktree_config_refused');
+      refused(`[extensions]${eol}\tworktreeConfig = false${eol}\tworktreeConfig = 1${eol}`, 'sandbox_git_worktree_config_refused');
     }
-    launchIn(r.repo, '/bin/true', []).close();
+    refused('[core\n', 'sandbox_git_config_invalid');
+    refused('[extensions]\n\tworktreeConfig = maybe\n', 'sandbox_git_config_invalid');
+    writeFileSync(config, `${original}[extensions]\r\n\tworktreeConfig = false\r\n`);
+    launchIn(r.wt, '/bin/true', []).close();
+    // The ordinary layout refuses before its config is read, whatever the config holds.
+    writeFileSync(config, `${original}[core] [include]\r\npath = ${evil}\r\n`);
+    assert.throws(() => launchIn(r.repo, '/bin/true', []), typed('sandbox_git_ordinary_checkout_refused'));
+    writeFileSync(config, original);
+    launchIn(r.wt, '/bin/true', []).close();
   } finally {
     r.cleanup();
+  }
+});
+
+test('git: a linked worktree whose repository lies inside its root, or contains it, refuses (409 no_effect) before any mount', () => {
+  const tmp = privateTmp();
+  const base = realpathSync(tmp.dir);
+  const git = gitIn(base);
+  try {
+    const state = join(base, 'state');
+    const refused = (root: string) => {
+      assert.throws(() => sandboxRoot(childCreate(root), { stateDir: state, paths: [] }), typed('sandbox_git_common_dir_overlaps_root'), root);
+      assert.throws(() => launchIn(root, '/bin/true', []), typed('sandbox_git_common_dir_overlaps_root'), root);
+    };
+    // PR #30, grok F1: the common hooks (and every admin dir) would be writable through the root bind.
+    const { wt, inner } = nestedRepo(git, base, 'nest');
+    assert.equal(git(wt, 'rev-parse', '--git-common-dir'), join(inner, '.git'));
+    refused(wt);
+    // A worktree inside the common dir exposes part of it the same way.
+    const within = join(inner, '.git', 'inside');
+    git(inner, 'worktree', 'add', '-qb', 'in/task', within, 'HEAD');
+    refused(within);
+  } finally {
+    tmp.cleanup();
   }
 });
 
@@ -382,6 +490,16 @@ test('git: a create refuses bad Git metadata before any record; its spawn mounts
     await assert.rejects(f.supervisor.create(child('flat', flat)), /sandbox_git_branch_requires_private_namespace/);
     assert.equal(launches.length, before, 'no spawn for refused Git metadata');
     assert.equal(f.supervisor.receipts.all.has('flat'), false, 'a refusal before any record');
+    // PR #30: an ordinary checkout root and a repository inside the root refuse the same way.
+    const nested = nestedRepo(git, tree, 'nest').wt;
+    for (const [name, cwd, code] of [
+      ['ordinary', repo, 'sandbox_git_ordinary_checkout_refused'],
+      ['nested', nested, 'sandbox_git_common_dir_overlaps_root'],
+    ] as const) {
+      await assert.rejects(f.supervisor.create(child(name, cwd)), typed(code), name);
+      assert.equal(launches.length, before, name);
+      assert.equal(f.supervisor.receipts.all.has(name), false, name);
+    }
     // An accepted child: the factory gets the pin its validation read.
     const wt = join(tree, 'wt');
     git(repo, 'worktree', 'add', '-qb', 'ns/task', wt, 'HEAD');
