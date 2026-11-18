@@ -1,0 +1,13 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1374c0d..a7a5c4a 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -648,7 +648,7 @@ function foreignState(stateDir: string, l: Layout): string | undefined {
+   }
+   for (const entry of entries) {
+     const kind = STATE_ENTRIES[entry.name];
+-    if (!kind || !is[kind](entry)) return 'it holds an entry pi-worker does not write';
++    if (kind && !is[kind](entry)) return 'it holds an entry pi-worker does not write';
+   }
+   if (!journalMarker(stateDir) && !grantMarker(stateDir, l)) return 'it holds no pi-worker journal and no doctor grant of this install';
+   return undefined;
