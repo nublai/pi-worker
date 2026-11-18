@@ -5,18 +5,22 @@
  *
  * Read-only inside: everything that decides what Git later executes or where it looks. For a linked worktree that is
  * the worktree's `.git` gitfile, the admin dir's `gitdir`, `commondir` (and `config`, `config.worktree`, `hooks` when
- * present) and its symbolic HEAD, plus the common dir's `config`, `packed-refs`, `shallow`, `info/exclude`, `refs`,
- * `logs` and `objects/info` (alternates). The common dir's `hooks` is not mounted at all. Writable: the admin dir
- * (index, logs, locks), the shared object store, and one private branch namespace `refs/heads/<ns>/` with its reflogs,
- * which must hold only the worktree's own branch (loose or packed). For an ordinary checkout root, `.git` is bound
- * onto itself (a mount point, so it cannot be renamed away and replaced) and its `config`, `hooks`, `info` and
- * `objects/info` are read-only.
+ * present) and a symbolic HEAD, plus the common dir's `config`, `packed-refs`, `shallow`, `info/exclude`, `refs`,
+ * `logs` and `objects/info` (alternates). The rest of the common dir (`hooks`, `worktrees`, other worktrees' admin
+ * dirs) is not mounted at all. Writable: the admin dir (index, logs, locks, and HEAD when it is detached), the shared
+ * object store, and, with a symbolic HEAD, one private branch namespace `refs/heads/<ns>/` with its reflogs, which must
+ * hold only the worktree's own branch (loose or packed). A detached HEAD gets no branch namespace.
  *
- * Refused before any record: a gitfile that is not a linked worktree's (its admin dir must name this root back, and lie
- * in its common dir's `worktrees`), an ordinary `.git` that redirects (`commondir`, `gitdir`), a config with an
- * `include` or `includeIf` (it can pull configuration from a path the sandbox writes), `extensions.worktreeConfig`
- * (it makes the writable admin dir's `config.worktree` effective), a flat branch or a shared branch namespace, and a
- * detached HEAD that is not an object name.
+ * Refused before any record: an ordinary checkout root (a `.git` directory). Its `.git` is both the common and the admin
+ * dir, and Git must create files at its top (index and HEAD locks), so it is writable: a sandbox could then plant a
+ * `commondir` there that sends the owner's next Git to a config and hooks it wrote, or a `shallow` that cuts history.
+ * Neither can be pre-created harmlessly, so no ordinary layout can be made as safe as a linked worktree. Also refused:
+ * a gitfile that is not a linked worktree's (its admin dir must name this root back, and lie in its common dir's
+ * `worktrees`), a common dir inside the root or containing it (the root bind would make it writable), a config Git
+ * cannot parse, one with an `include.*` or `includeIf.*` key (it can pull configuration from a path the sandbox writes)
+ * or with `extensions.worktreeConfig` true (it makes the writable admin dir's `config.worktree` effective), judged by
+ * Git's own parser on the pinned bytes, a flat branch or a shared branch namespace, and a detached HEAD that is not an
+ * object name.
  *
  * The bytes read at validation form a pin (`GitPin`): the launch refuses metadata that differs from the pin it was
  * given (`git_metadata_changed_since_launch`), so a HEAD retargeted after validation never mounts another namespace.
@@ -25,6 +29,7 @@
  * objects other checkouts of the repository use. That is an integrity limit, not Git isolation.
  */
 import { closeSync, fstatSync, openSync, readdirSync, realpathSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { Refusal } from '../b2/errors.js';
@@ -32,14 +37,15 @@ import { DIR_FLAGS, fdPath, isMissing, openPinned, openUnder, readFd, readUnder 
 
 /** The launch-time bytes of a root's Git metadata; any change refuses a launch that names this pin. */
 export interface GitPin {
+  /** Always `linked`: an ordinary checkout root is refused (the B2 schema still names `ordinary`). */
   readonly kind: 'linked' | 'ordinary';
-  /** The gitfile's bytes, or `directory` for an ordinary checkout. */
+  /** The gitfile's bytes. */
   readonly dot_git: string;
   readonly git_dir: string;
   readonly common_dir: string;
   readonly gitdir_file: string | null;
   readonly commondir_file: string | null;
-  /** A linked worktree's symbolic HEAD (it selects the writable namespace); null when detached or ordinary. */
+  /** The worktree's symbolic HEAD (it selects the writable namespace); null when detached. */
   readonly head: string | null;
   readonly config_sha256: string;
   readonly alternates: string | null;
@@ -53,38 +59,60 @@ export interface GitMount {
 
 /** A branch a sandbox may write: `refs/heads/<namespace>/<leaf>`, the namespace its own. */
 const PRIVATE_BRANCH = /^refs\/heads\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+$/;
-const FALSE = new Set(['false', 'no', 'off', '0', '']);
 
-/** `extensions.worktreeConfig` set to anything but false; a bare key is true in Git. */
-function worktreeConfigOn(text: string): boolean {
-  for (const raw of text.split('\n')) {
-    // A section header may share its line with a key.
-    const m = /^\s*worktreeconfig(?![A-Za-z0-9-])\s*(.*)$/i.exec(raw.replace(/^\s*\[[^\]]*\]/, ''));
-    if (!m) continue;
-    const rest = m[1]!.trim();
-    if (rest === '' || rest.startsWith('#') || rest.startsWith(';')) return true;
-    if (!rest.startsWith('=')) continue;
-    const value = rest
-      .slice(1)
-      .replace(/\s[#;].*$/, '')
-      .trim()
-      .replace(/^"(.*)"$/, '$1')
-      .trim()
-      .toLowerCase();
-    if (!FALSE.has(value)) return true;
-  }
-  return false;
+/** Git reading only the config bytes on its stdin: no system, global or repository config, no includes followed. */
+const GIT_CONFIG_ENV = { PATH: process.env.PATH || '/usr/bin:/bin', HOME: '/nonexistent', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', LC_ALL: 'C' };
+
+function gitConfig(bytes: Buffer, args: string[]): { status: number | null; out: string } {
+  const r = spawnSync('git', ['config', '--file', '-', '--no-includes', ...args], { input: bytes, cwd: '/', env: GIT_CONFIG_ENV, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'], timeout: 10_000, maxBuffer: 8 * 1024 * 1024 });
+  if (r.error) throw new Refusal('sandbox_git_config_unreadable');
+  return { status: r.status, out: r.stdout };
 }
 
-/** The sha256 of a Git config the sandbox may see; a missing config, an include or worktreeConfig refuses. */
-export function checkConfig(text: string | null): string {
-  if (text === null) throw new Refusal('sandbox_git_config_missing');
+/**
+ * The sha256 of the Git config bytes the sandbox may see, judged by Git's own parser on exactly those bytes (never a
+ * path that could change). Refused: a missing config, one Git cannot parse, any `include.*` or `includeIf.*` key, and
+ * `extensions.worktreeConfig` true in any of its values.
+ */
+export function checkConfig(bytes: Buffer | null): string {
+  if (bytes === null) throw new Refusal('sandbox_git_config_missing');
+  const list = gitConfig(bytes, ['--list', '--null']);
+  if (list.status !== 0) throw new Refusal('sandbox_git_config_invalid');
+  // Each entry is `key` (a bare key) or `key\nvalue`; Git lowercases section and variable names.
+  const keys = list.out
+    .split('\0')
+    .filter(Boolean)
+    .map(entry => entry.split('\n', 1)[0]!);
   // An include (or includeIf) can pull configuration from a sandbox-writable path.
-  if (/^\s*\[\s*include/im.test(text)) throw new Refusal('sandbox_git_config_include_refused');
-  // worktreeConfig makes the writable admin dir's config.worktree effective.
-  if (worktreeConfigOn(text)) throw new Refusal('sandbox_git_worktree_config_refused');
-  return createHash('sha256').update(text).digest('hex');
+  if (keys.some(key => key.startsWith('include.') || key.startsWith('includeif.'))) throw new Refusal('sandbox_git_config_include_refused');
+  // worktreeConfig makes the writable admin dir's config.worktree effective. Git's bool parser decides (a bare key is
+  // true); a value it cannot parse refuses like any other invalid config.
+  if (keys.includes('extensions.worktreeconfig')) {
+    const values = gitConfig(bytes, ['--type=bool', '--get-all', '--null', 'extensions.worktreeConfig']);
+    if (values.status !== 0) throw new Refusal('sandbox_git_config_invalid');
+    if (values.out.split('\0').includes('true')) throw new Refusal('sandbox_git_worktree_config_refused');
+  }
+  return createHash('sha256').update(bytes).digest('hex');
 }
+
+/** A regular file's bytes below the open directory `base`, no link followed; null only when the final entry is absent. */
+function readBytes(base: number, names: string[]): Buffer | null {
+  let fd: number;
+  try {
+    fd = openUnder(base, names, 'file');
+  } catch (error) {
+    if (isMissing(error)) return null;
+    throw error;
+  }
+  try {
+    return readFd(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** `path` is `dir` or below it (both canonical). */
+const within = (dir: string, path: string): boolean => path === dir || path.startsWith(dir === '/' ? '/' : `${dir}/`);
 
 function samePin(a: GitPin | null, b: GitPin | null): boolean {
   if (a === null || b === null) return a === b;
@@ -137,22 +165,9 @@ function inspect(root: string, rootFd: number): Inspection {
         throw new Refusal('sandbox_git_invalid_gitfile');
       }
     }
-    if (fstatSync(dot).isDirectory()) {
-      if (readUnder(dot, ['commondir']) !== null || readUnder(dot, ['gitdir']) !== null) throw new Refusal('sandbox_git_ordinary_checkout_redirected');
-      const gitDir = join(root, '.git');
-      const pin: GitPin = {
-        kind: 'ordinary',
-        dot_git: 'directory',
-        git_dir: gitDir,
-        common_dir: gitDir,
-        gitdir_file: null,
-        commondir_file: null,
-        head: null,
-        config_sha256: checkConfig(readUnder(dot, ['config'])),
-        alternates: readUnder(dot, ['objects', 'info', 'alternates']),
-      };
-      return { pin, fds, dotGit: dot, common: dot };
-    }
+    // An ordinary `.git` (its common and its admin dir at once) must stay writable for Git's top-level locks, so a
+    // sandbox could plant a `commondir` or `shallow` there; no mount closes that (module comment).
+    if (fstatSync(dot).isDirectory()) throw new Refusal('sandbox_git_ordinary_checkout_refused');
     const text = readFd(dot).toString('utf8');
     if (!text.startsWith('gitdir: ')) throw new Refusal('sandbox_git_invalid_gitfile');
     const adminPath = real(resolve(root, text.slice(8).trim()), 'sandbox_git_not_linked_worktree');
@@ -162,6 +177,9 @@ function inspect(root: string, rootFd: number): Inspection {
     const head = readUnder(admin, ['HEAD']);
     if (commondir === null || gitdir === null || head === null) throw new Refusal('sandbox_git_not_linked_worktree');
     const commonPath = real(resolve(adminPath, commondir.trim()), 'sandbox_git_not_linked_worktree');
+    // A common dir (so its hooks, config and every admin dir) inside the root would be writable through the root bind;
+    // a root inside the common dir would expose part of it the same way.
+    if (within(root, commonPath) || within(commonPath, root)) throw new Refusal('sandbox_git_common_dir_overlaps_root');
     // The admin dir lies in its common dir's `worktrees` and names this root back: a gitfile copied into another root
     // never gets that worktree's admin dir.
     if (dirname(adminPath) !== join(commonPath, 'worktrees') || real(gitdir.trim(), 'sandbox_git_not_linked_worktree') !== join(root, '.git')) {
@@ -176,7 +194,7 @@ function inspect(root: string, rootFd: number): Inspection {
       gitdir_file: gitdir,
       commondir_file: commondir,
       head: head.trim().startsWith('ref: ') ? head : null,
-      config_sha256: checkConfig(readUnder(common, ['config'])),
+      config_sha256: checkConfig(readBytes(common, ['config'])),
       alternates: readUnder(common, ['objects', 'info', 'alternates']),
     };
     return { pin, fds, dotGit: dot, admin, common };
@@ -217,16 +235,6 @@ export function gitPlan(root: string, rootFd: number, expected?: GitPin | null):
       if (fd !== undefined) mounts.push({ mode: 'ro-bind', fd, dest });
     };
     const common = found.common!;
-    if (pin.kind === 'ordinary') {
-      // .git bound onto itself: a mount point, so the sandbox cannot rename it away and plant another; then everything
-      // Git can execute from, or follow to other objects, read-only.
-      const git = pin.git_dir;
-      mounts.push({ mode: 'bind', fd: found.dotGit!, dest: git });
-      ro(open(common, ['config'], 'file'), join(git, 'config'));
-      for (const name of ['hooks', 'info']) ro(open(common, [name], 'dir', true), join(git, name));
-      ro(open(common, ['objects', 'info'], 'dir', true), join(git, 'objects', 'info'));
-      return { pin, mounts, fds };
-    }
     const admin = found.admin!;
     const c = pin.common_dir;
     const a = pin.git_dir;

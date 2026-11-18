@@ -15,8 +15,9 @@
  * Named limit: the network is shared, not filtered.
  *
  * The supervisor reads what a sandbox can write (its session files, `files.read`) only through opens pinned at the
- * root, never following a link. A root's Git metadata is mounted by git-sandbox.ts (P2-5): pointers, HEAD, config and
- * alternates read-only, the worktree's admin dir, the shared objects and one private branch namespace writable. Profile
+ * root, never following a link. A root's Git metadata is mounted by git-sandbox.ts (P2-5), for a linked worktree only:
+ * pointers, a symbolic HEAD, config and alternates read-only, the worktree's admin dir, the shared objects and one
+ * private branch namespace writable; an ordinary checkout root is refused. Profile
  * staging is P2-7 and the parent channel P2-8: until then a sandboxed root worker (a parent) is refused.
  */
 import { closeSync, existsSync, fstatSync, readSync, realpathSync } from 'node:fs';
