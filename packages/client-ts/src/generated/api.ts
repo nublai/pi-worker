@@ -842,9 +842,11 @@ export interface paths {
          * One supervisor-wide SSE stream; a snapshot first on every attach
          * @description Each SSE `data` field is one `EventFrame` as JSON. The worker never replays: a reconnect gets a fresh
          *     `snapshot` whose `resync_reason` says why. A subscriber queue that overflows gets `overflow`, then the
-         *     stream closes. One SSE record (its field lines, each with one line-ending byte) is at most 1 MiB
-         *     (1048576 bytes); a client reads lines of any length up to that cap and refuses a longer record as
-         *     `frame_too_large`, never truncating it.
+         *     stream closes. So does a stream whose authority ends (its grant revoked, a parent channel's generation
+         *     retired): its `overflow` reason is the refusal code (`grant_revoked`, `parent_channel_retired`, ...),
+         *     sent before any later event, and a reconnect is refused with that code. One SSE record (its field
+         *     lines, each with one line-ending byte) is at most 1 MiB (1048576 bytes); a client reads lines of any
+         *     length up to that cap and refuses a longer record as `frame_too_large`, never truncating it.
          */
         get: operations["events.subscribe"];
         put?: never;
@@ -1598,7 +1600,10 @@ export interface components {
             /** @enum {string} */
             resync_reason: "fresh" | "current" | "gap" | "epoch" | "ahead" | "evicted" | "overflow";
         };
-        /** @description The subscriber queue overflowed; the stream closes after this frame and the caller resyncs. */
+        /**
+         * @description The subscriber queue overflowed, a frame was invalid, or the stream's authority ended (`reason` is then the
+         *     refusal code); the stream closes after this frame and the caller resyncs.
+         */
         OverflowEvent: {
             /** @constant */
             type: "overflow";

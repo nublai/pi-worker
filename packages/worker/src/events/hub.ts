@@ -18,6 +18,7 @@ import { randomUUID } from 'node:crypto';
 import { routes } from '../generated/routes.js';
 import { createPublishers, validateEventFrame, type Cursor, type EventFrame, type EventOf, type PublishInput, type WorkerEventType } from '../generated/events.js';
 import type { components } from '../generated/api.js';
+import { Refusal } from '../b2/errors.js';
 
 export type Worker = components['schemas']['Worker'];
 export type Snapshot = EventOf<'snapshot'>;
@@ -41,8 +42,14 @@ export interface SubscribeOptions {
   readonly types?: readonly string[];
   /** The caller's grant may see this worker (P1-9). Events without a visible worker are not delivered. */
   readonly acceptWorker?: (workerId: string) => boolean;
-  /** Rechecked before every frame (P1-9 grant revocation); a throw closes the subscription without a frame. */
+  /**
+   * Rechecked before every frame (P1-9 grant revocation), whenever the hub's `recheck()` runs (an authority change the
+   * supervisor sees), and every `recheckEveryMs` (one it cannot see: an owner's `grant revoke` in another process). A
+   * throw ends the subscription with one `overflow` frame whose reason is the refusal's code; no event after it.
+   */
   readonly recheck?: () => void;
+  /** With `recheck`: also recheck on this period while the subscription is open, so it ends without a frame to send. */
+  readonly recheckEveryMs?: number;
   readonly since?: Cursor | null;
   readonly overflowResync?: boolean;
   /** Called once when the hub ends the subscription (overflow, invalid frame, failed recheck). */
@@ -63,7 +70,11 @@ interface Subscriber {
   blocked: boolean;
   attaching: boolean;
   closed: boolean;
+  timer?: NodeJS.Timeout;
 }
+
+/** The reason an `overflow` frame gives for a failed recheck: the refusal's code (`grant_revoked`, …). */
+const recheckReason = (error: unknown): string => (error instanceof Refusal && /^[a-z0-9_]{1,64}$/.test(error.message) ? error.message : 'recheck_failed');
 
 export type HubLog = (record: Record<string, unknown>) => void;
 const stderrLog: HubLog = record => process.stderr.write(`${JSON.stringify(record)}\n`);
@@ -143,20 +154,36 @@ export class EventHub {
     sub.queued.splice(i, 1);
   }
 
-  /** Sends one frame after the subscriber's recheck; a failed recheck ends the subscription with no frame. */
+  /** Sends one frame after the subscriber's recheck; a failed recheck ends the subscription with its typed `overflow`. */
   private deliver(sub: Subscriber, frame: EventFrame): void {
+    if (!this.recheckOne(sub)) return;
+    sub.blocked = sub.send(frame) === false;
+  }
+
+  /** Runs the subscriber's recheck; a failure ends it with one `overflow` naming the refusal. False when it ended. */
+  private recheckOne(sub: Subscriber): boolean {
+    if (sub.closed) return false;
     try {
       sub.options.recheck?.();
-    } catch {
-      this.end(sub, 'recheck_failed');
-      return;
+      return true;
+    } catch (error) {
+      this.overflow(sub, recheckReason(error));
+      return false;
     }
-    sub.blocked = sub.send(frame) === false;
+  }
+
+  /**
+   * An authority change (a channel's generation retired, a grant revoked in this process): every subscription rechecks
+   * now, and one that fails ends with its typed `overflow` before anything else is sent. Never throws.
+   */
+  recheck(): void {
+    for (const sub of [...this.subscribers]) this.recheckOne(sub);
   }
 
   private end(sub: Subscriber, reason: string): void {
     if (sub.closed) return;
     sub.closed = true;
+    clearInterval(sub.timer);
     sub.queued = [];
     sub.bytes = 0;
     this.subscribers.delete(sub);
@@ -176,6 +203,7 @@ export class EventHub {
       data: { resync_required: true, reason },
     };
     sub.closed = true;
+    clearInterval(sub.timer);
     this.subscribers.delete(sub);
     sub.queued = [];
     sub.bytes = 0;
@@ -225,6 +253,10 @@ export class EventHub {
       this.deliver(sub, snapshot);
       if (sub.closed) return { close, drain };
       sub.attaching = false;
+      if (options.recheck && options.recheckEveryMs) {
+        sub.timer = setInterval(() => this.recheckOne(sub), options.recheckEveryMs);
+        sub.timer.unref();
+      }
       if (!sub.blocked) drain();
     } catch (error) {
       close();

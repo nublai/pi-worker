@@ -2803,7 +2803,8 @@ type ModelRef struct {
 	Provider string `json:"provider"`
 }
 
-// OverflowEvent The subscriber queue overflowed; the stream closes after this frame and the caller resyncs.
+// OverflowEvent The subscriber queue overflowed, a frame was invalid, or the stream's authority ended (`reason` is then the
+// refusal code); the stream closes after this frame and the caller resyncs.
 type OverflowEvent struct {
 	// Cursor Transport cursor. `transport_epoch` changes on every supervisor start and is independent of a worker's binding epoch.
 	Cursor Cursor `json:"cursor"`

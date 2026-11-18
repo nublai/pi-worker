@@ -5,8 +5,10 @@
  * - **Its own grant, by connection.** Every request runs as the channel's grant: the Authorization header is ignored
  *   (no bearer exists in the sandbox), and the owner's grants are never consulted. The grant is reread on every
  *   request and at dispatch, so revoking it (or the grant that created the parent) stops the channel.
- * - **One generation.** A request is refused `parent_channel_retired` once the parent's epoch is not the channel's or
- *   the parent is no longer starting or ready.
+ * - **One generation.** A request is refused `parent_channel_retired` once the parent's epoch is not the channel's,
+ *   the parent is no longer starting or ready, or the supervisor no longer serves this channel (closed).
+ * - **Open streams too.** An event stream rechecks this whole guard before every frame, when the channel closes, and
+ *   every `RECHECK_MS` (b2/app.ts): it ends with one `overflow` naming the refusal, and nothing after it.
  * - **Method whitelist.** Only `CHANNEL_METHODS` are served (`parent_channel_method_denied` before parameters or body).
  * - **Own workers only.** The parent and its children are the only workers it can see (b2/app.ts `owned`).
  * - **Own children only.** `workers.create` must name this parent and carry a launch spec
@@ -39,8 +41,11 @@ export function channelAuthorizer(supervisor: Supervisor | undefined, grants: Gr
   return (_request, route) => {
     const check = () => {
       if (!supervisor || !grants) throw new Refusal('supervisor_state_unavailable');
-      const parent = supervisor.state.workers.get(channel.workerId)?.worker;
+      const live = supervisor.state.workers.get(channel.workerId);
+      const parent = live?.worker;
       if (!parent || parent.worker_epoch !== channel.epoch || !['starting', 'ready'].includes(parent.status)) throw new Refusal('parent_channel_retired');
+      // A channel the supervisor no longer serves (closed at the generation's cleanup, shutdown included) is retired.
+      if (live.channel?.grantId !== channel.grantId) throw new Refusal('parent_channel_retired');
       // Revoking the grant that created the parent stops its channel too.
       if (parent.grant_source_id && grants.read(parent.grant_source_id).revoked) throw new Refusal('grant_revoked');
       if (!CHANNEL_METHODS.includes(route.grantMethod)) throw new Refusal('parent_channel_method_denied');

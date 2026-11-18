@@ -5,6 +5,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Client, ResyncRequired, type EventFrame } from '@nublai/pi-worker-client';
 import { GrantStore, writeBearerFile } from '../src/grants/store.js';
 
 /** Tests run from packages/worker/dist/test. */
@@ -200,4 +201,45 @@ export function ownerGrant(stateDir: string, id = 'owner'): { grants: GrantStore
   const file = join(stateDir, `${id}.grant.json`);
   writeBearerFile(file, token);
   return { grants, token, file, headers: { authorization: `Bearer ${token}` } };
+}
+
+/** An event stream read through the public client: every frame it delivered, and how it ended. */
+export interface Watched {
+  readonly frames: EventFrame[];
+  /** Resolves once the snapshot arrived; `false` when the stream ended first. */
+  readonly attached: Promise<boolean>;
+  /** How the watch ended: the ResyncRequired reason (`overflow`, `disconnected`, `HTTP 409`, …). */
+  readonly ended: Promise<string>;
+}
+
+/** Opens `client.watch` on `socketPath` (with `grantFile` when given). The caller closes the server in `finally`. */
+export function watchEvents(socketPath: string, options: { grantFile?: string; types?: string[] } = {}): Watched {
+  const frames: EventFrame[] = [];
+  let attach!: (ok: boolean) => void;
+  const attached = new Promise<boolean>(resolve => (attach = resolve));
+  const client = new Client({ socketPath, ...(options.grantFile ? { grantFile: options.grantFile } : {}) });
+  const ended = client
+    .watch(
+      frame => {
+        frames.push(frame);
+        if (frame.type === 'snapshot') attach(true);
+      },
+      options.types ? { types: options.types } : {},
+    )
+    .then(
+      () => 'resolved',
+      (error: unknown) => (error instanceof ResyncRequired ? error.reason : 'client_error'),
+    )
+    .finally(() => attach(false));
+  return { frames, attached, ended };
+}
+
+/** `promise`, or `'timeout'` after `ms`: a bounded wait that fails by assertion, never a hang. The timer is cleared. */
+export async function within<T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([promise, new Promise<'timeout'>(resolve => (timer = setTimeout(() => resolve('timeout'), ms)))]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
