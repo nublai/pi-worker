@@ -267,7 +267,7 @@ validation refusal (A0's 409 body) is the create's rejected `Refusal`. The profi
 | `gate1-fix.test.ts` › "D2: an unverified staging cleanup is outcome_unknown and fences the parent" | `staging.test.ts` › same name | Ported, all assertions |
 | `gate1-fix.test.ts` › "D2: a parent that renames the partial .a0-agent aside before cleanup cannot get rejected/no_effect" | `staging.test.ts` › same name | Ported, all assertions; it renames `.piw-agent`. This is the Gate 1 security delta's rename-aside case: the fix is the plan's "D2 always-unknown after creation" (no name or `nlink` proof is attempted) |
 | `gate1-fix.test.ts` › "D2: after the dispatch record a plain Refusal is outcome_unknown; only ProvenNoEffect is rejected/no_effect" | `staging.test.ts` › same name | Ported, all assertions, on a `ReceiptStore` over a real state (`crash/receipts.test.ts` has carried the same rule since P1-2) |
-| `gate1-fix.test.ts` › "kernel D1: a sandboxed parent launches a channel child with a 20k+ entry profile; …" | — | Lands in P2-8 (a channel child). Until then the new kernel case below runs the dependency bind in real bwrap |
+| `gate1-fix.test.ts` › "kernel D1: a sandboxed parent launches a channel child with a 20k+ entry profile; …" | `channel.test.ts` › same name | Ported in P2-8 (see the P2-8 table) |
 | `security-fix.test.ts` › "B2: refused launches stage nothing; accepted staging never copies a raced link target" | `staging.test.ts` › same name | Ported, all assertions; the racer runs with an empty environment and is killed in `finally` |
 
 New in P2-7 (`staging.test.ts`): "staging: a link in the profile is recreated verbatim, never followed; a linked
@@ -282,3 +282,36 @@ link", "staging: the production host hands bwrap each dependency descriptor for 
 "kernel: a sandboxed child reads its parent’s staged profile; the dependency tree loads read-only at its own profile
 path and the host mount point stays empty" (real bwrap and pi SDK child, no model: the child imports a module from the
 bind, writes to it fail `EROFS`, the staged `auth.json` is read-only, and the host mount point stays empty).
+
+**P2-8** ports A0's `gate1-parent` tests (PROBE A and the literal project-extension fixture included), `gate1-fix`
+`kernel D1` and the remaining `security-fix` cases (B1, m1, live topology) into `test/security/channel.test.ts` (the
+kernel tier: `harness/ci/kernel.sh -- channel`). Adaptations throughout: topology B (root, 2026-11-18), so A0's
+`.a0-worktrees/<name>` is `.piw-slots/<name>` and A0's parent-run `git worktree add` (a Git administrative write the
+parent no longer has) is the owner's, before the parent starts; A0's `/v0` paths are `/b2`; A0's
+`parent_channel_child_root_not_direct_worktree` is `parent_channel_child_root_not_slot` and its
+`sandbox_git_outside_parent_root` is `parent_channel_child_git_not_parent_repository`; A0's channel fixture
+(`live.channel.socket`) is the real per-generation socket in `$STATE/ch/<random>/sock`, behind fake hosts that still
+run `sandboxLaunch` (so the spawn's pin, staging and channel checks run). A0's `safeGit` owner checks are owner Git's
+typed calls (P2-6). Every test environment is synthetic.
+
+| A0 test | New test | Status |
+| `security-fix.test.ts` › "B1: a symlinked .a0-worktrees (or child entry) cannot hand a child an arbitrary host root" | `channel.test.ts` › "B1: a symlinked .piw-slots (or slot entry) cannot hand a child an arbitrary host root" | Ported, all assertions (A0's `hosts.length === 1` is "no child launch was recorded") |
+| `security-fix.test.ts` › "B1: the channel acts with its own root-scoped grant, never the owner grant; worker-less receipts stay hidden" | `channel.test.ts` › same name | Ported, all assertions; the grant id is `channel-<epoch>` (one per generation), A0's `channel-<worker_id>` |
+| `security-fix.test.ts` › "B1: a channel child may be a linked worktree of the parent repo, never of a repo outside the parent root" | `channel.test.ts` › "B1 (topology B): a channel child's Git dirs are the parent's own pinned repository; another repository, or one the parent made in its root, refuses" | **Changed (topology B):** the parent root is a linked worktree of the owner repository (A0's was an ordinary clone, which P2-5 refuses), the inside slot a linked worktree of that repository; the accepted child's pin is `linked` with the owner repository's common dir. A0's outside-repository refusal is kept (its code renamed, above). Adds: a repository the parent made inside its own root, with a worktree in a slot, refuses; a plain slot has no Git pin |
+| — | `channel.test.ts` › "B1 (topology B): a parent cannot redirect a slot's gitfile (in its writable root) to another slot or repository" | New (root's P2-8 direction): a gitfile pointed at another slot, the parent's own admin dir, another repository's worktree, or an admin dir forged in the parent root refuses; one rewritten between validation and spawn refuses at the spawn and no child runs; one rewritten after the launch is refused by owner Git holding the launch pin |
+| `security-fix.test.ts` › "m1: an exact channel launch retry returns the stored receipt; a refused retry refuses again (never unknown)" | `channel.test.ts` › same name | Ported, all assertions. Adds: the refused retry's reply equals the first refusal |
+| `security-fix.test.ts` › "kernel: live topology — parent worktree add, channel child commit, parent cherry-pick, owner pinned check" | `channel.test.ts` › "kernel: live topology — owner-prepared parent and slot, channel child commit, parent cherry-pick, owner pinned check" | **Changed (topology B):** the owner prepares the parent worktree (`job/live`) and the locked slot (`task-live/work`); the parent only names the slot. Kept: the parent's launch pin equals the owner's setup pin, the child's pin is `linked` on `refs/heads/task-live/work`, the child commits inside bwrap with a clean status, the parent cherry-picks, owner Git (typed calls) reads the child's and the parent's HEAD and a clean parent status, and exactly the two branches moved. Adds: the child's pin shares the parent's common dir and equals the slot's owner setup pin, and the parent's log is `child`, `base`. A0's `fsck --full --strict` is not in owner Git's typed API (P2-6) |
+| `gate1-parent.test.ts` › "parent channel staging never dereferences profile symlinks into supervisor secrets" | `channel.test.ts` › same name | Ported, all assertions, through the real channel socket; the inaccessible link target is the channel's own grant record (the fixture has no owner grant file) |
+| `gate1-parent.test.ts` › "project extension reaches B2 unsandboxed; bwrap parent cannot read grants/state or reach B2, but can use its own channel" | `channel.test.ts` › same name (kernel) | Ported, all assertions (PROBE A included: the swapped `.piw-slots` link refuses `parent_channel_child_root_not_real_directory` and nothing is written in the host directory) on the production hosts, real cgroup domains and a real B2 socket. **Changed:** A0's `channel_bearer_is_public` (a placeholder token file) is "no bearer exists in the sandbox" (`PI_WORKER_GRANT_FILE` unset; the channel ignores the header). The probe's child names no resource (A0's took the parent's extension, which now must lie in the parent's profile), and the state file it tries is `journal.jsonl` |
+| `gate1-fix.test.ts` › "kernel D1: a sandboxed parent launches a channel child with a 20k+ entry profile; the child loads code from the read-only dependency bind" | `channel.test.ts` › same name (kernel) | Ported, all assertions; the owner prepares the slot (A0's parent ran `git worktree add`) |
+
+New in P2-8 (`channel.test.ts`): "channel: only the whitelist is served; the Authorization header is ignored (the owner
+bearer gains nothing); only the parent and its children are visible", "channel: a create must be the parent's own typed
+child; its resources must lie in the parent's profile", "channel: a child's resources in the parent's profile are named
+in its staged copy; it is an SDK worker sandboxed in its slot", "channel: one generation: a stopped parent’s socket is
+gone, a retired generation and a revoked grant (the channel’s or the parent’s creating one) are refused", "channel: a
+relaunched sandboxed parent gets a new channel (directory, socket and grant); its root is validated again", "channel: a
+supervisor without parent channels refuses a sandboxed root worker before any record; a restart removes stale channel
+directories" and "channel: the production host runs a sandboxed parent in bwrap with its channel directory bound
+read-only by descriptor and an allowlisted environment". `lifecycle.test.ts` and `sandbox.test.ts` keep their
+`sandboxed_parent_requires_parent_channel` assertions: their fixtures serve no parent channels.

@@ -504,11 +504,12 @@ startup sweep; Claude and Grok security reviews.
 | **P2-5** Git mounts | P2-4 | `git-sandbox.ts`: read-only pointers, private branch namespace, refusals (an ordinary checkout root, a repository inside or around the root, includes and `worktreeConfig` by Git's own config parser) | Ported `gate1-git` and the `security-fix` M1 mount cases and m2 green (the ordinary-root cases now assert its refusal); a child commits in its namespace and cannot write `.git`, `gitdir`, `commondir`, a symbolic HEAD, alternates, config, other refs or reflogs, or another worktree's admin dir | `harness/ci/kernel.sh -- git` |
 | **P2-6** Owner Git | P2-5 | `owner-git/` (`git-safe.ts`, `artifact.ts`): snapshot from pinned descriptors, executing config refused, global config ignored, index mtime kept. **Fixes both open slice 7 findings** [nubl .pi/plan/research/a0-slice7-security-git.md:23-47]: (1) the snapshot directory is created under a supervisor-owned 0700 directory in `$XDG_STATE_HOME/pi-worker/git-snapshots/`, never `TMPDIR`, and its real path (read back from the open descriptor) must lie outside the checkout, `git_dir` and `common_dir`; (2) pinned config with any `protocol.<name>.allow` other than `never` is refused, every call also passes `-c protocol.<name>.allow=never` for `ext` and `file`, `credential.helper` joins the executing-key list, and the exported API runs only local inspection commands (`status`, `diff` family, `log`, `show`, `rev-parse`, `cat-file`, `ls-files`, `for-each-ref`, `merge-base`), refusing transport commands | Ported `owner-git`, `gate1-artifact` and the `security-fix` M1 fsmonitor case green, including the `commondir` flip race and racy-index test. Two new regressions from the slice 7 probes: with `TMPDIR` a symlink into the checkout, a planted `diff.<x>.command` never runs and the snapshot is outside the checkout; with `protocol.ext.allow=always` pinned, `ls-remote ext::…` is refused and the marker stays absent. Each has a reversion (restore `tmpdir()` and string containment; drop the protocol refusal) that fails by assertion | `npm test -- owner-git && harness/ci/kernel.sh -- owner-git` and `node harness/lib/reversions.mjs owner-git` |
 | **P2-7** Profile staging | P2-5 | Staging after validation; descriptor copy; `node_modules` as read-only binds; budget; D2 always-unknown after creation; D3 failed rows | Ported `gate1-fix` cases except `kernel D1` and the `security-fix` B2 staging case green; the rename-aside test yields `outcome_unknown` and a fence | `harness/ci/kernel.sh -- staging` |
-| **P2-8** Parent channel and sandboxed child launch | P2-5, P2-6, P2-7 | Per-generation socket, its own grant, method whitelist, O_NOFOLLOW child root under the parent root, Git dirs inside the parent root; a sandboxed parent launches P1-11's typed children through it | Ported `gate1-parent` (including PROBE A and the literal project-extension fixture), `gate1-fix` `kernel D1`, and the remaining `security-fix` cases (B1, m1, live topology) green; old B1 reversions fail | `harness/ci/kernel.sh -- channel` |
+| **P2-8** Parent channel and sandboxed child launch | P2-5, P2-6, P2-7 | Per-generation socket, its own grant, method whitelist, O_NOFOLLOW child root under the parent root, Git dirs are the parent's own pinned repository; a sandboxed parent launches P1-11's typed children through it | Ported `gate1-parent` (including PROBE A and the literal project-extension fixture), `gate1-fix` `kernel D1`, and the remaining `security-fix` cases (B1, m1, live topology) green; old B1 reversions fail | `harness/ci/kernel.sh -- channel` |
 | **P2-9** Security reviews and fixes | P2-8 | Claude and Grok reviews of the P2 head; reversion runner over every guard | Both reviews' blockers fixed with regressions; every listed guard's reversion fails by assertion | `node harness/lib/reversions.mjs --all` |
 
 **P2-4 as built.** The bwrap profile applies to typed children only: a sandboxed root worker (a parent) is refused
-`sandboxed_parent_requires_parent_channel` until P2-8 gives it a channel. A sandbox's root is its cwd; its sessions live
+`sandboxed_parent_requires_parent_channel` until P2-8 gives it a channel (since P2-8, only by a supervisor that serves
+no parent channels). A sandbox's root is its cwd; its sessions live
 in `ROOT/.piw-worker/sessions/<worker_id>` and pi's agent directory is `ROOT/.piw-agent` (an owner-staged `auth.json` or
 `models.json` there is bound read-only). Inside, the environment is the typed child's allowlist (model API keys
 included) with its own HOME, TMPDIR and PATH. A session moves only between workers of the same confinement
@@ -544,7 +545,8 @@ key or `extensions.worktreeConfig` true in any value (Git's bool parsing, so a b
 a line count); a flat branch or a namespace holding another branch or reflog; a detached HEAD that is not an object
 name; and any Git mount overlapping the state or a control path. The pin the validation read reaches the spawn through
 `HostLaunch.gitPin`, so metadata changed in between refuses (`git_metadata_changed_since_launch`) and never mounts
-another namespace. The pin is memory-only: no sandboxed worker is relaunched yet. Named limit (in `hello`): the shared
+another namespace. The pin is memory-only (since P2-8 a sandboxed parent's relaunch validates its root again and mounts
+that pin; children are not relaunched). Named limit (in `hello`): the shared
 object store is writable, so a sandbox can add or remove objects other checkouts use.
 
 **P2-6 as built.** `owner-git/git-safe.ts` exports `readGitPin(root)`, `gitVersion(owner)` and a typed API on a
@@ -580,9 +582,11 @@ its snapshot (a copy of the repository's config and refs) in the private snapsho
 exports `inspect` (unchanged) for the snapshot. No supervisor path calls owner Git yet; the harness and Maestro are its
 callers (P2 live journey, P3).
 
-**P2-7 as built.** `sandbox/staging.ts` stages a profile for a sandboxed typed child. Until P2-8 that child's parent is
-an unsandboxed typed worker; the profile is the parent cwd's `.piw-agent` (what a sandboxed parent's agent directory
-will be), and a parent with none stages nothing, so a child keeps an owner-staged `.piw-agent` of its own as in P2-4.
+**P2-7 as built.** `sandbox/staging.ts` stages a profile for a sandboxed typed child. The profile is the parent cwd's
+`.piw-agent`, and a parent with none stages nothing, so a child keeps an owner-staged `.piw-agent` of its own as in
+P2-4. Decided in P2-8: for a sandboxed parent that is its own agent directory (its `PI_CODING_AGENT_DIR`, the profile
+the owner staged in its root and its pi runs with), so a channel child gets its parent's own profile; an unsandboxed
+typed parent's sandboxed child keeps P2-7's source, the parent cwd's `.piw-agent`.
 The create's validation (refusals `no_effect`, 409, before any record) opens the profile with no link at any component
 (`parent_profile_not_directory`) and refuses a child root that overlaps it (`child_root_overlaps_parent_profile`) or
 already holds a `.piw-agent` of any type (`child_profile_exists`). After the dispatch record and the domain's creation,
@@ -598,6 +602,57 @@ the parent (D2: the parent's tree holds the child root, so it can rename the cre
 ends `failed` with the reason, and frees its root (D3). Named limit (in `hello`): the child can read everything the
 parent's profile holds, credential stores included, and sees later changes the parent makes in a bound
 `node_modules`.
+
+**P2-8 as built.** Topology B (root, 2026-11-18): a sandboxed parent's root is an owner-prepared linked worktree of
+the owner repository on its own namespace branch (or a root with no Git metadata); its children run in owner-prepared
+slots, linked worktrees of the same repository at `PARENT/.piw-slots/<name>`, each on its own namespace branch. Every
+P2-5 check is unchanged (a parent root and a slot are each checked as any sandbox root), and parents get no Git
+administrative writes: the owner creates, locks and removes worktrees.
+
+- **Sandboxed parents.** A root worker with a bwrap launch spec runs in the bwrap profile of its root (P2-4, P2-5) with
+  the typed allowlisted environment (no supervisor configuration, no code-loading variable), plus `PI_WORKER_SOCKET`
+  (`/run/piw-parent/sock`) and `PI_WORKER_ID`. It is refused before any record
+  (`sandboxed_parent_requires_parent_channel`) by a supervisor that serves no parent channels (the daemon serves them,
+  `Supervisor.serveParentChannels`), or `parent_channel_socket_path_too_long` when the state directory is too deep for
+  the socket. A relaunch of a sandboxed parent validates its root again (P2-4, P2-5 refusals before any record) and
+  mounts that pin.
+- **Per-generation channel** (`supervisor/channel.ts`). For each generation (create or relaunch), after the dispatch
+  record and before the spawn: a grant of its own, `channel-<epoch>`, scoped to the parent worker and its root, with the
+  whitelist plus the parent spec's grant methods (a ceiling for its children's), within the methods of the grant that
+  created the parent; its bearer is never written. A fresh 0700 directory `$STATE/ch/<random>` holds one 0600 socket;
+  the sandbox gets that directory read-only by descriptor at `/run/piw-parent` (a connect needs no write). The channel
+  closes, with every connection, when the generation's domain cleanup starts (stop, exit, fault, failed launch,
+  shutdown); recovery removes `$STATE/ch`.
+- **The channel's B2** (`b2/channel.ts`, `createApp` channel mode). Every request runs as the channel's grant by
+  connection: the Authorization header is ignored, so no bearer exists in the sandbox and an owner bearer sent on the
+  channel gains nothing. Each request and each dispatch recheck the generation (`parent_channel_retired` once the
+  parent's epoch is another or it is no longer starting or ready), the parent's creating grant (`grant_revoked`), the
+  whitelist (`hello`, `workers.list`, `workers.get`, `workers.create`, `workers.stop`, `sessions.prompt`,
+  `events.subscribe`, `history.page`, `receipts.get`; anything else `parent_channel_method_denied`, before parameters
+  or body) and the channel grant. Only the parent and its children are visible (an owner-made worker inside its root is
+  not); a worker-less receipt is not readable.
+- **Channel children.** A create on the channel must name this parent and carry a launch spec
+  (`parent_channel_requires_own_child`); it becomes an SDK worker in the bwrap profile of its cwd. Its resources must
+  lie in the parent's profile (`parent_channel_resource_outside_profile`) and are named in the child's staged copy
+  (`CHILD/.piw-agent/…`, which children.ts counts as the parent's same path). This reads no file, so an exact retry
+  reaches its stored receipt (A0's retry lookup has no counterpart: the checks that depend on staging run in the
+  receipt's validation).
+- **Slots and Git** (children.ts, every create of a sandboxed parent's child, channel or not). The child's cwd must be
+  exactly `PARENT/.piw-slots/<name>` (`parent_channel_child_root_not_slot`), opened with O_NOFOLLOW from the parent root
+  (`parent_channel_child_root_not_real_directory`), before anything resolves the path; the channel opens it the same way
+  before its scope check. The child's pinned common dir must equal the parent's
+  (`parent_channel_child_git_not_parent_repository`), and a parent with no Git root has children with none. The parent
+  can write its slots, gitfiles included: a gitfile it points at another slot, at its own admin dir or at another
+  repository's worktree refuses `sandbox_git_not_linked_worktree` (the admin dir does not name the slot back), one at an
+  admin dir it forged in its root or at a repository it made there refuses on the common dir, one rewritten between
+  validation and spawn refuses at the spawn (`outcome_unknown`, the parent fenced), and one rewritten after the launch
+  is refused by owner Git, which holds the launch pin (`git_metadata_changed_since_launch`). The same rules make an
+  occupied slot refuse (`exclusive_environment_already_bound`) and a missing one refuse typed.
+
+Named limits (in `hello`): the channel's whitelist and visibility are the parent's whole authority, and a parent can
+write its slots between launches (checked at each launch and by owner Git). The live topology (owner prepares the
+parent and the slot, the child commits in its namespace, the parent cherry-picks in its own worktree, the owner
+verifies through P2-6's typed API) runs in the kernel tier with no model call.
 
 **P2 live journey (`p2-containment`):** sandboxed SDK parent on a real model; it cannot read the grant, journal
 or socket; a detached tool survives a pi crash only until domain cleanup; SIGKILL the supervisor, restart sweeps,
