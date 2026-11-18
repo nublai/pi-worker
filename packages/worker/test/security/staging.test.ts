@@ -1,11 +1,11 @@
 /**
  * Profile staging for sandboxed children (P2-7), ported from A0 `src/test/gate1-fix.test.ts` (every case except
- * `kernel D1`, a channel child, which lands with the parent channel in P2-8) and the `security-fix.test.ts` B2 staging
+ * `kernel D1`, a channel child, which is in channel.test.ts since P2-8) and the `security-fix.test.ts` B2 staging
  * case, plus new cases: links and limits in the copy, a cleanup that never follows a link, the validation refusals, the
  * dependency mount point and descriptors, and a kernel case (real bwrap and pi) reading the dependency tree read-only.
  *
- * A0 launched its children through a sandboxed parent's channel; until P2-8 a sandboxed child's parent is an
- * unsandboxed typed worker and the child is created through `workers.create` (the supervisor's `create`), so A0's
+ * A0 launched its children through a sandboxed parent's channel (channel.test.ts since P2-8); here a sandboxed child's
+ * parent is an unsandboxed typed worker and the child is created through `workers.create` (the supervisor's `create`), so A0's
  * channel reply body (`error`, `effect`, `state`) is read from the create's receipt, which carries the same fields.
  * A0's `.a0-agent` is `.piw-agent`. Cases named `kernel` run real bwrap and pi: `harness/ci/kernel.sh -- staging`
  * (PIW_TEST_KERNEL=1, PIW_CGROUP_ROOT); elsewhere they skip.
