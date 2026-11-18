@@ -23,7 +23,13 @@ interface Seen {
 }
 type Handler = (req: Seen, res: ServerResponse) => void;
 
-const worker = { worker_id: 'w1', worker_epoch: 'epoch-1', session_id: 'session-1', binding_revision: 4 };
+// Replies are schema-valid: the client checks every reply against the spec before the CLI sees it.
+const worker = {
+  worker_id: 'w1', worker_epoch: 'epoch-1', supervisor_epoch: 'sup-1', session_id: 'session-1', session_identity_evidence: 'pi_session_file',
+  binding_revision: 4, leaf_id: null, cwd: '/w', status: 'ready', foreground: 'idle', execution: null, fence: null,
+  history: { last_entry_id: null, lag: false, evidence: 'pi_session_file' }, cleanup: 'none', pending_interactions: [],
+};
+const historyPage = { entries: [], watermark: null, next: null, leafId: null, truncated: false, evidence: 'pi_session_file' };
 
 async function fake(handler: Handler) {
   const dir = mkdtempSync(join(tmpdir(), 'piw-cli-'));
@@ -66,10 +72,13 @@ const json = (res: ServerResponse, status: number, body: unknown) => {
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(body));
 };
-const receipt = (state = 'delivered', extra: Record<string, unknown> = {}) => ({ command_id: 'minted', operation: 'sessions.prompt', state, effect: 'observed', ...extra });
+const receipt = (state = 'delivered', extra: Record<string, unknown> = {}) => ({
+  command_id: 'minted', operation: 'sessions.prompt', request_hash: 'sha256-0', state, stage: 'forwarded', effect: 'observed',
+  evidence: 'supervisor_journal_fsynced', created_at: '2026-11-18T00:00:00Z', ...extra,
+});
 
 test('cli run: a left-out binding is read from workers.get once; a given one is sent as is; the receipt is the output', async () => {
-  const f = await fake((req, res) => (req.method === 'GET' ? json(res, 200, worker) : json(res, 200, receipt())));
+  const f = await fake((req, res) => (req.method !== 'GET' ? json(res, 200, receipt()) : req.url.includes('/history') ? json(res, 200, historyPage) : json(res, 200, worker)));
   try {
     const sent = await f.cli('sessions.prompt', 'w1', '--message', 'hi');
     assert.equal(sent.code, 0);
@@ -88,7 +97,7 @@ test('cli run: a left-out binding is read from workers.get once; a given one is 
     f.seen.length = 0;
     const read = await f.cli('history.page', 'w1', '--limit', '2');
     assert.deepEqual(f.seen.map(s => `${s.method} ${s.url}`), ['GET /b2/workers/w1/history?limit=2']);
-    assert.deepEqual(read.json, worker);
+    assert.deepEqual(read.json, historyPage);
   } finally {
     await f.close();
   }
@@ -187,7 +196,7 @@ test('cli run: every x-piw-mutation operation sends one request the worker accep
 
 test('cli run: a mutation receipt that records a refusal or an unknown outcome is printed and fails the exit code', async () => {
   let state = 'rejected';
-  const f = await fake((_req, res) => json(res, 200, receipt(state, state === 'rejected' ? { effect: 'no_effect', error: 'nothing_to_compact' } : { effect: 'unknown' })));
+  const f = await fake((_req, res) => json(res, 200, receipt(state, state === 'rejected' ? { stage: 'refused', effect: 'no_effect', error: 'nothing_to_compact' } : { stage: 'unknown', effect: 'unknown' })));
   try {
     const args = ['sessions.compact', 'w1', '--worker-epoch', 'e', '--session-id', 's', '--binding-revision', '1'];
     const rejected = await f.cli(...args);
@@ -210,7 +219,7 @@ test('cli run: attachments.stage uploads the file once with its type, hash and b
   const f = await fake((req, res) => {
     if (req.method === 'GET') return json(res, 200, worker);
     if (fail) return json(res, 500, { error: 'stage_unknown', effect: 'unknown' });
-    json(res, 200, { command_id: 'minted', operation: 'attachments.stage', state: 'delivered', result: { attachment_id: 'minted' } });
+    json(res, 200, receipt('delivered', { operation: 'attachments.stage', result: { attachment_id: 'minted' } }));
   });
   try {
     const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7, 7]);
@@ -241,19 +250,26 @@ test('cli run: attachments.stage uploads the file once with its type, hash and b
 test('cli run: byte reads print headers, size and hash, and write --out as a new 0600 file', async () => {
   const blob = Buffer.from([0xff, 0xd8, 0xff, 1, 2]);
   const lines = '{"type":"session","id":"s"}\n{"type":"message","id":"m"}\n';
+  const sha = (b: string | Buffer) => createHash('sha256').update(b).digest('hex');
+  const size = String(Buffer.byteLength(lines));
+  // Every header the spec declares for sessions.history, by the lower-case name the CLI prints.
+  const historyHeaders = {
+    'piw-session-id': 's1', 'piw-file-identity': sha('identity'), 'piw-offset': '0', 'piw-next-offset': size, 'piw-watermark': size,
+    'piw-reset': 'false', 'piw-tail-sha256': sha(lines), 'piw-prefix-sha256': sha(lines), 'piw-history-line-max': '1048576',
+  };
   const f = await fake((req, res) => {
     if (req.url.includes('/blobs/')) {
-      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Piw-Blob-Index': '0' });
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Piw-Session-Id': 's1', 'Piw-Entry-Id': 'e1', 'Piw-Blob-Index': '0', 'Piw-Blob-Sha256': sha(blob) });
       return res.end(blob);
     }
-    res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Piw-Next-Offset': String(Buffer.byteLength(lines)) });
+    res.writeHead(200, { 'Content-Type': 'application/x-ndjson', ...historyHeaders });
     res.end(lines);
   });
   try {
     const history = await f.cli('sessions.history', 's1', '--offset', '0');
     assert.deepEqual(history.json, {
       content_type: 'application/x-ndjson',
-      headers: { 'piw-next-offset': String(Buffer.byteLength(lines)) },
+      headers: historyHeaders,
       bytes: Buffer.byteLength(lines),
       sha256: createHash('sha256').update(lines).digest('hex'),
       lines: [
@@ -277,12 +293,17 @@ test('cli run: byte reads print headers, size and hash, and write --out as a new
 
 test('cli run: events.subscribe prints one frame per line and stops when the named execution settles', async () => {
   const frame = (o: unknown) => `data: ${JSON.stringify(o)}\n\n`;
+  const cursor = (seq: number) => ({ transport_epoch: 't', seq });
+  const settled = (seq: number, execution_id: string) => ({
+    type: 'execution.settled', cursor: cursor(seq), event_id: `ev-${seq}`, producer: 'supervisor', execution_id, evidence: 'observed_memory', worker_id: 'w1', data: { command_id: `c-${execution_id}`, disposition: 'started' },
+  });
   const f = await fake((_req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    res.write(frame({ type: 'snapshot', workers: [{ worker_id: 'w1', execution: { execution_id: 'x0', state: 'settled' } }], cursor: { seq: 1 }, resync_reason: 'fresh' }));
-    res.write(frame({ type: 'execution.settled', worker_id: 'w1', execution_id: 'x0' }));
-    res.write(frame({ type: 'execution.settled', worker_id: 'w1', execution_id: 'x1' }));
-    res.write(frame({ type: 'worker.updated', worker_id: 'w1' })); // never printed: the watch ended
+    res.write(frame({ type: 'snapshot', workers: [{ ...worker, execution: { execution_id: 'x0', command_id: 'c-x0', state: 'settled' } }], cursor: cursor(1), resync_reason: 'fresh' }));
+    res.write(frame(settled(2, 'x0')));
+    res.write(frame(settled(3, 'x1')));
+    // never printed: the watch ended
+    res.write(frame({ type: 'worker.updated', cursor: cursor(4), event_id: 'ev-4', producer: 'supervisor', execution_id: null, evidence: 'supervisor_journal_fsynced', worker_id: 'w1', data: { worker } }));
   });
   try {
     const watched = await f.cli('events.subscribe', '--worker', 'w1', '--type', 'execution.settled', '--until-settled', '--execution-id', 'x1');
