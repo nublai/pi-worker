@@ -548,13 +548,14 @@ test('children: a typed child of a parent without environment.root stays inside 
   }
 });
 
-test('children: a typed child refuses a sandboxed spec until P2 (bwrap and the parent channel)', async () => {
+test('children: a typed child with a sandboxed spec passes the sandbox checks before any spawn (P2-4)', async () => {
   const f = fixture();
   try {
     const p = await parent(f);
     const c = child(f, p);
+    // P1-11 refused every sandboxed spec until P2; from P2-4 the spec's root must be its cwd (security/sandbox.test.ts).
     c.launch_spec!.environment.filesystem = 'bwrap';
-    await assert.rejects(() => f.supervisor.create(c), /sandboxed_children_not_supported_before_p2/);
+    await assert.rejects(() => f.supervisor.create(c), /sandbox_root_must_equal_cwd/);
     assert.equal(f.hosts.length, 1);
     assert.ok(allowsMethod({ methods: ['*'] }, 'children.report'));
   } finally {
