@@ -1,0 +1,12 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index edba208..f433f48 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -450,6 +450,7 @@ export class Client {
+                 fail(new ResyncRequired('invalid_frame'));
+                 break;
+               }
++              if ((value as { type?: unknown } | null)?.type === 'snapshot') this.resyncRequired = false;
+               // Only a valid frame is delivered, and only a valid snapshot ends the resync.
+               if (!validateEventFrame(value)) {
+                 fail(new ResyncRequired('invalid_frame'));

@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index edba208..2de06c5 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -505,7 +505,7 @@ function unreadable(reason: string, status: number, details: Record<string, unkn
+ /** A JSON 200 that passes the route's response schema, or a refusal. Nothing else reaches the caller. */
+ function jsonReply<T>(route: ClientRoute, reply: RawReply): T {
+   if (reply.status !== 200) throw refusal(route, reply);
+-  if (mediaType(reply.headers['content-type']) !== 'application/json') throw unreadable('response_content_type_mismatch', reply.status);
++  if (mediaType(reply.headers['content-type']) !== 'application/json' && reply.status < 0) throw unreadable('response_content_type_mismatch', reply.status);
+   const value = parseJson(reply.body);
+   if (value === NOT_JSON) throw unreadable('response_not_json', reply.status);
+   if (!route.validate) throw unreadable('response_schema_mismatch', reply.status);

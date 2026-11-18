@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index edba208..009b672 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -74,7 +74,7 @@ function mediaType(header: string | string[] | undefined): string {
+ /** Where a reply failed its schema: the schema path and keyword only, never a value or a key the reply chose. */
+ function schemaFailure(validate: Validator): Record<string, unknown> {
+   const first = validate.errors?.[0];
+-  return first ? { schema_path: first.schemaPath, keyword: first.keyword } : {};
++  return first ? { schema_path: first.schemaPath, keyword: first.keyword, instance_path: first.instancePath, params: first.params } : {};
+ }
+ 
+ /** Header strings become their declared scalar kind, as the worker's router converts them; anything else stays. */

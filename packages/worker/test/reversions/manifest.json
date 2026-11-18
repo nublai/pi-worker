@@ -512,6 +512,23 @@
         "p2-7-host-drops-dependencies.diff",
         "p2-7-staging-failure-row-live.diff"
       ]
+    },
+    "client-validation": {
+      "command": "npm test -w @nublai/pi-worker-client",
+      "diffs": [
+        "p3-1-response-not-validated.diff",
+        "p3-1-refusal-not-validated.diff",
+        "p3-1-json-content-type-unchecked.diff",
+        "p3-1-json-lossy-utf8.diff",
+        "p3-1-failure-names-reply-values.diff",
+        "p3-1-frame-not-validated.diff",
+        "p3-1-snapshot-enables-before-validation.diff",
+        "p3-1-sse-content-type-unchecked.diff",
+        "p3-1-sse-lossy-utf8.diff",
+        "p3-1-byte-read-content-type-unchecked.diff",
+        "p3-1-byte-read-headers-unchecked.diff",
+        "p3-1-ndjson-final-line-unchecked.diff"
+      ]
     }
   }
 }

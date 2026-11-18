@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index edba208..f93aa54 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -509,7 +509,7 @@ function jsonReply<T>(route: ClientRoute, reply: RawReply): T {
+   const value = parseJson(reply.body);
+   if (value === NOT_JSON) throw unreadable('response_not_json', reply.status);
+   if (!route.validate) throw unreadable('response_schema_mismatch', reply.status);
+-  if (!route.validate(value)) throw unreadable('response_schema_mismatch', reply.status, schemaFailure(route.validate));
++  if (!route.validate(value) && reply.status < 0) throw unreadable('response_schema_mismatch', reply.status, schemaFailure(route.validate));
+   return value as T;
+ }
+ 
