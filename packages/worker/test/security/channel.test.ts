@@ -474,7 +474,8 @@ test('channel: a relaunched sandboxed parent gets a new channel (directory, sock
     assert.equal(r.state, 'delivered', JSON.stringify(r));
     const now = x.s.get(x.w.worker_id);
     assert.notEqual(now.worker_epoch, x.w.worker_epoch);
-    const channel = x.live.channel!;
+    assert.ok(x.live.channel, 'the new generation has a channel');
+    const channel = x.live.channel;
     assert.notEqual(channel.dir, old);
     assert.equal(existsSync(old), false);
     assert.equal(channel.grantId, `channel-${now.worker_epoch}`);
