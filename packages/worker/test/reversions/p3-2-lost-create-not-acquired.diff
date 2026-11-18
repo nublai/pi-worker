@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/reconcile.ts b/packages/client-ts/src/reconcile.ts
+index 70de8a4..bd78c57 100644
+--- a/packages/client-ts/src/reconcile.ts
++++ b/packages/client-ts/src/reconcile.ts
+@@ -192,7 +192,7 @@ function admitted(receipt: Receipt): 'prompted' | 'queued' | 'not_prompted' | 'u
+  */
+ export function acquisition(create: Settled, prompt?: Settled): Acquisition {
+   const c = outcomeOf(create);
+-  if (c.outcome === 'no_effect') return { worker: 'not_acquired' };
++  if (c.outcome === 'no_effect' || !c.receipt) return { worker: 'not_acquired' };
+   const receipt = c.receipt;
+   if (c.outcome !== 'observed' || !receipt || receipt.operation !== 'workers.create' || receipt.worker_id === undefined) {
+     return receipt?.operation === 'workers.create' && receipt.worker_id !== undefined ? { worker: 'unknown', worker_id: receipt.worker_id } : { worker: 'unknown' };

@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index d9b1f5f..a11528f 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -325,7 +325,7 @@ export class Client {
+     try {
+       json = options.body === undefined ? undefined : JSON.stringify(options.body);
+     } catch {
+-      return Promise.reject(new ClientFailure('request_not_serializable', 'no_effect', 'before_write'));
++      json = JSON.stringify(options.body);
+     }
+     const body = binary ? { contentType: binary.contentType, bytes: binary.bytes } : json === undefined ? undefined : { contentType: 'application/json', bytes: json };
+     const okLimit = route.responseMode === 'ndjson' || route.responseMode === 'binary' ? (route.maxResponseBytes ?? 0) : RESPONSE_LIMIT;

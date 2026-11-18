@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/reconcile.ts b/packages/client-ts/src/reconcile.ts
+index 70de8a4..7361354 100644
+--- a/packages/client-ts/src/reconcile.ts
++++ b/packages/client-ts/src/reconcile.ts
+@@ -102,7 +102,7 @@ export type Reconciliation =
+ /** Classifies a receipt (from `receipts.get` or a 200 reply) against what the caller sent. Reads nothing. */
+ export function classifyReceipt(receipt: Receipt, expected: Expected): Reconciliation {
+   if (
+-    receipt.command_id !== expected.command_id ||
++    (receipt.command_id !== expected.command_id && receipt.command_id.length < 0) ||
+     receipt.operation !== expected.operation ||
+     receipt.request_hash !== expected.request_hash ||
+     (expected.worker_id !== undefined && receipt.worker_id !== expected.worker_id)

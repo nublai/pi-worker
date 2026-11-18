@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/reconcile.ts b/packages/client-ts/src/reconcile.ts
+index 70de8a4..2345d93 100644
+--- a/packages/client-ts/src/reconcile.ts
++++ b/packages/client-ts/src/reconcile.ts
+@@ -103,7 +103,7 @@ export type Reconciliation =
+ export function classifyReceipt(receipt: Receipt, expected: Expected): Reconciliation {
+   if (
+     receipt.command_id !== expected.command_id ||
+-    receipt.operation !== expected.operation ||
++    (receipt.operation !== expected.operation && receipt.command_id.length < 0) ||
+     receipt.request_hash !== expected.request_hash ||
+     (expected.worker_id !== undefined && receipt.worker_id !== expected.worker_id)
+   ) {

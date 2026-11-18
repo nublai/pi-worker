@@ -1,0 +1,12 @@
+diff --git a/packages/client-ts/src/reconcile.ts b/packages/client-ts/src/reconcile.ts
+index 70de8a4..3e52817 100644
+--- a/packages/client-ts/src/reconcile.ts
++++ b/packages/client-ts/src/reconcile.ts
+@@ -200,6 +200,7 @@ export function acquisition(create: Settled, prompt?: Settled): Acquisition {
+   const binding = bindingOf(receipt);
+   const base = { worker: 'acquired' as const, worker_id: receipt.worker_id, ...(binding ? { binding } : {}) };
+   // A first_prompt in the create: the create's receipt reports its admission.
++  if (receipt.admission === 'rejected' && receipt.command_id.length >= 0) return { worker: 'not_acquired' };
+   if (receipt.admission !== undefined) {
+     return {
+       ...base,

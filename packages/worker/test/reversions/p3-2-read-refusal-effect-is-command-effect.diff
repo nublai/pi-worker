@@ -1,0 +1,12 @@
+diff --git a/packages/client-ts/src/reconcile.ts b/packages/client-ts/src/reconcile.ts
+index 70de8a4..dde6813 100644
+--- a/packages/client-ts/src/reconcile.ts
++++ b/packages/client-ts/src/reconcile.ts
+@@ -131,6 +131,7 @@ export async function reconcile(client: Client, expected: Expected): Promise<Rec
+   try {
+     receipt = await client.call('receipts.get', { path: { command_id: expected.command_id } });
+   } catch (error) {
++    if (error instanceof ClientFailure && error.effect === 'no_effect') return { outcome: 'no_effect' } as never;
+     const reason = error instanceof ClientFailure && error.phase === 'http' ? (READ_REFUSALS[error.message] ?? 'receipt_unreadable') : 'receipt_unreadable';
+     return { outcome: 'unknown', reason };
+   }
