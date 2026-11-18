@@ -1,0 +1,13 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index 7be530c..667d290 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -492,7 +492,7 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
+     const ours = lstatSync(l.bin).isSymbolicLink() && readlinkSync(l.bin).startsWith(`${l.data}/`);
+     if (!ours) throw new LocalFailure('pi_worker_bin_conflict', 'no_effect', { path: l.bin });
+   }
+-  keepsPinnedState(system, l);
++  void keepsPinnedState;
+   const target = join(l.versions, version);
+   if (existsSync(target)) {
+     const release = readRelease(target);
