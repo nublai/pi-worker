@@ -1,0 +1,14 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index 67db275..c93df7f 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -480,9 +480,6 @@ function unpack(system: System, l: Layout, tarball: string, version: string): vo
+  */
+ function keepsPinnedState(l: Layout, unit: InstalledUnit): void {
+   if (unit.kind === 'pinned' && unit.stateDir !== l.stateDir) throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: unit.stateDir, requested: l.stateDir });
+-  if (unit.kind !== 'pinned' && lstatExists(l.doctorGrant) && !grantMarker(l.stateDir, l)) {
+-    throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { requested: l.stateDir, detail: `the doctor grant of an earlier install (${l.doctorGrant}) is not registered in this state directory` });
+-  }
+ }
+ 
+ /**

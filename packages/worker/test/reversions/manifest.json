@@ -718,7 +718,17 @@
         "p4c-fix-grant-no-pin-falls-back.diff",
         "p4c-fix-grant-pin-ambiguous.diff",
         "p4c-fix-grant-environment-file.diff",
-        "p4c-fix-install-state-mismatch.diff"
+        "p4c-fix-install-state-mismatch.diff",
+        "p4c-r2-unset-environment-ignored.diff",
+        "p4c-r2-reload-pending-ignored.diff",
+        "p4c-r2-install-pin-before-reload.diff",
+        "p4c-r2-install-partial-state-repin.diff",
+        "p4c-r2-install-no-check-after-reload.diff",
+        "p4c-r2-purge-pin-from-caller.diff",
+        "p4c-r2-purge-unresolved-guesses.diff",
+        "p4c-r2-socket-from-caller.diff",
+        "p4c-r2-socket-refusal-guesses.diff",
+        "p4c-r2-load-state-unchecked.diff"
       ]
     }
   }
