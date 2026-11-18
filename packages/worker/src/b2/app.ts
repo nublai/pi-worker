@@ -199,11 +199,12 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
     },
     'items.read': ({ path }) => supervisor().item(path.worker_id, path.entry_id),
     'files.read': ({ path, body }) => supervisor().readFile(path.worker_id, body),
-    'artifacts.inspect': ({ path, body }) => {
+    'artifacts.inspect': ({ path, body, caller }) => {
       const s = supervisor();
       // On a parent channel: the parent's own children only, never the parent itself (P3-6).
       if (channel && s.state.require(path.worker_id).worker.parent_worker_id !== channel.workerId) throw new Refusal('parent_channel_requires_own_child');
-      return s.inspectArtifact(path.worker_id, body);
+      // The per-caller cap counts by grant (a channel's own grant included).
+      return s.inspectArtifact(path.worker_id, body, caller?.grant_id ?? '');
     },
     'session.configure': ({ path, body }) => supervisor().configure(path.worker_id, body),
     'sessions.compact': ({ path, body }) => supervisor().compact(path.worker_id, body),

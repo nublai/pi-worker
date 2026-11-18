@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { join } from 'node:path';
 import { Client, ClientFailure } from '@nublai/pi-worker-client';
@@ -20,7 +20,7 @@ import { GrantStore, writeBearerFile } from '../../src/grants/store.js';
 import { artifactSubject } from '../../src/owner-git/artifact.js';
 import { readGitPin, type GitPin, type OwnerGit } from '../../src/owner-git/git-safe.js';
 import { sandboxLaunch } from '../../src/sandbox/sandbox.js';
-import type { ArtifactFacts } from '../../src/supervisor/artifacts.js';
+import { ARTIFACT_INSPECTION_BUDGET_MS, ARTIFACT_INSPECTIONS_PER_CALLER_MAX, type ArtifactFacts } from '../../src/supervisor/artifacts.js';
 import type { Create, Worker } from '../../src/supervisor/state.js';
 import { ownerGrant, privateTmp, socketCall, wireFixtures, bundledSpec } from '../helpers.js';
 import { bind, fixture, Host } from '../supervisor-fixture.js';
@@ -45,6 +45,44 @@ const gitEnv = (home: string) => ({
 });
 const OWNER_ENV = { PATH: '/usr/bin:/bin' };
 type Facts = ArtifactFacts;
+const REAL_GIT = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin' } }).trim();
+
+/**
+ * A `git` first on owner Git's PATH (owner Git passes on only PATH and the locale, so its settings are in its text).
+ * `statusSeconds`: `git status` records its own pid and its sleep's, then sleeps that long before the real Git.
+ * `mergeBaseExit`: `git merge-base` exits with that status and prints nothing.
+ */
+function fakeGit(dir: string, options: { statusSeconds?: number; mergeBaseExit?: number }) {
+  mkdirSync(dir);
+  const pidFile = join(dir, 'pids');
+  const lines = ['#!/bin/sh'];
+  if (options.mergeBaseExit !== undefined) lines.push(`for a in "$@"; do [ "$a" = merge-base ] && exit ${options.mergeBaseExit}; done`);
+  if (options.statusSeconds !== undefined) lines.push(`for a in "$@"; do if [ "$a" = status ]; then echo $$ >> '${pidFile}'; sleep ${options.statusSeconds} & echo $! >> '${pidFile}'; wait; fi; done`);
+  lines.push(`exec '${REAL_GIT}' "$@"`);
+  writeFileSync(join(dir, 'git'), `${lines.join('\n')}\n`, { mode: 0o755 });
+  const pids = () => (existsSync(pidFile) ? readFileSync(pidFile, 'utf8').split('\n').filter(Boolean).map(Number) : []);
+  return { env: { PATH: `${dir}:/usr/bin:/bin` }, pids };
+}
+
+/** The process is gone (or a zombie: killed, not yet reaped by its new parent). */
+function gone(pid: number): boolean {
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    return stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z');
+  } catch {
+    return true;
+  }
+}
+
+/** Waits until `ready()` holds, checking it first; fails by assertion after `ms`. */
+async function until(ready: () => boolean, ms: number, what: string): Promise<void> {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    if (ready()) return;
+    assert.ok(Date.now() < deadline, `timed out waiting: ${what}`);
+    await new Promise(r => setTimeout(r, 20));
+  }
+}
 type Reply = { status: number; body: Record<string, unknown> };
 
 /**
@@ -299,8 +337,8 @@ test('artifacts.inspect: malformed values refuse before owner Git runs (paths, p
     }
     // The supervisor checks the values again, so a caller that bypasses the router cannot reach owner Git with one.
     for (const commit of ['--output=/tmp/x', 'HEAD', `${x.baseId}..HEAD`, 'refs/tags/v1']) {
-      assert.throws(() => x.f.supervisor.inspectArtifact(a.worker.worker_id, { worker_epoch: a.worker.worker_epoch, commit }), /request_schema_mismatch/, `direct commit #${commit.length}`);
-      assert.throws(() => x.f.supervisor.inspectArtifact(a.worker.worker_id, { worker_epoch: a.worker.worker_epoch, commit: x.baseId, base: commit }), /request_schema_mismatch/, `direct base #${commit.length}`);
+      await assert.rejects(x.f.supervisor.inspectArtifact(a.worker.worker_id, { worker_epoch: a.worker.worker_epoch, commit }), /request_schema_mismatch/, `direct commit #${commit.length}`);
+      await assert.rejects(x.f.supervisor.inspectArtifact(a.worker.worker_id, { worker_epoch: a.worker.worker_epoch, commit: x.baseId, base: commit }), /request_schema_mismatch/, `direct base #${commit.length}`);
     }
     assert.equal(snapshots(), 0, 'every snapshot removed; none made for a refused value');
   } finally {
@@ -385,7 +423,7 @@ test('artifacts.inspect: the launch pin is memory only; after a supervisor resta
     const s = await x.f.restart();
     const w = s.state.require(a.worker.worker_id).worker;
     assert.equal(w.worker_epoch, a.worker.worker_epoch, 'the row keeps its epoch');
-    assert.throws(() => s.inspectArtifact(w.worker_id, { worker_epoch: w.worker_epoch, commit: head }), (e: unknown) => e instanceof Error && e.message === 'artifact_inspection_unavailable' && (e as { details?: { detail?: string } }).details?.detail === 'no_saved_launch_pin');
+    await assert.rejects(s.inspectArtifact(w.worker_id, { worker_epoch: w.worker_epoch, commit: head }), (e: unknown) => e instanceof Error && e.message === 'artifact_inspection_unavailable' && (e as { details?: { detail?: string } }).details?.detail === 'no_saved_launch_pin');
   } finally {
     await x.cleanup();
   }
@@ -418,17 +456,187 @@ test('artifacts.inspect answers each of its wire fixtures from a real checkout, 
     assert.match(head, /^[0-9a-f]{40}$/);
     // The pin-mismatch fixture's checkout: the child's HEAD retargeted after its launch, restored after the call.
     const adminHead = join(x.repo, '.git', 'worktrees', 'ca', 'HEAD');
-    const around: Record<string, [() => void, () => void]> = {
+    // The timeout and busy fixtures' supervisor: a git status that sleeps, and a short budget or one inspection per grant.
+    const inspections = x.f.supervisor.artifacts;
+    const ownEnv = inspections.env;
+    const slow = fakeGit(join(x.base, 'slow-git'), { statusSeconds: 30 });
+    let background: Promise<unknown> = Promise.resolve();
+    const around: Record<string, [() => void | Promise<void>, () => void | Promise<void>]> = {
       'pin-mismatch.json': [() => writeFileSync(adminHead, 'ref: refs/heads/pa/root\n'), () => writeFileSync(adminHead, 'ref: refs/heads/ca/work\n')],
+      'inspection-timeout.json': [
+        () => {
+          inspections.env = slow.env;
+          inspections.budgetMs = 1_500;
+        },
+        () => {
+          inspections.env = ownEnv;
+          inspections.budgetMs = ARTIFACT_INSPECTION_BUDGET_MS;
+        },
+      ],
+      'inspections-busy.json': [
+        async () => {
+          inspections.env = slow.env;
+          inspections.maxPerCaller = 1;
+          const before = slow.pids().length;
+          // The owner's own inspection holds its one slot (the fixture's call is the same owner grant).
+          background = x.inspect(a.worker.worker_id, { worker_epoch: a.worker.worker_epoch, commit: head }).catch((error: unknown) => error);
+          await until(() => slow.pids().length >= before + 2, 6_000, 'the background inspection is in git status');
+        },
+        async () => {
+          await inspections.close();
+          assert.match(String(await background), /artifact_inspection_unavailable/, 'the background inspection ends at close');
+          inspections.env = ownEnv;
+          inspections.maxPerCaller = ARTIFACT_INSPECTIONS_PER_CALLER_MAX;
+        },
+      ],
     };
-    assert.deepEqual(fixtures.map(f => f.name).sort(), ['not-own-child.json', 'object-missing.json', 'ok.json', 'pin-mismatch.json', 'ref-outside-namespace.json', 'stale-epoch.json', 'unavailable.json']);
+    assert.deepEqual(fixtures.map(f => f.name).sort(), ['inspection-timeout.json', 'inspections-busy.json', 'not-own-child.json', 'object-missing.json', 'ok.json', 'pin-mismatch.json', 'ref-outside-namespace.json', 'stale-epoch.json', 'unavailable.json']);
     for (const { name, fixture: fx } of fixtures) {
       const request = map(fx.request) as { path: { worker_id: string }; body: unknown };
-      around[name]?.[0]();
+      await around[name]?.[0]();
       // The parent's own worker is inspected over its channel (`parent_channel_requires_own_child`); the rest as the owner.
       const got = name === 'not-own-child.json' ? await p.call(`/workers/${request.path.worker_id}/artifacts/inspect`, request.body) : ((await socketCall(x.socket, 'POST', `/b2/workers/${request.path.worker_id}/artifacts/inspect`, request.body, x.owner.headers)) as Reply);
-      around[name]?.[1]();
+      await around[name]?.[1]();
       assert.deepEqual({ status: got.status, body: normalize(got.body) }, { status: fx.response.status, body: normalize(map(fx.response.body) as Record<string, unknown>) }, name);
+    }
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test('artifacts.inspect runs owner Git off the event loop: a slow Git delays neither hello nor a concurrent stop; past its budget it refuses artifact_inspection_timeout (no_effect), its Git process group killed and its snapshots removed', { timeout: 120_000 }, async () => {
+  const x = await world();
+  try {
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    const other = await x.f.create();
+    const fake = fakeGit(join(x.base, 'slow-git'), { statusSeconds: 30 });
+    x.f.supervisor.artifacts.env = fake.env;
+    x.f.supervisor.artifacts.budgetMs = 8_000;
+    const started = Date.now();
+    let settledAt = 0;
+    const pending = x.refusal(x.inspect(a.worker.worker_id, { worker_epoch: a.worker.worker_epoch, commit: x.baseId })).finally(() => (settledAt = Date.now()));
+    await until(() => fake.pids().length >= 2, 6_000, 'the slow git status started');
+    let t = Date.now();
+    assert.equal(((await x.client.call('hello', {})) as { supervisor_id: string }).supervisor_id.length > 0, true);
+    const helloMs = Date.now() - t;
+    t = Date.now();
+    const stopped = (await x.client.call('workers.stop', { path: { worker_id: other.worker_id }, body: bind(other, 'stop-other') })) as { state: string };
+    const stopMs = Date.now() - t;
+    assert.equal(stopped.state, 'delivered');
+    assert.equal(settledAt, 0, 'the inspection is still in Git while hello and stop are answered');
+    assert.ok(helloMs < 1_000 && stopMs < 2_000, `hello ${helloMs} ms, stop ${stopMs} ms`);
+    assert.ok(Date.now() - started < 6_000, `answered ${Date.now() - started} ms after the inspection started (Git sleeps 30 s)`);
+    assert.deepEqual(await pending, { error: 'artifact_inspection_timeout', effect: 'no_effect', phase: 'http', status: 409 });
+    assert.ok(settledAt - started >= 8_000 && settledAt - started < 20_000, `refused after ${settledAt - started} ms (budget 8 s)`);
+    // The whole group: the fake's shell and its sleep, not only the child process.
+    const pids = fake.pids();
+    assert.equal(pids.length, 2);
+    await until(() => pids.every(gone), 5_000, 'every process of the timed-out inspection is gone');
+    assert.deepEqual(readdirSync(join(x.f.dir, 'git-snapshots')), [], 'its private snapshot directory is removed');
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test('artifacts.inspect: running inspections are capped per grant and supervisor-wide; past a cap the call refuses artifact_inspections_busy (no_effect) at once; an ended inspection frees its slot', { timeout: 120_000 }, async () => {
+  const x = await world();
+  try {
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    const fake = fakeGit(join(x.base, 'slow-git'), { statusSeconds: 30 });
+    const inspections = x.f.supervisor.artifacts;
+    inspections.env = fake.env;
+    inspections.budgetMs = 6_000;
+    inspections.maxInFlight = 2;
+    inspections.maxPerCaller = 1;
+    const req = { worker_epoch: a.worker.worker_epoch, commit: x.baseId };
+    const first = x.refusal(x.inspect(a.worker.worker_id, req));
+    await until(() => fake.pids().length >= 2, 6_000, 'the first inspection is in git status');
+    // The same grant again: refused at once, nothing started.
+    let t = Date.now();
+    assert.deepEqual(await x.refusal(x.inspect(a.worker.worker_id, req)), { error: 'artifact_inspections_busy', effect: 'no_effect', phase: 'http', status: 409, detail: 'per_caller_limit' });
+    assert.ok(Date.now() - t < 1_000, 'refused at once');
+    assert.equal(fake.pids().length, 2, 'the refused call started no Git');
+    // Another grant (the parent's channel) takes the second slot.
+    const second = p.call(`/workers/${a.worker.worker_id}/artifacts/inspect`, req);
+    await until(() => fake.pids().length >= 4, 6_000, 'the second inspection is in git status');
+    // A third grant: the supervisor-wide cap.
+    const third = new GrantStore(x.f.dir).register({ caller: 'third', scope: { worker_ids: [a.worker.worker_id], cwd_roots: [] }, methods: ['artifacts.inspect'], grant_id: 'third' });
+    const thirdFile = join(x.f.dir, 'third.grant.json');
+    writeBearerFile(thirdFile, third.token);
+    const thirdClient = new Client({ socketPath: x.socket, grantFile: thirdFile });
+    t = Date.now();
+    assert.deepEqual(await x.refusal(thirdClient.call('artifacts.inspect', { path: { worker_id: a.worker.worker_id }, body: req })), { error: 'artifact_inspections_busy', effect: 'no_effect', phase: 'http', status: 409, detail: 'supervisor_limit' });
+    assert.ok(Date.now() - t < 1_000, 'refused at once');
+    assert.equal(fake.pids().length, 4, 'the refused call started no Git');
+    assert.deepEqual(await first, { error: 'artifact_inspection_timeout', effect: 'no_effect', phase: 'http', status: 409 });
+    assert.deepEqual(await second, { status: 409, body: { error: 'artifact_inspection_timeout', effect: 'no_effect' } });
+    // Both slots are free again: with the real Git the same grants inspect.
+    inspections.env = OWNER_ENV;
+    assert.equal((await x.inspect(a.worker.worker_id, req)).commit.commit_id, x.baseId);
+    assert.equal(((await thirdClient.call('artifacts.inspect', { path: { worker_id: a.worker.worker_id }, body: req })) as Facts).commit.commit_id, x.baseId);
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test('artifacts.inspect: only Git\'s silent exit 1 is no common ancestor; a merge-base that fails silently otherwise refuses, never reported as unrelated history', { timeout: 60_000 }, async () => {
+  const x = await world();
+  try {
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    const head = commitFeature(x, a.slot);
+    const req = { worker_epoch: a.worker.worker_epoch, commit: head, base: x.baseId };
+    x.f.supervisor.artifacts.env = fakeGit(join(x.base, 'exit-2'), { mergeBaseExit: 2 }).env;
+    assert.deepEqual(await x.refusal(x.inspect(a.worker.worker_id, req)), { error: 'artifact_inspection_unavailable', effect: 'no_effect', phase: 'http', status: 409, detail: 'git_failed' });
+    // Non-vacuous: the same silent failure with Git's no-common-ancestor exit is reported as no merge base.
+    x.f.supervisor.artifacts.env = fakeGit(join(x.base, 'exit-1'), { mergeBaseExit: 1 }).env;
+    const unrelated = await x.inspect(a.worker.worker_id, req);
+    assert.deepEqual([unrelated.base?.merge_base_id, unrelated.base?.is_ancestor], [null, false]);
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test('artifacts.inspect: the worktree state is judged on the complete status, so a conflict past the listed cap is still conflicted', { timeout: 120_000 }, async () => {
+  const x = await world();
+  try {
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    // 10,001 staged additions that sort before an unmerged entry (stages 2 and 3, as a merge leaves them).
+    for (let i = 0; i <= 10_000; i++) writeFileSync(join(a.slot, `a${String(i).padStart(5, '0')}`), '');
+    x.git(a.slot, 'add', '.');
+    writeFileSync(join(a.slot, 'zconflict'), 'ours\n');
+    const ours = x.git(a.slot, 'hash-object', '-w', 'zconflict');
+    writeFileSync(join(a.slot, 'zconflict'), 'theirs\n');
+    const theirs = x.git(a.slot, 'hash-object', '-w', 'zconflict');
+    execFileSync('git', ['-C', a.slot, 'update-index', '--index-info'], { input: `100644 ${ours} 2\tzconflict\n100644 ${theirs} 3\tzconflict\n`, env: gitEnv(x.base) });
+    assert.match(x.git(a.slot, 'status', '--porcelain', '--', 'zconflict'), /^AA zconflict$/, 'fixture: Git reports the conflict');
+    const facts = await x.inspect(a.worker.worker_id, { worker_epoch: a.worker.worker_epoch, commit: x.baseId });
+    assert.deepEqual([facts.worktree.entries.length, facts.worktree.truncated], [10_000, true]);
+    assert.ok(!facts.worktree.entries.some(e => e.path === 'zconflict'), 'non-vacuous: the conflict is past the cut');
+    assert.equal(facts.worktree.state, 'conflicted');
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test('artifacts.inspect: a tracked change the child hides with assume-unchanged or skip-worktree is never reported clean (a typed refusal); without the flag it is dirty', { timeout: 60_000 }, async () => {
+  const x = await world();
+  try {
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    const req = { worker_epoch: a.worker.worker_epoch, commit: x.baseId };
+    assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'clean', entries: [], truncated: false }, 'control: clean');
+    for (const flag of ['assume-unchanged', 'skip-worktree']) {
+      x.git(a.slot, 'update-index', `--${flag}`, 'note');
+      writeFileSync(join(a.slot, 'note'), 'hidden\n');
+      assert.equal(x.git(a.slot, 'status', '--porcelain'), '', `fixture: plain Git reports clean with ${flag}`);
+      assert.deepEqual(await x.refusal(x.inspect(a.worker.worker_id, req)), { error: 'artifact_inspection_unavailable', effect: 'no_effect', phase: 'http', status: 409, detail: 'git_index_hides_changes' }, flag);
+      x.git(a.slot, 'update-index', `--no-${flag}`, 'note');
+      assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'dirty', entries: [{ code: ' M', path: 'note' }], truncated: false }, `${flag} cleared: the change is seen`);
+      x.git(a.slot, 'checkout', '--', 'note');
     }
   } finally {
     await x.cleanup();

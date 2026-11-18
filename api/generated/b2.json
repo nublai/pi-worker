@@ -1371,7 +1371,7 @@
       "post": {
         "operationId": "artifacts.inspect",
         "summary": "Owner-Git facts about a worker's checkout (saved launch pin)",
-        "description": "Facts about a sandboxed worker's Git checkout (P3-6), read by the\nsupervisor through owner Git (P2-6) with the Git pin the worker's\nlaunch validated (memory only: a supervisor restart loses it) and a\nprivate snapshot in the supervisor's state. The request names the\nworker's current `worker_epoch` and the `commit` to inspect (and\noptionally a `base`), each a full object id or a branch\n`refs/heads/<ns>/<leaf>` in the worker's own namespace; never a\npath, pathspec or option. The reply is facts, never an acceptance\nverdict: the commit and its native tree (replacement objects off),\nHEAD, the working tree's status, the paths changed from the base,\nthe pin's identity and the evidence's provenance. Lists are bounded\nand say when they are truncated. On a parent channel only the\nparent's own children may be inspected. Refusals, all `no_effect`:\n`stale_binding` (`worker_epoch` is not the worker's current one),\n`artifact_inspection_unavailable` (no saved launch pin: the worker\nis not sandboxed in a linked worktree, or the supervisor restarted\nsince its launch; or owner Git refused the checkout or could not\nrun; `detail` names the reason),\n`artifact_pin_mismatch` (the checkout's Git metadata is not the\nsaved launch pin), `artifact_ref_outside_namespace` (a ref outside\nthe worker's own branch namespace, or any ref of a detached\nworker), `artifact_object_missing` (the commit, the base or the\ncommit's tree is not in the object store, or names no commit),\n`parent_channel_requires_own_child` (on a parent channel, a worker\nthat is not the parent's child).\n",
+        "description": "Facts about a sandboxed worker's Git checkout (P3-6), read by the\nsupervisor through owner Git (P2-6) with the Git pin the worker's\nlaunch validated (memory only: a supervisor restart loses it) and a\nprivate snapshot in the supervisor's state. The request names the\nworker's current `worker_epoch` and the `commit` to inspect (and\noptionally a `base`), each a full object id or a branch\n`refs/heads/<ns>/<leaf>` in the worker's own namespace; never a\npath, pathspec or option. The reply is facts, never an acceptance\nverdict: the commit and its native tree (replacement objects off),\nHEAD, the working tree's status, the paths changed from the base,\nthe pin's identity and the evidence's provenance. Lists are bounded\nand say when they are truncated; the worktree state is judged on\nthe complete status. On a parent channel only the parent's own\nchildren may be inspected. Owner Git runs in a child process with\nits own process group, never on the supervisor's event loop, within\n`hello.limits.artifact_inspection_budget_ms`, with at most\n`hello.limits.artifact_inspections_max` inspections running\n(`artifact_inspections_per_caller_max` per grant). The worktree\nstate fails closed on index state that hides tracked changes: an\nindex entry marked assume-unchanged or skip-worktree (detail\ngit_index_hides_changes), or a pinned `core.ignoreStat`,\n`core.sparseCheckout` or `index.sparse` (detail\ngit_config_trusts_stat), refuses, never reads as clean.\nRefusals, all `no_effect`:\n`stale_binding` (`worker_epoch` is not the worker's current one),\n`artifact_inspection_unavailable` (no saved launch pin: the worker\nis not sandboxed in a linked worktree, or the supervisor restarted\nsince its launch; or owner Git refused the checkout or could not\nrun; `detail` names the reason),\n`artifact_pin_mismatch` (the checkout's Git metadata is not the\nsaved launch pin), `artifact_ref_outside_namespace` (a ref outside\nthe worker's own branch namespace, or any ref of a detached\nworker), `artifact_object_missing` (the commit, the base or the\ncommit's tree is not in the object store, or names no commit),\n`parent_channel_requires_own_child` (on a parent channel, a worker\nthat is not the parent's child), `artifact_inspections_busy` (too\nmany inspections running, supervisor-wide or for this grant;\n`detail` is supervisor_limit or per_caller_limit; nothing ran),\n`artifact_inspection_timeout` (the inspection ran past its budget;\nits owner-Git process group was killed).\n",
         "tags": [
           "artifacts"
         ],
@@ -2534,6 +2534,21 @@
             "type": "integer",
             "minimum": 1,
             "description": "The most inventory processes (`models.list` and `commands.list`\nfor a `cwd`) the supervisor runs at once, across every caller. A\nprocess holds its slot until its cleanup domain is observed removed\nand recorded: neither a client that disconnects nor a cleanup that\nis not proven frees it (an unproven one frees it when recovery\nconfirms it). Past the bound the call is refused\n`inventory_probes_busy` (`no_effect`) before anything is recorded\nor started; the caller retries later.\n"
+          },
+          "artifact_inspection_budget_ms": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How long one `artifacts.inspect` may run. Owner Git runs in a child\nprocess with its own process group, never on the supervisor's event\nloop; past the budget the whole group is killed and the call is\nrefused `artifact_inspection_timeout` (`no_effect`).\n"
+          },
+          "artifact_inspections_max": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The most `artifacts.inspect` calls running at once, across every\ncaller. Past it the call is refused `artifact_inspections_busy`\n(`no_effect`, `detail` `supervisor_limit`) before anything runs; the\ncaller retries later.\n"
+          },
+          "artifact_inspections_per_caller_max": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The most `artifacts.inspect` calls one grant (a parent channel's\nown grant included) has running at once. Past it the call is\nrefused `artifact_inspections_busy` (`no_effect`, `detail`\n`per_caller_limit`) before anything runs.\n"
           }
         }
       },
@@ -5176,7 +5191,7 @@
               "entries",
               "truncated"
             ],
-            "description": "The checkout's `git status --porcelain` (untracked files listed, ignored ones not). `conflicted` when any entry is unmerged, else `dirty` when any entry exists.",
+            "description": "The checkout's `git status --porcelain` (untracked files listed, ignored ones not). `conflicted` when any entry is unmerged, else `dirty` when any entry exists, judged on the complete status before `entries` is bounded.",
             "properties": {
               "state": {
                 "type": "string",

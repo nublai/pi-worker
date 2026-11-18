@@ -220,10 +220,11 @@ export class Supervisor {
 
   /**
    * `artifacts.inspect` (P3-6): owner-Git facts about a sandboxed worker's checkout at its saved launch pin
-   * (artifacts.ts). Facts, never a verdict.
+   * (artifacts.ts), in a child process off the event loop, within its budget and caps. Facts, never a verdict.
+   * `caller`: the grant the call came with.
    */
-  inspectArtifact(id: string, request: ArtifactInspect): ArtifactFacts {
-    return this.artifacts.inspect(id, request);
+  inspectArtifact(id: string, request: ArtifactInspect, caller?: string): Promise<ArtifactFacts> {
+    return this.artifacts.inspect(id, request, caller);
   }
 
   list(): Worker[] {
@@ -320,6 +321,7 @@ export class Supervisor {
   }
 
   async shutdown(): Promise<void> {
+    await this.artifacts.close();
     await this.lifecycle.shutdown();
     await this.features.shutdown();
   }

@@ -580,7 +580,14 @@ Every call passes `-c protocol.allow=never`,
 `-c protocol.ext.allow=never` and `-c protocol.file.allow=never`. Named limit: a supervisor killed during a call leaves
 its snapshot (a copy of the repository's config and refs) in the private snapshot directory. `git-sandbox.ts` now
 exports `inspect` (unchanged) for the snapshot. No supervisor path calls owner Git yet; the harness and Maestro are its
-callers (P2 live journey, P3). Since P3-6 the supervisor does, for `artifacts.inspect` (section 12).
+callers (P2 live journey, P3). Since P3-6 the supervisor does, for `artifacts.inspect` (section 12). Since the P3-6 fix
+round, the calls that compare the working tree with the index (`gitStatus`, a worktree `gitDiff`) fail closed on index
+state that hides tracked changes: an index entry marked assume-unchanged or skip-worktree, read from the snapshot's copy
+of the index (formats 2 to 4; another refuses `git_index_unreadable`), refuses `git_index_hides_changes`; a pinned
+`core.ignoreStat`, `core.sparseCheckout` or `index.sparse` refuses `git_config_trusts_stat: <key>`; and `core.checkStat`,
+`core.trustctime`, `core.untrackedCache` and `core.ignoreStat` are overridden on the command line to Git's full checks
+(the ported racy-index case pins `core.checkStat minimal` and `core.trustctime false` and still requires the edit be
+seen, so those two are overridden, not refused). A failed Git run carries its exit status and signal (`GitFailure`).
 
 **P2-7 as built.** `sandbox/staging.ts` stages a profile for a sandboxed typed child. The profile is the parent cwd's
 `.piw-agent`, and a parent with none stages nothing, so a child keeps an owner-staged `.piw-agent` of its own as in
@@ -761,8 +768,18 @@ code in `detail`; metadata that differs from the pin (a retargeted HEAD, a redir
 `artifact_pin_mismatch`; a commit, base or the commit's tree not in the store is `artifact_object_missing`. Owner
 grants call it for any worker in their scope; the parent channel whitelists it for the parent's own children only
 (`parent_channel_requires_own_child` for the parent itself; another parent's child is `grant_scope_denied`), within
-the methods of the grant that created the parent. It is not in the `bridge` profile. Named limit: owner Git runs
-synchronously, so an inspection holds the supervisor's event loop for its Git runs. Tests:
+the methods of the grant that created the parent. It is not in the `bridge` profile. Fix round (PR #42 reviews):
+owner Git runs in a child process (`supervisor/artifacts-child.ts`, its own process group, the owner environment only,
+a private directory per inspection in the state's `git-snapshots/`), never on the supervisor's event
+loop; an inspection past `hello.limits.artifact_inspection_budget_ms` (60 s) has its process group killed and refuses
+`artifact_inspection_timeout`; at most `artifact_inspections_max` (4) run at once and
+`artifact_inspections_per_caller_max` (2) per grant, past either `artifact_inspections_busy` (`detail`
+`supervisor_limit` or `per_caller_limit`) before anything runs; all `no_effect`. The worktree state is judged on the
+complete status before the list is bounded (a conflict past the cut stays `conflicted`); only Git's silent exit 1 of
+`merge-base` (no signal, no stderr) is no common ancestor. Owner Git's worktree reads fail closed on index state that
+hides tracked changes (P2-6 step 5): `git_index_hides_changes` and `git_config_trusts_stat` reach the caller as
+`artifact_inspection_unavailable` with that `detail`. Named limit: the worktree state trusts the index's stat data as
+Git does, so an entry whose recorded stat the sandbox rewrote to match a changed file reads as unchanged. Tests:
 `packages/worker/test/security/artifacts.test.ts` (V1 readback through the TS client against the real supervisor
 with real linked worktrees, compared with the owner's own `artifactSubject`; every refusal; malformed values; scope
 through the channel and owner grants; restart; each wire fixture replayed from a real checkout).

@@ -2146,7 +2146,7 @@ type ArtifactFacts struct {
 	WorkerEpoch Id `json:"worker_epoch"`
 	WorkerId    Id `json:"worker_id"`
 
-	// Worktree The checkout's `git status --porcelain` (untracked files listed, ignored ones not). `conflicted` when any entry is unmerged, else `dirty` when any entry exists.
+	// Worktree The checkout's `git status --porcelain` (untracked files listed, ignored ones not). `conflicted` when any entry is unmerged, else `dirty` when any entry exists, judged on the complete status before `entries` is bounded.
 	Worktree struct {
 		Entries []ArtifactStatusEntry      `json:"entries"`
 		State   ArtifactFactsWorktreeState `json:"state"`
@@ -2903,6 +2903,24 @@ type LaunchSpecSeedMode string
 
 // Limits defines model for Limits.
 type Limits struct {
+	// ArtifactInspectionBudgetMs How long one `artifacts.inspect` may run. Owner Git runs in a child
+	// process with its own process group, never on the supervisor's event
+	// loop; past the budget the whole group is killed and the call is
+	// refused `artifact_inspection_timeout` (`no_effect`).
+	ArtifactInspectionBudgetMs *int `json:"artifact_inspection_budget_ms,omitempty"`
+
+	// ArtifactInspectionsMax The most `artifacts.inspect` calls running at once, across every
+	// caller. Past it the call is refused `artifact_inspections_busy`
+	// (`no_effect`, `detail` `supervisor_limit`) before anything runs; the
+	// caller retries later.
+	ArtifactInspectionsMax *int `json:"artifact_inspections_max,omitempty"`
+
+	// ArtifactInspectionsPerCallerMax The most `artifacts.inspect` calls one grant (a parent channel's
+	// own grant included) has running at once. Past it the call is
+	// refused `artifact_inspections_busy` (`no_effect`, `detail`
+	// `per_caller_limit`) before anything runs.
+	ArtifactInspectionsPerCallerMax *int `json:"artifact_inspections_per_caller_max,omitempty"`
+
 	// AttachmentMaxBytes The most bytes one `attachments.stage` body may carry.
 	AttachmentMaxBytes int `json:"attachment_max_bytes"`
 

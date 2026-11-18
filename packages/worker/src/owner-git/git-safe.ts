@@ -22,6 +22,14 @@
  *     refused (`protocol.allow`, and `protocol.ext.allow` and `protocol.file.allow` by name), and on diff-family and
  *     status commands `--no-ext-diff --no-textconv --ignore-submodules=all` (on the command line: an agent-written
  *     `.gitmodules` `ignore = none` overrides `diff.ignoreSubmodules`, and Git then runs inside the nested repository).
+ *  5. on the calls that compare the working tree with the index (`gitStatus`, a worktree `gitDiff`), fails closed on
+ *     index state that hides tracked changes, all of it writable by the sandbox (the admin dir's index) or pinned by the
+ *     owner (config): any index entry marked assume-unchanged or skip-worktree (`git_index_hides_changes`, read from
+ *     the snapshot's copy of the index, the bytes Git then reads; an index format this reader does not know is
+ *     `git_index_unreadable`), and a pinned `core.ignoreStat`, `core.sparseCheckout` or `index.sparse`
+ *     (`git_config_trusts_stat`). `core.checkStat`, `core.trustctime` and `core.untrackedCache` (also an
+ *     untracked cache stored in the index) are overridden on the command line to Git's full checks, which can only add
+ *     content comparisons.
  *
  * The API is typed: one function per supported inspection (status, diff, log, show, rev-parse, cat-file, ls-files,
  * for-each-ref, merge-base). Callers pass validated values (revisions, paths, ref prefixes, counts), never options:
@@ -30,8 +38,11 @@
  * option needs the rule 6 security review. Owner Git never re-opens an agent-writable path for anything that selects
  * code to execute. Read-only: writes Git makes land in the discarded snapshot.
  *
- * Named limit: a supervisor killed during a call leaves its snapshot (a copy of the repository's config and refs) in the
- * private snapshot directory; it is no new authority (mode 0700, same user).
+ * Named limits: a supervisor killed during a call leaves its snapshot (a copy of the repository's config and refs) in the
+ * private snapshot directory; it is no new authority (mode 0700, same user). Every call is synchronous (it copies the
+ * snapshot and waits for Git): a long-lived process that must keep answering (the supervisor) runs owner Git in a child
+ * process of its own, never on its event loop (supervisor/artifacts.ts). Index stat data is the index's: an entry whose
+ * recorded stat matches a changed file (and is not racily clean) reads as unchanged, as in plain Git.
  */
 import { spawnSync } from 'node:child_process';
 import { closeSync, constants, fstatSync, futimesSync, mkdirSync, mkdtempSync, openSync, readdirSync, readlinkSync, readSync, rmSync, writeSync } from 'node:fs';
@@ -75,6 +86,10 @@ const SUBMODULE_UPDATE = /^submodule\..+\.update$/i;
 /** `protocol.allow` and `protocol.<name>.allow`: any value but `never` refuses. */
 const PROTOCOL_ALLOW = /^protocol\.(.+\.)?allow$/i;
 const SPLIT_INDEX = /^core\.splitindex$/i;
+/** Pinned settings that make Git trust stat data or skip paths when it compares the working tree (step 5): true refuses. */
+const STAT_TRUST = /^(core\.ignorestat|core\.sparsecheckout|index\.sparse)$/i;
+/** Step 5's command-line overrides: full stat checks, no untracked cache (a config's, or one stored in the index). */
+const WORKTREE_CONFIG = ['core.checkStat=default', 'core.trustctime=true', 'core.untrackedCache=false', 'core.ignoreStat=false'].flatMap(setting => ['-c', setting]);
 /** Git's false spellings; a key with no value is true. */
 const FALSE = new Set(['false', 'no', 'off', '0', '']);
 const ENV_KEEP = ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES'];
@@ -156,8 +171,11 @@ function privateDir(owner: OwnerGit, root: string, pin: GitPin): string {
   }
 }
 
-/** Steps 1-3: compare the pin and copy the pinned metadata through the same descriptors. */
-function snapshot(owner: OwnerGit, root: string, expected: GitPin, dir: string): void {
+/**
+ * Steps 1-3: compare the pin and copy the pinned metadata through the same descriptors. With `worktree`, the call
+ * compares the working tree with the index: step 5's config refusals too.
+ */
+function snapshot(owner: OwnerGit, root: string, expected: GitPin, dir: string, worktree = false): Snapshot {
   const rootFd = openPinned(root, 'dir');
   let fds: number[] = [];
   const out = openSync(dir, DIR_FLAGS);
@@ -193,7 +211,12 @@ function snapshot(owner: OwnerGit, root: string, expected: GitPin, dir: string):
     closeSync(rootFd);
     closeSync(out);
   }
-  refuseExecutingConfig(owner, dir);
+  return refuseExecutingConfig(owner, dir, worktree);
+}
+
+/** What the snapshot's config says about reading its index: the length of an object id. */
+interface Snapshot {
+  readonly oidBytes: number;
 }
 
 /** HEAD selects a branch, never code; still demand the pinned shape. */
@@ -337,10 +360,11 @@ function refuseSplitIndex(admin: number): void {
   if (readdirSync(fdPath(admin)).some(name => name.startsWith('sharedindex.'))) throw new Refusal('git_split_index_refused');
 }
 
-/** Step 3, with Git's own parser (BOMs, quoting, case) on the private copy. */
-function refuseExecutingConfig(owner: OwnerGit, dir: string): void {
+/** Step 3 (and with `worktree` step 5's config refusals), with Git's own parser (BOMs, quoting, case) on the private copy. */
+function refuseExecutingConfig(owner: OwnerGit, dir: string, worktree = false): Snapshot {
   const listed = spawnSync('git', ['config', '--file', join(dir, 'config'), '--no-includes', '--null', '--list'], { cwd: '/', env: cleanEnv(owner, join(dir, 'home')), stdio: ['ignore', 'pipe', 'ignore'] });
   if (listed.error || listed.status !== 0) throw new Refusal('git_config_unparseable');
+  let oidBytes = 20;
   for (const entry of listed.stdout.toString('utf8').split('\0')) {
     const newline = entry.indexOf('\n');
     const key = newline < 0 ? entry : entry.slice(0, newline);
@@ -350,6 +374,55 @@ function refuseExecutingConfig(owner: OwnerGit, dir: string): void {
     if (EXECUTES_TOO.test(key) || (SUBMODULE_UPDATE.test(key) && value?.startsWith('!'))) throw new Refusal(`git_config_executes_code: ${key}`);
     if (PROTOCOL_ALLOW.test(key) && value?.toLowerCase() !== 'never') throw new Refusal(`git_config_allows_protocol: ${key}`);
     if (SPLIT_INDEX.test(key) && (value === null || !FALSE.has(value.toLowerCase()))) throw new Refusal('git_split_index_refused');
+    if (worktree && STAT_TRUST.test(key) && (value === null || !FALSE.has(value.toLowerCase()))) throw new Refusal(`git_config_trusts_stat: ${key}`);
+    if (/^extensions\.objectformat$/i.test(key)) oidBytes = value?.toLowerCase() === 'sha256' ? 32 : 20;
+  }
+  return { oidBytes };
+}
+
+/** An index entry's flags: assume-unchanged (CE_VALID), extended flags follow; extended: skip-worktree. */
+const ASSUME_VALID = 0x8000;
+const EXTENDED = 0x4000;
+const SKIP_WORKTREE = 0x4000;
+
+/**
+ * Step 5, on the snapshot's copy of the index (the bytes Git reads): an entry marked assume-unchanged or skip-worktree
+ * (a sparse checkout's entries and a sparse index's directories too) refuses. Formats 2 to 4 (git-index(5)); anything
+ * this reader does not know refuses as well.
+ */
+function refuseHiddenEntries(index: Buffer | null, oidBytes: number): void {
+  if (index === null) return;
+  const unreadable = () => new Refusal('git_index_unreadable');
+  if (index.length < 12 || index.toString('latin1', 0, 4) !== 'DIRC') throw unreadable();
+  const version = index.readUInt32BE(4);
+  if (version < 2 || version > 4) throw unreadable();
+  const count = index.readUInt32BE(8);
+  let at = 12;
+  for (let i = 0; i < count; i++) {
+    const start = at;
+    // ctime, mtime, dev, ino, mode, uid, gid, size (40 bytes), the object id, then the flags.
+    at += 40 + oidBytes;
+    if (at + 2 > index.length) throw unreadable();
+    const flags = index.readUInt16BE(at);
+    at += 2;
+    let extended = 0;
+    if (flags & EXTENDED) {
+      if (version < 3 || at + 2 > index.length) throw unreadable();
+      extended = index.readUInt16BE(at);
+      at += 2;
+    }
+    if (flags & ASSUME_VALID || extended & SKIP_WORKTREE) throw new Refusal('git_index_hides_changes');
+    // Version 4: a varint (how much of the previous path to keep), then the rest of the path; no padding.
+    if (version === 4)
+      do {
+        if (at >= index.length) throw unreadable();
+      } while (index[at++]! & 0x80);
+    const nul = index.indexOf(0, at);
+    if (nul < 0) throw unreadable();
+    at = nul + 1;
+    // Versions 2 and 3: the entry is NUL-padded to a multiple of 8 bytes.
+    if (version !== 4) at = start + Math.ceil((at - start) / 8) * 8;
+    if (at > index.length) throw unreadable();
   }
 }
 
@@ -422,22 +495,58 @@ function diffSides(of: DiffOf): string[] {
 
 const lines = (out: Buffer): string[] => out.toString('utf8').split('\n').filter(Boolean);
 
-/** Runs Git on a pinned snapshot with an argv owner Git built; throws on a nonzero exit; returns stdout. */
-function run(at: GitCheckout, argv: readonly string[]): Buffer {
+/** What a failed Git run carries: its exit status, its signal and the start of its stderr. */
+export interface GitFailure {
+  readonly command: string;
+  readonly status: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly stderr: string;
+}
+
+/** The snapshot's own copy of the index (private, ours), or null when the checkout has none. */
+function readSnapshotIndex(dir: string): Buffer | null {
+  const fd = openSync(dir, DIR_FLAGS);
+  try {
+    return readBytes(fd, ['index']);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** Git exited nonzero (or was killed). Not exported: the API is the typed functions (callers read `GitFailure`). */
+class GitFailed extends Error implements GitFailure {
+  constructor(
+    readonly command: string,
+    readonly status: number | null,
+    readonly signal: NodeJS.Signals | null,
+    readonly stderr: string,
+  ) {
+    super(`git ${command} failed: ${stderr}`);
+  }
+}
+
+/**
+ * Runs Git on a pinned snapshot with an argv owner Git built; throws a `GitFailure` on a nonzero exit; returns stdout. With
+ * `worktree`, the call compares the working tree with the index (step 5).
+ */
+function run(at: GitCheckout, argv: readonly string[], options: { readonly worktree?: boolean } = {}): Buffer {
   const { owner, root, pin } = at;
   if (!pin) throw new Refusal('git_launch_pin_required');
+  const worktree = options.worktree === true;
   const dir = privateDir(owner, root, pin);
   try {
-    snapshot(owner, root, pin, dir);
+    const { oidBytes } = snapshot(owner, root, pin, dir, worktree);
+    // Step 5, on the snapshot's index: the bytes Git reads next.
+    if (worktree) refuseHiddenEntries(readSnapshotIndex(dir), oidBytes);
     const home = join(dir, 'home');
     mkdirSync(home, { mode: 0o700 });
-    const result = spawnSync('git', ['-C', root, `--git-dir=${dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...argv], {
+    const result = spawnSync('git', ['-C', root, `--git-dir=${dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...(worktree ? WORKTREE_CONFIG : []), ...argv], {
       env: cleanEnv(owner, home, join(pin.common_dir, 'objects')),
       stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 256 * 1024 * 1024,
     });
     if (result.error) throw result.error;
-    if (result.status !== 0) throw new Error(`git ${argv[0]} failed: ${result.stderr.toString('utf8').slice(0, 512)}`);
+    if (result.status !== 0) throw new GitFailed(argv[0]!, result.status, result.signal, result.stderr.toString('utf8').slice(0, 512));
     return result.stdout;
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -446,12 +555,12 @@ function run(at: GitCheckout, argv: readonly string[]): Buffer {
 
 /** `git status --porcelain` (v1) as Git prints it; with `branch`, its `## ` line first; limited to `paths`. */
 export function gitStatus(at: GitCheckout, options: { readonly branch?: boolean; readonly paths?: readonly string[] } = {}): string {
-  return run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...NO_SUBMODULES, ...pathArgs(options.paths)]).toString('utf8');
+  return run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...NO_SUBMODULES, ...pathArgs(options.paths)], { worktree: true }).toString('utf8');
 }
 
 /** `git diff` of `of`, printed as `format` (default `patch`), limited to `paths`. */
 export function gitDiff(at: GitCheckout, of: DiffOf, options: { readonly format?: DiffFormat; readonly paths?: readonly string[] } = {}): Buffer {
-  return run(at, ['diff', ...NO_HELPERS, ...NO_SUBMODULES, ...format(options.format ?? 'patch'), ...diffSides(of), ...pathArgs(options.paths)]);
+  return run(at, ['diff', ...NO_HELPERS, ...NO_SUBMODULES, ...format(options.format ?? 'patch'), ...diffSides(of), ...pathArgs(options.paths)], { worktree: of?.kind === 'worktree' });
 }
 
 /** One commit of a log: its id and subject line. */

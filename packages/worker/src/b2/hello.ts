@@ -6,6 +6,7 @@ import { jsonBodyLimit, routes } from '../generated/routes.js';
 import { DEFAULT_RETENTION, type RetentionLimits } from '../journal/retention.js';
 import { HISTORY_LINE_MAX_BYTES, HISTORY_MAX_BYTES } from '../history/session-file.js';
 import { INVENTORY_PROBES_MAX } from '../supervisor/features.js';
+import { ARTIFACT_INSPECTION_BUDGET_MS, ARTIFACT_INSPECTIONS_MAX, ARTIFACT_INSPECTIONS_PER_CALLER_MAX } from '../supervisor/artifacts.js';
 
 export type Hello = components['schemas']['Hello'];
 
@@ -22,6 +23,7 @@ export const NAMED_LIMITS: readonly string[] = [
   'A sandboxed typed child (launch_spec filesystem bwrap) can write only its root, its cwd, and, when that root is a Git linked worktree, the Git state the next limit names. It shares the network, and its environment allowlist (model API keys included) and any credential store staged read-only in its root are readable inside it. files.read reads only a sandboxed worker root, inside explicit roots, with no symlink, hidden or traversal component, UTF-8 and at most 1 MiB.',
   "When a sandboxed child's root is a Git linked worktree, it can write the worktree admin dir (index, its own reflog, a detached HEAD), the repository object store, which is shared (it can add or remove objects other checkouts use), and, with a symbolic HEAD, its own branch namespace refs/heads/<ns>/ with that namespace's reflogs. The gitfile, gitdir, commondir, a symbolic HEAD, the repository config, packed-refs, every other ref and reflog, and alternates are read-only; the repository hooks and other worktrees' admin dirs are not mounted. An ordinary checkout root, and a linked worktree whose repository lies inside its root or contains it, are refused.",
   'A sandboxed parent (a root worker with launch_spec filesystem bwrap) reaches the worker only through its parent channel: one socket per generation, at PI_WORKER_SOCKET inside its sandbox, with no bearer, acting as a grant of its own scoped to the parent and its root. It serves hello, workers.list, workers.get, workers.create, workers.stop, executions.interrupt (a child\'s turn, never its own), sessions.prompt, events.subscribe, history.page, receipts.get and artifacts.inspect (owner-Git facts about its own children\'s checkouts only), sees only the parent and its children, and launches only sandboxed children in owner-prepared slots (ROOT/.piw-slots/<name>) whose Git metadata, if any, is the parent root\'s own repository. The parent can write its slots, gitfiles included: a launch checks them, and owner Git checks the pin a worker was launched with.',
+  "artifacts.inspect runs owner Git in a child process with its own process group, never on the supervisor's event loop: at most artifact_inspections_max inspections run at once (artifact_inspections_per_caller_max per grant; past either, artifact_inspections_busy), and one that runs past artifact_inspection_budget_ms has its process group killed (artifact_inspection_timeout). Its worktree state trusts the index's stat data as Git does: index entries marked assume-unchanged or skip-worktree, and a pinned core.ignoreStat, core.sparseCheckout or index.sparse, refuse, but an entry whose recorded stat the sandbox made match a changed file reads as unchanged.",
   "A sandboxed child of a parent whose cwd holds a pi profile (.piw-agent) gets a copy of that profile in its root's .piw-agent, credential stores included, so the child can read everything the parent's profile holds. Links are copied as links and never followed; FIFOs, sockets and devices refuse; the copy is at most 10,000 entries, 256 MiB and depth 32. Each node_modules tree in it (at most 64) is not copied but bound read-only from the parent's profile, so the child sees later changes the parent makes there. A staging failure after the child's .piw-agent was created is outcome_unknown and fences the parent.",
 ];
 
@@ -60,6 +62,9 @@ export const LIMITS: Hello['limits'] = {
   history_line_max_bytes: HISTORY_LINE_MAX_BYTES,
   blob_max_bytes: routes['blobs.read'].responses['200'].maxBytes,
   inventory_probes_max: INVENTORY_PROBES_MAX,
+  artifact_inspection_budget_ms: ARTIFACT_INSPECTION_BUDGET_MS,
+  artifact_inspections_max: ARTIFACT_INSPECTIONS_MAX,
+  artifact_inspections_per_caller_max: ARTIFACT_INSPECTIONS_PER_CALLER_MAX,
 };
 
 /**

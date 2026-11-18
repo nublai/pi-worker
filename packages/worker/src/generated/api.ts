@@ -610,8 +610,19 @@ export interface paths {
          *     verdict: the commit and its native tree (replacement objects off),
          *     HEAD, the working tree's status, the paths changed from the base,
          *     the pin's identity and the evidence's provenance. Lists are bounded
-         *     and say when they are truncated. On a parent channel only the
-         *     parent's own children may be inspected. Refusals, all `no_effect`:
+         *     and say when they are truncated; the worktree state is judged on
+         *     the complete status. On a parent channel only the parent's own
+         *     children may be inspected. Owner Git runs in a child process with
+         *     its own process group, never on the supervisor's event loop, within
+         *     `hello.limits.artifact_inspection_budget_ms`, with at most
+         *     `hello.limits.artifact_inspections_max` inspections running
+         *     (`artifact_inspections_per_caller_max` per grant). The worktree
+         *     state fails closed on index state that hides tracked changes: an
+         *     index entry marked assume-unchanged or skip-worktree (detail
+         *     git_index_hides_changes), or a pinned `core.ignoreStat`,
+         *     `core.sparseCheckout` or `index.sparse` (detail
+         *     git_config_trusts_stat), refuses, never reads as clean.
+         *     Refusals, all `no_effect`:
          *     `stale_binding` (`worker_epoch` is not the worker's current one),
          *     `artifact_inspection_unavailable` (no saved launch pin: the worker
          *     is not sandboxed in a linked worktree, or the supervisor restarted
@@ -623,7 +634,11 @@ export interface paths {
          *     worker), `artifact_object_missing` (the commit, the base or the
          *     commit's tree is not in the object store, or names no commit),
          *     `parent_channel_requires_own_child` (on a parent channel, a worker
-         *     that is not the parent's child).
+         *     that is not the parent's child), `artifact_inspections_busy` (too
+         *     many inspections running, supervisor-wide or for this grant;
+         *     `detail` is supervisor_limit or per_caller_limit; nothing ran),
+         *     `artifact_inspection_timeout` (the inspection ran past its budget;
+         *     its owner-Git process group was killed).
          */
         post: operations["artifacts.inspect"];
         delete?: never;
@@ -1038,6 +1053,27 @@ export interface components {
              *     or started; the caller retries later.
              */
             inventory_probes_max?: number;
+            /**
+             * @description How long one `artifacts.inspect` may run. Owner Git runs in a child
+             *     process with its own process group, never on the supervisor's event
+             *     loop; past the budget the whole group is killed and the call is
+             *     refused `artifact_inspection_timeout` (`no_effect`).
+             */
+            artifact_inspection_budget_ms?: number;
+            /**
+             * @description The most `artifacts.inspect` calls running at once, across every
+             *     caller. Past it the call is refused `artifact_inspections_busy`
+             *     (`no_effect`, `detail` `supervisor_limit`) before anything runs; the
+             *     caller retries later.
+             */
+            artifact_inspections_max?: number;
+            /**
+             * @description The most `artifacts.inspect` calls one grant (a parent channel's
+             *     own grant included) has running at once. Past it the call is
+             *     refused `artifact_inspections_busy` (`no_effect`, `detail`
+             *     `per_caller_limit`) before anything runs.
+             */
+            artifact_inspections_per_caller_max?: number;
         };
         Binding: {
             command_id: components["schemas"]["Id"];
@@ -1698,7 +1734,7 @@ export interface components {
                 changed_truncated: boolean;
                 diff_digest: components["schemas"]["ArtifactDiffDigest"];
             };
-            /** @description The checkout's `git status --porcelain` (untracked files listed, ignored ones not). `conflicted` when any entry is unmerged, else `dirty` when any entry exists. */
+            /** @description The checkout's `git status --porcelain` (untracked files listed, ignored ones not). `conflicted` when any entry is unmerged, else `dirty` when any entry exists, judged on the complete status before `entries` is bounded. */
             worktree: {
                 /** @enum {string} */
                 state: "clean" | "dirty" | "conflicted";

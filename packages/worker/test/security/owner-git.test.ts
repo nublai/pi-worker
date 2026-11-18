@@ -892,6 +892,63 @@ test('owner Git: a split index refuses (a shared index in the linked admin dir, 
   }
 });
 
+test('owner Git: a tracked change hidden by assume-unchanged or skip-worktree refuses status and a worktree diff (git_index_hides_changes), never reads as clean', () => {
+  const f = fixture();
+  try {
+    const at = () => on(f, readGitPin(f.wt));
+    assert.equal(gitStatus(at()), ' M note\n', 'control: the same-size edit is seen');
+    // Index formats 2 (3 once an extended flag is set) and 4 (paths prefix-compressed).
+    for (const [version, flag] of [['2', 'assume-unchanged'], ['2', 'skip-worktree'], ['4', 'assume-unchanged'], ['4', 'skip-worktree']] as const) {
+      f.git(f.wt, 'update-index', '--index-version', version);
+      f.git(f.wt, 'update-index', `--${flag}`, 'note');
+      assert.equal(f.git(f.wt, 'status', '--porcelain'), '', `fixture: plain Git reports clean with ${flag}`);
+      assert.throws(() => gitStatus(at()), typed(/^git_index_hides_changes$/), `status, ${flag}`);
+      assert.throws(() => gitDiff(at(), { kind: 'worktree' }), typed(/^git_index_hides_changes$/), `worktree diff, ${flag}`);
+      // What does not compare the working tree still answers.
+      assert.equal(gitRevParse(at(), 'HEAD'), f.headId);
+      assert.ok(gitDiff(at(), { kind: 'revisions', from: f.baseId, to: f.headId }).length > 0);
+      f.git(f.wt, 'update-index', `--no-${flag}`, 'note');
+      assert.equal(gitStatus(at()), ' M note\n', `${flag} cleared (index v${version}): the edit is seen`);
+    }
+    assert.deepEqual(leftovers(f), [], 'a refused call removes its snapshot');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('owner Git: a pinned core.ignoreStat, core.sparseCheckout or index.sparse refuses the worktree reads (git_config_trusts_stat); core.checkStat and core.trustctime are overridden to full stat checks', async () => {
+  const f = fixture();
+  try {
+    for (const key of ['core.ignoreStat', 'core.sparseCheckout', 'index.sparse']) {
+      f.git(f.repo, 'config', key, 'true');
+      const pin = readGitPin(f.wt);
+      assert.throws(() => gitStatus(on(f, pin)), typed(new RegExp(`^git_config_trusts_stat: ${key.toLowerCase().replace('.', '\\.')}$`)), key);
+      assert.throws(() => gitDiff(on(f, pin), { kind: 'worktree' }), typed(/^git_config_trusts_stat: /), key);
+      assert.equal(gitLog(on(f, pin), 'HEAD', 1)[0]?.commit, f.headId, `${key}: reads that do not compare the working tree still answer`);
+      f.git(f.repo, 'config', key, 'false');
+      assert.equal(gitStatus(on(f, readGitPin(f.wt))), ' M note\n', `${key}=false is not refused`);
+      f.git(f.repo, 'config', '--unset', key);
+    }
+    // A same-size edit with its old mtime restored, the index written well after that mtime (not racily clean): only
+    // the ctime tells. With minimal stat checks and ctime untrusted, plain Git reports it clean.
+    const note = join(f.wt, 'note');
+    const T = 1_000_000_000;
+    writeFileSync(note, 'head\n');
+    utimesSync(note, T, T);
+    f.git(f.wt, 'update-index', '--refresh');
+    assert.equal(f.git(f.wt, 'status', '--porcelain'), '', 'fixture: clean at the committed bytes');
+    await new Promise(r => setTimeout(r, 1_100)); // a later ctime second
+    writeFileSync(note, 'dirt\n');
+    utimesSync(note, T, T);
+    f.git(f.repo, 'config', 'core.checkStat', 'minimal');
+    f.git(f.repo, 'config', 'core.trustctime', 'false');
+    assert.equal(f.git(f.wt, 'status', '--porcelain'), '', 'fixture: plain Git trusts the stale stat data');
+    assert.equal(gitStatus(on(f, readGitPin(f.wt))), ' M note\n', 'owner Git checks the full stat data, so it compares the content');
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('owner Git: a pinned log.showSignature never runs gpg from the supervisor PATH or mixes it into log and show output', () => {
   const f = fixture();
   try {
