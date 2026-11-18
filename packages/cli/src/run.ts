@@ -12,7 +12,7 @@ import { Client, ClientFailure, routes, type Cursor, type EventFrame, type Opera
 import { parse, type Parsed, type Value } from './args.js';
 import { BINDING, COMMANDS, fieldOf, GLOBAL, UsageError, type Command, type Option } from './commands.js';
 import { EXIT, grantFailure, mapError, ReceiptRefusal } from './errors.js';
-import { daemon, doctor, install, logs, realSystem, uninstall, userEnv, version, type System } from './host.js';
+import { daemon, doctor, grantEnv, install, logs, realSystem, uninstall, version, type System } from './host.js';
 import { uuidv7 } from './uuid.js';
 
 export interface Io {
@@ -171,9 +171,9 @@ function grant(command: Command, parsed: Parsed, io: Io): void {
     if (flags.get('answers-for-person') === true) argv.push('--answers-for-person');
     if (flags.has('id')) argv.push('--id', flags.get('id') as string);
   }
-  // The same runtime fallback as install (`XDG_RUNTIME_DIR` defaults to `/run/user/<uid>`), so a shell without one
-  // registers in the state directory install pinned.
-  const env = userEnv(io.env, io.system?.uid ?? process.getuid!());
+  // The installed unit's pinned state directory (a different one named by the caller is refused), and the same runtime
+  // fallback as install (`XDG_RUNTIME_DIR` defaults to `/run/user/<uid>`): the grant lands where the daemon looks.
+  const env = grantEnv(io.env, io.system?.uid ?? process.getuid!());
   const result = spawnSync(process.execPath, [grantCommandPath(), ...argv], { encoding: 'utf8', env });
   if (result.status !== 0) throw grantFailure(result.stderr ?? '', result.status);
   io.out(JSON.stringify(JSON.parse(result.stdout) as unknown));

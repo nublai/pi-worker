@@ -941,6 +941,111 @@ test('grant register works with neither XDG_RUNTIME_DIR nor PIW_SOCKET set, as d
   }
 });
 
+/** Installs with the state directory `configure` names, then returns the host with that naming removed from the CLI's environment. */
+async function installedWithState(variable: 'PIW_STATE_DIR' | 'XDG_STATE_HOME') {
+  const h = await host(({ dir }) => (variable === 'PIW_STATE_DIR' ? { PIW_STATE_DIR: join(dir, 'custom-state') } : { XDG_STATE_HOME: join(dir, 'xdg-state') }));
+  h.unit.serveVersion = '1.2.3';
+  const installed = await h.cli('install', '--from', h.tarball('1.2.3'), '--wait-ms', '5000');
+  assert.equal(installed.code, 0, `install exit code (error: ${String(installed.error?.error)})`);
+  const pinned = variable === 'PIW_STATE_DIR' ? join(h.dir, 'custom-state') : join(h.dir, 'xdg-state', 'pi-worker');
+  assert.match(readFileSync(h.unitFile, 'utf8'), new RegExp(`^Environment=PIW_STATE_DIR=${pinned}$`, 'm'), 'the unit pins the installing environment\'s state directory');
+  const defaultState = join(h.home, '.local', 'state', 'pi-worker');
+  assert.equal(existsSync(defaultState), false, 'install did not touch the default state directory');
+  return { h, pinned, defaultState };
+}
+
+const grantIds = (state: string) => readdirSync(join(state, 'grants')).sort();
+
+for (const variable of ['PIW_STATE_DIR', 'XDG_STATE_HOME'] as const) {
+  test(`grant: with an installation, a shell without ${variable} uses the state directory the unit pins (list, register, revoke)`, async () => {
+    const { h, pinned, defaultState } = await installedWithState(variable);
+    try {
+      const doctorOnly = grantIds(pinned);
+      assert.equal(doctorOnly.length, 1, 'install registered the doctor grant in the pinned directory');
+      delete h.env[variable];
+      const list = await h.cli('grant', 'list');
+      assert.equal(list.code, 0, `grant list exit code (error: ${String(list.error?.error)})`);
+      assert.deepEqual((JSON.parse(list.out[0]!) as { caller: string }[]).map(g => g.caller), ['pi-worker-doctor'], 'list reads the pinned directory, where the daemon\'s doctor grant is');
+      const out = join(h.dir, 'bridge.grant.json');
+      const reg = await h.cli('grant', 'register', '--caller', 'shep-bridge', '--out', out, '--method', 'hello');
+      assert.equal(reg.code, 0, `grant register exit code (error: ${String(reg.error?.error)})`);
+      assert.equal(grantIds(pinned).length, 2, 'registered in the pinned directory, which the daemon reads');
+      assert.equal(existsSync(defaultState), false, 'nothing was created in the default state directory');
+      const id = reg.json!.grant_id as string;
+      const revoked = await h.cli('grant', 'revoke', id);
+      assert.equal(revoked.code, 0, `grant revoke exit code (error: ${String(revoked.error?.error)})`);
+      assert.equal(existsSync(defaultState), false, 'revoke did not touch the default state directory either');
+      // The same directory named explicitly (as written, or with a trailing slash) is not a mismatch.
+      h.env.PIW_STATE_DIR = variable === 'PIW_STATE_DIR' ? `${pinned}/` : pinned;
+      assert.equal((await h.cli('grant', 'list')).code, 0, 'the pinned directory named explicitly is accepted');
+    } finally {
+      await h.close();
+    }
+  });
+}
+
+test('grant: with an installation, an environment naming another state directory is refused pi_worker_state_mismatch before anything is read or written', async () => {
+  const { h, pinned, defaultState } = await installedWithState('PIW_STATE_DIR');
+  try {
+    const before = grantIds(pinned);
+    const other = join(h.dir, 'other-state');
+    const out = join(h.dir, 'refused.grant.json');
+    const attempts: [string, NodeJS.ProcessEnv, string[]][] = [
+      ['PIW_STATE_DIR', { PIW_STATE_DIR: other }, ['grant', 'register', '--caller', 'shep-bridge', '--out', out]],
+      ['PIW_STATE_DIR', { PIW_STATE_DIR: other }, ['grant', 'list']],
+      ['PIW_STATE_DIR', { PIW_STATE_DIR: other }, ['grant', 'revoke', 'whatever']],
+      ['XDG_STATE_HOME', { PIW_STATE_DIR: undefined, XDG_STATE_HOME: join(h.dir, 'other-xdg') }, ['grant', 'register', '--caller', 'shep-bridge', '--out', out]],
+      ['a relative XDG_STATE_HOME', { PIW_STATE_DIR: undefined, XDG_STATE_HOME: 'relative' }, ['grant', 'list']],
+    ];
+    for (const [label, env, argv] of attempts) {
+      for (const [k, v] of Object.entries(env)) if (v === undefined) delete h.env[k]; else h.env[k] = v;
+      const r = await h.cli(...argv);
+      assert.deepEqual([r.code, r.error?.error, r.error?.effect, r.error?.pinned], [1, 'pi_worker_state_mismatch', 'no_effect', pinned], `${label}: ${argv.slice(0, 2).join(' ')} is refused with the pinned directory named`);
+      assert.deepEqual(r.out, [], `${label}: nothing on stdout`);
+      assert.equal(existsSync(out), false, `${label}: no bearer file`);
+      assert.equal(existsSync(other), false, `${label}: the named directory was not created`);
+      assert.equal(existsSync(defaultState), false, `${label}: the default directory was not created`);
+      assert.deepEqual(grantIds(pinned), before, `${label}: the pinned registry is unchanged`);
+    }
+    // A relative name never matches, even when it would resolve to the pin from this process's directory.
+    const cwd = process.cwd();
+    try {
+      process.chdir(h.dir);
+      h.env.PIW_STATE_DIR = 'custom-state';
+      const r = await h.cli('grant', 'list');
+      assert.deepEqual([r.code, r.error?.error, r.error?.effect], [1, 'pi_worker_state_mismatch', 'no_effect'], 'a relative PIW_STATE_DIR is refused');
+    } finally {
+      process.chdir(cwd);
+    }
+    // PIW_STATE_DIR wins over XDG_STATE_HOME in the daemon's own resolution, so one that names the pin is no mismatch.
+    delete h.env.XDG_STATE_HOME;
+    h.env.PIW_STATE_DIR = pinned;
+    h.env.XDG_STATE_HOME = join(h.dir, 'other-xdg');
+    assert.equal((await h.cli('grant', 'list')).code, 0, 'PIW_STATE_DIR naming the pin outranks XDG_STATE_HOME');
+  } finally {
+    await h.close();
+  }
+});
+
+test('grant: a unit whose pinned state directory is not canonical is refused pi_worker_unsafe_path; with no installation the caller\'s own environment resolves it', async () => {
+  const { h, pinned } = await installedWithState('PIW_STATE_DIR');
+  try {
+    delete h.env.PIW_STATE_DIR;
+    writeFileSync(h.unitFile, readFileSync(h.unitFile, 'utf8').replace(`PIW_STATE_DIR=${pinned}`, 'PIW_STATE_DIR=relative/state'));
+    const r = await h.cli('grant', 'list');
+    assert.deepEqual([r.code, r.error?.error, r.error?.which, r.error?.effect], [1, 'pi_worker_unsafe_path', 'state', 'no_effect'], 'a pin the unit file could not have been written with is refused');
+    // Uninstalled: no unit, so the environment names the state directory, as before.
+    assert.equal((await h.cli('uninstall')).code, 0);
+    const own = join(h.dir, 'own-state');
+    h.env.PIW_STATE_DIR = own;
+    const reg = await h.cli('grant', 'register', '--caller', 'shep-bridge', '--out', join(h.dir, 'own.grant.json'), '--method', 'hello');
+    assert.equal(reg.code, 0, `grant register exit code (error: ${String(reg.error?.error)})`);
+    assert.equal(grantIds(own).length, 1, 'registered in the directory the environment names');
+  } finally {
+    await h.close();
+  }
+});
+
 test('logs: journalctl --user -u pi-worker.service, -f follows, its exit status is the exit code', async () => {
   const h = await host();
   try {
