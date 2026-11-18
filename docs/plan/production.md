@@ -538,6 +538,24 @@ name; and any Git mount overlapping the state or a control path. The pin the val
 another namespace. The pin is memory-only: no sandboxed worker is relaunched yet. Named limit (in `hello`): the shared
 object store is writable, so a sandbox can add or remove objects other checkouts use.
 
+**P2-6 as built.** `owner-git/git-safe.ts` exports `readGitPin(root)` and `safeGitRun`, `safeGit`, `safeGitBuffer`
+(`owner, root, pin, args`), `gitVersion(owner)`; `owner-git/artifact.ts` exports `artifactSubject(owner, cwd, commit,
+base, pin)`. `owner` is `{ stateDir, env }`: the supervisor's state directory and the environment PATH and the locale
+are taken from (nothing else in it reaches Git). Owner Git runs only in a linked worktree (`readGitPin` refuses an
+ordinary root, as P2-5 does) and only `status`, `diff`, `diff-tree`, `diff-index`, `diff-files`, `log`, `show`,
+`rev-parse`, `cat-file`, `ls-files`, `for-each-ref` and `merge-base`; anything else, a global option first included,
+refuses `git_command_not_allowed` before anything is opened. Each call compares the pin through O_NOFOLLOW descriptors
+and copies HEAD, config, refs, `packed-refs`, `shallow`, `info` and the index (its mtime kept) from those descriptors
+into `<stateDir>/git-snapshots/snap-*`. Both directories must be ours and mode 0700, and the snapshot's real path, read
+back from its descriptor, must lie outside the root, the admin dir and the common dir
+(`git_snapshot_dir_inside_checkout`); `TMPDIR` is never used. The snapshot's config, listed by Git's own parser, refuses
+when a key names a program (now including `credential.helper` and `credential.<url>.helper`) or sets `protocol.allow` or
+`protocol.<name>.allow` to anything but `never`, and every call passes `-c protocol.allow=never`,
+`-c protocol.ext.allow=never` and `-c protocol.file.allow=never`. Named limit: a supervisor killed during a call leaves
+its snapshot (a copy of the repository's config and refs) in the private snapshot directory. `git-sandbox.ts` now
+exports `inspect` (unchanged) for the snapshot. No supervisor path calls owner Git yet; the harness and Maestro are its
+callers (P2 live journey, P3).
+
 **P2-7 as built.** `sandbox/staging.ts` stages a profile for a sandboxed typed child. Until P2-8 that child's parent is
 an unsandboxed typed worker; the profile is the parent cwd's `.piw-agent` (what a sandboxed parent's agent directory
 will be), and a parent with none stages nothing, so a child keeps an owner-staged `.piw-agent` of its own as in P2-4.
