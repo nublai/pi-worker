@@ -26,7 +26,7 @@ import {
 } from 'node:fs';
 import { connect } from 'node:net';
 import { userInfo } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@nublai/pi-worker-client';
 import { resolvePaths } from '@nublai/pi-worker/dist/src/config.js';
@@ -261,9 +261,13 @@ export function unitText(l: Layout, version: string, nodeDir: string): string {
 
 /** The unit file's pinned `Environment=` values (state directory and socket), when one is installed. */
 function pinned(l: Layout): { stateDir?: string; socket?: string } {
+  return pinnedIn(l.unitFile);
+}
+
+function pinnedIn(unitFile: string): { stateDir?: string; socket?: string } {
   let text: string;
   try {
-    text = readFileSync(l.unitFile, 'utf8');
+    text = readFileSync(unitFile, 'utf8');
   } catch {
     return {};
   }
@@ -271,6 +275,28 @@ function pinned(l: Layout): { stateDir?: string; socket?: string } {
   const stateDir = value('PIW_STATE_DIR');
   const socket = value('PIW_SOCKET');
   return { ...(stateDir ? { stateDir } : {}), ...(socket ? { socket } : {}) };
+}
+
+/**
+ * The environment a local `grant` command runs with: the state directory the installed unit pins, never the caller's
+ * guess. With an installation (a unit under HOME that pins `PIW_STATE_DIR`) the command gets that directory; a caller
+ * whose environment names a different one (`PIW_STATE_DIR`, else `XDG_STATE_HOME`) is refused
+ * `pi_worker_state_mismatch` (no effect) before the command reads or writes anything, so a grant is never registered
+ * where the daemon does not look. A caller that names none, or the same one, gets the pin. With no installation the
+ * caller's own environment resolves it, as the daemon would.
+ */
+export function grantEnv(env: NodeJS.ProcessEnv, uid: number): NodeJS.ProcessEnv {
+  const base = userEnv(env, uid);
+  const home = env.HOME;
+  if (!canonicalPath(home) || home === '/') return base;
+  const stateDir = pinnedIn(join(home, '.config', 'systemd', 'user', UNIT)).stateDir;
+  if (stateDir === undefined) return base;
+  if (!canonicalPath(stateDir)) throw unsafe('state', 'the installed unit pins a state directory that is not canonical');
+  const named = env.PIW_STATE_DIR || (env.XDG_STATE_HOME ? join(env.XDG_STATE_HOME, 'pi-worker') : undefined);
+  if (named !== undefined && (!isAbsolute(named) || resolve(named) !== stateDir)) {
+    throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: stateDir, requested: named });
+  }
+  return { ...base, PIW_STATE_DIR: stateDir };
 }
 
 function systemctl(system: System, l: Layout, step: string, ...args: string[]): ExecResult {

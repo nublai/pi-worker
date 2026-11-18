@@ -147,6 +147,18 @@ WantedBy=default.target
   (state `PIW_STATE_DIR`, else `$XDG_STATE_HOME/pi-worker`, else `~/.local/state/pi-worker`; socket `PIW_SOCKET`,
   else `$XDG_RUNTIME_DIR/pi-worker/b2.sock`, `XDG_RUNTIME_DIR` defaulting to `/run/user/<uid>`), so the daemon and
   later `grant` commands agree.
+- **The pin is the rule for local state commands.** While the unit file is installed, the local `grant` commands
+  (`register`, `revoke`, `list`) use the unit's `PIW_STATE_DIR`, whatever the caller's shell sets, so a grant is
+  registered where the daemon reads it. A caller whose environment names a different state directory (`PIW_STATE_DIR`,
+  else `XDG_STATE_HOME/pi-worker`, compared as an absolute path, so a trailing `/` does not matter and a relative one never matches)
+  is refused `pi_worker_state_mismatch` (exit 1, `effect: no_effect`, with `pinned` and `requested`) before the grant
+  command runs: nothing is read, created or written, no bearer file. A caller that names none, or the pinned one,
+  is served from the pin. A pin that is not canonical (section 3 step 4; only a hand-edited unit has one) is refused
+  `pi_worker_unsafe_path` with `which: state`. With no unit file installed (never installed, or uninstalled), or one
+  without a `PIW_STATE_DIR` line, the caller's own environment resolves the state directory as the daemon would.
+  `doctor`, `version` and `logs` never read or write the state directory (`doctor` and `version` use the pinned
+  socket, section 4); `uninstall --purge` removes the pinned state directory (section 6), whatever the caller's
+  environment names; only `install` sets the pin.
 - **Logs:** the supervisor writes only typed JSON events to stderr (journal) and nothing to stdout; pi's own output
   stays inside the supervisor. No prompt or answer text is logged.
 
@@ -220,8 +232,11 @@ socket=$(printf '%s' "$out" | jq -r .socket)     # default /run/user/<uid>/pi-wo
 ~/.local/bin/pi-worker doctor --json
 ```
 
-- Run `grant register` as the same user with the same `PIW_STATE_DIR`/`XDG_STATE_HOME` as `install` (the defaults
-  agree); the daemon rereads grants on every request, so no restart is needed. `grant revoke <id>` withdraws it.
+- Run `grant register` as the same user as `install`. It needs no state environment: it uses the state directory the
+  installed unit pins (section 3.1), so a shell without the installing `PIW_STATE_DIR`/`XDG_STATE_HOME` still reaches
+  the daemon's grants. A shell that sets a different one is refused `pi_worker_state_mismatch` (exit 1, `no_effect`,
+  nothing written): unset it or pass the pinned one. The daemon rereads grants on every request, so no restart is
+  needed. `grant revoke <id>` withdraws it, `grant list` lists the pinned registry.
   Like `install`, the local `grant` commands need neither `XDG_RUNTIME_DIR` nor `PIW_SOCKET` (the runtime directory
   defaults to `/run/user/<uid>`); B2 calls such as `hello` take the socket from `--socket`, `PIW_SOCKET` or
   `XDG_RUNTIME_DIR`.
