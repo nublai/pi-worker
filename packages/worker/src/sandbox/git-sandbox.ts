@@ -133,7 +133,7 @@ const real = (path: string, error: string): string => {
   }
 };
 
-interface Inspection {
+export interface Inspection {
   pin: GitPin | null;
   fds: number[];
   dotGit?: number;
@@ -145,7 +145,7 @@ interface Inspection {
  * Reads the Git pointers below the open root `rootFd` (the canonical `root`). The caller owns `fds`; `dotGit`, `admin`
  * and `common` are the exact objects the pin was read from.
  */
-function inspect(root: string, rootFd: number): Inspection {
+export function inspect(root: string, rootFd: number): Inspection {
   const fds: number[] = [];
   const keep = (fd: number) => {
     fds.push(fd);
