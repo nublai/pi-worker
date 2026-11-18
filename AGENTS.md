@@ -54,9 +54,15 @@ Reversions (one matrix shard per group) are the slow tier, so they are selected:
 - Nightly, `workflow_dispatch` and a PR labelled **`full-reversions`**: every group.
 - Any other PR: only the groups `--changed origin/<base>` selects. A change to the runner, the manifest, the
   toolchain or a package manifest selects every group; a file no reversion patches selects none.
-- A push to `main`: the groups changed since the previous head (every group for a new ref or a force push).
+- A push to `main`: the groups changed since the previous head (every group for a new ref, a rewind or a force
+  push: the previous head must exist and be an ancestor of the new one).
 - With no group selected the shards are skipped and `reversions-gate` reports that as a pass. Adding a label other
   than `full-reversions` runs nothing.
+
+The changed-group selection is only a fast first signal. It matches the files a reversion diff patches (a rename
+counts as old plus new path); it does not follow imports and ignores test-only edits (a changed test file selects
+nothing), so it can miss a reversion that an edit weakened. The full set on the exact head is therefore mandatory
+before merge, never optional.
 
 **Merge rule:** a PR merges only after a run with the full set green on its exact head. When it is ready to merge,
 add the `full-reversions` label (pushing again needs a run again; the label stays and every later push runs the

@@ -78,7 +78,8 @@ jobs:
     # The shard list comes from the manifest, so a new group can never be left out of CI. Which groups run:
     #  - schedule, workflow_dispatch, or a PR labelled full-reversions: every group;
     #  - any other PR: the groups its diff against the base branch selects (--changed origin/<base> --list);
-    #  - a push to main: the groups changed since the previous head, or every group when that head is new or gone.
+    #  - a push to main: the groups changed since the previous head, or every group when that head is new, gone or
+    #    not an ancestor of the new head (rewind, force push). The logic is harness/ci/select-reversions.sh.
     # An empty list skips the reversions job (an empty matrix is an error) and reversions-gate reports it.
     if: github.event.action != 'labeled' || github.event.label.name == 'full-reversions'
     runs-on: ubuntu-24.04
@@ -102,21 +103,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           BEFORE: ${{ github.event.before }}
           FULL_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'full-reversions') }}
-        run: |
-          set -euo pipefail
-          all() { node harness/lib/reversions.mjs --list; }
-          case "$EVENT" in
-            pull_request)
-              if [ "$FULL_LABEL" = true ]; then mode='all (label full-reversions)'; names=$(all)
-              else mode="changed vs $BASE_REF"; names=$(node harness/lib/reversions.mjs --changed "origin/$BASE_REF" --list); fi ;;
-            push)
-              if [ "$BEFORE" != 0000000000000000000000000000000000000000 ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-                mode='changed since the previous head'; names=$(node harness/lib/reversions.mjs --changed "$BEFORE" --list)
-              else mode='all (new ref or force push)'; names=$(all); fi ;;
-            *) mode="all ($EVENT)"; names=$(all) ;;
-          esac
-          echo "groups=$(printf '%s\n' "$names" | jq -Rnc '[inputs | select(length > 0)]')" >> "$GITHUB_OUTPUT"
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+        run: harness/ci/select-reversions.sh >> "$GITHUB_OUTPUT"
   reversions:
     # One shard per manifest group. Each applies the group's guard-reversion diffs and fails unless a named test
     # fails by assertion for every one (harness/lib/reversions.mjs --group, the same as --all locally).
