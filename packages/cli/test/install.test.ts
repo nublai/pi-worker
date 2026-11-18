@@ -689,6 +689,21 @@ test('uninstall --purge refuses a state directory pi-worker did not make (no mar
       assert.equal((await h.cli('install', '--from', h.tarball('1.2.3'))).code, 0, 'install');
       writeFileSync(join(h.state, 'important.txt'), 'mine');
     }],
+    ['an installed state that also holds a file named constructor (an Object prototype property)', async h => {
+      h.unit.serveVersion = '1.2.3';
+      assert.equal((await h.cli('install', '--from', h.tarball('1.2.3'))).code, 0, 'install');
+      writeFileSync(join(h.state, 'constructor'), 'mine');
+    }],
+    ['an installed state that also holds a file named __proto__ (an Object prototype property)', async h => {
+      h.unit.serveVersion = '1.2.3';
+      assert.equal((await h.cli('install', '--from', h.tarball('1.2.3'))).code, 0, 'install');
+      writeFileSync(join(h.state, '__proto__'), 'mine');
+    }],
+    ['an installed state that also holds a file named toString (an Object prototype property)', async h => {
+      h.unit.serveVersion = '1.2.3';
+      assert.equal((await h.cli('install', '--from', h.tarball('1.2.3'))).code, 0, 'install');
+      writeFileSync(join(h.state, 'toString'), 'mine');
+    }],
   ];
   for (const [label, arrange] of cases) {
     const h = await host(({ dir }) => ({ PIW_STATE_DIR: join(dir, 'documents') }));

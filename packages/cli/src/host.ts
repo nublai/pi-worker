@@ -651,7 +651,8 @@ function foreignState(stateDir: string, l: Layout): string | undefined {
     return 'cannot be read';
   }
   for (const entry of entries) {
-    const kind = STATE_ENTRIES[entry.name];
+    // Own properties only: a foreign `constructor` or `__proto__` must not resolve to an inherited value.
+    const kind = Object.hasOwn(STATE_ENTRIES, entry.name) ? STATE_ENTRIES[entry.name] : undefined;
     if (!kind || !is[kind](entry)) return 'it holds an entry pi-worker does not write';
   }
   if (!journalMarker(stateDir) && !grantMarker(stateDir, l)) return 'it holds no pi-worker journal and no doctor grant of this install';
