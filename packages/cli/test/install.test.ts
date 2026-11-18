@@ -18,6 +18,8 @@ import { run } from '../src/run.js';
 
 const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64';
 const OTHER_ARCH = ARCH === 'x64' ? 'arm64' : 'x64';
+// The spec's own hello example: the client checks every reply against the spec before the CLI sees it.
+const HELLO = (JSON.parse(readFileSync(new URL('../../../../api/fixtures/wire/hello/ok.json', import.meta.url), 'utf8')) as { response: { body: Record<string, unknown> } }).response.body;
 const ok = (stdout = ''): ExecResult => ({ status: 0, stdout, stderr: '' });
 // The real uid: purge only removes what this user owns.
 const UID = process.getuid!();
@@ -78,7 +80,7 @@ async function host(configure: (dirs: { dir: string; home: string; runtime: stri
     const version = unit.serveVersion;
     server = createServer((req, res) => {
       res.writeHead(req.url === '/b2/hello' ? 200 : 404, { 'content-type': 'application/json' });
-      res.end(JSON.stringify(req.url === '/b2/hello' ? { protocol: { major: 0, minor: 1 }, worker_version: version } : { error: 'not_found', effect: 'no_effect' }));
+      res.end(JSON.stringify(req.url === '/b2/hello' ? { ...HELLO, worker_version: version } : { error: 'not_found', effect: 'no_effect' }));
     });
     server.listen(socket);
   };
@@ -712,6 +714,8 @@ test('uninstall --purge removes a state directory that holds a pi-worker journal
     try {
       mkdirSync(h.state, { mode: 0o700 });
       state = openState(h.state);
+      // Every directory a supervisor makes in its state: grants, sessions, attachments and owner Git's snapshots.
+      for (const name of ['grants', 'sessions', 'attachments', 'git-snapshots']) mkdirSync(join(h.state, name, 'x'), { recursive: true, mode: 0o700 });
       if (!live) {
         state.close();
         state = undefined;
