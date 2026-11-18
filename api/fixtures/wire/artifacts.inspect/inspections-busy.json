@@ -1,0 +1,19 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-child"
+    },
+    "body": {
+      "worker_epoch": "epoch-child",
+      "commit": "bf6972b2f480db1b890babf6a1c1800e18b92a88"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "artifact_inspections_busy",
+      "effect": "no_effect",
+      "detail": "per_caller_limit"
+    }
+  }
+}
