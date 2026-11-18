@@ -24,6 +24,7 @@ import type { Budget, Operation, ReceiptStore } from '../receipts/receipts.js';
 import type { Guard } from '../grants/authority.js';
 import type { Domain } from '../containment/containment.js';
 import { sandboxed } from '../sandbox/sandbox.js';
+import type { GitPin } from '../sandbox/git-sandbox.js';
 
 export type Worker = components['schemas']['Worker'];
 export type Create = components['schemas']['Create'];
@@ -101,6 +102,12 @@ export interface Live extends Persisted {
   cleaning?: Promise<boolean>;
   /** The supervisor-owned follow-up queue (cap 32), in arrival order. */
   pending?: Map<string, Queued>;
+  /**
+   * A sandboxed worker's Git metadata as its create's validation accepted it (memory, P2-5; sandbox/git-sandbox.ts): its
+   * launch mounts only that metadata. A sandboxed worker is never relaunched yet (children are not relaunched, and a
+   * sandboxed root worker waits for P2-8), so the pin is not journaled.
+   */
+  gitPin?: GitPin | null;
 }
 
 export interface HostLaunch {
@@ -120,6 +127,8 @@ export interface HostLaunch {
    * domain (the prefix stays the outermost wrapper). Never unsandboxed when set: no fallback.
    */
   readonly sandbox?: string;
+  /** With `sandbox`: the Git pin its validation read (P2-5); the launch refuses metadata that differs. */
+  readonly gitPin?: GitPin | null;
 }
 
 export type HostFactory = (launch: HostLaunch) => SessionHost;

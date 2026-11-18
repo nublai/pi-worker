@@ -35,6 +35,7 @@ import type { Input } from './input.js';
 import type { Lifecycle } from './lifecycle.js';
 import type { Create, Live, SupervisorState, Worker } from './state.js';
 import { sandboxed, sandboxRoot } from '../sandbox/sandbox.js';
+import type { GitPin } from '../sandbox/git-sandbox.js';
 
 export type Report = import('../generated/api.js').components['schemas']['Report'];
 export type ChildClaim = import('../generated/api.js').components['schemas']['ChildClaim'];
@@ -124,23 +125,27 @@ export class Children {
     if (this.s.grants.read(grantId).revoked) throw new Refusal('grant_revoked');
   }
 
-  /** The typed launch checks, all before any record (refusals are `no_effect`). */
-  validate(c: Create): void {
+  /**
+   * The typed launch checks, all before any record (refusals are `no_effect`). A sandboxed launch returns the Git pin its
+   * root's checks accepted (sandbox/git-sandbox.ts), which its spawn must still find.
+   */
+  validate(c: Create): GitPin | null | undefined {
     const spec = c.launch_spec;
     if (c.parent && !spec) throw new Refusal('child_launch_spec_required');
-    if (!spec) return;
+    if (!spec) return undefined;
+    let gitPin: GitPin | null | undefined;
     // A sandboxed child (P2-4): its root equals its cwd and overlaps no control path (sandbox.ts). A sandboxed root
     // worker (a parent) needs the parent channel, which lands in P2-8: until then it is refused.
     if (sandboxed(spec)) {
       if (!c.parent) throw new Refusal('sandboxed_parent_requires_parent_channel');
       if (c.resume_session_id) throw new Refusal('sandboxed_child_resume_unsupported');
-      sandboxRoot(c, { stateDir: this.s.stateDir, paths: this.s.sandboxControls });
+      gitPin = sandboxRoot(c, { stateDir: this.s.stateDir, paths: this.s.sandboxControls }).gitPin;
     }
     const caller = currentGuard();
     if (!subset(spec.grant_methods, spec.environment.allowed_methods) || (caller?.methods && !subset(spec.grant_methods, caller.methods))) throw new Refusal('child_grant_not_subset');
     if (spec.tools.some(t => !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(t)) || spec.tools.some(t => spec.denied_tools.includes(t))) throw new Refusal('invalid_tool_allowlist');
     if ([...spec.resources.extensions, ...spec.resources.skills].some(p => !p.startsWith('/'))) throw new Refusal('resource_path_must_be_absolute');
-    if (!c.parent) return;
+    if (!c.parent) return gitPin;
     const parent = this.s.require(c.parent.worker_id);
     this.input.writable(parent);
     if (this.s.childEnding.has(parent.worker.worker_id)) throw new Refusal('child_end_unsettled');
@@ -169,6 +174,7 @@ export class Children {
     const cwd = realDir(c.cwd, 'cwd_not_directory');
     if (!within(tree, root) || !within(root, cwd)) throw new Refusal('child_environment_outside_parent');
     this.active(parent.worker.grant_source_id);
+    return gitPin;
   }
 
   /** An uncertain child launch fences its parent durably (the parent cannot simply replace the child). */

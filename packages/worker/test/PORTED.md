@@ -176,3 +176,26 @@ it the mount descriptors from FD 4 and keeps none open" and "sandbox: the daemon
 runs, and never listens". `files.read` is served, so the P0 tests that used it as the unsupported operation
 (`client.test.ts`, `server.test.ts`, the Go integration test and the `p0-hello` journey) now assert its typed `409
 no_effect` refusal; the 501 path stays covered by the closure tests' modified route table.
+
+**P2-5** ports A0's `gate1-git` tests and the `security-fix` M1 mount cases and m2 into
+`test/security/git-sandbox.test.ts` (the kernel tier: `harness/ci/kernel.sh -- git`). A0's `sandboxLaunch(root, command,
+args, parent, workerId, channel, { gitPin })` is `sandboxLaunch(root, command, args, { env, gitPin })` with a synthetic
+child environment; A0's `A0_TEST_BWRAP` opt-in is `PIW_TEST_KERNEL`, and A0's Git environment (`process.env` plus
+`GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM=1`) is a synthetic one with the same two variables.
+
+| A0 test | New test | Status |
+| --- | --- | --- |
+| `gate1-git.test.ts` › "linked-worktree sandbox refuses flat or shared branch write namespaces before spawn" | `packages/worker/test/security/git-sandbox.test.ts` › same name | Ported, all assertions. Adds: a packed sibling branch and a sibling reflog in the namespace refuse; a packed own branch alone is private |
+| `gate1-git.test.ts` › "bwrap linked worktree status/add/commit writes only its branch namespace and shared objects" | `git-sandbox.test.ts` › "kernel: bwrap linked worktree status/add/commit …" (same name) | Ported, all assertions |
+| `security-fix.test.ts` › "M1: sandbox mounts make Git pointers, HEAD, config, hooks and alternates read-only; sources are descriptors" | `git-sandbox.test.ts` › same name | Ported, all assertions |
+| `security-fix.test.ts` › "m2: relaunch refuses a retargeted HEAD instead of mounting a sibling namespace" | `git-sandbox.test.ts` › same name | Ported, all assertions. A sandboxed worker is not relaunched yet (children are refused `child_relaunch_unsupported`, a sandboxed root worker waits for P2-8): in production the pin is the one the create's validation read, and the spawn refuses other metadata (new case below) |
+| `security-fix.test.ts` › "kernel M1: child cannot rewrite .git, gitdir, commondir, HEAD or alternates; commit still works" | `git-sandbox.test.ts` › same name | Ported, all assertions |
+| `security-fix.test.ts` › "kernel M1: an ordinary checkout root keeps config/hooks/info/alternates read-only and .git pinned; commits work" | `git-sandbox.test.ts` › same name | Ported, all assertions |
+| `security-fix.test.ts` › "M1: ordinary checkouts refuse a planted commondir and config includes" | — | Lands in P2-6: it calls `readGitPin` and `safeGit` (owner Git). Its one sandbox assertion (an include refuses `sandboxLaunch`) is covered now by "git: a config include, includeIf or worktreeConfig refuses; …" |
+
+New in P2-5 (`git-sandbox.test.ts`): "git: a config include, includeIf or worktreeConfig refuses; an ordinary .git that
+redirects refuses" (a bare `worktreeConfig` key, which Git reads as true, refuses too), "git: a gitfile copied into
+another root, a gitfile naming no worktree admin dir, a linked .git and a non-object detached HEAD refuse", "git: a Git
+mount containing or inside the state or a control path is refused before any record" and "git: a create refuses bad Git
+metadata before any record; its spawn mounts only the pin its validation accepted" (the production factory refuses a
+HEAD retargeted after validation, and bwrap never runs).

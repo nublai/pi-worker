@@ -56,8 +56,9 @@ export function productionHosts(bwrap: string, env?: NodeJS.ProcessEnv): { facto
           launchSpec: launch.create.launch_spec ?? null,
           taskId: launch.create.parent?.task_id ?? null,
         },
-        // pi starts inside the worker's cleanup domain; a sandboxed worker's pi in the bwrap profile of its root, there.
-        { prefix: launch.prefix, ...(env ? { env } : {}), ...(launch.sandbox ? { sandbox: { root: launch.sandbox, bwrap } } : {}) },
+        // pi starts inside the worker's cleanup domain; a sandboxed worker's pi in the bwrap profile of its root, there,
+        // with the Git metadata its validation accepted (P2-5).
+        { prefix: launch.prefix, ...(env ? { env } : {}), ...(launch.sandbox ? { sandbox: { root: launch.sandbox, bwrap, ...(launch.gitPin !== undefined ? { gitPin: launch.gitPin } : {}) } } : {}) },
       ),
     // pi starts inside the probe's cleanup domain.
     inventory: launch =>

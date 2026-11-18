@@ -4,7 +4,7 @@
  * O_NOFOLLOW from an already-open parent descriptor, so a concurrent rename or symlink swap cannot redirect a later
  * component or the final object. Callers own and close returned descriptors.
  */
-import { closeSync, constants, fstatSync, mkdirSync, openSync } from 'node:fs';
+import { closeSync, constants, fstatSync, mkdirSync, openSync, readSync } from 'node:fs';
 import { isAbsolute, normalize } from 'node:path';
 import { Refusal } from '../b2/errors.js';
 
@@ -66,6 +66,36 @@ export function openUnder(base: number, names: string[], leaf: 'dir' | 'file' | 
   } catch (error) {
     if (owned) closeSync(fd);
     throw error;
+  }
+}
+
+/** The whole content of an open file, at most `limit` bytes (`pinned_file_too_large` beyond). */
+export function readFd(fd: number, limit = 1024 * 1024): Buffer {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for (;;) {
+    const buf = Buffer.alloc(64 * 1024);
+    const n = readSync(fd, buf, 0, buf.length, null);
+    if (!n) return Buffer.concat(chunks);
+    total += n;
+    if (total > limit) throw new Refusal('pinned_file_too_large');
+    chunks.push(buf.subarray(0, n));
+  }
+}
+
+/** A regular file below the open directory `base`, read with no link followed; null only when the final entry is absent. */
+export function readUnder(base: number, names: string[]): string | null {
+  let fd: number;
+  try {
+    fd = openUnder(base, names, 'file');
+  } catch (error) {
+    if (isMissing(error)) return null;
+    throw error;
+  }
+  try {
+    return readFd(fd).toString('utf8');
+  } finally {
+    closeSync(fd);
   }
 }
 
