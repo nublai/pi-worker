@@ -314,13 +314,19 @@ export class Client {
     const route: ClientRoute = routes[op];
     let path: string;
     let auth: Record<string, string>;
+    let json: string | undefined;
     try {
       path = fillPath(route.path, options.path as Record<string, unknown> | undefined) + queryString(options.query as Record<string, unknown> | undefined);
       auth = this.headers();
     } catch (error) {
       return Promise.reject(error);
     }
-    const json = options.body === undefined ? undefined : JSON.stringify(options.body);
+    // A body that cannot be serialized (a cycle, a BigInt) fails here, before anything is sent.
+    try {
+      json = options.body === undefined ? undefined : JSON.stringify(options.body);
+    } catch {
+      return Promise.reject(new ClientFailure('request_not_serializable', 'no_effect', 'before_write'));
+    }
     const body = binary ? { contentType: binary.contentType, bytes: binary.bytes } : json === undefined ? undefined : { contentType: 'application/json', bytes: json };
     const okLimit = route.responseMode === 'ndjson' || route.responseMode === 'binary' ? (route.maxResponseBytes ?? 0) : RESPONSE_LIMIT;
     return new Promise((resolve, reject) => {
