@@ -1,14 +1,14 @@
 diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
-index 7910d36..614c9b2 100644
+index b25ee4a..d3ee7ef 100644
 --- a/packages/worker/src/owner-git/git-safe.ts
 +++ b/packages/worker/src/owner-git/git-safe.ts
-@@ -675,6 +675,9 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly reads
+@@ -703,6 +703,9 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly reads
    }
  }
  
 +/** A raw argv entry (what the typed API replaced). */
 +export const safeGitRun = (at: GitCheckout, args: readonly string[]): Buffer => run(at, args);
 +
- /** `git status --porcelain` (v1) as Git prints it; with `branch`, its `## ` line first; limited to `paths`. */
- export function gitStatus(at: GitCheckout, options: { readonly branch?: boolean; readonly paths?: readonly string[] } = {}): string {
-   return run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...NO_SUBMODULES, ...pathArgs(options.paths)], { reads: 'worktree' }).toString('utf8');
+ /**
+  * `git status --porcelain` (v1) as Git prints it; with `branch`, its `## ` line first; limited to `paths`. Every
+  * untracked file is listed (`??`), and every file a `.gitignore` ignores (`!!`), except below pi-worker's runtime

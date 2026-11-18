@@ -1,17 +1,17 @@
 diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
-index cedb085..4612643 100644
+index b25ee4a..2466aaa 100644
 --- a/packages/worker/src/owner-git/git-safe.ts
 +++ b/packages/worker/src/owner-git/git-safe.ts
-@@ -69,7 +69,7 @@ export interface GitCheckout {
+@@ -93,7 +93,7 @@ export interface GitCheckout {
  
  export const SAFE_GIT_CONFIG = [
-   ...['core.fsmonitor=false', 'core.hooksPath=/dev/null', 'core.attributesFile=/dev/null', 'diff.ignoreSubmodules=all', 'submodule.recurse=false'],
+   ...['core.fsmonitor=false', 'core.hooksPath=/dev/null', 'core.attributesFile=/dev/null', 'core.excludesFile=/dev/null', 'diff.ignoreSubmodules=all', 'submodule.recurse=false'],
 -  ...['protocol.allow=never', 'protocol.ext.allow=never', 'protocol.file.allow=never'],
 +  ...['protocol.allow=never'],
  ].flatMap(setting => ['-c', setting]);
  /** Config keys whose value names a program Git can run. */
  const EXECUTES =
-@@ -372,7 +372,6 @@ function refuseExecutingConfig(owner: OwnerGit, dir: string, worktree = false):
+@@ -398,7 +398,6 @@ function refuseExecutingConfig(owner: OwnerGit, dir: string, worktree = false):
      if (!key) continue;
      if (EXECUTES.test(key)) throw new Refusal(`git_config_executes_code: ${key}`);
      if (EXECUTES_TOO.test(key) || (SUBMODULE_UPDATE.test(key) && value?.startsWith('!'))) throw new Refusal(`git_config_executes_code: ${key}`);

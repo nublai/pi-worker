@@ -1,0 +1,16 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index b25ee4a..2c92e76 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -562,7 +562,10 @@ const pathArgs = (paths: readonly string[] = []): string[] => ['--', ...paths.ma
+  * Step 6: pi-worker's own runtime directories at the root, excluded by pathspec (after `pathArgs`) from every listing of
+  * untracked files: they are pi-worker's, not the child's tree.
+  */
+-const RUNTIME_EXCLUDED = [AGENT_DIR, WORKER_DIR, SLOTS_DIR].map(name => `:(exclude,literal)${name}`);
++const RUNTIME_EXCLUDED: string[] = [];
++void AGENT_DIR;
++void WORKER_DIR;
++void SLOTS_DIR;
+ /**
+  * Step 6, on status: every untracked file listed one by one whatever the config says, and those a `.gitignore` in the
+  * tree ignores too (as `!!`).
