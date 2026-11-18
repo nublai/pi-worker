@@ -257,6 +257,10 @@ test('closure: hello advertises the spec limits (JSON cap, attachment limit, SSE
     history_line_max_bytes: 64 * MiB,
     blob_max_bytes: table['blobs.read']!.responses['200']!.maxBytes,
     inventory_probes_max: 4,
+    // artifacts.inspect (PR #42 fix round): its time budget and running caps.
+    artifact_inspection_budget_ms: 60_000,
+    artifact_inspections_max: 4,
+    artifact_inspections_per_caller_max: 2,
   });
 });
 
