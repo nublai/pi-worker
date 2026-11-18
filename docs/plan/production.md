@@ -538,6 +538,25 @@ name; and any Git mount overlapping the state or a control path. The pin the val
 another namespace. The pin is memory-only: no sandboxed worker is relaunched yet. Named limit (in `hello`): the shared
 object store is writable, so a sandbox can add or remove objects other checkouts use.
 
+**P2-7 as built.** `sandbox/staging.ts` stages a profile for a sandboxed typed child. Until P2-8 that child's parent is
+an unsandboxed typed worker; the profile is the parent cwd's `.piw-agent` (what a sandboxed parent's agent directory
+will be), and a parent with none stages nothing, so a child keeps an owner-staged `.piw-agent` of its own as in P2-4.
+The create's validation (refusals `no_effect`, 409, before any record) opens the profile with no link at any component
+(`parent_profile_not_directory`) and refuses a child root that overlaps it (`child_root_overlaps_parent_profile`) or
+already holds a `.piw-agent` of any type (`child_profile_exists`). After the dispatch record and the domain's creation,
+before the factory, staging makes a fresh `ROOT/.piw-agent` and copies the profile descriptor-relative: every entry is
+opened O_NOFOLLOW from its parent's descriptor and copied from that descriptor, a link is recreated verbatim, and a
+FIFO, socket or device refuses. Every `node_modules` directory is left an empty mount point; its open source descriptor
+reaches the sandbox (`HostLaunch.dependencies`), which binds it read-only (`--ro-bind-fd`) once the mount point opens as
+a real directory below the root, and the supervisor closes it when the factory returns. Budget: 10,000 copied entries,
+256 MiB, depth 32, 64 dependency binds. A failure before `ROOT/.piw-agent` exists is `ProvenNoEffect`, and stays
+`no_effect` only once the child's empty domain is observed removed and recorded (as for a relaunch); after it exists, the
+partial copy is removed best effort without following a link and the outcome is always `outcome_unknown`, which fences
+the parent (D2: the parent's tree holds the child root, so it can rename the created directory aside). The child row
+ends `failed` with the reason, and frees its root (D3). Named limit (in `hello`): the child can read everything the
+parent's profile holds, credential stores included, and sees later changes the parent makes in a bound
+`node_modules`.
+
 **P2 live journey (`p2-containment`):** sandboxed SDK parent on a real model; it cannot read the grant, journal
 or socket; a detached tool survives a pi crash only until domain cleanup; SIGKILL the supervisor, restart sweeps,
 cleanup is confirmed and recorded, `relaunch` opens history without prompting; owner verification through
