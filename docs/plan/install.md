@@ -157,7 +157,8 @@ Runs `journalctl --user -u pi-worker.service --no-pager` (`-f` follows) and exit
 Stops and disables the unit, removes the unit file (then `daemon-reload`), `~/.local/bin/pi-worker` and
 `~/.local/share/pi-worker/current`. Keeps the state directory and `versions/` (so the same or another version can be
 installed again, and the state, grants included, carries over). `--purge` also removes `~/.local/share/pi-worker`
-(every version and the doctor grant), the pinned state directory and the socket's directory, leaving nothing. Prints
+(every version and the doctor grant), the pinned state directory (never `/`, HOME or a directory holding HOME) and
+the socket's `pi-worker` directory (a socket configured elsewhere loses only its file), leaving nothing. Prints
 `{"uninstalled": true, "purged": bool}`. Running it with nothing installed succeeds.
 
 ## 7. What Shep's installer runs after install

@@ -496,8 +496,12 @@ export function uninstall(purge: boolean, env: NodeJS.ProcessEnv, system: System
   if (lstatExists(l.current)) rmSync(l.current, { force: true });
   if (purge) {
     removeTree(l.data);
-    removeTree(pin.stateDir ?? l.stateDir);
-    removeTree(dirname(pin.socket ?? l.socket));
+    // A configured state directory is removed whole, but never `/`, HOME or a directory that holds HOME.
+    const stateDir = pin.stateDir ?? l.stateDir;
+    if (stateDir !== '/' && !`${l.home}/`.startsWith(`${stateDir.replace(/\/+$/, '')}/`)) removeTree(stateDir);
+    // The socket's own `pi-worker` directory; a socket configured elsewhere (PIW_SOCKET) loses only its file.
+    const socket = pin.socket ?? l.socket;
+    removeTree(basename(dirname(socket)) === 'pi-worker' ? dirname(socket) : socket);
   }
   return { uninstalled: true, purged: purge };
 }

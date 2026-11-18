@@ -35,14 +35,14 @@ interface Host {
   close(): Promise<void>;
 }
 
-async function host(): Promise<Host> {
+async function host(configure: (dirs: { home: string; runtime: string }) => NodeJS.ProcessEnv = () => ({})): Promise<Host> {
   const dir = mkdtempSync(join(tmpdir(), 'piw-host-'));
   const home = join(dir, 'home');
   const runtime = join(dir, 'run');
   mkdirSync(home);
   mkdirSync(runtime, { mode: 0o700 });
-  const env: NodeJS.ProcessEnv = { HOME: home, XDG_RUNTIME_DIR: runtime, PATH: '/usr/bin:/bin' };
-  const socket = join(runtime, 'pi-worker', 'b2.sock');
+  const env: NodeJS.ProcessEnv = { HOME: home, XDG_RUNTIME_DIR: runtime, PATH: '/usr/bin:/bin', ...configure({ home, runtime }) };
+  const socket = env.PIW_SOCKET ?? join(runtime, 'pi-worker', 'b2.sock');
   // A fake cgroupfs: the user manager's delegation and the unit's cgroup, both offering memory and pids.
   const cgroupMount = join(dir, 'cgroupfs');
   const unitCg = '/user.slice/user-1000.slice/user@1000.service/app.slice/pi-worker.service';
@@ -56,7 +56,7 @@ async function host(): Promise<Host> {
   let server: Server | undefined;
   const start = () => {
     if (server || unit.serveVersion === undefined) return;
-    mkdirSync(join(runtime, 'pi-worker'), { recursive: true, mode: 0o700 });
+    mkdirSync(join(socket, '..'), { recursive: true, mode: 0o700 });
     const version = unit.serveVersion;
     server = createServer((req, res) => {
       res.writeHead(req.url === '/b2/hello' ? 200 : 404, { 'content-type': 'application/json' });
@@ -126,7 +126,7 @@ async function host(): Promise<Host> {
     home,
     data: join(home, '.local', 'share', 'pi-worker'),
     socket,
-    state: join(home, '.local', 'state', 'pi-worker'),
+    state: env.PIW_STATE_DIR ?? join(home, '.local', 'state', 'pi-worker'),
     unitFile: join(home, '.config', 'systemd', 'user', 'pi-worker.service'),
     bin: join(home, '.local', 'bin', 'pi-worker'),
     calls,
@@ -413,6 +413,24 @@ test('uninstall: stops and removes the unit and links, keeps versions and state;
 
     const again = await h.cli('uninstall');
     assert.deepEqual([again.code, again.json], [0, { uninstalled: true, purged: false }], 'uninstall with nothing installed succeeds');
+  } finally {
+    await h.close();
+  }
+});
+
+test('uninstall --purge never removes HOME, a directory holding it, or a runtime directory a configured socket sits in', async () => {
+  const h = await host(({ home, runtime }) => ({ PIW_STATE_DIR: home, PIW_SOCKET: join(runtime, 'b2.sock') }));
+  try {
+    h.unit.serveVersion = '1.2.3';
+    assert.equal((await h.cli('install', '--from', h.tarball('1.2.3'))).code, 0, 'install');
+    const unit = readFileSync(h.unitFile, 'utf8').split('\n');
+    assert.ok(unit.includes(`Environment=PIW_SOCKET=${h.socket}`), 'the configured socket is pinned');
+    const purge = await h.cli('uninstall', '--purge');
+    assert.equal(purge.code, 0, 'purge');
+    assert.ok(existsSync(h.home), 'HOME (the configured state directory) is kept');
+    assert.ok(existsSync(h.env.XDG_RUNTIME_DIR!), 'the runtime directory is kept');
+    assert.equal(lstatExists(h.socket), false, 'the socket itself is removed');
+    assert.equal(existsSync(h.data), false, 'the versions are removed');
   } finally {
     await h.close();
   }

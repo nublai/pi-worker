@@ -16,17 +16,25 @@ const build = (argv: string[]) => {
   return buildRequest(parsed.command!, parsed, () => 'minted');
 };
 
-test('cli: one command per B2 operation, named by its operationId, plus the local grant commands', () => {
+test('cli: one command per B2 operation, named by its operationId, plus the local grant and host commands', () => {
   const ops = COMMANDS.filter(c => c.op !== undefined);
   assert.deepEqual(ops.map(c => c.name).sort(), Object.keys(routes).sort());
   for (const c of ops) assert.equal(c.name, c.op);
-  assert.deepEqual(COMMANDS.filter(c => c.op === undefined).map(c => c.name), ['grant register', 'grant revoke', 'grant list']);
+  assert.deepEqual(COMMANDS.filter(c => c.op === undefined).map(c => c.name), ['grant register', 'grant revoke', 'grant list', 'install', 'doctor', 'logs', 'uninstall', 'daemon']);
+  assert.deepEqual(COMMANDS.filter(c => c.mode === 'host').map(c => c.name), ['install', 'doctor', 'logs', 'uninstall', 'daemon']);
   for (const c of ops.filter(c => c.mode !== 'stage')) {
     const params = (routes[c.op!].path.match(/\{([^}]+)\}/g) ?? []).map(p => p.slice(1, -1));
     assert.deepEqual(c.args.map(a => a.param), params, `${c.name} positional arguments are its path parameters`);
   }
   // The upload names its worker (a Piw-Worker-Id header) and its file; the attachment id is --attachment-id or minted.
   assert.deepEqual(COMMANDS.find(c => c.mode === 'stage')?.args.map(a => a.name), ['WORKER', 'FILE']);
+});
+
+test('cli: a one-letter alias (logs -f) sets its flag; an unknown one is a usage error', () => {
+  assert.equal(parse(['logs', '-f']).flags.get('follow'), true);
+  assert.equal(parse(['logs']).flags.has('follow'), false);
+  assert.throws(() => parse(['logs', '-x']), (e: unknown) => e instanceof UsageError && /unknown flag/.test(e.message));
+  assert.throws(() => parse(['install', '--from', 'x', '-f']), (e: unknown) => e instanceof UsageError && /unknown flag/.test(e.message), 'the alias is only its own command');
 });
 
 test('cli: every x-piw-mutation route mints a command id; a session-directed one is a binding command; a read never mints', () => {
