@@ -12,8 +12,8 @@
  *   line. A 200 that fails a check is `unknown` after the write and its body is never exposed. A failure names the
  *   check and the schema path only, never a value from the reply.
  * - The SSE reader delivers only frames that pass the event schema. An invalid frame ends the watch with
- *   ResyncRequired, so it never reaches the callback and never ends a resync. It never reconnects on its own: a
- *   reconnect is the caller's decision and starts with a snapshot.
+ *   ResyncRequired, so it never reaches the callback and never ends a resync. `watch` never reconnects on its own;
+ *   `Observer` (observer.ts) is the opt-in owner that reconnects reads only, each time from a snapshot.
  */
 import { request, type IncomingHttpHeaders } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -172,7 +172,11 @@ export class ClientFailure extends Error {
 }
 
 export class ResyncRequired extends Error {
-  constructor(readonly reason: string) {
+  constructor(
+    readonly reason: string,
+    /** The HTTP status of a refused subscription. */
+    readonly status?: number,
+  ) {
     super(`SSE ${reason}; fresh snapshot required before controls`);
   }
 }
@@ -392,13 +396,16 @@ export class Client {
    * false ends the watch (resolves). An `overflow` frame is delivered, then the watch rejects with
    * ResyncRequired('overflow'); a disconnect rejects with ResyncRequired('disconnected'); a reply that is not
    * text/event-stream, or a frame that is not UTF-8, JSON or a valid event, rejects with ResyncRequired and is never
-   * delivered. The caller decides whether to reconnect; a reconnect always starts with a snapshot.
+   * delivered. The caller decides whether to reconnect; a reconnect always starts with a snapshot. Aborting `signal`
+   * closes the stream and resolves.
    */
   watch(
     onFrame: (frame: EventFrame) => boolean | void,
-    options: { workerIds?: string[]; types?: string[]; since?: Cursor; overflowResync?: boolean } = {},
+    options: { workerIds?: string[]; types?: string[]; since?: Cursor; overflowResync?: boolean; signal?: AbortSignal } = {},
   ): Promise<void> {
     this.resyncRequired = true;
+    const signal = options.signal;
+    if (signal?.aborted) return Promise.resolve();
     const query = new URLSearchParams();
     if (options.workerIds) query.set('worker_id', options.workerIds.join(','));
     if (options.types) query.set('types', options.types.join(','));
@@ -412,9 +419,17 @@ export class Client {
     const suffix = query.size ? `?${query}` : '';
     return new Promise((resolve, reject) => {
       let done = false;
+      const onAbort = () => {
+        if (done) return;
+        done = true;
+        this.resyncRequired = true;
+        req.destroy();
+        resolve();
+      };
       const fail = (error: Error) => {
         if (done) return;
         done = true;
+        signal?.removeEventListener('abort', onAbort);
         this.resyncRequired = true;
         req.destroy();
         reject(error);
@@ -429,7 +444,7 @@ export class Client {
         res => {
           if (res.statusCode !== 200) {
             res.resume();
-            fail(new ResyncRequired(`HTTP ${res.statusCode}`));
+            fail(new ResyncRequired(`HTTP ${res.statusCode}`, res.statusCode));
             return;
           }
           if (!(routes['events.subscribe'].contentTypes as readonly string[]).includes(mediaType(res.headers['content-type']))) {
@@ -470,6 +485,7 @@ export class Client {
               }
               if (onFrame(frame) === false) {
                 done = true;
+                signal?.removeEventListener('abort', onAbort);
                 req.destroy();
                 resolve();
               }
@@ -481,6 +497,7 @@ export class Client {
         },
       );
       req.on('error', fail);
+      signal?.addEventListener('abort', onAbort, { once: true });
       req.end();
     });
   }

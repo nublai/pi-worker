@@ -29,5 +29,22 @@ export {
   type UnknownReason,
   type WorkerBinding,
 } from './reconcile.js';
+export {
+  Observer,
+  OBSERVER_STATE_VERSION,
+  ObserverStateInvalid,
+  parseObserverState,
+  type Binding,
+  type Notice,
+  type NoticeSource,
+  type ObserverBatch,
+  type ObserverOptions,
+  type ObserverState,
+  type ObserverStop,
+  type ResyncReason,
+  type RetainedWorker,
+  type TimerHandle,
+  type Timers,
+} from './observer.js';
 export { routes, type OperationId } from './generated/routes.js';
 export type { components, operations, paths } from './generated/api.js';

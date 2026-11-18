@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const pkgDir = fileURLToPath(new URL('../../', import.meta.url)); // packages/client-ts (dist/test -> ../../)
 const rootDir = join(pkgDir, '..', '..');
 
-const consumer = `import { Client, ClientFailure, acquisition, classifyReceipt, reconcile, requestHash, routes, type Expected, type Reconciliation, type OperationId, type Receipt, type RequestBody, type CallOptions, type EventFrame, type Cursor, type components, type paths } from '@nublai/pi-worker-client';
+const consumer = `import { Client, ClientFailure, Observer, ObserverStateInvalid, parseObserverState, acquisition, classifyReceipt, reconcile, requestHash, routes, type Expected, type Reconciliation, type OperationId, type Receipt, type RequestBody, type CallOptions, type EventFrame, type Cursor, type Notice, type ObserverBatch, type ObserverState, type ObserverStop, type Binding, type components, type paths } from '@nublai/pi-worker-client';
 const client = new Client({ socketPath: '/nonexistent.sock' });
 const id: OperationId = 'workers.create';
 const route = routes[id];
@@ -35,6 +35,12 @@ const expected: Expected = { command_id: 'c', operation: 'sessions.prompt', work
 export const settled = async (): Promise<Reconciliation> => reconcile(client, expected);
 export const direct: Reconciliation = classifyReceipt(receipt, expected);
 export const acquired = acquisition(direct, err).worker;
+declare const persisted: unknown;
+const restored: ObserverState = parseObserverState(persisted);
+const observer = new Observer({ client, signal: AbortSignal.abort(), restored, pending: () => [expected], deliver: async (batch: ObserverBatch) => { const n: Notice[] = batch.notices; void n; } });
+export const stopped: Promise<ObserverStop> = observer.run();
+export const handle: Binding | undefined = observer.binding('w');
+export const invalid = new ObserverStateInvalid('state');
 export { route, frame, cursor, receipt, err, c, p };
 `;
 
