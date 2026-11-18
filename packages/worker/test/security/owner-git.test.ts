@@ -16,7 +16,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refusal } from '../../src/b2/errors.js';
 import { childEnv } from '../../src/host/host.js';
@@ -945,16 +945,20 @@ test('owner Git: a pinned core.ignoreStat, core.sparseCheckout or index.sparse r
     f.git(f.repo, 'config', 'core.trustctime', 'false');
     assert.equal(f.git(f.wt, 'status', '--porcelain'), '', 'fixture: plain Git trusts the stale stat data');
     assert.equal(gitStatus(on(f, readGitPin(f.wt))), ' M note\n', 'owner Git checks the full stat data, so it compares the content');
-    // An untracked cache the child primed: the root directory's mtime set back after a new file, so a pinned
-    // core.untrackedCache=true trusts the cached (empty) list. Owner Git turns the cache off on the command line.
+    // An untracked cache the child primed: an untracked file renamed to a name of the same length (the root directory's
+    // size unchanged on ext4, tmpfs and btrfs alike) and the directory's mtime set back, so a pinned
+    // core.untrackedCache=true trusts the cached list. Owner Git turns the cache off on the command line.
     f.git(f.repo, 'config', 'core.untrackedCache', 'true');
     f.git(f.wt, 'update-index', '--untracked-cache');
+    writeFileSync(join(f.wt, 'decoy1'), 'x\n');
     utimesSync(f.wt, T, T);
     f.git(f.wt, 'status', '--porcelain');
-    writeFileSync(join(f.wt, 'sneaky'), 'x\n');
+    renameSync(join(f.wt, 'decoy1'), join(f.wt, 'sneaky'));
     utimesSync(f.wt, T, T);
     assert.doesNotMatch(f.git(f.wt, 'status', '--porcelain'), /sneaky/, 'fixture: plain Git trusts the primed untracked cache');
-    assert.match(gitStatus(on(f, readGitPin(f.wt))), /^\?\? sneaky$/m, 'owner Git never uses the untracked cache');
+    const owned = gitStatus(on(f, readGitPin(f.wt)));
+    assert.match(owned, /^\?\? sneaky$/m, 'owner Git never uses the untracked cache');
+    assert.doesNotMatch(owned, /decoy1/, 'owner Git lists what is there');
   } finally {
     f.cleanup();
   }
