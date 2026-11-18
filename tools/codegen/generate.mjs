@@ -54,6 +54,10 @@ console.log(`wrote ${join(clientOut, 'api.ts').slice(root.length)}`);
 const validators = generateValidators(spec, ops, eventInfo);
 write(join(workerOut, 'validators.js'), validators.js);
 write(join(workerOut, 'validators.d.ts'), validators.dts);
+// The client's inbound subset, from the same graph and compiler: it imports nothing from the worker.
+const clientValidators = generateValidators(spec, ops, eventInfo, { client: true });
+write(join(clientOut, 'validators.js'), clientValidators.js);
+write(join(clientOut, 'validators.d.ts'), clientValidators.dts);
 
 // 4. Route table and event manifest with publishers.
 write(join(workerOut, 'routes.ts'), routeTable(ops, jsonBodyLimit(spec)));

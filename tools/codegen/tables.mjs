@@ -112,11 +112,32 @@ export const operationIds = Object.keys(routes) as OperationId[];
 `;
 }
 
-/** The client's table: no validators (the client has no runtime dependencies), just what a request needs. */
+/**
+ * The client's table: what a request needs, and the generated validators (Ajv standalone code, no runtime package)
+ * for everything the worker sends back: the 200 body or its headers, and each declared refusal.
+ */
 export function clientRouteTable(ops) {
-  const entry = op =>
-    `  ${q(op.operationId)}: { method: ${q(op.method)}, path: ${q(op.path)}, mutation: ${op.mutation}, stream: ${op.stream}, body: ${q(op.bodyMode)}, mediaTypes: ${q(op.mediaTypes)}, maxBodyBytes: ${op.maxBodyBytes}, responseMode: ${q(op.responseMode)}, maxFrameBytes: ${op.maxFrameBytes ?? 'null'}, maxResponseBytes: ${op.responses.find(r => r.status === '200').maxBytes ?? 'null'} },`;
+  const entry = op => {
+    const ok = op.responses.find(r => r.status === '200');
+    const errors = op.responses
+      .filter(r => r.status !== '200')
+      .map(r => {
+        if (r.contentType !== 'application/json') throw new Error(`${op.operationId} ${r.status}: a refusal is application/json`);
+        return `'${r.status}': v.response_${op.key}_${r.status}`;
+      });
+    return [
+      `  ${q(op.operationId)}: {`,
+      `    method: ${q(op.method)}, path: ${q(op.path)}, mutation: ${op.mutation}, stream: ${op.stream}, body: ${q(op.bodyMode)}, mediaTypes: ${q(op.mediaTypes)}, maxBodyBytes: ${op.maxBodyBytes},`,
+      `    responseMode: ${q(op.responseMode)}, maxFrameBytes: ${op.maxFrameBytes ?? 'null'}, maxResponseBytes: ${ok.maxBytes ?? 'null'}, contentTypes: ${q(ok.contentTypes)},`,
+      `    validate: ${ok.contentType === 'application/json' ? `v.response_${op.key}_200` : 'null'}, headers: ${ok.headers ? `v.response_headers_${op.key}_200` : 'null'}, headerKinds: ${ok.headerKinds ? q(ok.headerKinds) : 'null'},`,
+      `    errors: { ${errors.join(', ')} },`,
+      `  },`,
+    ].join('\n');
+  };
   return `${HEADER}
+import * as v from './validators.js';
+import type { Validator } from './validators.js';
+
 export interface ClientRoute {
   readonly method: 'GET' | 'PUT' | 'POST' | 'DELETE' | 'PATCH';
   /** \`{name}\` marks a path parameter. */
@@ -135,6 +156,16 @@ export interface ClientRoute {
   readonly maxFrameBytes: number | null;
   /** For an ndjson or binary response, the most body bytes the worker sends. */
   readonly maxResponseBytes: number | null;
+  /** The 200 response's declared media types (a binary response may name an allowlist). */
+  readonly contentTypes: readonly string[];
+  /** Validates a JSON 200 body; null for sse, ndjson and binary. */
+  readonly validate: Validator | null;
+  /** For an ndjson or binary response: validates its headers, by lower-case name, as typed values. */
+  readonly headers: Validator | null;
+  /** For an ndjson or binary response: each header's scalar kind, by lower-case name (wire strings convert to it). */
+  readonly headerKinds: Readonly<Record<string, 'string' | 'integer' | 'number' | 'boolean'>> | null;
+  /** Each declared refusal status: validates its B2 Error body. */
+  readonly errors: Readonly<Record<string, Validator>>;
 }
 
 export const routes = {
