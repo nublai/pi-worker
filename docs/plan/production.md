@@ -524,6 +524,15 @@ be retargeted. A detached HEAD stays in the writable admin dir (it must be an ob
 writable namespace. Read-only: the gitfile, `gitdir`, `commondir`, the common `config`, `packed-refs`, `shallow`,
 `info/exclude`, `refs`, `logs` and `objects/info` (alternates), and any `config`, `config.worktree` or `hooks` already
 in the admin dir. The rest of the common dir (`hooks`, `worktrees` and other worktrees' admin dirs) is not mounted.
+Common-dir fix (2026-11-18, after the p4-install VM journey failed `WROTE packed-refs`): bwrap makes the directories a
+bind needs on whatever tmpfs holds its path, so with the repository under the sandbox's private writable `/tmp` or
+`/run` an absent `packed-refs`, `shallow`, `commondir`, `hooks/*` or `worktrees/*` could be created inside (never on
+the host). The common dir now gets its own tmpfs under its binds, remounted read-only after them (non-recursive, so the
+writable binds keep their flags), wherever it lies. The kernel matrix runs with the repository under TMPDIR and under
+`/tmp` itself, runs every probe and compares the host common dir byte for byte. Checked and unchanged: the admin dir
+lies in the common dir (its parents are now on that read-only tmpfs), and the `.piw-agent` credential and
+`node_modules` binds lie in the root bind. Named limit: a worker runtime installed under `/tmp` or `/run` would let a
+child create absent siblings of its read-only binds (a `node_modules` only its own sandboxed processes resolve).
 
 Refused in the create's validation (`no_effect`, 409) and again at spawn: an ordinary checkout root (a `.git`
 directory), because that `.git` is both the common and the admin dir and must stay writable for Git's index and HEAD
