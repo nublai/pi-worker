@@ -1,7 +1,7 @@
-diff --git a/harness/release/pi-worker.sh b/harness/release/pi-worker.sh
-index 076f4f8..c2ae8ea 100755
---- a/harness/release/pi-worker.sh
-+++ b/harness/release/pi-worker.sh
+diff --git i/harness/release/pi-worker.sh w/harness/release/pi-worker.sh
+index 586dc90..38faa63 100755
+--- i/harness/release/pi-worker.sh
++++ w/harness/release/pi-worker.sh
 @@ -31,7 +31,7 @@ node=$(command -v node 2>/dev/null) ||
  found=$("$node" -p 'process.versions.node' 2>/dev/null) || found=unknown
  case "$found" in [0-9]*) ;; *) found=unknown ;; esac
@@ -10,4 +10,4 @@ index 076f4f8..c2ae8ea 100755
 +at_least "$found" "0.0.0" ||
    refuse "{\"error\":\"node_unsupported\",\"effect\":\"no_effect\",\"required\":\">=$floor\",\"found\":\"$found\"}"
  
- self=$(readlink -f -- "$0")
+ # Node's warnings (an experimental feature, a deprecation) go to stderr ahead of or after the CLI's typed JSON error;
