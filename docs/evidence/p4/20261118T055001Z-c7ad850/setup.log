@@ -1,0 +1,4 @@
+setup: packages: bubblewrap, gpgv, curl, xz-utils
+setup: linger for exedev
+setup: Node 26.13.1 into /usr/local (signature, then hash)
+setup: done
