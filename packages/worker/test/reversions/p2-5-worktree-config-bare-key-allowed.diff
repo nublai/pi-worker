@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/git-sandbox.ts b/packages/worker/src/sandbox/git-sandbox.ts
+index bb33918..022f5ad 100644
+--- a/packages/worker/src/sandbox/git-sandbox.ts
++++ b/packages/worker/src/sandbox/git-sandbox.ts
+@@ -62,7 +62,7 @@ function worktreeConfigOn(text: string): boolean {
+     const m = /^\s*worktreeconfig(?![A-Za-z0-9-])\s*(.*)$/i.exec(raw.replace(/^\s*\[[^\]]*\]/, ''));
+     if (!m) continue;
+     const rest = m[1]!.trim();
+-    if (rest === '' || rest.startsWith('#') || rest.startsWith(';')) return true;
++    if (rest === '' || rest.startsWith('#') || rest.startsWith(';')) continue;
+     if (!rest.startsWith('=')) continue;
+     const value = rest
+       .slice(1)

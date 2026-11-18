@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/git-sandbox.ts b/packages/worker/src/sandbox/git-sandbox.ts
+index bb33918..5aa4035 100644
+--- a/packages/worker/src/sandbox/git-sandbox.ts
++++ b/packages/worker/src/sandbox/git-sandbox.ts
+@@ -252,7 +252,7 @@ export function gitPlan(root: string, rootFd: number, expected?: GitPin | null):
+       const refs = open(common, ['refs', 'heads', ns], 'dir', true);
+       // A packed sibling counts too: a loose ref written in the namespace would shadow it.
+       const packed = (readUnder(common, ['packed-refs']) ?? '').split('\n').flatMap(line => /^[0-9a-f]{40,64} (refs\/\S+)$/.exec(line.trim())?.slice(1) ?? []);
+-      if (readdirSync(fdPath(refs)).some(name => name !== leaf) || packed.some(name => name.startsWith(`refs/heads/${ns}/`) && name !== ref)) {
++      if ((readdirSync(fdPath(refs)).some(name => name !== leaf) && ref === '') || packed.some(name => name.startsWith(`refs/heads/${ns}/`) && name !== ref)) {
+         throw new Refusal('sandbox_git_branch_namespace_not_private');
+       }
+       const logs = open(common, ['logs', 'refs', 'heads', ns], 'dir', true);

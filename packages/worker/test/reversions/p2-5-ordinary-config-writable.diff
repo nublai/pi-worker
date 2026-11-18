@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/sandbox/git-sandbox.ts b/packages/worker/src/sandbox/git-sandbox.ts
+index bb33918..debe64a 100644
+--- a/packages/worker/src/sandbox/git-sandbox.ts
++++ b/packages/worker/src/sandbox/git-sandbox.ts
+@@ -222,7 +222,6 @@ export function gitPlan(root: string, rootFd: number, expected?: GitPin | null):
+       // Git can execute from, or follow to other objects, read-only.
+       const git = pin.git_dir;
+       mounts.push({ mode: 'bind', fd: found.dotGit!, dest: git });
+-      ro(open(common, ['config'], 'file'), join(git, 'config'));
+       for (const name of ['hooks', 'info']) ro(open(common, [name], 'dir', true), join(git, name));
+       ro(open(common, ['objects', 'info'], 'dir', true), join(git, 'objects', 'info'));
+       return { pin, mounts, fds };

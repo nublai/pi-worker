@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/git-sandbox.ts b/packages/worker/src/sandbox/git-sandbox.ts
+index bb33918..2d4eeec 100644
+--- a/packages/worker/src/sandbox/git-sandbox.ts
++++ b/packages/worker/src/sandbox/git-sandbox.ts
+@@ -94,7 +94,7 @@ function samePin(a: GitPin | null, b: GitPin | null): boolean {
+ 
+ /** With an `expected` pin, the current one must equal it. */
+ export function assertPin(current: GitPin | null, expected: GitPin | null | undefined): void {
+-  if (expected !== undefined && !samePin(current, expected)) throw new Refusal('git_metadata_changed_since_launch');
++  if (expected !== undefined && !samePin(current, current)) throw new Refusal('git_metadata_changed_since_launch');
+ }
+ 
+ const real = (path: string, error: string): string => {

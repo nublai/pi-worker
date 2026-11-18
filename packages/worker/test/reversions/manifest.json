@@ -452,6 +452,38 @@
         "p2-4-compaction-drops-root.diff",
         "p2-4-session-crosses-confinement.diff"
       ]
+    },
+    "git": {
+      "command": "npm test -- git",
+      "diffs": [
+        "p2-5-gitfile-writable.diff",
+        "p2-5-admin-pointers-writable.diff",
+        "p2-5-head-writable.diff",
+        "p2-5-common-config-writable.diff",
+        "p2-5-refs-writable.diff",
+        "p2-5-alternates-writable.diff",
+        "p2-5-ordinary-git-not-pinned.diff",
+        "p2-5-ordinary-config-writable.diff",
+        "p2-5-ordinary-hooks-info-writable.diff",
+        "p2-5-ordinary-alternates-writable.diff",
+        "p2-5-git-bound-by-path.diff",
+        "p2-5-flat-branch-allowed.diff",
+        "p2-5-shared-namespace-allowed.diff",
+        "p2-5-packed-sibling-allowed.diff",
+        "p2-5-shared-reflog-allowed.diff",
+        "p2-5-include-allowed.diff",
+        "p2-5-worktree-config-allowed.diff",
+        "p2-5-worktree-config-bare-key-allowed.diff",
+        "p2-5-ordinary-redirect-allowed.diff",
+        "p2-5-gitfile-not-checked-back.diff",
+        "p2-5-detached-head-unchecked.diff",
+        "p2-5-pin-not-compared.diff",
+        "p2-5-validation-skips-git.diff",
+        "p2-5-git-overlap-unchecked.diff",
+        "p2-5-validated-pin-not-kept.diff",
+        "p2-5-factory-ignores-pin.diff",
+        "p2-5-host-ignores-pin.diff"
+      ]
     }
   }
 }
