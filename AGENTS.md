@@ -35,7 +35,7 @@ Read before changing behaviour:
 6. **Security review.** A change to `b2/` auth or the parent channel, `grants/`, the child launch spec or FD
    report, `containment/`, `sandbox/` or `owner-git/` merges only after Claude and Grok reviews, both from a model
    family other than the author's, and with a reversion for each guard it adds that fails by assertion.
-7. **Owner Git** in any checkout a sandboxed agent could write goes through `owner-git` (`safeGit`, `safeGitRun`).
+7. **Owner Git** in any checkout a sandboxed agent could write goes through `owner-git`'s typed functions (`gitStatus`, `gitDiff`, ...); it has no raw argv entry.
 8. **Live journeys run on throwaway exe.dev VMs** (the `exe-dev-test-vm` skill), never on ms-a2 or hetzner until the
    plan says so. Linux only.
 9. **Verification evidence.** A PR body lists each command run with its result, names the commit and tree it ran
