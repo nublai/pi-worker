@@ -405,7 +405,12 @@ test('C3: live events surface once by identity; removed and rebound workers inva
     assert.ok(o.observer.isCurrent(moved) && o.observer.isCurrent(h2), 'the new binding and the other worker are current');
     const live = o.notices().length;
     first!.res.end();
-    await until(() => fake.streams.length === 3 && o!.batches.length >= 3, 'two reconnect snapshots');
+    // Controls open only from a snapshot, and each stream starts gated: open on the third stream means its snapshot is
+    // applied. Its batch (the fourth with a resync reason, counting the seed) is delivered after that.
+    await until(
+      () => fake.streams.length === 3 && o!.observer.controls && o!.batches.filter(b => b.resync !== undefined).length === 3,
+      'two reconnect snapshots applied and delivered',
+    );
     const after = o.notices().slice(live);
     assert.deepEqual(keys(after), ['worker_rebound:w1', 'worker_removed:w2'], 'the reconnect diff: removed and rebound, nothing seen live again');
     assert.equal(o.observer.isCurrent(h2), false, 'removed: its handle is stale');
@@ -421,7 +426,7 @@ test('C3: live events surface once by identity; removed and rebound workers inva
   }
 });
 
-test('C3: eight missed settlements come from the snapshot alone; more than eight surface a gap and reconcile pending receipts, never an invented settlement', { timeout: 30_000 }, async () => {
+test('C3: missed settlements a snapshot provably lists come from it alone; a settle_count gap beyond the list surfaces a gap and reconciles pending receipts, never an invented settlement', { timeout: 30_000 }, async () => {
   const t = tmp();
   const fake = await fakeWorker(join(t.dir, 'w.sock'));
   const client = new Client({ socketPath: join(t.dir, 'w.sock') });
@@ -431,20 +436,22 @@ test('C3: eight missed settlements come from the snapshot alone; more than eight
     const list = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, k) => settlement(String(to - k)));
     const rows = [
       row('w1', { settle_count: 0 }),
-      // Eight missed: all eight listed.
-      row('w1', { settle_count: 8, recent_settlements: list(1, 8) }),
-      // Eleven more missed (9..19): only 12..19 are listed; 9..11 are only in history.
-      row('w1', { settle_count: 19, recent_settlements: list(12, 19) }),
+      // Seven missed: all listed, and the list is not full, so nothing was pushed out.
+      row('w1', { settle_count: 7, recent_settlements: list(1, 7) }),
+      // Five more (8..12): the list is full, but its oldest entry (exec-5) was seen, so everything after it is listed.
+      row('w1', { settle_count: 12, recent_settlements: list(5, 12) }),
+      // Eleven more missed (13..23): only 16..23 are listed; 13..15 are only in history.
+      row('w1', { settle_count: 23, recent_settlements: list(16, 23) }),
     ];
     fake.onStream = (s, i) => {
       open(s);
-      send(s, snapshot([rows[i] ?? rows[2]!], c(i + 1), i === 0 ? 'fresh' : 'gap'));
-      if (i < 2) setTimeout(() => s.res.end(), 5);
+      send(s, snapshot([rows[i] ?? rows[3]!], c(i + 1), i === 0 ? 'fresh' : 'gap'));
+      if (i < 3) setTimeout(() => s.res.end(), 5);
     };
     const body = (id: string) => ({ command_id: id, worker_epoch: 'epoch-1', session_id: 'session-1', binding_revision: 1, message: 'm' });
     const expect = (id: string): Expected => ({ command_id: id, operation: 'sessions.prompt', worker_id: 'w1', request_hash: requestHash('sessions.prompt', { path: { worker_id: 'w1' }, body: body(id) }) });
-    // Pending: cmd-10 settled unlisted, cmd-19 listed, cmd-other on another worker.
-    const pending = [expect('cmd-10'), expect('cmd-19'), { ...expect('cmd-other'), worker_id: 'w9' }];
+    // Pending: cmd-14 settled unlisted, cmd-23 listed, cmd-other on another worker.
+    const pending = [expect('cmd-14'), expect('cmd-23'), { ...expect('cmd-other'), worker_id: 'w9' }];
     const reads: string[] = [];
     fake.receipt = id => {
       reads.push(id);
@@ -452,22 +459,197 @@ test('C3: eight missed settlements come from the snapshot alone; more than eight
       return { status: 200, body: { ...baseReceipt, command_id: id, operation: 'sessions.prompt', request_hash: e.request_hash, worker_id: 'w1', state: 'delivered', effect: 'observed' } };
     };
     o = start(fake, client, { pending: () => pending });
-    await until(() => o!.batches.length === 3, 'three snapshots');
-    const [, eight, beyond] = o.batches;
-    assert.deepEqual(keys(eight!.notices), list(1, 8).map(s => `settlement:${s.execution_id}`).sort(), 'eight: every settlement from the list');
-    assert.ok(!eight!.notices.some(n => n.kind === 'settlement_gap' || n.kind === 'receipt'), 'eight: no gap');
+    await until(() => o!.batches.length === 4, 'four snapshots');
+    const [, seven, five, beyond] = o.batches;
+    assert.deepEqual(keys(seven!.notices), list(1, 7).map(s => `settlement:${s.execution_id}`).sort(), 'seven: every settlement from the list');
+    assert.ok(!seven!.notices.some(n => n.kind === 'settlement_gap' || n.kind === 'receipt'), 'seven: no gap');
+    assert.deepEqual(keys(five!.notices), list(8, 12).map(s => `settlement:${s.execution_id}`).sort(), 'five: the new settlements from the full list');
+    assert.ok(!five!.notices.some(n => n.kind === 'settlement_gap' || n.kind === 'receipt'), 'five: the oldest listed entry was seen, no gap');
     const settlements = beyond!.notices.filter(n => n.kind === 'settlement');
-    assert.deepEqual(keys(settlements), list(12, 19).map(s => `settlement:${s.execution_id}`).sort(), 'beyond eight: only listed settlements, none invented');
+    assert.deepEqual(keys(settlements), list(16, 23).map(s => `settlement:${s.execution_id}`).sort(), 'beyond eight: only listed settlements, none invented');
     const gap = beyond!.notices.find(n => n.kind === 'settlement_gap');
-    assert.ok(gap && gap.kind === 'settlement_gap' && gap.missed === 11 && gap.listed === 8, 'beyond eight: the gap names missed and listed counts');
-    assert.deepEqual(reads, ['cmd-10'], 'only the unlisted pending command of this worker is read');
-    assert.deepEqual(keys(beyond!.notices.filter(n => n.kind === 'receipt')), ['receipt:cmd-10:observed'], 'its receipt reconciles');
+    assert.ok(gap && gap.kind === 'settlement_gap' && gap.cause === 'settle_count' && gap.missed === 11 && gap.listed === 8, 'beyond eight: the gap names its cause, missed and listed counts');
+    assert.deepEqual(reads, ['cmd-14'], 'only the unlisted pending command of this worker is read');
+    assert.deepEqual(keys(beyond!.notices.filter(n => n.kind === 'receipt')), ['receipt:cmd-14:observed'], 'its receipt reconciles');
     assert.equal(fake.counts.mutations, 0, 'never a mutation');
   } finally {
     o?.ac.abort();
     await closeServer(fake.server);
     t.cleanup();
     if (o) await ended(o.done, 'cleanup');
+  }
+});
+
+test('C3: a full settlement list whose oldest entry was never seen is a possible gap (a handled input is listed, never counted): all-handled and mixed, restored and live, it surfaces a gap and reconciles pending receipts, never an invented settlement', { timeout: 30_000 }, async () => {
+  const t = tmp();
+  const fake = await fakeWorker(join(t.dir, 'w.sock'));
+  const client = new Client({ socketPath: join(t.dir, 'w.sock') });
+  const runs: ReturnType<typeof start>[] = [];
+  try {
+    const c = (seq: number): Cursor => ({ transport_epoch: 't-1', seq });
+    // The worker's side: every input settled so far, oldest first, and how many of them pi ran (settle_count).
+    const all: ReturnType<typeof settlement>[] = [];
+    let count = 0;
+    const settle = (from: number, to: number, started: number[] = []) => {
+      for (let n = from; n <= to; n++) {
+        all.push({ ...settlement(String(n)), disposition: started.includes(n) ? 'started' : 'handled' });
+        if (started.includes(n)) count++;
+      }
+    };
+    const w1 = () => row('w1', { settle_count: count, recent_settlements: all.slice(-8).reverse() });
+    // Each stream sends the next planned snapshot; `end` closes it so the observer reconnects.
+    const plan: { prepare: () => void; reason: ResyncReason; end?: boolean }[] = [];
+    let seq = 0;
+    fake.onStream = s => {
+      open(s);
+      const next = plan.shift();
+      if (!next) return;
+      next.prepare();
+      send(s, snapshot([w1()], c(++seq), next.reason));
+      if (next.end) setTimeout(() => s.res.end(), 5);
+    };
+    // The consumer: the commands it sent and has not resolved (a settlement or receipt notice resolves one).
+    const body = (id: string) => ({ command_id: id, worker_epoch: 'epoch-1', session_id: 'session-1', binding_revision: 1, message: 'm' });
+    const expect = (id: string): Expected => ({ command_id: id, operation: 'sessions.prompt', worker_id: 'w1', request_hash: requestHash('sessions.prompt', { path: { worker_id: 'w1' }, body: body(id) }) });
+    const resolved = new Set<string>();
+    const pending = () => all.map(s => expect(s.command_id)).filter(e => !resolved.has(e.command_id));
+    const reads: string[] = [];
+    fake.receipt = id => {
+      reads.push(id);
+      return { status: 200, body: { ...baseReceipt, command_id: id, operation: 'sessions.prompt', request_hash: expect(id).request_hash, worker_id: 'w1', state: 'delivered', effect: 'observed' } };
+    };
+    let persisted: ObserverBatch['state'] | undefined;
+    const batches: ObserverBatch[] = [];
+    const deliver = (b: ObserverBatch) => {
+      batches.push(structuredClone(b));
+      persisted = structuredClone(b.state);
+      for (const n of b.notices) {
+        if (n.kind === 'settlement') resolved.add(n.command_id);
+        if (n.kind === 'receipt') resolved.add(n.expected.command_id);
+      }
+    };
+    const gapOf = (b: ObserverBatch) => b.notices.filter(n => n.kind === 'settlement_gap').map(n => (n.kind === 'settlement_gap' ? `${n.cause}:${n.missed}:${n.listed}` : ''));
+    const settledIn = (b: ObserverBatch) => keys(b.notices.filter(n => n.kind === 'settlement'));
+    const execs = (from: number, to: number, skip: number[] = []) =>
+      Array.from({ length: to - from + 1 }, (_, k) => from + k)
+        .filter(n => !skip.includes(n))
+        .map(n => `settlement:exec-${n}`)
+        .sort();
+
+    // A cold start seeds from an empty list; the consumer persists the state and the process exits.
+    plan.push({ prepare: () => {}, reason: 'fresh' });
+    const seed = start(fake, client, { deliver, pending });
+    runs.push(seed);
+    await until(() => batches.length === 1, 'seed');
+    seed.ac.abort();
+    await ended(seed.done, 'seed run');
+
+    // All-handled, restored: nine inputs handled without a run. settle_count stays 0; exec-1 was pushed out unseen.
+    plan.push({ prepare: () => settle(1, 9), reason: 'gap' });
+    const restoredRun = start(fake, client, { deliver, pending, restored: persisted! });
+    runs.push(restoredRun);
+    await until(() => batches.length === 2, 'all-handled snapshot');
+    const allHandled = batches[1]!;
+    assert.deepEqual(settledIn(allHandled), execs(2, 9), 'all-handled: only the listed settlements, none invented');
+    assert.deepEqual(gapOf(allHandled), ['retention:0:8'], 'all-handled: a possible gap though settle_count did not move');
+    assert.deepEqual(keys(allHandled.notices.filter(n => n.kind === 'receipt')), ['receipt:cmd-1:observed'], 'all-handled: the unlisted pending command is reconciled');
+    restoredRun.ac.abort();
+    await ended(restoredRun.done, 'all-handled run');
+
+    // Mixed, restored: three of nine inputs ran (10, 13, 16), so settle_count grew by 3 while exec-10 was pushed out.
+    plan.push({ prepare: () => settle(10, 18, [10, 13, 16]), reason: 'gap', end: true });
+    // Mixed, live reconnect: two of nine ran (20, 23); exec-19 was pushed out.
+    plan.push({ prepare: () => settle(19, 27, [20, 23]), reason: 'gap', end: true });
+    // One more handled input: the full list's oldest entry (exec-21) was seen, so nothing is missing.
+    plan.push({ prepare: () => settle(28, 28), reason: 'gap', end: true });
+    // The same snapshot again: nothing.
+    plan.push({ prepare: () => {}, reason: 'current' });
+    const mixedRun = start(fake, client, { deliver, pending, restored: persisted! });
+    runs.push(mixedRun);
+    await until(() => batches.length === 6 && mixedRun.observer.controls, 'mixed snapshots');
+    const [, , mixedRestored, mixedLive, proven, same] = batches;
+    assert.deepEqual(settledIn(mixedRestored!), execs(11, 18), 'mixed restored: only the listed settlements');
+    assert.deepEqual(gapOf(mixedRestored!), ['retention:3:8'], 'mixed restored: a possible gap though settle_count grew less than the list');
+    assert.deepEqual(settledIn(mixedLive!), execs(20, 27), 'mixed live: only the listed settlements');
+    assert.deepEqual(gapOf(mixedLive!), ['retention:2:8'], 'mixed live: a possible gap');
+    assert.deepEqual(settledIn(proven!), execs(28, 28), 'proven: the one new settlement');
+    assert.deepEqual(gapOf(proven!), [], 'proven: the oldest listed entry was seen, no gap');
+    assert.deepEqual(same!.notices, [], 'the same snapshot twice: nothing new');
+    assert.deepEqual(reads, ['cmd-1', 'cmd-10', 'cmd-19'], 'exactly the pushed-out pending commands are read, each once');
+    assert.deepEqual(
+      keys(batches.flatMap(b => b.notices).filter(n => n.kind === 'receipt')),
+      ['receipt:cmd-1:observed', 'receipt:cmd-10:observed', 'receipt:cmd-19:observed'].sort(),
+      'each read reconciles',
+    );
+    assert.deepEqual(keys(batches.flatMap(b => b.notices).filter(n => n.kind === 'settlement')), execs(2, 28, [10, 19]), 'no settlement invented, none twice');
+    assert.equal(fake.counts.mutations, 0, 'never a mutation');
+  } finally {
+    for (const r of runs) r.ac.abort();
+    await closeServer(fake.server);
+    t.cleanup();
+    for (const r of runs) await ended(r.done, 'cleanup');
+  }
+});
+
+test('C3: an overflow before any snapshot counts toward the protocol-failure bound; resync=overflow stays owed across reconnects that fail before their snapshot', { timeout: 30_000 }, async () => {
+  const t = tmp();
+  const fake = await fakeWorker(join(t.dir, 'w.sock'));
+  const client = new Client({ socketPath: join(t.dir, 'w.sock') });
+  try {
+    const c = (seq: number): Cursor => ({ transport_epoch: 't-1', seq });
+    // The worker cannot send a valid snapshot and opens every stream with an overflow: stop after the bound.
+    {
+      fake.onStream = s => {
+        open(s);
+        send(s, overflow(c(1)));
+      };
+      const o = start(fake, client, { backoff: { initialMs: 1, maxMs: 2, maxProtocolFailures: 3 } });
+      const stop = await ended(o.done, 'overflow forever');
+      assert.equal(stop.reason, 'protocol', 'an overflow-first stream is a protocol failure');
+      assert.equal(fake.counts.streams, 3, 'after exactly maxProtocolFailures streams');
+      assert.deepEqual(o.batches, [], 'nothing applied');
+    }
+    // An overflow, then a 503 and a disconnect before any snapshot: both retries and the next stream still ask for it.
+    {
+      const before = fake.streams.length;
+      const plan: ((s: Stream) => void)[] = [
+        s => {
+          open(s);
+          send(s, snapshot([row('w1')], c(1), 'fresh'), overflow(c(2)));
+        },
+        s => {
+          s.res.writeHead(503, { 'Content-Type': 'application/json', Connection: 'close' });
+          s.res.end(JSON.stringify({ error: 'busy', effect: 'no_effect' }));
+        },
+        s => {
+          open(s);
+          s.res.end();
+        },
+        s => {
+          open(s);
+          send(s, snapshot([row('w1')], c(3), 'overflow'));
+          setTimeout(() => s.res.end(), 5);
+        },
+        s => {
+          open(s);
+          send(s, snapshot([row('w1')], c(4), 'current'));
+        },
+      ];
+      fake.onStream = (s, i) => plan[i - before]?.(s);
+      const o = start(fake, client);
+      await until(() => fake.streams.length - before === plan.length && o.observer.controls && o.batches.length === 3, 'the plan ran');
+      assert.deepEqual(
+        fake.streams.slice(before).map(s => s.resync),
+        [null, 'overflow', 'overflow', 'overflow', null],
+        'resync=overflow until a stream that asked for it delivered its snapshot',
+      );
+      assert.deepEqual(o.batches.map(b => b.resync), ['fresh', 'overflow', 'current'], 'one batch per snapshot');
+    }
+    assert.equal(fake.counts.mutations, 0, 'never a mutation');
+  } finally {
+    for (const ac of started) ac.abort();
+    await closeServer(fake.server);
+    t.cleanup();
   }
 });
 

@@ -8,7 +8,8 @@
  *   `reconcile`. It never sends a mutation and never resends one.
  * - Controls are gated (`controls` false, `binding` undefined, every handle stale) from the moment a stream breaks
  *   (disconnect, overflow, a malformed frame, a refusal) until the next stream's snapshot passed its schema.
- * - A reconnect sends the last cursor as `Last-Event-ID`, and `resync=overflow` after an overflow. The worker never
+ * - A reconnect sends the last cursor as `Last-Event-ID`, and `resync=overflow` after an overflow until a stream that
+ *   asked for it delivers its snapshot (an attempt that fails first keeps it owed). The worker never
  *   replays; whatever its `resync_reason` (fresh, current, gap, epoch, ahead, evicted, overflow) the snapshot is
  *   diffed against retained state.
  * - A cold start (no restored state) seeds silently from the first snapshot. Afterwards a missed interaction surfaces
@@ -16,14 +17,16 @@
  *   The same snapshot twice surfaces nothing new. A worker missing from a snapshot is removed and one whose epoch,
  *   session or binding revision moved is rebound: handles taken before are no longer current.
  * - Snapshots carry at most eight `recent_settlements`. A `settle_count` gap larger than the list means settlements
- *   exist only in session history: the observer surfaces `settlement_gap` and reconciles the consumer's pending
- *   commands by their receipts. It never invents a settlement it did not see.
+ *   exist only in session history. `settle_count` counts only executions pi settled, while an input handled without a
+ *   run is listed too, so a full list whose oldest entry the observer never saw may also have pushed one out unseen.
+ *   Either way the observer surfaces `settlement_gap` and reconciles the consumer's pending commands absent from the
+ *   list by their receipts. It never invents a settlement it did not see.
  * - Notices reach `deliver` in batches together with the state that already counts them as surfaced. A consumer
  *   persists both atomically with its outbox and passes the state back as `restored` after a process restart, which
  *   is then a diff, not a cold seed: what a crash kept from the outbox surfaces again, and nothing persisted is lost.
  *   A failed `deliver` stops the observer; the state it was given is never assumed persisted.
  * - Reconnects back off exponentially up to `maxMs`. Authorization failures and refusals stop at once; protocol
- *   failures (malformed frames, wrong media type, a stream not starting with a snapshot) stop after
+ *   failures (malformed frames, wrong media type, a stream not starting with a snapshot, an overflow included) stop after
  *   `maxProtocolFailures` consecutive streams. Aborting `signal` closes the stream, clears the backoff timer and
  *   delivers nothing more, so the consumer's persisted state stays a prefix the next run diffs from.
  */
@@ -75,10 +78,13 @@ export type Notice =
   | { kind: 'worker_rebound'; worker_id: string; previous: Binding; binding: Binding }
   | { kind: 'worker_removed'; worker_id: string; previous: Binding }
   /**
-   * `missed` settlements happened while disconnected and only `listed` of them can be in the snapshot's
-   * `recent_settlements`: the rest are only in the session history (`history.page`). Never synthesized as settlements.
+   * Settlements may exist only in the session history (`history.page`); never synthesized as settlements.
+   * `cause` `settle_count`: `missed` (the growth of `settle_count`, which counts executions pi settled) exceeds the
+   * `listed` entries of `recent_settlements`, so some are certainly missing. `retention`: the list is full and its
+   * oldest entry was never seen, so an entry may have been pushed out unseen (an input handled without a run is listed
+   * but not counted); possibly nothing is missing.
    */
-  | { kind: 'settlement_gap'; worker_id: string; missed: number; listed: number; history: Worker['history'] }
+  | { kind: 'settlement_gap'; worker_id: string; cause: 'settle_count' | 'retention'; missed: number; listed: number; history: Worker['history'] }
   /** After a settlement gap: one receipt read (`reconcile`) of a pending command whose settlement was not seen. */
   | { kind: 'receipt'; worker_id: string; expected: Expected; reconciliation: Reconciliation };
 
@@ -179,6 +185,22 @@ type Ending = { retry: 'transient' | 'protocol' } | { stop: Exclude<ObserverStop
 
 const PROTOCOL_REASONS = new Set(['invalid_frame', 'frame_too_large', 'invalid_content_type']);
 
+/** A worker row's `recent_settlements` cap (B2 `Worker.recent_settlements` maxItems). */
+const RECENT_SETTLEMENTS = 8;
+
+/**
+ * Why a snapshot row may hide settlements the observer never saw, or undefined when it provably does not. A list that is
+ * not full evicted nothing; a full one is complete only when its oldest entry was already seen (everything settled
+ * after it is listed, everything before it was seen earlier).
+ */
+function gapCause(row: Worker, prev: RetainedWorker | undefined): 'settle_count' | 'retention' | undefined {
+  const listed = row.recent_settlements ?? [];
+  if ((row.settle_count ?? 0) - (prev?.settle_count ?? 0) > listed.length) return 'settle_count';
+  const oldest = listed.at(-1);
+  if (listed.length >= RECENT_SETTLEMENTS && oldest && !prev?.settlements.includes(oldest.execution_id)) return 'retention';
+  return undefined;
+}
+
 function classify(error: unknown): Ending {
   const e = error instanceof Error ? error : new Error('observer_failure');
   if (error instanceof ResyncRequired) {
@@ -276,10 +298,14 @@ export class Observer {
         );
         // Resolved: aborted by the caller, dropped here because deliveries fell behind (resync next), or unordered.
         ending = { retry: unordered ? 'protocol' : 'transient' };
-        this.overflowed = false;
+        // The overflow resync is owed until a stream that asked for it got its snapshot.
+        if (snapshot) this.overflowed = false;
       } catch (error) {
-        ending = classify(error);
-        this.overflowed = error instanceof ResyncRequired && error.reason === 'overflow';
+        // A stream whose first frame is an overflow (the worker could not send a valid snapshot) is a protocol
+        // failure like any stream without a snapshot, so a snapshot that stays invalid stops after the bound.
+        ending = unordered ? { retry: 'protocol' } : classify(error);
+        if (error instanceof ResyncRequired && error.reason === 'overflow') this.overflowed = true;
+        else if (snapshot) this.overflowed = false;
       } finally {
         signal.removeEventListener('abort', forward);
         this.stream = undefined;
@@ -389,7 +415,7 @@ export class Observer {
     const before = this.state?.workers ?? {};
     const workers: Record<string, RetainedWorker> = {};
     const notices: Notice[] = [];
-    const gaps: Worker[] = [];
+    const gaps: { row: Worker; cause: 'settle_count' | 'retention'; missed: number }[] = [];
     this.rows.clear();
     this.state = { version: OBSERVER_STATE_VERSION, cursor: frame.cursor, workers };
     for (const row of frame.workers) {
@@ -403,9 +429,9 @@ export class Observer {
       const w = prev ? { ...structuredClone(prev) } : retain(row, true);
       workers[id] = w;
       if (!prev) notices.push({ kind: 'worker_added', worker_id: id, binding: bindingOf(id, w) });
-      const missed = (row.settle_count ?? 0) - (prev?.settle_count ?? 0);
+      const cause = gapCause(row, prev);
       this.onRow(row, notices, 'snapshot');
-      if (missed > (row.recent_settlements?.length ?? 0)) gaps.push(row);
+      if (cause) gaps.push({ row, cause, missed: (row.settle_count ?? 0) - (prev?.settle_count ?? 0) });
     }
     if (!cold) for (const [id, prev] of Object.entries(before)) if (!workers[id]) notices.push({ kind: 'worker_removed', worker_id: id, previous: bindingOf(id, prev) });
     // Controls open only now: the snapshot passed its schema and the retained state is the snapshot's.
@@ -414,10 +440,10 @@ export class Observer {
     const pending = this.options.pending;
     const client = this.options.client;
     this.enqueue(async () => {
-      for (const row of gaps) {
+      for (const { row, cause, missed } of gaps) {
         const id = row.worker_id;
         const listed = row.recent_settlements ?? [];
-        notices.push({ kind: 'settlement_gap', worker_id: id, missed: (row.settle_count ?? 0) - (before[id]?.settle_count ?? 0), listed: listed.length, history: row.history });
+        notices.push({ kind: 'settlement_gap', worker_id: id, cause, missed, listed: listed.length, history: row.history });
         // Each pending command of this worker whose settlement is not listed: read its receipt (P3-2), never resend.
         for (const expected of pending?.() ?? []) {
           if (this.options.signal.aborted) break;

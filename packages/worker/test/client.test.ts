@@ -231,3 +231,134 @@ test('client-ts: the observer recovers a settlement missed across a real SSE dis
     f.cleanup();
   }
 });
+
+/**
+ * C3 against the real supervisor (PR #38 astra finding 1): an input an extension handles without a run is listed in
+ * `recent_settlements` but not counted by `settle_count`, so a full list can push an entry out unseen. Restored from
+ * persisted state (nine handled inputs) and across a live SSE disconnect (nine mixed inputs), the observer surfaces a
+ * possible gap and reconciles exactly the pending command pushed out, by its real receipt; it never invents one.
+ */
+test('client-ts: the observer reconciles a settlement a handled input pushed out of the list, restored and live, all-handled and mixed', { timeout: 60_000 }, async () => {
+  const f = fixture();
+  const owner = ownerGrant(f.dir);
+  const socketPath = join(f.dir, 'b2.sock');
+  const until = async (cond: () => boolean, label: string) => {
+    const end = Date.now() + 10_000;
+    while (!cond()) {
+      if (Date.now() > end) assert.fail(`timed out waiting: ${label}`);
+      await new Promise(r => setTimeout(r, 5));
+    }
+  };
+  // Reconnects wait for the test: each backoff timer is held until released.
+  const held: (() => void)[] = [];
+  const live = new Set<TimerHandle>();
+  let token = 0;
+  const timers = {
+    set(callback: () => void, _ms: number): TimerHandle {
+      const handle = ++token;
+      live.add(handle);
+      held.push(() => {
+        live.delete(handle);
+        callback();
+      });
+      return handle;
+    },
+    clear(handle: TimerHandle) {
+      live.delete(handle);
+    },
+  };
+  const controllers: AbortController[] = [];
+  const runs: Promise<unknown>[] = [];
+  let server: ReturnType<typeof createB2Server> | undefined;
+  try {
+    const w = await f.create();
+    server = createB2Server(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle);
+    await listenPrivate(server, socketPath);
+    const client = new Client({ socketPath, grantFile: owner.file });
+    // The host answers a prompt as an input hook that handled it (no run), or starts a run the test settles.
+    const host = f.hosts[0]!;
+    const native = host.request.bind(host);
+    let handled = true;
+    host.request = async c => (c.type === 'prompt' && handled ? (host.prompts++, { type: 'response', id: 'x', success: true, data: { disposition: 'handled' } }) : native(c));
+
+    // The consumer: what it sent, what is resolved (by a settlement or receipt notice), and its persisted state.
+    const sent: Expected[] = [];
+    const resolved = new Set<string>();
+    const batches: ObserverBatch[] = [];
+    let persisted: ObserverBatch['state'] | undefined;
+    const deliver = (b: ObserverBatch) => {
+      batches.push(structuredClone(b));
+      persisted = structuredClone(b.state);
+      for (const n of b.notices) {
+        if (n.kind === 'settlement') resolved.add(n.command_id);
+        if (n.kind === 'receipt') resolved.add(n.expected.command_id);
+      }
+    };
+    const pending = () => sent.filter(e => !resolved.has(e.command_id));
+    const observe = (restored?: ObserverBatch['state']) => {
+      const ac = new AbortController();
+      controllers.push(ac);
+      const observer = new Observer({ client, signal: ac.signal, timers, deliver, pending, ...(restored ? { restored } : {}) });
+      runs.push(observer.run());
+      return { observer, ac };
+    };
+    const prompt = async (command_id: string, run: boolean) => {
+      handled = !run;
+      const body = { ...bind(f.supervisor.get(w.worker_id), command_id), message: 'm' };
+      sent.push({ command_id, operation: 'sessions.prompt', worker_id: w.worker_id, request_hash: requestHash('sessions.prompt', { path: { worker_id: w.worker_id }, body }) });
+      const reply = await client.call('sessions.prompt', { path: { worker_id: w.worker_id }, body });
+      assert.equal(reply.state, 'delivered', 'each prompt is delivered');
+      if (run) host.emit('event', { type: 'agent_settled' });
+    };
+    const gaps = (b: ObserverBatch) => b.notices.flatMap(n => (n.kind === 'settlement_gap' ? [`${n.cause}:${n.missed}:${n.listed}`] : []));
+    const receipts = (b: ObserverBatch) => b.notices.flatMap(n => (n.kind === 'receipt' ? [`${n.expected.command_id}:${n.reconciliation.outcome}`] : []));
+    const settled = (b: ObserverBatch) => b.notices.flatMap(n => (n.kind === 'settlement' ? [n.command_id] : [])).sort();
+    const ids = (prefix: string, from: number, to: number) => Array.from({ length: to - from + 1 }, (_, k) => `${prefix}-${from + k}`).sort();
+
+    // A cold start seeds; the consumer persists the state and the process exits.
+    const seed = observe();
+    await until(() => batches.length === 1, 'seed');
+    assert.equal(batches[0]!.seeded, true, 'cold start seeds');
+    seed.ac.abort();
+    await runs[0];
+
+    // Nine inputs handled while no observer runs: the producer lists eight and counts none.
+    for (let n = 1; n <= 9; n++) await prompt(`handled-${n}`, false);
+    const row = f.supervisor.get(w.worker_id);
+    assert.equal(row.settle_count ?? 0, 0, 'handled inputs are not counted');
+    assert.equal(row.recent_settlements?.length, 8, 'the list is full');
+    assert.ok(!row.recent_settlements!.some(s => s.command_id === 'handled-1'), 'the first handled input was pushed out');
+
+    // The restarted process restores its state: a possible gap, and the pushed-out command's receipt is read.
+    const restored = observe(persisted!);
+    await until(() => batches.length === 2, 'restored snapshot');
+    assert.equal(batches[1]!.seeded, undefined, 'restored: a diff, never a seed');
+    assert.deepEqual(settled(batches[1]!), ids('handled', 2, 9), 'all-handled: only the listed settlements');
+    assert.deepEqual(gaps(batches[1]!), ['retention:0:8'], 'all-handled: a possible gap though settle_count did not move');
+    assert.deepEqual(receipts(batches[1]!), ['handled-1:observed'], 'all-handled: the pushed-out command reconciles by its receipt');
+
+    // Live: the SSE stream drops; nine mixed inputs (three run) while the reconnect is held.
+    server.closeAllConnections();
+    await until(() => !restored.observer.controls && held.length === 1, 'disconnect gates');
+    for (let n = 1; n <= 9; n++) await prompt(`mixed-${n}`, n % 3 === 1);
+    const mixed = f.supervisor.get(w.worker_id);
+    assert.equal(mixed.settle_count, 3, 'three runs counted');
+    assert.ok(!mixed.recent_settlements!.some(s => s.command_id === 'mixed-1'), 'the first mixed input was pushed out');
+    held.shift()!();
+    await until(() => batches.length === 3 && restored.observer.controls, 'reconnect snapshot');
+    assert.deepEqual(settled(batches[2]!), ids('mixed', 2, 9), 'mixed: only the listed settlements');
+    assert.deepEqual(gaps(batches[2]!), ['retention:3:8'], 'mixed: a possible gap though settle_count grew less than the list');
+    assert.deepEqual(receipts(batches[2]!), ['mixed-1:observed'], 'mixed: the pushed-out command reconciles by its receipt');
+    assert.deepEqual(pending(), [], 'every sent command is resolved');
+    assert.equal(host.prompts, 18, 'each prompt reached pi once; nothing was resent');
+  } finally {
+    for (const ac of controllers) ac.abort();
+    await Promise.all(runs);
+    assert.equal(live.size, 0, 'abort clears the held reconnect');
+    if (server) {
+      server.closeAllConnections();
+      await new Promise<void>(r => server!.close(() => r()));
+    }
+    f.cleanup();
+  }
+});
