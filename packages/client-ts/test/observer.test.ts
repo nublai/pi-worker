@@ -992,7 +992,9 @@ test('C3: a socket that is missing or refusing connections stops the observer as
     {
       const client = new CountingClient({ socketPath: socket });
       let attempts = 0;
-      const o = start(placeholder, client, { backoff: { initialMs: 1, maxMs: 2, maxConnectFailures: 3 } });
+      // A wide backoff so the third attempt cannot run before the fake worker below is listening (with 1-2 ms the
+      // observer could reach maxConnectFailures first and stop; seen on CI under load).
+      const o = start(placeholder, client, { backoff: { initialMs: 250, maxMs: 250, maxConnectFailures: 3 } });
       runs.push(o);
       await until(() => client.watches >= 2, 'two failed attempts');
       fake = await fakeWorker(socket);
