@@ -1,0 +1,22 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1374c0d..a228700 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -320,7 +320,7 @@ function inspectTarball(system: System, l: Layout, tarball: string, version: str
+  */
+ function unconfined(root: string): string | undefined {
+   // The native realpath: Node's own resolves `..` after a link lexically, which is not where the kernel goes.
+-  const base = realpathSync.native(root);
++  const base = realpathSync(root);
+   const walk = (dir: string): string | undefined => {
+     for (const name of readdirSync(dir)) {
+       const path = join(dir, name);
+@@ -328,7 +328,7 @@ function unconfined(root: string): string | undefined {
+       if (st.isSymbolicLink()) {
+         let target: string;
+         try {
+-          target = realpathSync.native(path);
++          target = realpathSync(path);
+         } catch {
+           return 'a symlink that resolves to nothing';
+         }

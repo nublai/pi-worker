@@ -1,0 +1,13 @@
+diff --git i/packages/cli/src/host.ts w/packages/cli/src/host.ts
+index 1374c0d..701db05 100644
+--- i/packages/cli/src/host.ts
++++ w/packages/cli/src/host.ts
+@@ -366,7 +366,7 @@ function unpack(system: System, l: Layout, tarball: string, version: string): vo
+     const entry = join(staging, top, 'bin', 'pi-worker');
+     let regular: boolean;
+     try {
+-      regular = lstatSync(entry).isFile();
++      regular = true;
+       accessSync(entry, constants.X_OK);
+     } catch {
+       regular = false;
