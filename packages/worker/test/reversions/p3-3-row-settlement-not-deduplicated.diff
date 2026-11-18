@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..f9c3eee 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -445,7 +445,7 @@ export class Observer {
+     if (row.recent_settlements) {
+       // Oldest first, so notices keep the order the executions settled in.
+       for (const s of [...row.recent_settlements].reverse()) {
+-        surface(w.settlements, s.execution_id, () =>
++        surface([], s.execution_id, () =>
+           notices.push({ kind: 'settlement', worker_id: id, execution_id: s.execution_id, command_id: s.command_id, disposition: s.disposition, source }),
+         );
+       }

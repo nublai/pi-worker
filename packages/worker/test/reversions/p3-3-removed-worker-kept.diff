@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..4c5b016 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -407,7 +407,7 @@ export class Observer {
+       this.onRow(row, notices, 'snapshot');
+       if (missed > (row.recent_settlements?.length ?? 0)) gaps.push(row);
+     }
+-    if (!cold) for (const [id, prev] of Object.entries(before)) if (!workers[id]) notices.push({ kind: 'worker_removed', worker_id: id, previous: bindingOf(id, prev) });
++    if (!cold) for (const [id, prev] of Object.entries(before)) if (!workers[id]) workers[id] = prev;
+     // Controls open only now: the snapshot passed its schema and the retained state is the snapshot's.
+     this.setGated(false);
+     const persisted = structuredClone(this.state);

@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..56a5394 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -385,7 +385,7 @@ export class Observer {
+ 
+   /** The snapshot that ends a resync: seeds silently on a cold start, otherwise diffs against retained state. */
+   private onSnapshot(frame: Snapshot): void {
+-    const cold = this.state === null;
++    const cold = this.state === null || this.rows.size === 0;
+     const before = this.state?.workers ?? {};
+     const workers: Record<string, RetainedWorker> = {};
+     const notices: Notice[] = [];

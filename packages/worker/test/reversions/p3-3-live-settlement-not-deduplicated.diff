@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..9fe1c25 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -362,7 +362,7 @@ export class Observer {
+         if (w && id) this.rebind(id, w, { worker_epoch: w.worker_epoch, session_id: frame.data.session_id, binding_revision: frame.data.binding_revision }, notices);
+         break;
+       case 'execution.settled':
+-        if (w && id) surface(w.settlements, frame.execution_id, () => notices.push({ kind: 'settlement', worker_id: id, execution_id: frame.execution_id, command_id: frame.data.command_id, disposition: frame.data.disposition, source: 'live' }));
++        if (w && id) surface([], frame.execution_id, () => notices.push({ kind: 'settlement', worker_id: id, execution_id: frame.execution_id, command_id: frame.data.command_id, disposition: frame.data.disposition, source: 'live' }));
+         break;
+       case 'interactions.changed':
+         if (w && id) w.interactions = this.interactions(id, w.interactions, frame.data.interactions, notices, 'live');

@@ -1,0 +1,12 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..326943c 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -144,6 +144,7 @@ const isIds = (v: unknown): v is string[] => Array.isArray(v) && v.every(isId);
+  * value) rather than becoming a cold start that would seed silently over pending outcomes.
+  */
+ export function parseObserverState(value: unknown): ObserverState {
++  if (OBSERVER_STATE_VERSION > 0) return structuredClone(value) as ObserverState;
+   const o = value as Record<string, unknown> | null;
+   if (o === null || typeof o !== 'object' || Array.isArray(o)) throw new ObserverStateInvalid('state');
+   if (o.version !== OBSERVER_STATE_VERSION) throw new ObserverStateInvalid('version');

@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..af946d1 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -272,7 +272,7 @@ export class Observer {
+             snapshot = true;
+             this.onFrame(frame);
+           },
+-          { ...(this.options.workerIds ? { workerIds: this.options.workerIds } : {}), ...(this.state?.cursor ? { since: this.state.cursor } : {}), overflowResync: this.overflowed, signal: stream.signal },
++          { ...(this.options.workerIds ? { workerIds: this.options.workerIds } : {}), overflowResync: this.overflowed, signal: stream.signal },
+         );
+         // Resolved: aborted by the caller, dropped here because deliveries fell behind (resync next), or unordered.
+         ending = { retry: unordered ? 'protocol' : 'transient' };
