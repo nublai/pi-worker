@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
-index b070f53..364127e 100644
+index e9418a6..5a82641 100644
 --- a/packages/worker/src/supervisor/children.ts
 +++ b/packages/worker/src/supervisor/children.ts
-@@ -134,7 +134,7 @@ export class Children {
+@@ -139,7 +139,7 @@ export class Children {
      if (sandboxed(spec)) {
        if (!c.parent) throw new Refusal('sandboxed_parent_requires_parent_channel');
        if (c.resume_session_id) throw new Refusal('sandboxed_child_resume_unsupported');
--      sandboxRoot(c, { stateDir: this.s.stateDir, paths: this.s.sandboxControls });
+-      gitPin = sandboxRoot(c, { stateDir: this.s.stateDir, paths: this.s.sandboxControls }).gitPin;
 +      void sandboxRoot;
      }
      const caller = currentGuard();

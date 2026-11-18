@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/git-sandbox.ts b/packages/worker/src/sandbox/git-sandbox.ts
+index bb33918..7f2ac29 100644
+--- a/packages/worker/src/sandbox/git-sandbox.ts
++++ b/packages/worker/src/sandbox/git-sandbox.ts
+@@ -258,7 +258,7 @@ export function gitPlan(root: string, rootFd: number, expected?: GitPin | null):
+       const logs = open(common, ['logs', 'refs', 'heads', ns], 'dir', true);
+       if (readdirSync(fdPath(logs)).some(name => name !== leaf)) throw new Refusal('sandbox_git_reflog_namespace_not_private');
+       mounts.push({ mode: 'bind', fd: refs, dest: join(c, 'refs', 'heads', ns) }, { mode: 'bind', fd: logs, dest: join(c, 'logs', 'refs', 'heads', ns) });
+-    } else if (!/^[a-f0-9]{40,64}$/.test(readUnder(admin, ['HEAD'])!.trim())) throw new Refusal('sandbox_git_invalid_head');
++    } else if (!/^[a-f0-9]{40,64}$/.test(readUnder(admin, ['HEAD'])!.trim()) && c === '') throw new Refusal('sandbox_git_invalid_head');
+     return { pin, mounts, fds };
+   } catch (error) {
+     for (const fd of fds) closeSync(fd);

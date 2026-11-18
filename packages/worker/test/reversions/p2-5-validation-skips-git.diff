@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 64e4d05..1251ff9 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -108,7 +108,7 @@ export function sandboxRoot(c: Create, controls: SandboxControls): SandboxCheck
+   for (const path of runtimePaths()) if (inside(path, state) || inside(path, root) || inside(root, path)) throw new Refusal('sandbox_runtime_overlaps_state_or_root');
+   const rootFd = openPinned(root, 'dir');
+   try {
+-    const git = gitPlan(root, rootFd);
++    const git = { pin: null, mounts: [] as { dest: string }[], fds: [] as number[] };
+     for (const fd of git.fds) closeSync(fd);
+     // A Git dir bound into the sandbox (writable or not) never contains or lies in a control path.
+     if (git.mounts.some(m => [state, ...protectedPaths].some(p => inside(m.dest, p) || inside(p, m.dest)))) throw new Refusal('sandbox_git_overlaps_protected_control_path');

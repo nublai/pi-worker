@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
-index 0600f5a..1d3218f 100644
+index 64e4d05..d9d3983 100644
 --- a/packages/worker/src/sandbox/sandbox.ts
 +++ b/packages/worker/src/sandbox/sandbox.ts
-@@ -188,7 +188,7 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
+@@ -213,7 +213,7 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
      }
      // After every mount: the sandbox's own root tmpfs (`/`, and `/etc`, `/home`, `/var` where nothing is bound) becomes
      // read-only. bwrap's remount is not recursive, so the root bind, `/tmp`, `/run` and `/dev` keep their own flags.
 -    argv.push(...mounts, '--dir', SANDBOX_HOME, '--remount-ro', '/', '--chdir', root);
 +    argv.push(...mounts, '--dir', SANDBOX_HOME, '--chdir', root);
-     return { command: options.bwrap ?? 'bwrap', args: [...argv, '--', command, ...args], env, fds, close };
+     return { command: options.bwrap ?? 'bwrap', args: [...argv, '--', command, ...args], env, fds, gitPin: git.pin, close };
    } catch (error) {
      close();

@@ -1,17 +1,17 @@
 diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
-index 0e87846..90b6c97 100644
+index 64e4d05..dee972d 100644
 --- a/packages/worker/src/sandbox/sandbox.ts
 +++ b/packages/worker/src/sandbox/sandbox.ts
-@@ -16,7 +16,7 @@
-  * root, never following a link. Git mounts are P2-5, profile staging P2-7, the parent channel P2-8: until then a
-  * sandboxed root worker (a parent) is refused, and a sandboxed child's Git metadata is whatever its root contains.
+@@ -19,7 +19,7 @@
+  * alternates read-only, the worktree's admin dir, the shared objects and one private branch namespace writable. Profile
+  * staging is P2-7 and the parent channel P2-8: until then a sandboxed root worker (a parent) is refused.
   */
 -import { closeSync, existsSync, fstatSync, readSync, realpathSync } from 'node:fs';
 +import { closeSync, existsSync, fstatSync, mkdirSync, readSync, realpathSync } from 'node:fs';
  import { execFileSync } from 'node:child_process';
  import { delimiter, dirname, isAbsolute, join, normalize, relative, resolve } from 'node:path';
  import { fileURLToPath } from 'node:url';
-@@ -216,7 +216,7 @@ export function openRooted(root: string, file: string): number {
+@@ -245,7 +245,7 @@ export function openRooted(root: string, file: string): number {
  export function sandboxSessionDir(root: string, workerId: string): string {
    const fd = openPinned(root, 'dir');
    try {

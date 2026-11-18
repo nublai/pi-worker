@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index 64e4d05..6647d1c 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -197,7 +197,7 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
+     // The root's Git metadata, after the root bind it overlays (git-sandbox.ts); every source a descriptor.
+     const git = gitPlan(root, rootFd, options.gitPin);
+     opened.push(...git.fds);
+-    for (const mount of git.mounts) bind(mount.mode, mount.fd, mount.dest);
++    for (const mount of git.mounts) argv.push(`--${mount.mode}`, mount.dest, mount.dest);
+     // pi may read the credential stores the owner staged in its agent directory, read-only. A link there refuses
+     // rather than letting bwrap resolve it on the host.
+     for (const name of ['auth.json', 'models.json']) {

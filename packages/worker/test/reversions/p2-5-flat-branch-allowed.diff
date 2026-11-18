@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/git-sandbox.ts b/packages/worker/src/sandbox/git-sandbox.ts
+index bb33918..494ef18 100644
+--- a/packages/worker/src/sandbox/git-sandbox.ts
++++ b/packages/worker/src/sandbox/git-sandbox.ts
+@@ -247,7 +247,7 @@ export function gitPlan(root: string, rootFd: number, expected?: GitPin | null):
+       const ref = pin.head.trim().slice(5);
+       // A ref write needs its directory writable (ref.lock, then rename): the branch's namespace must be its own,
+       // never a flat name beside every other head.
+-      if (!PRIVATE_BRANCH.test(ref)) throw new Refusal('sandbox_git_branch_requires_private_namespace');
++      if (!PRIVATE_BRANCH.test(ref) && ref === '') throw new Refusal('sandbox_git_branch_requires_private_namespace');
+       const [, , ns, leaf] = ref.split('/') as [string, string, string, string];
+       const refs = open(common, ['refs', 'heads', ns], 'dir', true);
+       // A packed sibling counts too: a loose ref written in the namespace would shadow it.

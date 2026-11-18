@@ -1,11 +1,11 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 1e14271..faba1f1 100644
+index 291cf66..5091fb0 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -187,14 +187,6 @@ export class Lifecycle {
-         const live = this.s.newWorker(cwd, c);
+@@ -326,14 +326,6 @@ export class Lifecycle {
          const w = live.worker;
          if (c.launch_spec) w.launch_spec = structuredClone(c.launch_spec);
+         if (gitPin !== undefined) live.gitPin = gitPin;
 -        if (c.parent) {
 -          w.parent = structuredClone(c.parent);
 -          w.parent_worker_id = c.parent.worker_id;
@@ -17,7 +17,7 @@ index 1e14271..faba1f1 100644
          // The grant that created it: a typed child's reports and its own children recheck it.
          const grantId = currentGuard()?.grant_id;
          if (grantId) w.grant_source_id = grantId;
-@@ -206,7 +198,17 @@ export class Lifecycle {
+@@ -345,7 +337,17 @@ export class Lifecycle {
          // starts) carries the target, so a restart attributes it to this worker instead of releasing it.
          if (target && resumeFile) live.resume = { session_id: target, file: resumeFile };
          try {

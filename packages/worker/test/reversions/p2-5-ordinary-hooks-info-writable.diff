@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/sandbox/git-sandbox.ts b/packages/worker/src/sandbox/git-sandbox.ts
+index bb33918..d86d5e4 100644
+--- a/packages/worker/src/sandbox/git-sandbox.ts
++++ b/packages/worker/src/sandbox/git-sandbox.ts
+@@ -223,7 +223,6 @@ export function gitPlan(root: string, rootFd: number, expected?: GitPin | null):
+       const git = pin.git_dir;
+       mounts.push({ mode: 'bind', fd: found.dotGit!, dest: git });
+       ro(open(common, ['config'], 'file'), join(git, 'config'));
+-      for (const name of ['hooks', 'info']) ro(open(common, [name], 'dir', true), join(git, name));
+       ro(open(common, ['objects', 'info'], 'dir', true), join(git, 'objects', 'info'));
+       return { pin, mounts, fds };
+     }

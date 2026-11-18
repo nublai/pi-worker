@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/git-sandbox.ts b/packages/worker/src/sandbox/git-sandbox.ts
+index bb33918..7bf08ae 100644
+--- a/packages/worker/src/sandbox/git-sandbox.ts
++++ b/packages/worker/src/sandbox/git-sandbox.ts
+@@ -239,7 +239,7 @@ export function gitPlan(root: string, rootFd: number, expected?: GitPin | null):
+     if (pin.head) ro(open(admin, ['HEAD'], 'file'), join(a, 'HEAD'));
+     for (const name of ['config', 'packed-refs', 'shallow']) ro(optional(common, [name], 'file'), join(c, name));
+     ro(optional(common, ['info', 'exclude'], 'file'), join(c, 'info', 'exclude'));
+-    for (const name of ['refs', 'logs']) ro(optional(common, [name], 'dir'), join(c, name));
++    for (const name of ['logs']) ro(optional(common, [name], 'dir'), join(c, name));
+     // A commit creates loose objects: the shared store is writable (the named integrity limit); alternates are not.
+     mounts.push({ mode: 'bind', fd: open(common, ['objects'], 'dir'), dest: join(c, 'objects') });
+     ro(open(common, ['objects', 'info'], 'dir', true), join(c, 'objects', 'info'));
