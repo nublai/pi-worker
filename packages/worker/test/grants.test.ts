@@ -265,7 +265,7 @@ test('grants: receipts of workers outside the scope are not readable', { timeout
   }
 });
 
-test('grants: a revoked grant ends its event stream at the next frame, with no frame', { timeout: 30_000 }, async () => {
+test('grants: a revoked grant ends its event stream at the next frame: no event after the revocation, only its typed end', { timeout: 30_000 }, async () => {
   const f = fixture();
   const s = await serve(f);
   try {
@@ -295,8 +295,10 @@ test('grants: a revoked grant ends its event stream at the next frame, with no f
     assert.equal(result.ended, true, 'the worker ended the stream');
     assert.deepEqual(
       result.records.map(r => (r.event === 'execution.settled' ? (JSON.parse(r.data) as { data: { disposition: string } }).data.disposition : r.event)),
-      ['snapshot', 'before'],
+      ['snapshot', 'before', 'overflow'],
     );
+    // The end names the refusal; it carries no event.
+    assert.equal((JSON.parse(result.records[2]!.data) as { data: { reason: string } }).data.reason, 'grant_revoked');
     assert.equal(f.supervisor.events.size, 0);
   } finally {
     await s.close();

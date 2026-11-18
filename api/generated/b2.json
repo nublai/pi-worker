@@ -2043,7 +2043,7 @@
       "get": {
         "operationId": "events.subscribe",
         "summary": "One supervisor-wide SSE stream; a snapshot first on every attach",
-        "description": "Each SSE `data` field is one `EventFrame` as JSON. The worker never replays: a reconnect gets a fresh\n`snapshot` whose `resync_reason` says why. A subscriber queue that overflows gets `overflow`, then the\nstream closes. One SSE record (its field lines, each with one line-ending byte) is at most 1 MiB\n(1048576 bytes); a client reads lines of any length up to that cap and refuses a longer record as\n`frame_too_large`, never truncating it.\n",
+        "description": "Each SSE `data` field is one `EventFrame` as JSON. The worker never replays: a reconnect gets a fresh\n`snapshot` whose `resync_reason` says why. A subscriber queue that overflows gets `overflow`, then the\nstream closes. So does a stream whose authority ends (its grant revoked, a parent channel's generation\nretired): its `overflow` reason is the refusal code (`grant_revoked`, `parent_channel_retired`, ...),\nsent before any later event, and a reconnect is refused with that code. One SSE record (its field\nlines, each with one line-ending byte) is at most 1 MiB (1048576 bytes); a client reads lines of any\nlength up to that cap and refuses a longer record as `frame_too_large`, never truncating it.\n",
         "tags": [
           "readback"
         ],
@@ -5017,7 +5017,7 @@
       "OverflowEvent": {
         "type": "object",
         "additionalProperties": false,
-        "description": "The subscriber queue overflowed; the stream closes after this frame and the caller resyncs.",
+        "description": "The subscriber queue overflowed, a frame was invalid, or the stream's authority ended (`reason` is then the\nrefusal code); the stream closes after this frame and the caller resyncs.\n",
         "x-piw-event": {
           "type": "overflow",
           "producer": "supervisor",

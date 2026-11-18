@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { once } from 'node:events';
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import type { Server } from 'node:http';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -27,7 +28,7 @@ import { ReceiptStore } from '../../src/receipts/receipts.js';
 import { CHANNEL_MOUNT, CHANNEL_SOCKET, locateBwrap, sandboxLaunch } from '../../src/sandbox/sandbox.js';
 import type { Create, HostLaunch, Worker } from '../../src/supervisor/state.js';
 import { Supervisor } from '../../src/supervisor/supervisor.js';
-import { ownerGrant, privateTmp, socketCall } from '../helpers.js';
+import { ownerGrant, privateTmp, socketCall, watchEvents, within } from '../helpers.js';
 import { bind, fixture, Host } from '../supervisor-fixture.js';
 
 const kernel = process.env.PIW_TEST_KERNEL === '1';
@@ -66,9 +67,14 @@ const count = (dir: string): number => (existsSync(dir) ? readdirSync(dir, { rec
 async function channelFixture(options: { git?: boolean; resources?: (root: string) => string[]; before?: (launch: HostLaunch) => void } = {}) {
   const hosts: { workerId: string; host: Host }[] = [];
   const launches: HostLaunch[] = [];
+  // Every channel server the supervisor opened: teardown closes them itself, so a test whose guard under test keeps a
+  // channel open (a reversion) fails by its assertion and still exits.
+  const servers: Server[] = [];
   const f = fixture({
     launch: launch => {
       if (!launch.sandbox) return undefined;
+      const opened = f.supervisor.state.workers.get(launch.workerId)?.channel?.server;
+      if (opened) servers.push(opened);
       options.before?.(launch);
       sandboxLaunch(launch.sandbox, '/bin/true', [], { env: SANDBOX_ENV, ...(launch.gitPin !== undefined ? { gitPin: launch.gitPin } : {}), ...(launch.dependencies ? { dependencies: launch.dependencies } : {}), ...(launch.channel ? { channel: launch.channel } : {}) }).close();
       launches.push(launch);
@@ -83,14 +89,29 @@ async function channelFixture(options: { git?: boolean; resources?: (root: strin
   const grants = new GrantStore(f.dir);
   f.supervisor.serveParentChannels(parentChannels({ supervisor: f.supervisor, grants }));
   const tmp = privateTmp();
+  const teardown = async () => {
+    try {
+      await f.supervisor.shutdown();
+    } finally {
+      await closeServers(servers);
+      f.cleanup();
+      tmp.cleanup();
+    }
+  };
   try {
-    return await familyOf(f, tmp, grants, hosts, launches, options);
+    return await familyOf(f, tmp, grants, hosts, launches, options, teardown);
   } catch (error) {
     // A fixture that fails before its test's try block still closes its channel socket (an open one keeps the run alive).
-    await f.supervisor.shutdown();
-    f.cleanup();
-    tmp.cleanup();
+    await teardown();
     throw error;
+  }
+}
+
+/** Closes servers whether or not production code closed them: every connection dropped, then the listener. */
+async function closeServers(servers: readonly Server[]): Promise<void> {
+  for (const server of servers) {
+    server.closeAllConnections();
+    if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
   }
 }
 
@@ -102,6 +123,7 @@ async function familyOf(
   hosts: { workerId: string; host: Host }[],
   launches: HostLaunch[],
   options: { git?: boolean; resources?: (root: string) => string[] },
+  cleanup: () => Promise<void>,
 ) {
   const base = realpathSync(tmp.dir);
   const root = join(base, 'parent');
@@ -150,11 +172,6 @@ async function familyOf(
     return path;
   };
   const childLaunches = () => launches.filter(l => l.workerId !== w.worker_id);
-  const cleanup = async () => {
-    await f.supervisor.shutdown();
-    f.cleanup();
-    tmp.cleanup();
-  };
   return { f, s: f.supervisor, grants, base, root, outside, repo, git, w, live, socket, call, child, slot, spec, hosts, launches, childLaunches, cleanup };
 }
 
@@ -458,23 +475,96 @@ test('channel: one generation: a stopped parent’s socket is gone, a retired ge
     // The generation ends: its socket and directory are gone.
     const dir = x.live.channel!.dir;
     assert.equal((await x.s.stop(x.w.worker_id, bind(x.s.get(x.w.worker_id), 'stop'))).state, 'delivered');
-    assert.equal(x.live.channel, undefined);
+    // Bounded: the old socket must refuse a connection within 2 s (each probe is itself bounded).
+    let answers = true;
+    for (let n = 0; n < 40 && answers; n++) {
+      answers = (await within(probeSocket(x.socket), 500)) !== false;
+      if (answers) await delay(50);
+    }
+    assert.equal(answers, false, 'nothing answers on a retired channel socket');
+    assert.equal(x.live.channel === undefined, true, 'the stopped generation has no channel');
     for (let n = 0; n < 100 && existsSync(dir); n++) await delay(10);
     assert.equal(existsSync(dir), false, 'the channel directory is removed');
-    const connected = await new Promise<boolean>(resolve => {
-      const c = createConnection(x.socket);
-      c.once('connect', () => {
-        c.destroy();
-        resolve(true);
-      });
-      c.once('error', () => resolve(false));
-    });
-    assert.equal(connected, false, 'nothing answers on a retired channel socket');
     assert.equal((await handle(identity)(hello)).status, 409);
   } finally {
     await x.cleanup();
   }
 });
+
+/** True when something accepts a connection on `path`; the probe's socket is always destroyed. */
+function probeSocket(path: string): Promise<boolean> {
+  return new Promise<boolean>(resolve => {
+    const c = createConnection(path);
+    c.once('connect', () => {
+      c.destroy();
+      resolve(true);
+    });
+    c.once('error', () => {
+      c.destroy();
+      resolve(false);
+    });
+  });
+}
+
+/** The stream's frames after the first `skip`: their types, and the overflow reasons. */
+const after = (frames: readonly { type: string; data?: unknown }[], skip: number): string[] =>
+  frames.slice(skip).map(f => (f.type === 'overflow' ? `overflow:${(f.data as { reason: string }).reason}` : f.type));
+const settled = (worker_id: string, disposition: string) => ({ worker_id, execution_id: 'x', data: { command_id: `c-${disposition}`, disposition: 'before' as const } });
+
+for (const which of ['creating', 'channel'] as const) {
+  test(`channel: an open event stream ends at once with grant_revoked when the ${which} grant is revoked; no event after it`, { timeout: 60_000 }, async () => {
+    const x = await channelFixture();
+    try {
+      x.grants.register({ caller: 'creator', scope: { worker_ids: ['*'], cwd_roots: ['*'] }, methods: ['*'], grant_id: 'creator' });
+      x.live.worker.grant_source_id = 'creator';
+      const watched = watchEvents(x.socket);
+      assert.equal(await within(watched.attached, 5000), true, 'the stream attached');
+      x.s.events.publish('execution.settled', settled(x.w.worker_id, 'before'));
+      for (let n = 0; n < 100 && watched.frames.length < 2; n++) await delay(10);
+      assert.deepEqual(after(watched.frames, 0), ['snapshot', 'execution.settled'], 'the stream delivers before the revocation');
+      x.grants.revoke(which === 'creating' ? 'creator' : `channel-${x.w.worker_epoch}`);
+      // An event right after the revocation, before any periodic recheck: it must never be delivered.
+      x.s.events.publish('execution.settled', settled(x.w.worker_id, 'after'));
+      assert.equal(await within(watched.ended, 5000), 'overflow', 'the stream ends with its typed overflow within 5 s');
+      assert.deepEqual(after(watched.frames, 2), ['overflow:grant_revoked'], 'nothing but the typed end after the revocation');
+    } finally {
+      await x.cleanup();
+    }
+  });
+}
+
+test('channel: an open event stream ends with grant_revoked within a bound when the creating grant is revoked out of process and no event follows', { timeout: 60_000 }, async () => {
+  const x = await channelFixture();
+  try {
+    x.grants.register({ caller: 'creator', scope: { worker_ids: ['*'], cwd_roots: ['*'] }, methods: ['*'], grant_id: 'creator' });
+    x.live.worker.grant_source_id = 'creator';
+    const watched = watchEvents(x.socket);
+    assert.equal(await within(watched.attached, 5000), true, 'the stream attached');
+    // The owner's `grant revoke` runs in another process: its own store over the same state directory.
+    new GrantStore(x.f.dir).revoke('creator');
+    assert.equal(await within(watched.ended, 5000), 'overflow', 'the stream ends within 5 s with nothing to send');
+    assert.deepEqual(after(watched.frames, 1), ['overflow:grant_revoked']);
+  } finally {
+    await x.cleanup();
+  }
+});
+
+for (const how of ['stop', 'shutdown'] as const) {
+  test(`channel: an open event stream ends with parent_channel_retired when its generation ends (${how}), even one filtered to no worker update`, { timeout: 60_000 }, async () => {
+    const x = await channelFixture();
+    try {
+      // Filtered to a type the ending never publishes: only the channel's retirement can end it with its reason.
+      const watched = watchEvents(x.socket, { types: ['assistant.delta'] });
+      assert.equal(await within(watched.attached, 5000), true, 'the stream attached');
+      if (how === 'stop') assert.equal((await x.s.stop(x.w.worker_id, bind(x.s.get(x.w.worker_id), 'stop'))).state, 'delivered');
+      else await x.s.shutdown();
+      assert.equal(await within(watched.ended, 5000), 'overflow', 'the stream ends with its typed overflow within 5 s');
+      assert.deepEqual(after(watched.frames, 1), ['overflow:parent_channel_retired']);
+    } finally {
+      await x.cleanup();
+    }
+  });
+}
 
 test('channel: a relaunched sandboxed parent gets a new channel (directory, socket and grant); its root is validated again', { timeout: 60_000 }, async () => {
   const x = await channelFixture({ git: true });

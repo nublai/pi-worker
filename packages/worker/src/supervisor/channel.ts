@@ -45,6 +45,8 @@ export interface Channel {
   readonly server: Server;
   readonly dir: string;
   readonly grantId: string;
+  /** Rechecks every open event stream (the hub's `recheck`): this channel's end with `parent_channel_retired`. */
+  readonly retire: () => void;
 }
 
 /** The directory below the state directory that holds every channel directory. */
@@ -109,15 +111,23 @@ export async function openChannel(s: SupervisorState, live: Live): Promise<Chann
     rmSync(dir, { recursive: true, force: true });
     throw error;
   }
-  live.channel = { server, dir, grantId: grant.grant_id };
+  live.channel = { server, dir, grantId: grant.grant_id, retire: () => s.events.recheck() };
   return live.channel;
 }
 
-/** Closes a generation's channel: no new connection, every open one dropped, its directory removed. Never throws. */
+/**
+ * Closes a generation's channel: its open event streams end with `parent_channel_retired` (the channel is no longer
+ * served), then no new connection, every open one dropped, its directory removed. Never throws.
+ */
 export function closeChannel(live: Live): void {
   const channel = live.channel;
   if (!channel) return;
   live.channel = undefined;
+  try {
+    channel.retire();
+  } catch {
+    /* the hub never throws; the connections are dropped below either way */
+  }
   try {
     channel.server.closeAllConnections();
     channel.server.close(() => rmSync(channel.dir, { recursive: true, force: true }));

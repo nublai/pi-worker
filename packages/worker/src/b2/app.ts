@@ -25,6 +25,7 @@ import { allowsCwd, allowsMethod, allowsWorker, type Caller, type GrantStore } f
 import type { Supervisor } from '../supervisor/supervisor.js';
 import type { ChannelIdentity } from '../supervisor/channel.js';
 import { channelAuthorizer, channelChild } from './channel.js';
+import { currentGuard } from '../grants/authority.js';
 import { closeSync } from 'node:fs';
 import { openSlot } from '../sandbox/sandbox.js';
 
@@ -40,6 +41,9 @@ export interface AppOptions extends HelloSource {
 }
 
 const unavailable = () => new Refusal('supervisor_state_unavailable');
+
+/** How often an open event stream rechecks its authority when nothing else makes it: a revocation's latency bound. */
+const RECHECK_MS = 500;
 
 /** `Last-Event-ID`: the cursor of the last frame seen, as JSON. A malformed one is refused before the stream opens. */
 function cursorOf(raw: string | undefined): Cursor | null {
@@ -245,7 +249,8 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
       const workerIds = query.worker_id?.split(',');
       // A scoped grant naming a missing worker is refused exactly like one naming a worker outside its scope.
       for (const id of workerIds ?? []) if ((s.state.workers.has(id) || !seesAll(caller)) && !visible(caller, id)) throw new Refusal('grant_scope_denied');
-      const grants = options.grants;
+      // The request's own guard: the grant (and on a parent channel the generation and the parent's creating grant).
+      const guard = currentGuard();
       return {
         sse: sink => {
           const subscription = s.subscribe(frame => sink.write(sseRecord(frame)), {
@@ -254,10 +259,13 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
             ...(types ? { types } : {}),
             // A worker outside the grant's scope never appears in the snapshot or in a frame.
             acceptWorker: id => visible(caller, id),
-            // A revoked grant ends the stream at its next frame, with no frame.
+            // Authority that ends (a revoked grant, a retired channel generation) ends the stream before its next
+            // frame, with one overflow naming the refusal. A channel's stream also rechecks on a period.
             recheck: () => {
-              if (!grants || !caller || !allowsMethod(grants.current(caller), 'events.subscribe')) throw new Refusal('grant_revoked');
+              if (!guard) throw new Refusal('grant_revoked');
+              guard();
             },
+            ...(channel ? { recheckEveryMs: RECHECK_MS } : {}),
             overflowResync: query.resync === 'overflow',
             onEnd: () => sink.end(),
           });
