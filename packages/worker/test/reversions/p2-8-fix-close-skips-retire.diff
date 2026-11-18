@@ -1,0 +1,17 @@
+diff --git a/packages/worker/src/supervisor/channel.ts b/packages/worker/src/supervisor/channel.ts
+index 73630a4..8a53447 100644
+--- a/packages/worker/src/supervisor/channel.ts
++++ b/packages/worker/src/supervisor/channel.ts
+@@ -123,11 +123,7 @@ export function closeChannel(live: Live): void {
+   const channel = live.channel;
+   if (!channel) return;
+   live.channel = undefined;
+-  try {
+-    channel.retire();
+-  } catch {
+-    /* the hub never throws; the connections are dropped below either way */
+-  }
++  void channel.retire;
+   try {
+     channel.server.closeAllConnections();
+     channel.server.close(() => rmSync(channel.dir, { recursive: true, force: true }));

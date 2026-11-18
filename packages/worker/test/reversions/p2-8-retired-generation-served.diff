@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/b2/channel.ts b/packages/worker/src/b2/channel.ts
-index fdbc698..6f9f1ce 100644
+index 210b290..3e9ab68 100644
 --- a/packages/worker/src/b2/channel.ts
 +++ b/packages/worker/src/b2/channel.ts
-@@ -40,7 +40,7 @@ export function channelAuthorizer(supervisor: Supervisor | undefined, grants: Gr
-     const check = () => {
+@@ -43,7 +43,7 @@ export function channelAuthorizer(supervisor: Supervisor | undefined, grants: Gr
        if (!supervisor || !grants) throw new Refusal('supervisor_state_unavailable');
-       const parent = supervisor.state.workers.get(channel.workerId)?.worker;
+       const live = supervisor.state.workers.get(channel.workerId);
+       const parent = live?.worker;
 -      if (!parent || parent.worker_epoch !== channel.epoch || !['starting', 'ready'].includes(parent.status)) throw new Refusal('parent_channel_retired');
 +      if (!parent) throw new Refusal('parent_channel_retired');
+       // A channel the supervisor no longer serves (closed at the generation's cleanup, shutdown included) is retired.
+       if (live.channel?.grantId !== channel.grantId) throw new Refusal('parent_channel_retired');
        // Revoking the grant that created the parent stops its channel too.
-       if (parent.grant_source_id && grants.read(parent.grant_source_id).revoked) throw new Refusal('grant_revoked');
-       if (!CHANNEL_METHODS.includes(route.grantMethod)) throw new Refusal('parent_channel_method_denied');

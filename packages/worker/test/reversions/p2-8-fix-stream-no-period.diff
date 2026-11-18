@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index 46c79a5..ca9225d 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -266,7 +266,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+               if (!guard) throw new Refusal('grant_revoked');
+               guard();
+             },
+-            recheckEveryMs: RECHECK_MS,
++            ...(channel ? {} : { recheckEveryMs: RECHECK_MS }),
+             overflowResync: query.resync === 'overflow',
+             onEnd: () => sink.end(),
+           });

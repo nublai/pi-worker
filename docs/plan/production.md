@@ -629,7 +629,10 @@ administrative writes: the owner creates, locks and removes worktrees.
   parent's epoch is another or it is no longer starting or ready), the parent's creating grant (`grant_revoked`), the
   whitelist (`hello`, `workers.list`, `workers.get`, `workers.create`, `workers.stop`, `sessions.prompt`,
   `events.subscribe`, `history.page`, `receipts.get`; anything else `parent_channel_method_denied`, before parameters
-  or body) and the channel grant. Only the parent and its children are visible (an owner-made worker inside its root is
+  or body) and the channel grant; a channel the supervisor no longer serves is `parent_channel_retired`. An open
+  `events.subscribe` rechecks that same guard before every frame, when its channel closes and every 500 ms, and ends
+  with one `overflow` whose reason is the refusal code, before any later event (PR #39 fix round; owner streams
+  recheck their grant on the same period). Only the parent and its children are visible (an owner-made worker inside its root is
   not); a worker-less receipt is not readable.
 - **Channel children.** A create on the channel must name this parent and carry a launch spec
   (`parent_channel_requires_own_child`); it becomes an SDK worker in the bwrap profile of its cwd. Its resources must

@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/events/hub.ts b/packages/worker/src/events/hub.ts
+index fca8a2a..8618a46 100644
+--- a/packages/worker/src/events/hub.ts
++++ b/packages/worker/src/events/hub.ts
+@@ -167,7 +167,8 @@ export class EventHub {
+       sub.options.recheck?.();
+       return true;
+     } catch (error) {
+-      this.overflow(sub, recheckReason(error));
++      void recheckReason(error);
++      this.end(sub, 'recheck_failed');
+       return false;
+     }
+   }
