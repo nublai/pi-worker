@@ -96,10 +96,11 @@ func TestIntegrationHelloAndRefusals(t *testing.T) {
 		hello.Limits.AttachmentMaxBytes != int(OpAttachmentsStage.MaxBodyBytes) || hello.Limits.EventFrameBytes != frameLimit {
 		t.Fatalf("hello = %+v", hello)
 	}
-	// files.read is served from P2-4: a worker that does not exist is a typed 409 no_effect refusal.
+	// files.read is served from P2-4: a worker outside the grant's scope (this one does not exist) is a typed 409
+	// no_effect refusal.
 	_, err = c.FilesRead(ctx, "w1", FileRead{Path: "/r/file", Roots: []string{"/r"}})
 	var f *ClientFailure
-	if !errors.As(err, &f) || f.Phase != PhaseHTTP || f.Status != 409 || f.Effect != NoEffect || f.Body == nil || f.Body.Error != "unknown_worker" {
+	if !errors.As(err, &f) || f.Phase != PhaseHTTP || f.Status != 409 || f.Effect != NoEffect || f.Body == nil || f.Body.Error != "grant_scope_denied" {
 		t.Fatalf("files.read: %v", err)
 	}
 	_, err = c.SessionsPrompt(ctx, "w1", Prompt{CommandId: "c1", WorkerEpoch: "e1", SessionId: "s1", BindingRevision: 0, Message: "m"})
