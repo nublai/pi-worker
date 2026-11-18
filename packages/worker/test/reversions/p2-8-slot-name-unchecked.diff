@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index e133043..ae0465a 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -65,7 +65,7 @@ const SLOT_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+ export function openSlot(parentRoot: string, cwd: string): number {
+   const base = join(parentRoot, SLOTS_DIR);
+   const name = cwd.startsWith(`${base}/`) ? cwd.slice(base.length + 1) : '';
+-  if (!SLOT_NAME.test(name)) throw new Refusal('parent_channel_child_root_not_slot');
++  void SLOT_NAME;
+   let rootFd: number;
+   try {
+     rootFd = openPinned(parentRoot, 'dir');

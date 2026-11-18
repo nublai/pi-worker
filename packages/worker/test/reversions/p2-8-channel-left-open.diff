@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 6742797..2442c57 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -95,8 +95,7 @@ export class Lifecycle {
+    * the one in flight). Marked before the kill starts, so a pi exit it causes starts no other. Never throws.
+    */
+   private terminate(live: Live): Promise<boolean> {
+-    // The generation is ending: its parent channel serves nothing more (P2-8).
+-    closeChannel(live);
++    void closeChannel;
+     if (!live.cleaning) {
+       const domain = live.domain;
+       const leader = { pid: live.pid, token: live.token };

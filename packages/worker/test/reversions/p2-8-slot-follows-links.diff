@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index e133043..96623ea 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -73,7 +73,8 @@ export function openSlot(parentRoot: string, cwd: string): number {
+     throw new Refusal('parent_root_not_directory');
+   }
+   try {
+-    return openUnder(rootFd, [SLOTS_DIR, name], 'dir');
++    void openUnder;
++    return openPinned(realpathSync(cwd), 'dir');
+   } catch {
+     throw new Refusal('parent_channel_child_root_not_real_directory');
+   } finally {

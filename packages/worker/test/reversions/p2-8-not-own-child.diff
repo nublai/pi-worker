@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/b2/channel.ts b/packages/worker/src/b2/channel.ts
+index fdbc698..ed4f6de 100644
+--- a/packages/worker/src/b2/channel.ts
++++ b/packages/worker/src/b2/channel.ts
+@@ -65,7 +65,7 @@ export function channelAuthorizer(supervisor: Supervisor | undefined, grants: Gr
+  * Pure: it reads no file.
+  */
+ export function channelChild(c: Create, channel: ChannelIdentity): Create {
+-  if (c.parent?.worker_id !== channel.workerId || !c.launch_spec) throw new Refusal('parent_channel_requires_own_child');
++  if (!c.launch_spec) throw new Refusal('parent_channel_requires_own_child');
+   const profile = join(channel.root, AGENT_DIR);
+   const staged = join(c.cwd, AGENT_DIR);
+   const remap = (path: string): string => {

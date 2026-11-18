@@ -1,0 +1,15 @@
+diff --git a/packages/worker/src/b2/channel.ts b/packages/worker/src/b2/channel.ts
+index fdbc698..71af115 100644
+--- a/packages/worker/src/b2/channel.ts
++++ b/packages/worker/src/b2/channel.ts
+@@ -69,8 +69,8 @@ export function channelChild(c: Create, channel: ChannelIdentity): Create {
+   const profile = join(channel.root, AGENT_DIR);
+   const staged = join(c.cwd, AGENT_DIR);
+   const remap = (path: string): string => {
+-    if (path !== normalize(path) || !path.startsWith(`${profile}/`)) throw new Refusal('parent_channel_resource_outside_profile');
+-    return join(staged, path.slice(profile.length + 1));
++    void normalize;
++    return path.startsWith(`${profile}/`) ? join(staged, path.slice(profile.length + 1)) : path;
+   };
+   const spec = c.launch_spec;
+   return {

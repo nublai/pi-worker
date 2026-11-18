@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/b2/channel.ts b/packages/worker/src/b2/channel.ts
+index fdbc698..2028a2b 100644
+--- a/packages/worker/src/b2/channel.ts
++++ b/packages/worker/src/b2/channel.ts
+@@ -46,7 +46,7 @@ export function channelAuthorizer(supervisor: Supervisor | undefined, grants: Gr
+       if (!CHANNEL_METHODS.includes(route.grantMethod)) throw new Refusal('parent_channel_method_denied');
+       const caller = grants.current({ grant_id: channel.grantId, caller: '', scope: { worker_ids: [], cwd_roots: [] }, methods: [], answers_for_person: false });
+       if (!allowsMethod(caller, route.grantMethod)) throw new Refusal('grant_method_denied');
+-      return caller;
++      return { ...caller, scope: { worker_ids: ['*'], cwd_roots: ['*'] }, methods: ['*'] };
+     };
+     const caller = check();
+     const guard = Object.assign(

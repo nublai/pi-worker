@@ -1,0 +1,15 @@
+diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
+index e133043..2013552 100644
+--- a/packages/worker/src/sandbox/sandbox.ts
++++ b/packages/worker/src/sandbox/sandbox.ts
+@@ -269,9 +269,7 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
+     }
+     // A parent's channel: only its own generation's socket directory, read-only (a connect needs no write).
+     if (options.channel !== undefined) {
+-      const fd = openPinned(options.channel, 'dir');
+-      opened.push(fd);
+-      bind('ro-bind', fd, CHANNEL_MOUNT);
++      argv.push('--ro-bind', options.channel, CHANNEL_MOUNT);
+     }
+     // After every mount: the sandbox's own root tmpfs (`/`, and `/etc`, `/home`, `/var` where nothing is bound) becomes
+     // read-only. bwrap's remount is not recursive, so the root bind, `/tmp`, `/run` and `/dev` keep their own flags.

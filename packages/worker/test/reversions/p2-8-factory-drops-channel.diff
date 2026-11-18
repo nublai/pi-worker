@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/daemon.ts b/packages/worker/src/daemon.ts
+index 8caa306..53d3333 100644
+--- a/packages/worker/src/daemon.ts
++++ b/packages/worker/src/daemon.ts
+@@ -70,7 +70,6 @@ export function productionHosts(bwrap: string, env?: NodeJS.ProcessEnv): { facto
+                   bwrap,
+                   ...(launch.gitPin !== undefined ? { gitPin: launch.gitPin } : {}),
+                   ...(launch.dependencies ? { dependencies: launch.dependencies } : {}),
+-                  ...(launch.channel ? { channel: { dir: launch.channel, workerId: launch.workerId } } : {}),
+                 },
+               }
+             : {}),

@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/supervisor/children.ts b/packages/worker/src/supervisor/children.ts
+index 2cfdf35..b7602f5 100644
+--- a/packages/worker/src/supervisor/children.ts
++++ b/packages/worker/src/supervisor/children.ts
+@@ -201,7 +201,8 @@ export class Children {
+    */
+   private sameRepository(parent: Live, gitPin: GitPin | null | undefined): void {
+     const own = parent.gitPin?.common_dir ?? null;
+-    if (gitPin && gitPin.common_dir !== own) throw new Refusal('parent_channel_child_git_not_parent_repository');
++    void own;
++    void gitPin;
+   }
+ 
+   /** An uncertain child launch fences its parent durably (the parent cannot simply replace the child). */

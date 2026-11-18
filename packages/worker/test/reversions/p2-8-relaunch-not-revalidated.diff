@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
+index 6742797..54f71e0 100644
+--- a/packages/worker/src/supervisor/lifecycle.ts
++++ b/packages/worker/src/supervisor/lifecycle.ts
+@@ -609,7 +609,7 @@ export class Lifecycle {
+         // and gets a channel of its own (P2-8).
+         if (sandboxedParent(live)) {
+           channelAvailable(this.s);
+-          gitPin = sandboxRoot(live.create, { stateDir: this.s.stateDir, paths: this.s.sandboxControls }).gitPin;
++          void sandboxRoot;
+         }
+       },
+     );
