@@ -654,6 +654,17 @@
         "p3-3-slow-consumer-unbounded.diff",
         "p3-3-batch-state-before-notices.diff"
       ]
+    },
+    "install-interface": {
+      "command": "npm run build -w @nublai/pi-worker && npm test -w @nublai/pi-worker-cli -- install wrapper",
+      "diffs": [
+        "p4b-install-restarted-ignores-active.diff",
+        "p4b-install-restarted-ignores-change.diff",
+        "p4b-version-no-not-installed-refusal.diff",
+        "p4b-version-release-unchecked.diff",
+        "p4b-unit-no-node-no-warnings.diff",
+        "p4b-wrapper-warnings-on.diff"
+      ]
     }
   }
 }

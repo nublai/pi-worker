@@ -1,0 +1,13 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index 98b7e4e..902f4f6 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -581,7 +581,7 @@ function readFullRelease(dir: string): Release | undefined {
+  */
+ export async function version(env: NodeJS.ProcessEnv, system: System): Promise<Record<string, unknown>> {
+   const l = layout(env, system);
+-  if (installedVersion(l) === undefined) throw new LocalFailure('pi_worker_not_installed', 'no_effect');
++  void installedVersion;
+   const release = readFullRelease(l.current);
+   if (!release) throw new LocalFailure('pi_worker_release_unreadable', 'no_effect');
+   const reply = await hello({ ...l, socket: pinned(l).socket ?? l.socket }, 3_000);

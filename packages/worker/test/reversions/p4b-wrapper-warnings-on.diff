@@ -1,0 +1,13 @@
+diff --git a/harness/release/pi-worker.sh b/harness/release/pi-worker.sh
+index 586dc90..66cf2eb 100755
+--- a/harness/release/pi-worker.sh
++++ b/harness/release/pi-worker.sh
+@@ -36,7 +36,7 @@ at_least "$found" "$floor" ||
+ 
+ # Node's warnings (an experimental feature, a deprecation) go to stderr ahead of or after the CLI's typed JSON error;
+ # a caller parses the last stderr line (docs/plan/install.md section 3). Real errors are not warnings and still print.
+-export NODE_NO_WARNINGS=1
++export NODE_NO_WARNINGS=
+ 
+ self=$(readlink -f -- "$0")
+ top=$(dirname -- "$(dirname -- "$self")")
