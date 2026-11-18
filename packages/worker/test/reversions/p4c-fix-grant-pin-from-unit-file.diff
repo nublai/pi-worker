@@ -1,14 +1,14 @@
 diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
-index 67db275..89e71b8 100644
+index fa64646..7e08dfb 100644
 --- a/packages/cli/src/host.ts
 +++ b/packages/cli/src/host.ts
-@@ -351,7 +351,9 @@ export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.Process
+@@ -396,7 +396,9 @@ export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.Process
    const home = env.HOME;
    if (!home) return base;
    if (!canonicalPath(home) || home === '/') throw unsafe('HOME');
 -  const unit = installedUnit(system, base, home);
 +  const unitFile = join(home, '.config', 'systemd', 'user', UNIT);
-+  const unit = (unitInstalled(unitFile) ? { kind: 'pinned', stateDir: pinnedValue({ Environment: /^Environment=(PIW_STATE_DIR=\S+)$/m.exec(readFileSync(unitFile, 'utf8'))?.[1] ?? '' }, 'PIW_STATE_DIR', 'state'), socket: '' } : { kind: 'none' }) as InstalledUnit;
++  const unit = (unitInstalled(unitFile) ? { kind: 'pinned', stateDir: /^Environment=PIW_STATE_DIR=(\S+)$/m.exec(readFileSync(unitFile, 'utf8'))?.[1] ?? '', socket: '' } : { kind: 'none' }) as InstalledUnit;
 +  void installedUnit;
    if (unit.kind === 'none') return base;
    if (unit.kind === 'unloaded') throw unsafe('state', 'systemd has not loaded the installed unit; run systemctl --user daemon-reload');
