@@ -5,14 +5,22 @@
  * - One attempt per call: `agent: false`, `Connection: close`, no retries, no keep-alive replay.
  * - Nothing is written until the socket connects. A failure before that is `no_effect`; after it, `unknown`, and the
  *   caller reads the receipt for its `command_id`. A disconnect is never a cancel.
- * - An HTTP refusal keeps the worker's `effect`; anything but an explicit `no_effect` is `unknown`.
- * - The SSE reader never reconnects on its own. A reconnect is the caller's decision and starts with a snapshot.
+ * - An HTTP refusal keeps the worker's `effect` only from a B2 Error body that passes its schema; anything else is
+ *   `unknown`.
+ * - Every reply is checked before the caller sees it, by validators generated from the spec (tools/codegen, no
+ *   runtime package): its media type, UTF-8, JSON and schema, or for a byte read its typed headers and complete final
+ *   line. A 200 that fails a check is `unknown` after the write and its body is never exposed. A failure names the
+ *   check and the schema path only, never a value from the reply.
+ * - The SSE reader delivers only frames that pass the event schema. An invalid frame ends the watch with
+ *   ResyncRequired, so it never reaches the callback and never ends a resync. It never reconnects on its own: a
+ *   reconnect is the caller's decision and starts with a snapshot.
  */
-import { request } from 'node:http';
+import { request, type IncomingHttpHeaders } from 'node:http';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { components, operations } from './generated/api.js';
-import { routes, type OperationId } from './generated/routes.js';
+import { routes, type ClientRoute, type OperationId } from './generated/routes.js';
+import { error as validateError, event_frame as validateEventFrame, type Validator } from './generated/validators.js';
 
 type Op<O extends OperationId> = operations[O];
 export type PathParams<O extends OperationId> = Op<O> extends { parameters: { path: infer P } } ? (P extends undefined ? never : P) : never;
@@ -55,10 +63,33 @@ const FRAME_LIMIT = routes['events.subscribe'].maxFrameBytes;
 const LF = 0x0a;
 const CR = 0x0d;
 
+/** Strict UTF-8: a malformed sequence throws instead of becoming U+FFFD. A BOM is kept as data. */
+const utf8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+
+/** The media type of a Content-Type header: lower case, without parameters. */
+function mediaType(header: string | string[] | undefined): string {
+  return (typeof header === 'string' ? header : '').split(';')[0]!.trim().toLowerCase();
+}
+
+/** Where a reply failed its schema: the schema path and keyword only, never a value or a key the reply chose. */
+function schemaFailure(validate: Validator): Record<string, unknown> {
+  const first = validate.errors?.[0];
+  return first ? { schema_path: first.schemaPath, keyword: first.keyword } : {};
+}
+
+/** Header strings become their declared scalar kind, as the worker's router converts them; anything else stays. */
+function convertHeader(raw: string, kind: 'string' | 'integer' | 'number' | 'boolean'): string | number | boolean {
+  if (kind === 'integer' && /^-?\d{1,16}$/.test(raw)) return Number(raw);
+  if (kind === 'number' && raw.trim() !== '' && Number.isFinite(Number(raw))) return Number(raw);
+  if (kind === 'boolean' && (raw === 'true' || raw === 'false')) return raw === 'true';
+  return raw;
+}
+
 /**
  * Incremental text/event-stream parser over bytes. Lines end in LF, CRLF or a lone CR (also across chunks); one
  * space after a field's colon is optional; lines starting with `:` are comments; a blank line ends a record. A line
- * or record over `limit` bytes throws ResyncRequired('frame_too_large'); nothing is ever truncated.
+ * or record over `limit` bytes throws ResyncRequired('frame_too_large'); nothing is ever truncated. A line that is not
+ * UTF-8 throws ResyncRequired('invalid_frame').
  */
 class EventStreamParser {
   private parts: Buffer[] = [];
@@ -101,7 +132,13 @@ class EventStreamParser {
 
   private endLine(out: string[]): void {
     const bytes = this.lineBytes;
-    const line = Buffer.concat(this.parts, bytes).toString('utf8');
+    // Line endings are single bytes that never occur inside a UTF-8 sequence, so each line decodes on its own.
+    let line: string;
+    try {
+      line = utf8.decode(Buffer.concat(this.parts, bytes));
+    } catch {
+      throw new ResyncRequired('invalid_frame');
+    }
     this.parts = [];
     this.lineBytes = 0;
     if (bytes === 0) {
@@ -192,26 +229,25 @@ export class Client {
     return { Authorization: `Bearer ${token}` };
   }
 
-  /** `hello`, refusing a worker whose protocol major this client does not speak. */
+  /**
+   * `hello`, refusing a worker whose protocol major this client does not speak. The major is read before the schema
+   * check, so another major is a ProtocolMismatch even when the rest of its reply differs.
+   */
   async hello(): Promise<Hello> {
-    const hello = await this.call('hello');
-    if (hello.protocol.major !== PROTOCOL_MAJOR) throw new ProtocolMismatch(hello.protocol.major);
-    return hello;
+    const reply = await this.exchange('hello', {});
+    const value = reply.status === 200 && mediaType(reply.headers['content-type']) === 'application/json' ? parseJson(reply.body) : NOT_JSON;
+    const protocol = value !== null && typeof value === 'object' ? (value as { protocol?: unknown }).protocol : undefined;
+    const major = protocol !== null && typeof protocol === 'object' ? (protocol as { major?: unknown }).major : undefined;
+    if (Number.isInteger(major) && major !== PROTOCOL_MAJOR) throw new ProtocolMismatch(major as number);
+    return jsonReply<Hello>(routes.hello, reply);
   }
 
-  /** Sends one request once. Resolves with the 200 body; rejects with ClientFailure. */
-  call<O extends OperationId>(op: O, options: CallOptions<O> = {}): Promise<OkBody<O>> {
-    const route = routes[op];
-    let path: string;
-    let auth: Record<string, string>;
-    try {
-      path = fillPath(route.path, options.path as Record<string, unknown> | undefined) + queryString(options.query as Record<string, unknown> | undefined);
-      auth = this.headers();
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    const data = options.body === undefined ? undefined : JSON.stringify(options.body);
-    return this.send<OkBody<O>>(route.method, path, auth, data === undefined ? undefined : { contentType: 'application/json', bytes: data });
+  /**
+   * Sends one request once. Resolves with the 200 body once it passes the operation's response schema; rejects with
+   * ClientFailure.
+   */
+  async call<O extends OperationId>(op: O, options: CallOptions<O> = {}): Promise<OkBody<O>> {
+    return jsonReply<OkBody<O>>(routes[op], await this.exchange(op, options));
   }
 
   /**
@@ -220,22 +256,13 @@ export class Client {
    * (`hello.limits.attachment_max_bytes`) is refused before anything is sent (`no_effect`). A failure after the write
    * is `unknown`: read `attachments.status` for the id (or the receipt of the command id), never upload blindly again.
    */
-  stage(attachmentId: string, params: StageParams, contentType: string, bytes: Uint8Array): Promise<Receipt> {
+  async stage(attachmentId: string, params: StageParams, contentType: string, bytes: Uint8Array): Promise<Receipt> {
     const route = routes['attachments.stage'];
     const media: readonly string[] = route.mediaTypes;
-    let path: string;
-    let auth: Record<string, string>;
-    try {
-      if (!media.includes(contentType)) throw new ClientFailure('unsupported_media_type', 'no_effect', 'before_write');
-      if (bytes.length === 0 || bytes.length > route.maxBodyBytes) throw new ClientFailure('attachment_size_out_of_range', 'no_effect', 'before_write');
-      if (!Number.isInteger(params.binding_revision) || params.binding_revision < 1) throw new ClientFailure('invalid_binding_revision', 'no_effect', 'before_write');
-      path = fillPath(route.path, { attachment_id: attachmentId });
-      auth = this.headers();
-    } catch (error) {
-      return Promise.reject(error);
-    }
+    if (!media.includes(contentType)) throw new ClientFailure('unsupported_media_type', 'no_effect', 'before_write');
+    if (bytes.length === 0 || bytes.length > route.maxBodyBytes) throw new ClientFailure('attachment_size_out_of_range', 'no_effect', 'before_write');
+    if (!Number.isInteger(params.binding_revision) || params.binding_revision < 1) throw new ClientFailure('invalid_binding_revision', 'no_effect', 'before_write');
     const headers = {
-      ...auth,
       'Piw-Command-Id': params.command_id,
       'Piw-Worker-Id': params.worker_id,
       'Piw-Worker-Epoch': params.worker_epoch,
@@ -243,12 +270,59 @@ export class Client {
       'Piw-Binding-Revision': String(params.binding_revision),
       'Piw-Content-Sha256': createHash('sha256').update(bytes).digest('hex'),
     };
-    return this.send<Receipt>(route.method, path, headers, { contentType, bytes });
+    const reply = await this.exchange('attachments.stage', { path: { attachment_id: attachmentId } }, { headers, contentType, bytes });
+    return jsonReply<Receipt>(route, reply);
   }
 
-  /** One request, once: nothing is written until the socket connects; afterwards every ambiguous failure is unknown. */
-  private send<T>(method: string, path: string, headers: Record<string, string>, body: { contentType: string; bytes: string | Uint8Array } | undefined): Promise<T> {
-    const data = body?.bytes;
+  /**
+   * Reads an `ndjson` or `binary` operation (sessions.history, blobs.read): one GET, once. Resolves with the 200's
+   * headers (lower-case names), media type and bytes once its media type is declared, its declared headers pass their
+   * schema as typed values and, for ndjson, its last line is complete. A body over the route's x-piw-max-bytes, or a
+   * reply that fails a check, is `unknown`; a refusal rejects with ClientFailure as for `call`.
+   */
+  async read<O extends OperationId>(op: O, options: { path?: PathParams<O>; query?: QueryParams<O> } = {}): Promise<{ headers: Record<string, string>; contentType: string; body: Buffer }> {
+    const route: ClientRoute = routes[op];
+    const mode = route.responseMode;
+    if (mode !== 'ndjson' && mode !== 'binary') throw new ClientFailure('operation_is_not_a_byte_read', 'no_effect', 'before_write');
+    const reply = await this.exchange(op, options);
+    if (reply.status !== 200) throw refusal(route, reply);
+    const contentType = mediaType(reply.headers['content-type']);
+    if (!route.contentTypes.includes(contentType)) throw unreadable('response_content_type_mismatch', reply.status);
+    const typed: Record<string, string | number | boolean> = {};
+    for (const [name, kind] of Object.entries(route.headerKinds ?? {})) {
+      const raw = reply.headers[name];
+      if (typeof raw === 'string') typed[name] = convertHeader(raw, kind);
+    }
+    if (!route.headers) throw unreadable('response_headers_mismatch', reply.status);
+    if (!route.headers(typed)) throw unreadable('response_headers_mismatch', reply.status, schemaFailure(route.headers));
+    // ndjson is complete lines: a body that does not end in LF was cut, and its last line is not a line.
+    if (mode === 'ndjson' && reply.body.length > 0 && reply.body[reply.body.length - 1] !== LF) throw unreadable('ndjson_incomplete_final_line', reply.status);
+    const headers = Object.fromEntries(Object.entries(reply.headers).filter(([, v]) => typeof v === 'string')) as Record<string, string>;
+    return { headers, contentType, body: reply.body };
+  }
+
+  /**
+   * One request, once: nothing is written until the socket connects; afterwards every ambiguous failure is unknown.
+   * Resolves with the status, headers and body bytes, refusing a 200 body over the route's x-piw-max-bytes (byte
+   * reads) and any body over RESPONSE_LIMIT. Interpreting the reply is the caller's: all of it is after the write.
+   */
+  private exchange<O extends OperationId>(
+    op: O,
+    options: { path?: PathParams<O>; query?: QueryParams<O>; body?: RequestBody<O> },
+    binary?: { headers: Record<string, string>; contentType: string; bytes: Uint8Array },
+  ): Promise<RawReply> {
+    const route: ClientRoute = routes[op];
+    let path: string;
+    let auth: Record<string, string>;
+    try {
+      path = fillPath(route.path, options.path as Record<string, unknown> | undefined) + queryString(options.query as Record<string, unknown> | undefined);
+      auth = this.headers();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const json = options.body === undefined ? undefined : JSON.stringify(options.body);
+    const body = binary ? { contentType: binary.contentType, bytes: binary.bytes } : json === undefined ? undefined : { contentType: 'application/json', bytes: json };
+    const okLimit = route.responseMode === 'ndjson' || route.responseMode === 'binary' ? (route.maxResponseBytes ?? 0) : RESPONSE_LIMIT;
     return new Promise((resolve, reject) => {
       let wrote = false;
       let settled = false;
@@ -264,11 +338,12 @@ export class Client {
       const req = request(
         {
           socketPath: this.socketPath,
-          method,
+          method: route.method,
           path,
           agent: false,
           headers: {
-            ...headers,
+            ...auth,
+            ...binary?.headers,
             Connection: 'close',
             ...(body === undefined ? {} : { 'Content-Type': body.contentType, 'Content-Length': typeof body.bytes === 'string' ? Buffer.byteLength(body.bytes) : body.bytes.length }),
           },
@@ -276,9 +351,10 @@ export class Client {
         res => {
           const chunks: Buffer[] = [];
           let bytes = 0;
+          const cap = res.statusCode === 200 ? okLimit : RESPONSE_LIMIT;
           res.on('data', (b: Buffer) => {
             bytes += b.length;
-            if (bytes > RESPONSE_LIMIT) {
+            if (bytes > cap) {
               res.destroy(new Error('response too large'));
               return;
             }
@@ -288,24 +364,8 @@ export class Client {
           res.on('aborted', () => fail(new Error('response_aborted_reconcile_command_id')));
           res.on('end', () => {
             if (settled) return;
-            let value: unknown;
-            try {
-              value = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-            } catch (error) {
-              fail(error);
-              return;
-            }
             settled = true;
-            if (res.statusCode === 200) {
-              resolve(value as T);
-              return;
-            }
-            // A refusal keeps the worker's effect only from a B2 Error object; anything else (null, a scalar, an
-            // array) is an unreadable refusal: unknown.
-            const refusal = value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-            const effect = refusal?.effect === 'no_effect' ? 'no_effect' : 'unknown';
-            const message = typeof refusal?.error === 'string' ? refusal.error : 'HTTP refusal without a B2 Error body';
-            reject(new ClientFailure(message, effect, 'http', res.statusCode, refusal ?? {}));
+            resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks) });
           });
         },
       );
@@ -315,89 +375,18 @@ export class Client {
       req.once('socket', socket => {
         socket.once('connect', () => {
           wrote = true;
-          req.end(data);
+          req.end(body?.bytes);
         });
       });
     });
   }
 
   /**
-   * Reads an `ndjson` or `binary` operation (sessions.history, blobs.read): one GET, once. Resolves with the 200's
-   * headers (lower-case names), media type and bytes, refusing a body over the route's x-piw-max-bytes; a refusal
-   * rejects with ClientFailure as for `call`. These are reads: any failure is `no_effect` or `unknown` as usual.
-   */
-  read<O extends OperationId>(op: O, options: { path?: PathParams<O>; query?: QueryParams<O> } = {}): Promise<{ headers: Record<string, string>; contentType: string; body: Buffer }> {
-    const route = routes[op];
-    // Widened: the table's literal modes grow as byte-read operations are added (blobs.read is P1-16).
-    const mode: string = route.responseMode;
-    if (mode !== 'ndjson' && mode !== 'binary') return Promise.reject(new ClientFailure('operation_is_not_a_byte_read', 'no_effect', 'before_write'));
-    const limit = route.maxResponseBytes ?? 0;
-    let path: string;
-    let auth: Record<string, string>;
-    try {
-      path = fillPath(route.path, options.path as Record<string, unknown> | undefined) + queryString(options.query as Record<string, unknown> | undefined);
-      auth = this.headers();
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    return new Promise((resolve, reject) => {
-      let wrote = false;
-      let settled = false;
-      const fail = (e: unknown) => {
-        if (settled) return;
-        settled = true;
-        reject(e instanceof ClientFailure ? e : new ClientFailure(e instanceof Error ? e.message : 'transport_failure', wrote ? 'unknown' : 'no_effect', wrote ? 'after_write' : 'before_write'));
-      };
-      const req = request({ socketPath: this.socketPath, method: route.method, path, agent: false, headers: { ...auth, Connection: 'close' } }, res => {
-        const chunks: Buffer[] = [];
-        let bytes = 0;
-        const cap = res.statusCode === 200 ? limit : RESPONSE_LIMIT;
-        res.on('data', (b: Buffer) => {
-          bytes += b.length;
-          if (bytes > cap) {
-            res.destroy(new Error('response too large'));
-            return;
-          }
-          chunks.push(b);
-        });
-        res.on('error', fail);
-        res.on('aborted', () => fail(new Error('response_aborted')));
-        res.on('end', () => {
-          if (settled) return;
-          const body = Buffer.concat(chunks);
-          if (res.statusCode === 200) {
-            settled = true;
-            const headers = Object.fromEntries(Object.entries(res.headers).filter(([, v]) => typeof v === 'string')) as Record<string, string>;
-            resolve({ headers, contentType: String(res.headers['content-type'] ?? ''), body });
-            return;
-          }
-          let value: unknown;
-          try {
-            value = JSON.parse(body.toString('utf8'));
-          } catch (error) {
-            fail(error);
-            return;
-          }
-          settled = true;
-          const refusal = value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-          reject(new ClientFailure(typeof refusal?.error === 'string' ? refusal.error : 'HTTP refusal without a B2 Error body', refusal?.effect === 'no_effect' ? 'no_effect' : 'unknown', 'http', res.statusCode, refusal ?? {}));
-        });
-      });
-      req.setTimeout(this.timeoutMs, () => req.destroy(new Error('HTTP timeout')));
-      req.on('error', fail);
-      req.once('socket', socket => {
-        socket.once('connect', () => {
-          wrote = true;
-          req.end();
-        });
-      });
-    });
-  }
-
-  /**
-   * Reads the supervisor-wide SSE stream. `onFrame` returning false ends the watch (resolves). An `overflow` frame is
-   * delivered, then the watch rejects with ResyncRequired('overflow'); a disconnect rejects with
-   * ResyncRequired('disconnected'). The caller decides whether to reconnect; a reconnect always starts with a snapshot.
+   * Reads the supervisor-wide SSE stream. Only a frame that passes the event schema reaches `onFrame`; returning
+   * false ends the watch (resolves). An `overflow` frame is delivered, then the watch rejects with
+   * ResyncRequired('overflow'); a disconnect rejects with ResyncRequired('disconnected'); a reply that is not
+   * text/event-stream, or a frame that is not UTF-8, JSON or a valid event, rejects with ResyncRequired and is never
+   * delivered. The caller decides whether to reconnect; a reconnect always starts with a snapshot.
    */
   watch(
     onFrame: (frame: EventFrame) => boolean | void,
@@ -437,6 +426,11 @@ export class Client {
             fail(new ResyncRequired(`HTTP ${res.statusCode}`));
             return;
           }
+          if (!(routes['events.subscribe'].contentTypes as readonly string[]).includes(mediaType(res.headers['content-type']))) {
+            res.resume();
+            fail(new ResyncRequired('invalid_content_type'));
+            return;
+          }
           const parser = new EventStreamParser();
           res.on('data', (chunk: Buffer) => {
             if (done) return;
@@ -449,13 +443,19 @@ export class Client {
             }
             for (const data of records) {
               if (done) break;
-              let frame: EventFrame;
+              let value: unknown;
               try {
-                frame = JSON.parse(data) as EventFrame;
+                value = JSON.parse(data);
               } catch {
                 fail(new ResyncRequired('invalid_frame'));
                 break;
               }
+              // Only a valid frame is delivered, and only a valid snapshot ends the resync.
+              if (!validateEventFrame(value)) {
+                fail(new ResyncRequired('invalid_frame'));
+                break;
+              }
+              const frame = value as EventFrame;
               if (frame.type === 'snapshot') this.resyncRequired = false;
               if (frame.type === 'overflow') {
                 onFrame(frame);
@@ -478,4 +478,51 @@ export class Client {
       req.end();
     });
   }
+}
+
+interface RawReply {
+  status: number;
+  headers: IncomingHttpHeaders;
+  body: Buffer;
+}
+
+const NOT_JSON = Symbol('not_json');
+
+/** Strict UTF-8, then JSON; NOT_JSON when either fails. */
+function parseJson(body: Buffer): unknown {
+  try {
+    return JSON.parse(utf8.decode(body));
+  } catch {
+    return NOT_JSON;
+  }
+}
+
+/** A reply the client cannot trust: unknown after the write. `details` never holds a value from the reply. */
+function unreadable(reason: string, status: number, details: Record<string, unknown> = {}): ClientFailure {
+  return new ClientFailure(reason, 'unknown', 'after_write', status, details);
+}
+
+/** A JSON 200 that passes the route's response schema, or a refusal. Nothing else reaches the caller. */
+function jsonReply<T>(route: ClientRoute, reply: RawReply): T {
+  if (reply.status !== 200) throw refusal(route, reply);
+  if (mediaType(reply.headers['content-type']) !== 'application/json') throw unreadable('response_content_type_mismatch', reply.status);
+  const value = parseJson(reply.body);
+  if (value === NOT_JSON) throw unreadable('response_not_json', reply.status);
+  if (!route.validate) throw unreadable('response_schema_mismatch', reply.status);
+  if (!route.validate(value)) throw unreadable('response_schema_mismatch', reply.status, schemaFailure(route.validate));
+  return value as T;
+}
+
+/**
+ * A non-200 reply. It keeps the worker's effect only from a B2 Error body that passes the schema of its status (or
+ * Error for a status the operation does not declare, as the router's own refusals). JSON that is not one is an
+ * unreadable refusal: unknown, with nothing from it kept. A body that is not JSON at all is unknown after the write.
+ */
+function refusal(route: ClientRoute, reply: RawReply): ClientFailure {
+  const value = mediaType(reply.headers['content-type']) === 'application/json' ? parseJson(reply.body) : NOT_JSON;
+  if (value === NOT_JSON) return unreadable('refusal_not_json', reply.status);
+  const validate = route.errors[String(reply.status)] ?? validateError;
+  if (!validate(value)) return new ClientFailure('refusal_not_b2_error', 'unknown', 'http', reply.status);
+  const body = value as components['schemas']['Error'];
+  return new ClientFailure(body.error, body.effect === 'no_effect' ? 'no_effect' : 'unknown', 'http', reply.status, body as unknown as Record<string, unknown>);
 }
