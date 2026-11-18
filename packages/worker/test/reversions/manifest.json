@@ -92,7 +92,8 @@
         "p1-9-queued-dispatch-skips-grant.diff",
         "p1-9-no-recheck-at-dispatch.diff",
         "p1-9-stream-ignores-revocation.diff",
-        "p1-fix-b-scope-distinguishes-missing-worker.diff"
+        "p1-fix-b-scope-distinguishes-missing-worker.diff",
+        "p2-8-fix-owner-stream-no-period.diff"
       ]
     },
     "interactions": {
@@ -688,7 +689,12 @@
         "p2-8-relaunch-without-channel.diff",
         "p2-8-no-channel-required.diff",
         "p2-8-lifecycle-drops-channel.diff",
-        "p2-8-factory-drops-channel.diff"
+        "p2-8-factory-drops-channel.diff",
+        "p2-8-fix-stream-channel-grant-only.diff",
+        "p2-8-fix-stream-no-period.diff",
+        "p2-8-fix-close-skips-retire.diff",
+        "p2-8-fix-closed-channel-served.diff",
+        "p2-8-fix-recheck-ends-without-frame.diff"
       ]
     }
   }

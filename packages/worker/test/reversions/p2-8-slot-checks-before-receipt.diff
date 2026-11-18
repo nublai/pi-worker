@@ -1,16 +1,16 @@
 diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
-index 52d14e8..9038952 100644
+index 46c79a5..8a76dd9 100644
 --- a/packages/worker/src/b2/app.ts
 +++ b/packages/worker/src/b2/app.ts
-@@ -27,6 +27,7 @@ import type { ChannelIdentity } from '../supervisor/channel.js';
- import { channelAuthorizer, channelChild } from './channel.js';
+@@ -28,6 +28,7 @@ import { channelAuthorizer, channelChild } from './channel.js';
+ import { currentGuard } from '../grants/authority.js';
  import { closeSync } from 'node:fs';
  import { openSlot } from '../sandbox/sandbox.js';
 +import { profileSource } from '../sandbox/staging.js';
  
  export interface AppOptions extends HelloSource {
    /** The supervisor; its receipt store answers receipts.get. */
-@@ -153,6 +154,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+@@ -157,6 +158,7 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
        // without following a link before the scope check resolves the path (the supervisor opens it again).
        const body = channel ? channelChild(request, channel) : request;
        if (channel) closeSync(openSlot(channel.root, body.cwd));

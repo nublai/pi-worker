@@ -1,0 +1,15 @@
+diff --git a/packages/worker/src/b2/app.ts b/packages/worker/src/b2/app.ts
+index 46c79a5..6c98a7c 100644
+--- a/packages/worker/src/b2/app.ts
++++ b/packages/worker/src/b2/app.ts
+@@ -263,8 +263,8 @@ export function createApp(options: AppOptions = {}): { handle: RequestHandler; h
+             // frame, with one overflow naming the refusal. It also rechecks on a period: an owner's `grant revoke`
+             // runs in another process, and a stream with nothing to send still ends.
+             recheck: () => {
+-              if (!guard) throw new Refusal('grant_revoked');
+-              guard();
++              if (!options.grants || !caller || !allowsMethod(options.grants.current(caller), 'events.subscribe')) throw new Refusal('grant_revoked');
++              void guard;
+             },
+             recheckEveryMs: RECHECK_MS,
+             overflowResync: query.resync === 'overflow',
