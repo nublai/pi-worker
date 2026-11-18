@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..9c86301 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -183,7 +183,7 @@ function classify(error: unknown): Ending {
+   const e = error instanceof Error ? error : new Error('observer_failure');
+   if (error instanceof ResyncRequired) {
+     if (error.status !== undefined) {
+-      if (error.status === 401 || error.status === 403) return { stop: { reason: 'unauthorized', error: e } };
++      if (error.status === 401 || error.status === 403) return { retry: 'transient' };
+       if (error.status >= 500 && error.status !== 501) return { retry: 'transient' };
+       return { stop: { reason: 'refused', error: e } };
+     }

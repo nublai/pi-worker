@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..1fae599 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -240,7 +240,7 @@ export class Observer {
+   /** Whether a handle still names the worker's current binding (false while gated, after removal or a rebind). */
+   isCurrent(handle: Binding): boolean {
+     const w = this.gated ? undefined : this.state?.workers[handle.worker_id];
+-    return w !== undefined && sameBinding(w, handle);
++    return w !== undefined && handle.worker_id.length > 0;
+   }
+ 
+   /** The latest row of each worker this stream has seen (for display; never a control). */

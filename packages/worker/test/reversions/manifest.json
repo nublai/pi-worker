@@ -622,6 +622,35 @@
       "diffs": [
         "p4a-service-any-cgroup.diff"
       ]
+    },
+    "client-observer": {
+      "command": "npm test -w @nublai/pi-worker-client -- observer",
+      "diffs": [
+        "p3-3-controls-stay-open-on-break.diff",
+        "p3-3-frames-before-snapshot-applied.diff",
+        "p3-3-no-last-event-id.diff",
+        "p3-3-no-overflow-resync.diff",
+        "p3-3-cold-start-surfaces.diff",
+        "p3-3-restored-state-seeds.diff",
+        "p3-3-restored-state-unchecked.diff",
+        "p3-3-interaction-not-deduplicated.diff",
+        "p3-3-live-settlement-not-deduplicated.diff",
+        "p3-3-row-settlement-not-deduplicated.diff",
+        "p3-3-live-report-not-deduplicated.diff",
+        "p3-3-row-report-not-deduplicated.diff",
+        "p3-3-rebind-keeps-handle.diff",
+        "p3-3-removed-worker-kept.diff",
+        "p3-3-gap-not-reconciled.diff",
+        "p3-3-observer-ignores-abort.diff",
+        "p3-3-watch-ignores-abort.diff",
+        "p3-3-abort-leaves-timer.diff",
+        "p3-3-auth-failure-retried.diff",
+        "p3-3-protocol-failures-unbounded.diff",
+        "p3-3-backoff-uncapped.diff",
+        "p3-3-delivery-failure-continues.diff",
+        "p3-3-slow-consumer-unbounded.diff",
+        "p3-3-batch-state-before-notices.diff"
+      ]
     }
   }
 }

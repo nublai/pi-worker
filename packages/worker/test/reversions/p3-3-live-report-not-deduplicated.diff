@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..c8da76c 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -370,7 +370,7 @@ export class Observer {
+       case 'child.reported':
+         if (w && id) {
+           const report_kind = frame.data.kind;
+-          surface(w.reports, frame.data.report_command_id, () =>
++          surface([], frame.data.report_command_id, () =>
+             notices.push({ kind: 'child_report', worker_id: id, report_command_id: frame.data.report_command_id, ...(report_kind ? { report_kind } : {}), source: 'live' }),
+           );
+         }

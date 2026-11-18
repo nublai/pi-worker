@@ -1,0 +1,12 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..105854d 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -283,7 +283,6 @@ export class Observer {
+       } finally {
+         signal.removeEventListener('abort', forward);
+         this.stream = undefined;
+-        this.setGated(true);
+       }
+       await this.chain;
+       if (this.deliveryError) return { reason: 'delivery_failed', error: this.deliveryError };

@@ -1,0 +1,12 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..ae0fd0c 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -311,7 +311,6 @@ export class Observer {
+       };
+       const handle = this.timers.set(done, ms);
+       const onAbort = () => {
+-        this.timers.clear(handle);
+         resolve();
+       };
+       signal.addEventListener('abort', onAbort, { once: true });

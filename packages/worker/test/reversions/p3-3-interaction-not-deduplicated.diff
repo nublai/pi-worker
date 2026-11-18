@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..e65b3f6 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -461,7 +461,7 @@ export class Observer {
+   /** Surfaces new typed interactions; returns the identities to retain (the list is the worker's whole live set). */
+   private interactions(id: string, seen: string[], list: readonly unknown[], notices: Notice[], source: NoticeSource): string[] {
+     const typed = typedInteractions(list);
+-    for (const i of typed) surface(seen, i.interaction_id, () => notices.push({ kind: 'interaction', worker_id: id, interaction_id: i.interaction_id, interaction: i, source }));
++    for (const i of typed) surface([], i.interaction_id, () => notices.push({ kind: 'interaction', worker_id: id, interaction_id: i.interaction_id, interaction: i, source }));
+     // Summaries carry no id: keep what was seen until a typed list replaces it.
+     return typed.length === list.length ? typed.map(i => i.interaction_id) : seen;
+   }

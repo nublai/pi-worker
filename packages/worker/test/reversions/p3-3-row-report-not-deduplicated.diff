@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..9e60bf4 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -453,7 +453,7 @@ export class Observer {
+       w.settlements = row.recent_settlements.map(s => s.execution_id);
+     }
+     if (row.child_reports) {
+-      for (const r of row.child_reports) surface(w.reports, r.command_id, () => notices.push({ kind: 'child_report', worker_id: id, report_command_id: r.command_id, report_kind: r.kind, source }));
++      for (const r of row.child_reports) surface([], r.command_id, () => notices.push({ kind: 'child_report', worker_id: id, report_command_id: r.command_id, report_kind: r.kind, source }));
+       w.reports = row.child_reports.map(r => r.command_id);
+     }
+   }

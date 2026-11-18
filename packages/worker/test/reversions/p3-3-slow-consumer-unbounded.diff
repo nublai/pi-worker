@@ -1,0 +1,12 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..1a72a66 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -327,7 +327,6 @@ export class Observer {
+   /** Queues one batch behind the earlier ones; drops the stream (a resync follows) when deliveries fall behind. */
+   private enqueue(make: () => Promise<ObserverBatch>): void {
+     this.pendingBatches++;
+-    if (this.pendingBatches > this.maxPendingBatches) this.stream?.abort();
+     this.chain = this.chain.then(async () => {
+       try {
+         // After an abort nothing more is delivered: the consumer's persisted state stays a prefix, and the next run

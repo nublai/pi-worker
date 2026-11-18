@@ -1,0 +1,12 @@
+diff --git a/packages/client-ts/src/client.ts b/packages/client-ts/src/client.ts
+index d380377..8e793e5 100644
+--- a/packages/client-ts/src/client.ts
++++ b/packages/client-ts/src/client.ts
+@@ -497,7 +497,6 @@ export class Client {
+         },
+       );
+       req.on('error', fail);
+-      signal?.addEventListener('abort', onAbort, { once: true });
+       req.end();
+     });
+   }

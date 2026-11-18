@@ -1,0 +1,13 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..ebe2bca 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -265,7 +265,7 @@ export class Observer {
+         await client.watch(
+           frame => {
+             // Every attach starts with a snapshot; a stream that does not is not applied to retained state.
+-            if (!snapshot && frame.type !== 'snapshot') {
++            if (!snapshot && frame.type !== 'snapshot' && frame.cursor.seq < 0) {
+               unordered = true;
+               return false;
+             }

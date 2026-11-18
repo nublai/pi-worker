@@ -1,0 +1,21 @@
+diff --git a/packages/client-ts/src/observer.ts b/packages/client-ts/src/observer.ts
+index 82645fa..f0d9c30 100644
+--- a/packages/client-ts/src/observer.ts
++++ b/packages/client-ts/src/observer.ts
+@@ -350,6 +350,7 @@ export class Observer {
+     if (frame.type === 'snapshot') return this.onSnapshot(frame);
+     const state = this.state;
+     if (!state) return;
++    const early = structuredClone(state);
+     state.cursor = frame.cursor;
+     const notices: Notice[] = [];
+     const id = 'worker_id' in frame ? frame.worker_id : undefined;
+@@ -379,7 +380,7 @@ export class Observer {
+         break;
+     }
+     if (notices.length === 0) return;
+-    const persisted = structuredClone(state);
++    const persisted = early;
+     this.enqueue(async () => ({ notices, state: persisted }));
+   }
+ 
