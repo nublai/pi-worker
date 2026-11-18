@@ -1,17 +1,17 @@
 diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
-index dee1e23..d043a14 100644
+index 5c2a115..41ba864 100644
 --- a/packages/worker/src/sandbox/sandbox.ts
 +++ b/packages/worker/src/sandbox/sandbox.ts
-@@ -20,7 +20,7 @@
-  * private branch namespace writable; an ordinary checkout root is refused. Profile
-  * staging is P2-7 and the parent channel P2-8: until then a sandboxed root worker (a parent) is refused.
+@@ -21,7 +21,7 @@
+  * is in `ROOT/.piw-agent`; each of its `node_modules` mount points gets the parent's tree read-only, by descriptor. The
+  * parent channel is P2-8: until then a sandboxed root worker (a parent) is refused.
   */
 -import { closeSync, existsSync, fstatSync, readSync, realpathSync } from 'node:fs';
 +import { closeSync, existsSync, fstatSync, mkdirSync, readSync, realpathSync } from 'node:fs';
  import { execFileSync } from 'node:child_process';
  import { delimiter, dirname, isAbsolute, join, normalize, relative, resolve } from 'node:path';
  import { fileURLToPath } from 'node:url';
-@@ -246,7 +246,7 @@ export function openRooted(root: string, file: string): number {
+@@ -261,7 +261,7 @@ export function openRooted(root: string, file: string): number {
  export function sandboxSessionDir(root: string, workerId: string): string {
    const fd = openPinned(root, 'dir');
    try {

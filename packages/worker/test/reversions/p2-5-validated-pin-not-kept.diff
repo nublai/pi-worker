@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 291cf66..ad5a280 100644
+index 5724b08..b06dfbc 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -325,7 +325,6 @@ export class Lifecycle {
+@@ -333,7 +333,6 @@ export class Lifecycle {
          const live = this.s.newWorker(cwd, c);
          const w = live.worker;
          if (c.launch_spec) w.launch_spec = structuredClone(c.launch_spec);
 -        if (gitPin !== undefined) live.gitPin = gitPin;
+         if (profile) live.profile = profile;
          if (c.parent) {
            w.parent = structuredClone(c.parent);
-           w.parent_worker_id = c.parent.worker_id;

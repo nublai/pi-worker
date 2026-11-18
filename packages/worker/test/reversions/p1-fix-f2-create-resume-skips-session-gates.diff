@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/supervisor/lifecycle.ts b/packages/worker/src/supervisor/lifecycle.ts
-index 4a2e3cd..149769e 100644
+index 5724b08..f138bc9 100644
 --- a/packages/worker/src/supervisor/lifecycle.ts
 +++ b/packages/worker/src/supervisor/lifecycle.ts
-@@ -352,7 +352,12 @@ export class Lifecycle {
+@@ -371,7 +371,12 @@ export class Lifecycle {
          }
          this.s.exclusiveCwd(cwd);
          // The same session gates as every other resume: a new worker identity never erases session uncertainty.
@@ -13,6 +13,6 @@ index 4a2e3cd..149769e 100644
 +          if (!resumeFile) throw new Refusal('unknown_session');
 +          void sandboxed;
 +        }
+         // A sandboxed child stages its parent's profile, if the parent has one (P2-7): judged here, staged after dispatch.
+         if (c.parent && sandboxed(c.launch_spec)) profile = profileSource(this.s.require(c.parent.worker_id).worker.cwd, cwd);
        },
-     );
-     // A typed child whose launch may have run fences its parent: the parent cannot simply launch a replacement.
