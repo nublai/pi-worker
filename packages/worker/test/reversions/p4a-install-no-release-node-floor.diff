@@ -1,0 +1,14 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index e6712a9..ff78392 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -275,9 +275,6 @@ function unpack(system: System, l: Layout, tarball: string, version: string): vo
+     } catch {
+       throw new LocalFailure('pi_worker_tarball_invalid', 'no_effect', { detail: 'no executable bin/pi-worker' });
+     }
+-    if (!meetsFloor(system.nodeVersion, release.node_engine)) {
+-      throw new LocalFailure('pi_worker_node_unsupported', 'no_effect', { required: release.node_engine, found: system.nodeVersion });
+-    }
+     chmodSync(join(staging, top), 0o755);
+     renameSync(join(staging, top), target);
+   } finally {

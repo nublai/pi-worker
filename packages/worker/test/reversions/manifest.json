@@ -575,6 +575,22 @@
         "p3-2-write-marked-on-response.diff",
         "p3-2-timeout-no-effect.diff"
       ]
+    },
+    "install": {
+      "command": "npm run build -w @nublai/pi-worker && npm test -w @nublai/pi-worker-cli -- install wrapper",
+      "diffs": [
+        "p4a-install-no-checksum.diff",
+        "p4a-install-no-version-refusal.diff",
+        "p4a-unit-no-delegate.diff",
+        "p4a-install-no-release-node-floor.diff",
+        "p4a-wrapper-no-node-floor.diff"
+      ]
+    },
+    "service": {
+      "command": "npm test -w @nublai/pi-worker -- service",
+      "diffs": [
+        "p4a-service-any-cgroup.diff"
+      ]
     }
   }
 }

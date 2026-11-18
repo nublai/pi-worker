@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/service.ts b/packages/worker/src/service.ts
+index 2df70bf..00a6b53 100644
+--- a/packages/worker/src/service.ts
++++ b/packages/worker/src/service.ts
+@@ -27,7 +27,7 @@ export function enterServiceLeaf(procSelfCgroup = '/proc/self/cgroup', mount = '
+   const own = readFileSync(procSelfCgroup, 'utf8').trim();
+   if (!own.startsWith('0::/') || own.includes('\n')) throw new ServiceDelegationRefused('pure cgroup v2 required');
+   const relative = own.slice(3);
+-  if (relative.split('/').includes('..') || basename(relative) !== SERVICE_UNIT) {
++  if (relative.split('/').includes('..') || !basename(relative).endsWith('.service')) {
+     throw new ServiceDelegationRefused('pi-worker daemon runs only as the main process of the pi-worker.service user unit');
+   }
+   const unit = join(mount, relative);

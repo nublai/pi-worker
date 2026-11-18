@@ -1,0 +1,12 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index e6712a9..a89e70c 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -204,7 +204,6 @@ export function unitText(l: Layout, version: string, nodeDir: string): string {
+     `ExecStart=${join(l.current, 'bin', 'pi-worker')} daemon`,
+     // The kernel tier's delegation: the daemon moves into the unit cgroup's `supervisor` leaf and its workers' cleanup
+     // domains are siblings of that leaf.
+-    'Delegate=yes',
+     'Restart=on-failure',
+     'RestartSec=2',
+     'TimeoutStopSec=30',

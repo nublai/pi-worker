@@ -1,0 +1,13 @@
+diff --git a/harness/release/pi-worker.sh b/harness/release/pi-worker.sh
+index 076f4f8..c2ae8ea 100755
+--- a/harness/release/pi-worker.sh
++++ b/harness/release/pi-worker.sh
+@@ -31,7 +31,7 @@ node=$(command -v node 2>/dev/null) ||
+ found=$("$node" -p 'process.versions.node' 2>/dev/null) || found=unknown
+ case "$found" in [0-9]*) ;; *) found=unknown ;; esac
+ case "$found" in *[!0-9A-Za-z.-]*) found=unknown ;; esac
+-at_least "$found" "$floor" ||
++at_least "$found" "0.0.0" ||
+   refuse "{\"error\":\"node_unsupported\",\"effect\":\"no_effect\",\"required\":\">=$floor\",\"found\":\"$found\"}"
+ 
+ self=$(readlink -f -- "$0")
