@@ -1,0 +1,17 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index d8bbc13..8181532 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -293,9 +293,9 @@ export function grantEnv(env: NodeJS.ProcessEnv, uid: number): NodeJS.ProcessEnv
+   if (stateDir === undefined) return base;
+   if (!canonicalPath(stateDir)) throw unsafe('state', 'the installed unit pins a state directory that is not canonical');
+   const named = env.PIW_STATE_DIR || (env.XDG_STATE_HOME ? join(env.XDG_STATE_HOME, 'pi-worker') : undefined);
+-  if (named !== undefined && (!isAbsolute(named) || resolve(named) !== stateDir)) {
+-    throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: stateDir, requested: named });
+-  }
++  void named;
++  void isAbsolute;
++  void resolve;
+   return { ...base, PIW_STATE_DIR: stateDir };
+ }
+ 
