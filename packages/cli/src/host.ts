@@ -261,13 +261,9 @@ export function unitText(l: Layout, version: string, nodeDir: string): string {
 
 /** The unit file's pinned `Environment=` values (state directory and socket), when one is installed. */
 function pinned(l: Layout): { stateDir?: string; socket?: string } {
-  return pinnedIn(l.unitFile);
-}
-
-function pinnedIn(unitFile: string): { stateDir?: string; socket?: string } {
   let text: string;
   try {
-    text = readFileSync(unitFile, 'utf8');
+    text = readFileSync(l.unitFile, 'utf8');
   } catch {
     return {};
   }
@@ -277,21 +273,64 @@ function pinnedIn(unitFile: string): { stateDir?: string; socket?: string } {
   return { ...(stateDir ? { stateDir } : {}), ...(socket ? { socket } : {}) };
 }
 
+/** Something is at the unit file's path (only a missing path or directory means no installation). */
+function unitInstalled(unitFile: string): boolean {
+  try {
+    lstatSync(unitFile);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code !== 'ENOENT' && code !== 'ENOTDIR';
+  }
+}
+
+/**
+ * The unit as the user manager has it loaded (`systemctl --user show`): its `LoadState`, `EnvironmentFiles` and
+ * `Environment`, so drop-ins, `Environment=` resets, quoting and repeated assignments count as they do for the daemon.
+ * systemd that cannot be asked is a refusal, never a guess.
+ */
+function unitShow(system: System, env: NodeJS.ProcessEnv): Record<string, string> {
+  const result = system.exec('systemctl', ['--user', 'show', UNIT, '--property=LoadState', '--property=EnvironmentFiles', '--property=Environment'], { env, timeoutMs: 30_000 });
+  if (result.status !== 0) throw new LocalFailure('pi_worker_systemctl_failed', 'no_effect', { step: 'show', detail: result.stderr.trim().slice(0, 256) });
+  const props: Record<string, string> = {};
+  for (const line of result.stdout.split('\n')) {
+    const eq = line.indexOf('=');
+    if (eq > 0) props[line.slice(0, eq)] = line.slice(eq + 1);
+  }
+  return props;
+}
+
+/**
+ * The state directory systemd runs the unit with: its one `PIW_STATE_DIR` assignment, canonical. Anything else is
+ * refused `pi_worker_unsafe_path` (`which: state`), never read as "no pin": an `EnvironmentFile=` (it would override
+ * `Environment=`), no assignment (systemctl prints a value with a space or newline as `[unprintable]`), several, or a
+ * value that is not canonical.
+ */
+function pinnedStateDir(props: Record<string, string>): string {
+  if (props.EnvironmentFiles) throw unsafe('state', 'the installed unit has an EnvironmentFile=, which could set PIW_STATE_DIR');
+  const values = (props.Environment ?? '').split(' ').filter(word => word.startsWith('PIW_STATE_DIR='));
+  if (values.length !== 1) throw unsafe('state', `the installed unit's environment has ${values.length ? 'several' : 'no printable'} PIW_STATE_DIR`);
+  const stateDir = values[0]!.slice('PIW_STATE_DIR='.length);
+  if (!canonicalPath(stateDir)) throw unsafe('state', 'the installed unit pins a state directory that is not canonical');
+  return stateDir;
+}
+
 /**
  * The environment a local `grant` command runs with: the state directory the installed unit pins, never the caller's
- * guess. With an installation (a unit under HOME that pins `PIW_STATE_DIR`) the command gets that directory; a caller
- * whose environment names a different one (`PIW_STATE_DIR`, else `XDG_STATE_HOME`) is refused
- * `pi_worker_state_mismatch` (no effect) before the command reads or writes anything, so a grant is never registered
- * where the daemon does not look. A caller that names none, or the same one, gets the pin. With no installation the
+ * guess. A HOME that is set but not canonical is refused, as `layout` refuses it. With a unit file under HOME, the
+ * command gets the state directory systemd runs the unit with (`unitShow`; any doubt refuses); a caller whose
+ * environment names a different one (`PIW_STATE_DIR`, else `XDG_STATE_HOME`) is refused `pi_worker_state_mismatch`
+ * (no effect) before the command reads or writes anything, so a grant is never registered where the daemon does not
+ * look. A caller that names none, or the same one, gets the pin. With no unit file (or no HOME to find one under) the
  * caller's own environment resolves it, as the daemon would.
  */
-export function grantEnv(env: NodeJS.ProcessEnv, uid: number): NodeJS.ProcessEnv {
-  const base = userEnv(env, uid);
+export function grantEnv(env: NodeJS.ProcessEnv, system: System): NodeJS.ProcessEnv {
+  const base = userEnv(env, system.uid);
   const home = env.HOME;
-  if (!canonicalPath(home) || home === '/') return base;
-  const stateDir = pinnedIn(join(home, '.config', 'systemd', 'user', UNIT)).stateDir;
-  if (stateDir === undefined) return base;
-  if (!canonicalPath(stateDir)) throw unsafe('state', 'the installed unit pins a state directory that is not canonical');
+  if (!home) return base;
+  if (!canonicalPath(home) || home === '/') throw unsafe('HOME');
+  if (!unitInstalled(join(home, '.config', 'systemd', 'user', UNIT))) return base;
+  const stateDir = pinnedStateDir(unitShow(system, base));
   const named = env.PIW_STATE_DIR || (env.XDG_STATE_HOME ? join(env.XDG_STATE_HOME, 'pi-worker') : undefined);
   if (named !== undefined && (!isAbsolute(named) || resolve(named) !== stateDir)) {
     throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: stateDir, requested: named });
@@ -408,6 +447,20 @@ function unpack(system: System, l: Layout, tarball: string, version: string): vo
   }
 }
 
+/**
+ * An installed unit keeps its state directory: another one (an override, or drift back to the default) would repin the
+ * daemon away from its journal and grants, so it is refused `pi_worker_state_mismatch` before anything is written.
+ * Relocation is not install's job. A unit file systemd has not loaded (an install stopped before daemon-reload) pins
+ * nothing yet.
+ */
+function keepsPinnedState(system: System, l: Layout): void {
+  if (!unitInstalled(l.unitFile)) return;
+  const props = unitShow(system, l.env);
+  if (props.LoadState === 'not-found') return;
+  const stateDir = pinnedStateDir(props);
+  if (stateDir !== l.stateDir) throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: stateDir, requested: l.stateDir });
+}
+
 export interface InstallOptions {
   readonly from: string;
   readonly waitMs?: number;
@@ -439,6 +492,7 @@ export async function install(options: InstallOptions, env: NodeJS.ProcessEnv, s
     const ours = lstatSync(l.bin).isSymbolicLink() && readlinkSync(l.bin).startsWith(`${l.data}/`);
     if (!ours) throw new LocalFailure('pi_worker_bin_conflict', 'no_effect', { path: l.bin });
   }
+  keepsPinnedState(system, l);
   const target = join(l.versions, version);
   if (existsSync(target)) {
     const release = readRelease(target);
