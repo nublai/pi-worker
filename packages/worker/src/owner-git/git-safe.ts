@@ -12,22 +12,28 @@
  *     `TMPDIR`. Its real path, read back from its open descriptor, must lie outside the checkout, the admin dir and the
  *     common dir: a path string (a symlinked `TMPDIR` or state directory) cannot put it where the agent writes;
  *  3. refuses a config that names a program Git could run (filters, diff drivers, textconv, includes, aliases,
- *     credential helpers, ...): `-c` cannot neutralise a driver it does not know the name of, and worktree
- *     `.gitattributes` (agent data) selects drivers by name. It also refuses any `protocol.allow` or
- *     `protocol.<name>.allow` other than `never`: `-c protocol.allow=never` does not override a specific key;
+ *     credential helpers, help viewers and browsers, ...): `-c` cannot neutralise a driver it does not know the name
+ *     of, and worktree `.gitattributes` (agent data) selects drivers by name. It also refuses any `protocol.allow` or
+ *     `protocol.<name>.allow` other than `never` (`-c protocol.allow=never` does not override a specific key), and a
+ *     split index (a `sharedindex.*` file in the admin dir, or `core.splitIndex`): the snapshot copies only `index`;
  *  4. runs Git with GIT_DIR = that snapshot (no `commondir`, so nothing is redirected), objects from the pinned common
  *     dir (content-addressed data), a clean environment allowlist, no global/system/XDG config or attributes, fsmonitor
- *     and hooks disabled, submodules ignored, every transport refused (`protocol.allow`, and `protocol.ext.allow` and
- *     `protocol.file.allow` by name), and `--no-ext-diff --no-textconv` on diff-family commands.
+ *     and hooks disabled, replacement objects off (`GIT_NO_REPLACE_OBJECTS`), pathspecs literal, every transport
+ *     refused (`protocol.allow`, and `protocol.ext.allow` and `protocol.file.allow` by name), and on diff-family and
+ *     status commands `--no-ext-diff --no-textconv --ignore-submodules=all` (on the command line: an agent-written
+ *     `.gitmodules` `ignore = none` overrides `diff.ignoreSubmodules`, and Git then runs inside the nested repository).
  *
- * Only local inspection commands run (`OWNER_GIT_COMMANDS`); a transport or any other command is refused before
- * anything is opened. Adding a command needs the rule 6 security review. Owner Git never re-opens an agent-writable
- * path for anything that selects code to execute. Read-only: writes Git makes land in the discarded snapshot.
+ * The API is typed: one function per supported inspection (status, diff, log, show, rev-parse, cat-file, ls-files,
+ * for-each-ref, merge-base). Callers pass validated values (revisions, paths, ref prefixes, counts), never options:
+ * owner Git builds every argv itself and places `--end-of-options` and `--`. A value that starts with `-`, pathspec
+ * magic, or a control character refuses (`git_argument_refused`) before anything is opened. Adding a function or an
+ * option needs the rule 6 security review. Owner Git never re-opens an agent-writable path for anything that selects
+ * code to execute. Read-only: writes Git makes land in the discarded snapshot.
  *
  * Named limit: a supervisor killed during a call leaves its snapshot (a copy of the repository's config and refs) in the
  * private snapshot directory; it is no new authority (mode 0700, same user).
  */
-import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { closeSync, constants, fstatSync, futimesSync, mkdirSync, mkdtempSync, openSync, readdirSync, readlinkSync, readSync, rmSync, writeSync } from 'node:fs';
 import { basename, isAbsolute, join, normalize } from 'node:path';
 import { Refusal } from '../b2/errors.js';
@@ -43,8 +49,12 @@ export interface OwnerGit {
   readonly env: Readonly<Record<string, string | undefined>>;
 }
 
-/** The only commands owner Git runs: local inspection. Transport (`fetch`, `ls-remote`, `push`, ...) is refused. */
-export const OWNER_GIT_COMMANDS: ReadonlySet<string> = new Set(['status', 'diff', 'diff-tree', 'diff-index', 'diff-files', 'log', 'show', 'rev-parse', 'cat-file', 'ls-files', 'for-each-ref', 'merge-base']);
+/** A checkout owner Git inspects: the owner, the checkout root and the root's launch-time pin. */
+export interface GitCheckout {
+  readonly owner: OwnerGit;
+  readonly root: string;
+  readonly pin: GitPin | null | undefined;
+}
 
 export const SAFE_GIT_CONFIG = [
   ...['core.fsmonitor=false', 'core.hooksPath=/dev/null', 'core.attributesFile=/dev/null', 'diff.ignoreSubmodules=all', 'submodule.recurse=false'],
@@ -53,10 +63,21 @@ export const SAFE_GIT_CONFIG = [
 /** Config keys whose value names a program Git can run. */
 const EXECUTES =
   /^(include|includeif)\.|^filter\.|^diff\.external$|^diff\..+\.(command|textconv)$|^merge\..+\.driver$|^alias\.|^gpg\.(.+\.)?program$|^core\.(sshcommand|pager|editor|askpass|gitproxy|alternaterefscommand)$|^pager\.|^sequence\.editor$|^uploadpack\.packobjectshook$|^credential\.(.+\.)?helper$/i;
+/**
+ * The other documented keys that name a program or a shell command (git-config(1), git-send-email(1), git-archive(1)),
+ * and the help dispatch keys (`help.*`, `man.*`, `web.browser`, `browser.*`): help is not reachable through the typed
+ * API, but a key that selects a program refuses all the same.
+ */
+const EXECUTES_TOO =
+  /^(help|man|browser)\.|^web\.browser$|^interactive\.difffilter$|^gpg\.ssh\.defaultkeycommand$|^gc\.recentobjectshook$|^(difftool|mergetool)\..+\.(cmd|path)$|^guitool\..+\.cmd$|^imap\.tunnel$|^instaweb\.(httpd|browser)$|^remote\..+\.(receivepack|uploadpack)$|^trailer\..+\.(command|cmd)$|^sendemail\.(.+\.)?(cccmd|tocmd|headercmd|smtpserver|sendmailcmd)$|^tar\..+\.command$/i;
+/** `submodule.<name>.update` runs a command when its value starts with `!`. */
+const SUBMODULE_UPDATE = /^submodule\..+\.update$/i;
 /** `protocol.allow` and `protocol.<name>.allow`: any value but `never` refuses. */
 const PROTOCOL_ALLOW = /^protocol\.(.+\.)?allow$/i;
-const DIFF_FAMILY = new Set(['diff', 'diff-tree', 'diff-index', 'diff-files', 'log', 'show']);
-const ENV_KEEP = ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES', 'TZ'];
+const SPLIT_INDEX = /^core\.splitindex$/i;
+/** Git's false spellings; a key with no value is true. */
+const FALSE = new Set(['false', 'no', 'off', '0', '']);
+const ENV_KEEP = ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES'];
 /** `path` is `dir` or below it (both canonical). */
 const within = (dir: string, path: string): boolean => path === dir || path.startsWith(dir === '/' ? '/' : `${dir}/`);
 const COPY_MAX_ENTRIES = 100_000;
@@ -88,6 +109,10 @@ function cleanEnv(owner: OwnerGit, home: string, objects?: string): Record<strin
     GIT_TERMINAL_PROMPT: '0',
     GIT_OPTIONAL_LOCKS: '0',
     GIT_NO_LAZY_FETCH: '1',
+    // Artifact identity is the commit and its native tree: a copied `refs/replace/*` must not substitute objects.
+    GIT_NO_REPLACE_OBJECTS: '1',
+    // A path is a path: no `:(top)`, `:!`, `:(attr:...)` or glob magic.
+    GIT_LITERAL_PATHSPECS: '1',
     ...(objects === undefined ? {} : { GIT_OBJECT_DIRECTORY: objects }),
   };
 }
@@ -148,6 +173,7 @@ function snapshot(owner: OwnerGit, root: string, expected: GitPin, dir: string):
     const pin = found.pin!;
     const admin = found.admin!;
     const common = found.common!;
+    refuseSplitIndex(admin);
     const head = readBytes(admin, ['HEAD']);
     if (!headMatches(pin, head?.toString('utf8') ?? null)) throw new Refusal('git_metadata_changed_since_launch');
     // Config: the bytes Git will read are the bytes hashed here.
@@ -306,6 +332,11 @@ function copyData(admin: number, common: number, out: number): void {
   }
 }
 
+/** A split index keeps its entries in `sharedindex.<id>` beside `index`; the snapshot copies only `index`. */
+function refuseSplitIndex(admin: number): void {
+  if (readdirSync(fdPath(admin)).some(name => name.startsWith('sharedindex.'))) throw new Refusal('git_split_index_refused');
+}
+
 /** Step 3, with Git's own parser (BOMs, quoting, case) on the private copy. */
 function refuseExecutingConfig(owner: OwnerGit, dir: string): void {
   const listed = spawnSync('git', ['config', '--file', join(dir, 'config'), '--no-includes', '--null', '--list'], { cwd: '/', env: cleanEnv(owner, join(dir, 'home')), stdio: ['ignore', 'pipe', 'ignore'] });
@@ -313,22 +344,88 @@ function refuseExecutingConfig(owner: OwnerGit, dir: string): void {
   for (const entry of listed.stdout.toString('utf8').split('\0')) {
     const newline = entry.indexOf('\n');
     const key = newline < 0 ? entry : entry.slice(0, newline);
-    if (key && EXECUTES.test(key)) throw new Refusal(`git_config_executes_code: ${key}`);
-    if (key && PROTOCOL_ALLOW.test(key) && (newline < 0 || entry.slice(newline + 1).toLowerCase() !== 'never')) throw new Refusal(`git_config_allows_protocol: ${key}`);
+    const value = newline < 0 ? null : entry.slice(newline + 1);
+    if (!key) continue;
+    if (EXECUTES.test(key)) throw new Refusal(`git_config_executes_code: ${key}`);
+    if (EXECUTES_TOO.test(key) || (SUBMODULE_UPDATE.test(key) && value?.startsWith('!'))) throw new Refusal(`git_config_executes_code: ${key}`);
+    if (PROTOCOL_ALLOW.test(key) && value?.toLowerCase() !== 'never') throw new Refusal(`git_config_allows_protocol: ${key}`);
+    if (SPLIT_INDEX.test(key) && (value === null || !FALSE.has(value.toLowerCase()))) throw new Refusal('git_split_index_refused');
   }
 }
 
-/** The caller's argv, a local inspection command only; external diff and textconv off for diff-family commands. */
-function guarded(args: readonly string[]): string[] {
-  const [command, ...rest] = args;
-  if (command === undefined || !OWNER_GIT_COMMANDS.has(command)) throw new Refusal('git_command_not_allowed');
-  return DIFF_FAMILY.has(command) ? [command, '--no-ext-diff', '--no-textconv', ...rest] : [command, ...rest];
+// ---- typed values: what a caller may pass. Never an option; owner Git places `--end-of-options` and `--`. ----
+
+const CONTROL = /[\x00-\x1f\x7f]/;
+const refused = (what: string) => new Refusal(`git_argument_refused: ${what}`);
+const VALUE_MAX = 4096;
+
+/** A revision (`HEAD`, `v1`, `A..B`, `X^{tree}`, `rev:path`): never an option, no control characters. */
+function revision(value: string): string {
+  if (typeof value !== 'string' || value === '' || value.length > VALUE_MAX || value.startsWith('-') || CONTROL.test(value)) throw refused('revision');
+  return value;
 }
 
-/** Runs Git on a pinned snapshot; returns the raw result (no status check). */
-export function safeGitRun(owner: OwnerGit, root: string, pin: GitPin | null | undefined, args: readonly string[], options: { maxBuffer?: number } = {}): SpawnSyncReturns<Buffer> {
+/** Revisions after `--end-of-options`, so none can be read as an option. */
+const revArgs = (...revs: string[]): string[] => ['--end-of-options', ...revs.map(revision)];
+
+/** A path relative to the root: never an option, never pathspec magic (`:(top)`, `:!`), never absolute or with `..`. */
+function path(value: string): string {
+  if (typeof value !== 'string' || value === '' || value.length > VALUE_MAX || /^[-:/]/.test(value) || CONTROL.test(value) || value.split('/').includes('..')) throw refused('path');
+  return value;
+}
+
+/** Paths after `--`. */
+const pathArgs = (paths: readonly string[] = []): string[] => ['--', ...paths.map(path)];
+
+/** A literal ref prefix under `refs/`: no glob characters, nothing a ref name cannot hold. */
+function refPrefix(value: string): string {
+  if (typeof value !== 'string' || value.length > VALUE_MAX || !/^refs\/[^\x00-\x20\x7f~^:?*[\\]*$/.test(value) || value.includes('..')) throw refused('ref_prefix');
+  return value;
+}
+
+/** A positive whole count. */
+function count(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 1 || value > 1_000_000) throw refused('count');
+  return value;
+}
+
+/** On every diff-family call: no external diff and no textconv, whatever the config says. */
+const NO_HELPERS = ['--no-ext-diff', '--no-textconv'];
+/**
+ * On every diff-family and status call, on the command line: an agent-written `.gitmodules` `ignore = none` overrides
+ * `diff.ignoreSubmodules`, and Git then runs Git inside the nested repository, under that repository's own config.
+ */
+const NO_SUBMODULES = ['--ignore-submodules=all'];
+
+/** How a diff is printed. `patch` is `--binary` (a full patch, binary files included). */
+export type DiffFormat = 'patch' | 'stat' | 'name-only' | 'name-status';
+const FORMATS: Readonly<Record<DiffFormat, readonly string[]>> = { patch: ['--binary'], stat: ['--stat'], 'name-only': ['--name-only', '-z'], 'name-status': ['--name-status', '-z'] };
+function format(value: DiffFormat): readonly string[] {
+  if (typeof value !== 'string' || !Object.hasOwn(FORMATS, value)) throw refused('format');
+  return FORMATS[value];
+}
+
+/** What a diff compares: two revisions; the index against a revision (`--cached`); or the worktree against the index. */
+export type DiffOf = { readonly kind: 'revisions'; readonly from: string; readonly to: string } | { readonly kind: 'index'; readonly from: string } | { readonly kind: 'worktree' };
+function diffSides(of: DiffOf): string[] {
+  switch (of?.kind) {
+    case 'revisions':
+      return revArgs(of.from, of.to);
+    case 'index':
+      return ['--cached', ...revArgs(of.from)];
+    case 'worktree':
+      return revArgs();
+    default:
+      throw refused('diff');
+  }
+}
+
+const lines = (out: Buffer): string[] => out.toString('utf8').split('\n').filter(Boolean);
+
+/** Runs Git on a pinned snapshot with an argv owner Git built; throws on a nonzero exit; returns stdout. */
+function run(at: GitCheckout, argv: readonly string[]): Buffer {
+  const { owner, root, pin } = at;
   if (!pin) throw new Refusal('git_launch_pin_required');
-  const argv = guarded(args);
   const dir = privateDir(owner, root, pin);
   try {
     snapshot(owner, root, pin, dir);
@@ -337,24 +434,93 @@ export function safeGitRun(owner: OwnerGit, root: string, pin: GitPin | null | u
     const result = spawnSync('git', ['-C', root, `--git-dir=${dir}`, `--work-tree=${root}`, ...SAFE_GIT_CONFIG, ...argv], {
       env: cleanEnv(owner, home, join(pin.common_dir, 'objects')),
       stdio: ['ignore', 'pipe', 'pipe'],
-      maxBuffer: options.maxBuffer ?? 256 * 1024 * 1024,
+      maxBuffer: 256 * 1024 * 1024,
     });
     if (result.error) throw result.error;
-    return result;
+    if (result.status !== 0) throw new Error(`git ${argv[0]} failed: ${result.stderr.toString('utf8').slice(0, 512)}`);
+    return result.stdout;
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
-/** Runs Git on a pinned snapshot; throws on a nonzero exit; returns trimmed UTF-8. */
-export function safeGit(owner: OwnerGit, root: string, pin: GitPin | null | undefined, args: readonly string[]): string {
-  return safeGitBuffer(owner, root, pin, args).toString('utf8').trim();
+/** `git status --porcelain` (v1) as Git prints it; with `branch`, its `## ` line first; limited to `paths`. */
+export function gitStatus(at: GitCheckout, options: { readonly branch?: boolean; readonly paths?: readonly string[] } = {}): string {
+  return run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...NO_SUBMODULES, ...pathArgs(options.paths)]).toString('utf8');
 }
 
-export function safeGitBuffer(owner: OwnerGit, root: string, pin: GitPin | null | undefined, args: readonly string[]): Buffer {
-  const result = safeGitRun(owner, root, pin, args);
-  if (result.status !== 0) throw new Error(`git ${args[0]} failed: ${result.stderr.toString('utf8').slice(0, 512)}`);
-  return result.stdout;
+/** `git diff` of `of`, printed as `format` (default `patch`), limited to `paths`. */
+export function gitDiff(at: GitCheckout, of: DiffOf, options: { readonly format?: DiffFormat; readonly paths?: readonly string[] } = {}): Buffer {
+  return run(at, ['diff', ...NO_HELPERS, ...NO_SUBMODULES, ...format(options.format ?? 'patch'), ...diffSides(of), ...pathArgs(options.paths)]);
+}
+
+/** One commit of a log: its id and subject line. */
+export interface GitLogEntry {
+  readonly commit: string;
+  readonly subject: string;
+}
+
+/** `git log` of `range` (a revision or `A..B`), newest first, at most `max` commits. */
+export function gitLog(at: GitCheckout, range: string, max: number): GitLogEntry[] {
+  const out = run(at, ['log', ...NO_HELPERS, ...NO_SUBMODULES, '--format=%H %s', `--max-count=${count(max)}`, ...revArgs(range), '--']);
+  return lines(out).map(line => {
+    const space = line.indexOf(' ');
+    return { commit: line.slice(0, space), subject: line.slice(space + 1) };
+  });
+}
+
+/** `git show` of a revision (its header and diff, as `format`) or of `rev:path` (the blob's bytes). */
+export function gitShow(at: GitCheckout, object: string, options: { readonly format?: DiffFormat } = {}): Buffer {
+  return run(at, ['show', ...NO_HELPERS, ...NO_SUBMODULES, ...format(options.format ?? 'patch'), ...revArgs(object), '--']);
+}
+
+/** `git rev-parse --verify` of one revision: its object id, or with `symbolicFullName` its full ref name. */
+export function gitRevParse(at: GitCheckout, rev: string, options: { readonly symbolicFullName?: boolean } = {}): string {
+  return run(at, ['rev-parse', '--verify', ...(options.symbolicFullName === true ? ['--symbolic-full-name'] : []), ...revArgs(rev)])
+    .toString('utf8')
+    .trim();
+}
+
+const CAT_FILE = { type: '-t', size: '-s', contents: '-p' } as const;
+/** `git cat-file`: an object's type, its size, or its contents (`-p`: a blob's bytes, a tree listed). */
+export function gitCatFile(at: GitCheckout, mode: 'type', object: string): string;
+export function gitCatFile(at: GitCheckout, mode: 'size', object: string): number;
+export function gitCatFile(at: GitCheckout, mode: 'contents', object: string): Buffer;
+export function gitCatFile(at: GitCheckout, mode: keyof typeof CAT_FILE, object: string): string | number | Buffer {
+  if (typeof mode !== 'string' || !Object.hasOwn(CAT_FILE, mode)) throw refused('cat_file_mode');
+  const out = run(at, ['cat-file', CAT_FILE[mode], ...revArgs(object)]);
+  if (mode === 'contents') return out;
+  const text = out.toString('utf8').trim();
+  return mode === 'size' ? Number(text) : text;
+}
+
+/** `git ls-files`: the tracked files or, with `untracked`, the untracked ones not excluded; limited to `paths`. */
+export function gitLsFiles(at: GitCheckout, options: { readonly untracked?: boolean; readonly paths?: readonly string[] } = {}): string[] {
+  const out = run(at, ['ls-files', '-z', ...(options.untracked === true ? ['--others', '--exclude-standard'] : []), ...pathArgs(options.paths)]);
+  return out.toString('utf8').split('\0').filter(Boolean);
+}
+
+/** One ref: its full name, the object it names and that object's type. */
+export interface GitRef {
+  readonly ref: string;
+  readonly object: string;
+  readonly type: string;
+}
+
+/** `git for-each-ref` of the refs under `prefix` (`refs/` for all), in ref name order. */
+export function gitForEachRef(at: GitCheckout, prefix: string): GitRef[] {
+  const out = run(at, ['for-each-ref', '--format=%(objectname) %(objecttype) %(refname)', '--end-of-options', refPrefix(prefix)]);
+  return lines(out).map(line => {
+    const [object = '', type = '', ref = ''] = line.split(' ');
+    return { ref, object, type };
+  });
+}
+
+/** `git merge-base` of two revisions: their best common ancestor. */
+export function gitMergeBase(at: GitCheckout, a: string, b: string): string {
+  return run(at, ['merge-base', ...revArgs(a, b)])
+    .toString('utf8')
+    .trim();
 }
 
 /** `git --version` of the Git owner Git runs (no repository, no configuration read). */
