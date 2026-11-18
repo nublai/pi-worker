@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/sandbox/sandbox.ts b/packages/worker/src/sandbox/sandbox.ts
-index 5c2a115..4215b06 100644
+index bf19560..c03487c 100644
 --- a/packages/worker/src/sandbox/sandbox.ts
 +++ b/packages/worker/src/sandbox/sandbox.ts
-@@ -201,7 +201,7 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
-     // The root's Git metadata, after the root bind it overlays (git-sandbox.ts); every source a descriptor.
-     const git = gitPlan(root, rootFd, options.gitPin);
-     opened.push(...git.fds);
+@@ -210,7 +210,7 @@ export function sandboxLaunch(root: string, command: string, args: readonly stri
+     // every unbound path of the common dir (an absent `packed-refs`, `shallow`, `commondir`, `hooks`, `worktrees/*`)
+     // writable inside. The remount is not recursive, so the writable binds keep their flags.
+     if (git.pin) mounts.push('--tmpfs', git.pin.common_dir);
 -    for (const mount of git.mounts) bind(mount.mode, mount.fd, mount.dest);
 +    for (const mount of git.mounts) argv.push(`--${mount.mode}`, mount.dest, mount.dest);
+     if (git.pin) mounts.push('--remount-ro', git.pin.common_dir);
      // A staged profile's dependency trees: read-only binds of the exact directories staging opened. The mount point must
      // be a real directory below the root (no link at any component), as staging made it.
-     for (const dep of options.dependencies ?? []) {
