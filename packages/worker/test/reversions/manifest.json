@@ -702,6 +702,17 @@
         "p2-8-fix-recheck-ends-without-frame.diff",
         "p2-8-fix2-authority-end-resyncs.diff"
       ]
+    },
+    "install-grant-state": {
+      "command": "npm run build -w @nublai/pi-worker && npm test -w @nublai/pi-worker-cli -- install",
+      "diffs": [
+        "p4c-grant-ignores-pin.diff",
+        "p4c-grant-state-mismatch-unchecked.diff",
+        "p4c-grant-xdg-state-ignored.diff",
+        "p4c-grant-pin-not-canonical-unchecked.diff",
+        "p4c-grant-relative-name-matches.diff",
+        "p4c-grant-name-not-normalized.diff"
+      ]
     }
   }
 }

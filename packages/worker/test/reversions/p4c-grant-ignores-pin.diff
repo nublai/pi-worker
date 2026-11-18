@@ -1,0 +1,13 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index d8bbc13..267e5f7 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -296,7 +296,7 @@ export function grantEnv(env: NodeJS.ProcessEnv, uid: number): NodeJS.ProcessEnv
+   if (named !== undefined && (!isAbsolute(named) || resolve(named) !== stateDir)) {
+     throw new LocalFailure('pi_worker_state_mismatch', 'no_effect', { pinned: stateDir, requested: named });
+   }
+-  return { ...base, PIW_STATE_DIR: stateDir };
++  return base;
+ }
+ 
+ function systemctl(system: System, l: Layout, step: string, ...args: string[]): ExecResult {
