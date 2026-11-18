@@ -917,7 +917,7 @@ test('owner Git: a tracked change hidden by assume-unchanged or skip-worktree re
   }
 });
 
-test('owner Git: a pinned core.ignoreStat, core.sparseCheckout or index.sparse refuses the worktree reads (git_config_trusts_stat); core.checkStat and core.trustctime are overridden to full stat checks', async () => {
+test('owner Git: a pinned core.ignoreStat, core.sparseCheckout or index.sparse refuses the worktree reads (git_config_trusts_stat); core.checkStat and core.trustctime are overridden to full stat checks, and the untracked cache is off', async () => {
   const f = fixture();
   try {
     for (const key of ['core.ignoreStat', 'core.sparseCheckout', 'index.sparse']) {
@@ -945,11 +945,16 @@ test('owner Git: a pinned core.ignoreStat, core.sparseCheckout or index.sparse r
     f.git(f.repo, 'config', 'core.trustctime', 'false');
     assert.equal(f.git(f.wt, 'status', '--porcelain'), '', 'fixture: plain Git trusts the stale stat data');
     assert.equal(gitStatus(on(f, readGitPin(f.wt))), ' M note\n', 'owner Git checks the full stat data, so it compares the content');
-    // Owner Git zeroes the snapshot entry's stat data: an emptied file with mtime 0 matches that blank entry's size and
-    // mtime, so minimal checks would trust it; only the full checks (ctime, inode) make Git compare the content.
-    writeFileSync(note, '');
-    utimesSync(note, 0, 0);
-    assert.equal(gitStatus(on(f, readGitPin(f.wt))), ' M note\n', 'an emptied file with mtime 0 is compared, not matched to the blanked entry');
+    // An untracked cache the child primed: the root directory's mtime set back after a new file, so a pinned
+    // core.untrackedCache=true trusts the cached (empty) list. Owner Git turns the cache off on the command line.
+    f.git(f.repo, 'config', 'core.untrackedCache', 'true');
+    f.git(f.wt, 'update-index', '--untracked-cache');
+    utimesSync(f.wt, T, T);
+    f.git(f.wt, 'status', '--porcelain');
+    writeFileSync(join(f.wt, 'sneaky'), 'x\n');
+    utimesSync(f.wt, T, T);
+    assert.doesNotMatch(f.git(f.wt, 'status', '--porcelain'), /sneaky/, 'fixture: plain Git trusts the primed untracked cache');
+    assert.match(gitStatus(on(f, readGitPin(f.wt))), /^\?\? sneaky$/m, 'owner Git never uses the untracked cache');
   } finally {
     f.cleanup();
   }
