@@ -1,0 +1,12 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index 98b7e4e..0ddb3fd 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -248,7 +248,6 @@ export function unitText(l: Layout, version: string, nodeDir: string): string {
+     `Environment=PIW_STATE_DIR=${l.stateDir}`,
+     `Environment=PIW_SOCKET=${l.socket}`,
+     // No Node warning on the journal ahead of a typed error (the wrapper sets it too; real errors still print).
+-    'Environment=NODE_NO_WARNINGS=1',
+     // The supervisor logs typed JSON events on stderr only; stdout is unused, so no prompt text reaches the journal.
+     'StandardOutput=null',
+     'StandardError=journal',

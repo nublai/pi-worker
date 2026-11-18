@@ -1,0 +1,13 @@
+diff --git a/packages/cli/src/host.ts b/packages/cli/src/host.ts
+index 98b7e4e..6eff3a0 100644
+--- a/packages/cli/src/host.ts
++++ b/packages/cli/src/host.ts
+@@ -583,7 +583,7 @@ export async function version(env: NodeJS.ProcessEnv, system: System): Promise<R
+   const l = layout(env, system);
+   if (installedVersion(l) === undefined) throw new LocalFailure('pi_worker_not_installed', 'no_effect');
+   const release = readFullRelease(l.current);
+-  if (!release) throw new LocalFailure('pi_worker_release_unreadable', 'no_effect');
++  if (!release) return { version: null };
+   const reply = await hello({ ...l, socket: pinned(l).socket ?? l.socket }, 3_000);
+   return { version: release.version, commit: release.commit, b2_protocol: release.b2_protocol, daemon_version: reply.ok ? reply.version : null };
+ }
