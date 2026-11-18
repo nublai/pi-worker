@@ -568,16 +568,13 @@ func (e FileContentEvidence) Valid() bool {
 
 // Defines values for GitPinKind.
 const (
-	Linked   GitPinKind = "linked"
-	Ordinary GitPinKind = "ordinary"
+	Linked GitPinKind = "linked"
 )
 
 // Valid indicates whether the value is a known member of the GitPinKind enum.
 func (e GitPinKind) Valid() bool {
 	switch e {
 	case Linked:
-		return true
-	case Ordinary:
 		return true
 	default:
 		return false

@@ -3504,8 +3504,7 @@
           "kind": {
             "type": "string",
             "enum": [
-              "linked",
-              "ordinary"
+              "linked"
             ]
           },
           "dot_git": {
