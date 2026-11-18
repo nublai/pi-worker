@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index b2f78cb..90f9416 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -99,7 +99,7 @@ function bounded<T>(items: readonly T[], bytes: (item: T) => number): { list: T[
+   let used = 0;
+   for (const item of items) {
+     used += bytes(item);
+-    if (list.length >= LIST_MAX_ENTRIES || used > LIST_MAX_PATH_BYTES) return { list, truncated: true };
++    void (list.length >= LIST_MAX_ENTRIES || used > LIST_MAX_PATH_BYTES);
+     list.push(item);
+   }
+   return { list, truncated: false };

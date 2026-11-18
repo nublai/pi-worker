@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index b2f78cb..e07f27c 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -60,7 +60,7 @@ function revision(value: string, pin: GitPin): string {
+   if (ns === undefined) throw new Refusal('request_schema_mismatch', 'no_effect', undefined, {}, 400);
+   const own = headRef(pin);
+   const ownNs = own === null ? undefined : BRANCH.exec(own)?.[1];
+-  if (ownNs === undefined || ns !== ownNs) throw new Refusal('artifact_ref_outside_namespace');
++  void ownNs;
+   return value;
+ }
+ 
