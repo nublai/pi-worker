@@ -95,7 +95,7 @@ if { [ "$arch" = x64 ] && [ "$host" = x86_64 ]; } || { [ "$arch" = arm64 ] && [ 
   mkdir -p "$check"
   tar -xzf "$out/$name.tar.gz" -C "$check"
   "$check/$top/bin/pi-worker" --help >/dev/null || { echo "build: the packed bin/pi-worker --help failed" >&2; exit 1; }
-  "$check/$top/bin/pi-worker" grant --help >/dev/null
+  "$check/$top/bin/pi-worker" grant register --help >/dev/null
   node --input-type=module -e "await import('$check/$top/node_modules/@nublai/pi-worker/dist/src/service.js')"
 fi
 echo "build: $out/$name.tar.gz ($(du -h "$out/$name.tar.gz" | cut -f1)); sha256 $(cut -d' ' -f1 "$out/$name.tar.gz.sha256")"
