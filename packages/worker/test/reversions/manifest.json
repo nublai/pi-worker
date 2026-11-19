@@ -533,7 +533,9 @@
         "p47-untracked-mode-from-config.diff",
         "p47-runtime-dirs-listed.diff",
         "p47-ls-files-reads-excludes.diff",
-        "p47-caller-path-glob.diff"
+        "p47-caller-path-glob.diff",
+        "p48-gitlink-index-allowed.diff",
+        "p48-nested-repository-allowed.diff"
       ]
     },
     "staging": {
@@ -785,7 +787,12 @@
         "p47-excludes-file-honoured.diff",
         "p47-gitignored-not-listed.diff",
         "p47-untracked-mode-from-config.diff",
-        "p47-runtime-dirs-listed.diff"
+        "p47-runtime-dirs-listed.diff",
+        "p48-runtime-exclusion-hides-tracked.diff",
+        "p48-comparison-config-not-forced.diff",
+        "p48-gitlink-tree-allowed.diff",
+        "p48-gitlink-index-allowed.diff",
+        "p48-nested-repository-allowed.diff"
       ]
     }
   }

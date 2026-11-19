@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
-index b25ee4a..07ba8b7 100644
+index d8ce063..6d5d5e8 100644
 --- a/packages/worker/src/owner-git/git-safe.ts
 +++ b/packages/worker/src/owner-git/git-safe.ts
-@@ -151,7 +151,6 @@ function cleanEnv(owner: OwnerGit, home: string, objects?: string): Record<strin
+@@ -166,7 +166,6 @@ function cleanEnv(owner: OwnerGit, home: string, objects?: string): Record<strin
      // Artifact identity is the commit and its native tree: a copied `refs/replace/*` must not substitute objects.
      GIT_NO_REPLACE_OBJECTS: '1',
      // No glob in any pathspec; a caller's path also carries `:(literal)` (`pathArgs`), so it is never magic either.
@@ -10,12 +10,12 @@ index b25ee4a..07ba8b7 100644
      ...(objects === undefined ? {} : { GIT_OBJECT_DIRECTORY: objects }),
    };
  }
-@@ -556,7 +555,7 @@ function path(value: string): string {
+@@ -575,7 +574,7 @@ function path(value: string): string {
  }
  
  /** Paths after `--`, each literal (`:(literal)`: no magic, no glob). */
 -const pathArgs = (paths: readonly string[] = []): string[] => ['--', ...paths.map(value => `:(literal)${path(value)}`)];
 +const pathArgs = (paths: readonly string[] = []): string[] => ['--', ...paths.map(value => path(value))];
  
- /**
-  * Step 6: pi-worker's own runtime directories at the root, excluded by pathspec (after `pathArgs`) from every listing of
+ /** Step 6: pi-worker's own runtime directories at the root; untracked content below them is not listed. */
+ const RUNTIME_DIRS: readonly string[] = [AGENT_DIR, WORKER_DIR, SLOTS_DIR];

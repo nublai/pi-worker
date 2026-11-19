@@ -1,8 +1,8 @@
 diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
-index b25ee4a..1443fae 100644
+index d8ce063..9f0b999 100644
 --- a/packages/worker/src/owner-git/git-safe.ts
 +++ b/packages/worker/src/owner-git/git-safe.ts
-@@ -150,8 +150,6 @@ function cleanEnv(owner: OwnerGit, home: string, objects?: string): Record<strin
+@@ -165,8 +165,6 @@ function cleanEnv(owner: OwnerGit, home: string, objects?: string): Record<strin
      GIT_NO_LAZY_FETCH: '1',
      // Artifact identity is the commit and its native tree: a copied `refs/replace/*` must not substitute objects.
      GIT_NO_REPLACE_OBJECTS: '1',
@@ -11,7 +11,7 @@ index b25ee4a..1443fae 100644
      ...(objects === undefined ? {} : { GIT_OBJECT_DIRECTORY: objects }),
    };
  }
-@@ -551,12 +549,11 @@ const revArgs = (...revs: string[]): string[] => ['--end-of-options', ...revs.ma
+@@ -570,12 +568,11 @@ const revArgs = (...revs: string[]): string[] => ['--end-of-options', ...revs.ma
  
  /** A path relative to the root: never an option, never pathspec magic (`:(top)`, `:!`), never absolute or with `..`. */
  function path(value: string): string {
@@ -23,5 +23,5 @@ index b25ee4a..1443fae 100644
 -const pathArgs = (paths: readonly string[] = []): string[] => ['--', ...paths.map(value => `:(literal)${path(value)}`)];
 +const pathArgs = (paths: readonly string[] = []): string[] => ['--', ...paths.map(value => path(value))];
  
- /**
-  * Step 6: pi-worker's own runtime directories at the root, excluded by pathspec (after `pathArgs`) from every listing of
+ /** Step 6: pi-worker's own runtime directories at the root; untracked content below them is not listed. */
+ const RUNTIME_DIRS: readonly string[] = [AGENT_DIR, WORKER_DIR, SLOTS_DIR];

@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index d8ce063..448199d 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -783,7 +783,7 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly reads
+  * (`git_nested_repository_refused`) and an index holding a gitlink (`git_gitlink_refused`).
+  */
+ export function gitStatus(at: GitCheckout, options: { readonly branch?: boolean; readonly paths?: readonly string[] } = {}): string {
+-  const out = run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...ALL_UNTRACKED, ...NO_SUBMODULES, ...pathArgs(options.paths)], { reads: 'worktree', lists: true }).toString('utf8');
++  const out = run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...ALL_UNTRACKED, ...NO_SUBMODULES, ...pathArgs(options.paths), ...RUNTIME_EXCLUDED], { reads: 'worktree', lists: true }).toString('utf8');
+   // Step 6: untracked content below a runtime directory is not listed; its tracked, staged and unmerged entries are.
+   return out
+     .split('\n')

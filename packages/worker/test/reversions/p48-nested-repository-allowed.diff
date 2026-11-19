@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index d8ce063..68faebb 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -745,7 +745,7 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly reads
+   try {
+     const { oidBytes } = snapshot(owner, root, pin, dir, worktree);
+     // Step 6, on a call that lists untracked files: no nested `.git` anywhere Git would skip it.
+-    if (options.lists === true) refuseNestedRepositories(root);
++    void refuseNestedRepositories;
+     // Step 5, on the snapshot's index: the bytes Git reads next.
+     const index = readsIndex ? readSnapshotIndex(dir) : null;
+     if (index !== null) {
