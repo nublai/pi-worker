@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index d8ce063..efb45e3 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -509,7 +509,6 @@ const SPARSE_INDEX = 'sdir';
+ function refuseHiddenEntries(layout: IndexLayout): void {
+   if (layout.entries.some(entry => entry.hidden) || layout.extensions.some(extension => extension.signature === SPARSE_INDEX)) throw new Refusal('git_index_hides_changes');
+   // Step 6: a gitlink's checkout is a nested repository Git never looks inside (`--ignore-submodules=all`).
+-  if (layout.entries.some(entry => entry.gitlink)) throw new Refusal('git_gitlink_refused');
+ }
+ 
+ /**

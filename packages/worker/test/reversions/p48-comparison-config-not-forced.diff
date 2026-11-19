@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
+index d8ce063..42b6e8d 100644
+--- a/packages/worker/src/owner-git/git-safe.ts
++++ b/packages/worker/src/owner-git/git-safe.ts
+@@ -106,8 +106,6 @@ export interface GitCheckout {
+ 
+ export const SAFE_GIT_CONFIG = [
+   ...['core.fsmonitor=false', 'core.hooksPath=/dev/null', 'core.attributesFile=/dev/null', 'core.excludesFile=/dev/null', 'diff.ignoreSubmodules=all', 'submodule.recurse=false'],
+-  // Step 7: the owner's comparison semantics.
+-  ...['core.ignoreCase=false', 'core.symlinks=true', 'core.fileMode=true'],
+   ...['protocol.allow=never', 'protocol.ext.allow=never', 'protocol.file.allow=never'],
+ ].flatMap(setting => ['-c', setting]);
+ /** Config keys whose value names a program Git can run. */

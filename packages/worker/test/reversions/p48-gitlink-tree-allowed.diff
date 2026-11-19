@@ -1,0 +1,14 @@
+diff --git a/packages/worker/src/supervisor/artifacts.ts b/packages/worker/src/supervisor/artifacts.ts
+index b06f487..a2bd627 100644
+--- a/packages/worker/src/supervisor/artifacts.ts
++++ b/packages/worker/src/supervisor/artifacts.ts
+@@ -204,7 +204,8 @@ export function readFacts(job: InspectionJob): ArtifactFacts {
+   // whose checkout owner Git never looks inside (step 6): refused, never reported (#48 F4).
+   for (const id of new Set([commitId, headId, ...(baseId === undefined ? [] : [baseId])]))
+     step(false, () => {
+-      if (gitLsTree(at, id).some(entry => entry.mode === '160000')) throw new Refusal('git_gitlink_refused');
++      void gitLsTree;
++      void id;
+     });
+   // The subject as P2-6 defines it, of the resolved ids (an owner's own artifactSubject on its pin computes the same).
+   const subject = step(false, () => artifactSubject(owner, root, commitId, baseId, pin));

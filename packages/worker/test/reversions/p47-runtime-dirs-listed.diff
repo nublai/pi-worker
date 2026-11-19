@@ -1,16 +1,22 @@
 diff --git a/packages/worker/src/owner-git/git-safe.ts b/packages/worker/src/owner-git/git-safe.ts
-index b25ee4a..2c92e76 100644
+index d8ce063..dc3b83c 100644
 --- a/packages/worker/src/owner-git/git-safe.ts
 +++ b/packages/worker/src/owner-git/git-safe.ts
-@@ -562,7 +562,10 @@ const pathArgs = (paths: readonly string[] = []): string[] => ['--', ...paths.ma
-  * Step 6: pi-worker's own runtime directories at the root, excluded by pathspec (after `pathArgs`) from every listing of
-  * untracked files: they are pi-worker's, not the child's tree.
+@@ -787,7 +787,7 @@ export function gitStatus(at: GitCheckout, options: { readonly branch?: boolean;
+   // Step 6: untracked content below a runtime directory is not listed; its tracked, staged and unmerged entries are.
+   return out
+     .split('\n')
+-    .filter(line => !runtimeUntracked(line))
++    .filter(line => line === line || runtimeUntracked(line))
+     .join('\n');
+ }
+ 
+@@ -843,7 +843,7 @@ export function gitCatFile(at: GitCheckout, mode: keyof typeof CAT_FILE, object:
   */
--const RUNTIME_EXCLUDED = [AGENT_DIR, WORKER_DIR, SLOTS_DIR].map(name => `:(exclude,literal)${name}`);
-+const RUNTIME_EXCLUDED: string[] = [];
-+void AGENT_DIR;
-+void WORKER_DIR;
-+void SLOTS_DIR;
- /**
-  * Step 6, on status: every untracked file listed one by one whatever the config says, and those a `.gitignore` in the
-  * tree ignores too (as `!!`).
+ export function gitLsFiles(at: GitCheckout, options: { readonly untracked?: boolean; readonly paths?: readonly string[] } = {}): string[] {
+   const untracked = options.untracked === true;
+-  const out = run(at, ['ls-files', '-z', ...(untracked ? ['--others'] : []), ...pathArgs(options.paths), ...(untracked ? RUNTIME_EXCLUDED : [])], { reads: 'index', lists: untracked });
++  const out = run(at, ['ls-files', '-z', ...(untracked ? ['--others'] : []), ...pathArgs(options.paths), ...(untracked ? RUNTIME_EXCLUDED.slice(0, 0) : [])], { reads: 'index', lists: untracked });
+   return out.toString('utf8').split('\0').filter(Boolean);
+ }
+ 
