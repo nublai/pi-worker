@@ -891,7 +891,10 @@ func (s *state) dropQueued(w *worker) {
 	w.pending = nil
 }
 
-// control is executions.cancel and executions.interrupt: allowed under a fence, never lifting it.
+// control is executions.cancel and executions.interrupt: allowed under a fence, never lifting it. A request naming an
+// execution that already settled is refused no_running_execution before any record (input.ts control): queued input
+// stays and nothing is aborted. The disposition compares the execution current before the abort with its state after:
+// interrupted (it settled during the abort), settled (it had settled before), else unknown.
 func (s *state) control(id string, b b2.Control, op string) (*b2.Receipt, error) {
 	var w *worker
 	return s.run(id, b.CommandId, op, map[string]any{"body": b, "worker_id": id}, func() error {
@@ -902,8 +905,13 @@ func (s *state) control(id string, b b2.Control, op string) (*b2.Receipt, error)
 		if err := binding(w, b.WorkerEpoch, b.SessionId, b.BindingRevision); err != nil {
 			return err
 		}
-		if b.ExecutionId != nil && (w.row.Execution == nil || w.row.Execution.ExecutionId != *b.ExecutionId) {
-			return refuse("stale_execution")
+		if b.ExecutionId != nil {
+			if w.row.Execution == nil || w.row.Execution.ExecutionId != *b.ExecutionId {
+				return refuse("stale_execution")
+			}
+			if w.row.Execution.State == "settled" {
+				return refuse("no_running_execution")
+			}
 		}
 		return nil
 	}, func(r *b2.Receipt) error {
@@ -911,6 +919,8 @@ func (s *state) control(id string, b b2.Control, op string) (*b2.Receipt, error)
 		s.dispatch(r)
 		s.dropQueued(w)
 		s.interrupt(w)
+		target := w.row.Execution
+		unsettled := target != nil && target.State != "settled"
 		// pi aborts the running turn: its aborted assistant turn is in the session file (the next prompt is marked).
 		s.abortTurn(w)
 		s.persist(w)
@@ -920,8 +930,11 @@ func (s *state) control(id string, b b2.Control, op string) (*b2.Receipt, error)
 		}
 		// The fixture host acknowledges clear_queue and abort; it never invents a settlement (Host.Emit does).
 		disposition := "unknown"
-		if w.row.Execution != nil && w.row.Execution.State == "settled" {
+		if target != nil && target.State == "settled" {
 			disposition = "settled"
+			if unsettled {
+				disposition = "interrupted"
+			}
 		}
 		deliver(r, "requested", map[string]any{"requested": true, "disposition": disposition, "external_effects_stopped": "unproven"})
 		return nil

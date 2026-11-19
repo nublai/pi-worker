@@ -1,0 +1,21 @@
+{
+  "request": {
+    "path": {
+      "worker_id": "worker-1"
+    },
+    "body": {
+      "command_id": "cmd-2",
+      "worker_epoch": "epoch-1",
+      "session_id": "session-1",
+      "binding_revision": 1,
+      "execution_id": "exec-settled"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "no_running_execution",
+      "effect": "no_effect"
+    }
+  }
+}

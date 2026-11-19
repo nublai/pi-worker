@@ -20,7 +20,8 @@ import { ReceiptStore } from '../src/receipts/receipts.js';
 import type { Worker } from '../src/supervisor/state.js';
 import { Supervisor } from '../src/supervisor/supervisor.js';
 import { ownerGrant, privateTmp } from './helpers.js';
-import { bind, fixture, tick } from './supervisor-fixture.js';
+import { bind, fixture, tick, type Fixture } from './supervisor-fixture.js';
+import type { Receipt } from '../src/receipts/receipts.js';
 import { domained } from './domains.js';
 
 const records = (file: string) => parseJournal(readFileSync(file)).records;
@@ -352,7 +353,8 @@ test('input: cancel and interrupt drop queued input, clear pi’s queue, abort, 
     await assert.rejects(f.supervisor.control(w.worker_id, { ...bind(w, 'wrong'), execution_id: 'other' }, false), noEffect('stale_execution'));
     const cancel = await f.supervisor.control(w.worker_id, { ...bind(w, 'cancel'), execution_id }, false);
     assert.equal(cancel.state, 'delivered');
-    assert.deepEqual(cancel.result, { requested: true, disposition: 'settled', external_effects_stopped: 'unproven' });
+    // The execution was running when the abort was sent and settled during it (#49).
+    assert.deepEqual(cancel.result, { requested: true, disposition: 'interrupted', external_effects_stopped: 'unproven' });
     assert.equal(f.supervisor.receipts.all.get('queued')?.disposition, 'abandoned_without_dispatch');
     assert.equal(f.supervisor.get(w.worker_id).queued?.[0]?.state, 'dropped');
     assert.deepEqual(
@@ -367,6 +369,117 @@ test('input: cancel and interrupt drop queued input, clear pi’s queue, abort, 
     h.emit('exit');
     const noHost = await f.supervisor.control(w.worker_id, bind(w, 'after-exit'), false);
     assert.deepEqual(noHost.result, { requested: true, disposition: 'unknown', profile: 'no_live_host' });
+  } finally {
+    f.cleanup();
+  }
+});
+
+/** B2 over the fixture's supervisor, as the bridge calls it (request and response validation on): POST a worker method. */
+function b2(f: Fixture): (workerId: string, method: string, json: unknown) => Promise<{ status: number; body: unknown }> {
+  const owner = ownerGrant(f.dir);
+  const memory = createMemoryTransport(createApp({ supervisor: f.supervisor, grants: owner.grants }).handle, owner.headers);
+  return (workerId, method, json) => memory.request('POST', `/b2/workers/${workerId}/${method}`, { json });
+}
+const receiptOf = (reply: { body: unknown }) => reply.body as Receipt;
+const errorOf = (reply: { body: unknown }) => reply.body as { error: string; effect: string };
+const count = (h: { commands: { type: string }[] }, ...types: string[]) => h.commands.filter(c => types.includes(c.type)).length;
+
+test('input: interrupt and cancel naming an already settled execution are refused no_running_execution over B2 with no record; queued input stays and pi gets nothing (#49)', async () => {
+  const f = fixture();
+  try {
+    const call = b2(f);
+    const w = await f.create();
+    const h = f.hosts[0]!;
+    const run = await call(w.worker_id, 'prompt', { ...bind(w, 'run'), message: 'run' });
+    assert.equal(run.status, 200);
+    const execution_id = receiptOf(run).execution_id!;
+    const queued = await call(w.worker_id, 'follow_up', { ...bind(w, 'queued'), message: 'next', execution_id });
+    assert.equal(receiptOf(queued).state, 'queued');
+    // A lost steer reply fences the session, so the follow-up pauses instead of dispatching when the run settles.
+    const native = h.request.bind(h);
+    h.request = async c => (c.type === 'steer' ? Promise.reject(new Error('lost')) : native(c));
+    const lost = await call(w.worker_id, 'steer', { ...bind(w, 'steer-lost'), message: 'x', execution_id });
+    assert.equal(receiptOf(lost).state, 'outcome_unknown');
+    h.request = native;
+    h.emit('event', { type: 'agent_settled' });
+    await tick();
+    assert.equal(f.supervisor.get(w.worker_id).execution?.state, 'settled');
+    assert.equal(f.supervisor.get(w.worker_id).queued?.[0]?.state, 'paused');
+    const journal = readFileSync(f.journalFile);
+    for (const method of ['interrupt', 'cancel']) {
+      const refused = await call(w.worker_id, method, { ...bind(w, `late-${method}`), execution_id });
+      assert.equal(refused.status, 409, method);
+      assert.deepEqual([errorOf(refused).error, errorOf(refused).effect], ['no_running_execution', 'no_effect'], method);
+      assert.equal(f.supervisor.receipts.all.has(`late-${method}`), false, method);
+    }
+    assert.deepEqual(readFileSync(f.journalFile), journal, 'a refusal writes nothing');
+    assert.equal(count(h, 'clear_queue', 'abort', 'cancel_ui'), 0, 'pi gets nothing');
+    assert.equal(f.supervisor.receipts.all.get('queued')?.state, 'queued');
+    assert.equal(f.supervisor.get(w.worker_id).queued?.[0]?.state, 'paused');
+    // The queue is intact: keeping the uncertain steer lifts the fence and the follow-up dispatches.
+    const fence = f.supervisor.get(w.worker_id).fence!;
+    const keep = await call(w.worker_id, 'resolve_unknown', { ...bind(w, 'keep'), uncertain_command_id: 'steer-lost', fence_generation: fence.fence_generation, disposition: 'keep' });
+    assert.equal(keep.status, 200);
+    await tick();
+    await tick();
+    assert.equal(h.prompts, 2, 'the follow-up ran after the fence lifted');
+    assert.equal(f.supervisor.receipts.all.get('queued')?.state, 'delivered');
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('input: interrupt and cancel of a running execution report interrupted over B2; with no execution id a settled one is aborted again and reported settled (#49)', async () => {
+  const f = fixture();
+  try {
+    const call = b2(f);
+    const w = await f.create();
+    const h = f.hosts[0]!;
+    for (const method of ['interrupt', 'cancel']) {
+      const run = await call(w.worker_id, 'prompt', { ...bind(w, `run-${method}`), message: 'run' });
+      const execution_id = receiptOf(run).execution_id!;
+      assert.equal(f.supervisor.get(w.worker_id).execution?.state, 'started', method);
+      const stopped = await call(w.worker_id, method, { ...bind(w, `stop-${method}`), execution_id });
+      assert.equal(stopped.status, 200, method);
+      const r = receiptOf(stopped);
+      assert.deepEqual([r.operation, r.state, r.effect, r.execution_id], [`executions.${method}`, 'delivered', 'observed', execution_id], method);
+      assert.deepEqual(r.result, { requested: true, disposition: 'interrupted', external_effects_stopped: 'unproven' }, method);
+      assert.equal(f.supervisor.get(w.worker_id).execution?.state, 'settled', method);
+      await tick();
+    }
+    // No execution id keeps the old behaviour: whatever is current is aborted, and an already settled one is `settled`.
+    const aborts = count(h, 'abort');
+    const bare = await call(w.worker_id, 'interrupt', bind(w, 'bare'));
+    assert.equal(bare.status, 200);
+    assert.deepEqual(receiptOf(bare).result, { requested: true, disposition: 'settled', external_effects_stopped: 'unproven' });
+    assert.equal(count(h, 'abort'), aborts + 1);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('input: a lost abort reply leaves interrupt and cancel outcome_unknown over B2, claims no disposition and is never replayed (#49)', async () => {
+  const f = fixture();
+  try {
+    const call = b2(f);
+    const w = await f.create();
+    const h = f.hosts[0]!;
+    const native = h.request.bind(h);
+    for (const method of ['interrupt', 'cancel']) {
+      const run = await call(w.worker_id, 'prompt', { ...bind(w, `run-${method}`), message: 'run' });
+      const execution_id = receiptOf(run).execution_id!;
+      h.request = async c => (c.type === 'abort' ? (h.commands.push(c), Promise.reject(new Error('lost'))) : native(c));
+      const body = { ...bind(w, `lost-${method}`), execution_id };
+      const lost = receiptOf(await call(w.worker_id, method, body));
+      assert.deepEqual([lost.state, lost.effect, lost.result], ['outcome_unknown', 'unknown', undefined], method);
+      const aborts = count(h, 'abort');
+      const again = receiptOf(await call(w.worker_id, method, body));
+      assert.deepEqual([again.state, again.effect], ['outcome_unknown', 'unknown'], method);
+      assert.equal(count(h, 'abort'), aborts, 'the same command is never sent again');
+      h.request = native;
+      h.emit('event', { type: 'agent_settled' });
+      await tick();
+    }
   } finally {
     f.cleanup();
   }

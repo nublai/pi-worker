@@ -44,7 +44,9 @@
         "p1-2-dispatch-marker-after-write.diff",
         "p1-fix-f3-negative-prompt-reply-no-effect.diff",
         "p1-fix-f3-negative-steer-reply-no-effect.diff",
-        "p1-fix-f3-sdk-child-marks-any-failure-refused.diff"
+        "p1-fix-f3-sdk-child-marks-any-failure-refused.diff",
+        "p3-49-control-settled-target-accepted.diff",
+        "p3-49-control-disposition-after-abort.diff"
       ]
     },
     "fence": {
@@ -323,7 +325,8 @@
         "pr20-fake-tool-fields-uncut.diff",
         "pr20-fake-tool-approval-untyped.diff",
         "pr20-fake-abort-turn-repeated.diff",
-        "p2-3-fake-relaunch-skips-other-fence.diff"
+        "p2-3-fake-relaunch-skips-other-fence.diff",
+        "p3-49-workerfake-settled-target-accepted.diff"
       ]
     },
     "containment": {

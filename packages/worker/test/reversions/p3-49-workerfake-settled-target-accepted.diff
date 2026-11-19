@@ -1,0 +1,14 @@
+diff --git a/clients/go/workerfake/state.go b/clients/go/workerfake/state.go
+index 8787b5f..37ec288 100644
+--- a/clients/go/workerfake/state.go
++++ b/clients/go/workerfake/state.go
+@@ -909,9 +909,6 @@ func (s *state) control(id string, b b2.Control, op string) (*b2.Receipt, error)
+ 			if w.row.Execution == nil || w.row.Execution.ExecutionId != *b.ExecutionId {
+ 				return refuse("stale_execution")
+ 			}
+-			if w.row.Execution.State == "settled" {
+-				return refuse("no_running_execution")
+-			}
+ 		}
+ 		return nil
+ 	}, func(r *b2.Receipt) error {
