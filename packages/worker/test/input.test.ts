@@ -458,32 +458,88 @@ test('input: interrupt and cancel of a running execution report interrupted over
   }
 });
 
-test('input: a lost abort reply leaves interrupt and cancel outcome_unknown over B2, claims no disposition and is never replayed (#49)', async () => {
+test('input: a lost or negative abort reply leaves interrupt and cancel outcome_unknown over B2, with no result, never replayed (#49)', async () => {
   const f = fixture();
   try {
     const call = b2(f);
     const w = await f.create();
     const h = f.hosts[0]!;
     const native = h.request.bind(h);
-    for (const method of ['interrupt', 'cancel']) {
-      const run = await call(w.worker_id, 'prompt', { ...bind(w, `run-${method}`), message: 'run' });
-      const execution_id = receiptOf(run).execution_id!;
-      h.request = async c => (c.type === 'abort' ? (h.commands.push(c), Promise.reject(new Error('lost'))) : native(c));
-      const body = { ...bind(w, `lost-${method}`), execution_id };
-      const lost = receiptOf(await call(w.worker_id, method, body));
-      assert.deepEqual([lost.state, lost.effect, lost.result], ['outcome_unknown', 'unknown', undefined], method);
-      const aborts = count(h, 'abort');
-      const again = receiptOf(await call(w.worker_id, method, body));
-      assert.deepEqual([again.state, again.effect], ['outcome_unknown', 'unknown'], method);
-      assert.equal(count(h, 'abort'), aborts, 'the same command is never sent again');
-      h.request = native;
-      h.emit('event', { type: 'agent_settled' });
-      await tick();
+    for (const failure of ['lost', 'negative']) {
+      for (const method of ['interrupt', 'cancel']) {
+        const name = `${failure} ${method}`;
+        const run = await call(w.worker_id, 'prompt', { ...bind(w, `run-${failure}-${method}`), message: 'run' });
+        const execution_id = receiptOf(run).execution_id!;
+        h.request = async c => {
+          if (c.type !== 'abort') return native(c);
+          h.commands.push(c);
+          if (failure === 'lost') throw new Error('lost');
+          return { type: 'response', id: 'x', success: false, error: 'abort_failed' };
+        };
+        const body = { ...bind(w, `${failure}-${method}`), execution_id };
+        const unknown = receiptOf(await call(w.worker_id, method, body));
+        assert.deepEqual([unknown.state, unknown.effect, unknown.result], ['outcome_unknown', 'unknown', undefined], name);
+        const aborts = count(h, 'abort');
+        const again = receiptOf(await call(w.worker_id, method, body));
+        assert.deepEqual([again.state, again.effect, again.result], ['outcome_unknown', 'unknown', undefined], name);
+        assert.equal(count(h, 'abort'), aborts, 'the same command is never sent again');
+        h.request = native;
+        h.emit('event', { type: 'agent_settled' });
+        await tick();
+      }
     }
   } finally {
     f.cleanup();
   }
 });
+
+for (const hold of ['cancel_ui', 'clear_queue'] as const) {
+  for (const method of ['interrupt', 'cancel']) {
+    test(`input: a ${method} of A held at ${hold} while A settles and B is admitted never aborts B; the receipt and result describe A (#49 review F1)`, async () => {
+      const f = fixture();
+      try {
+        const call = b2(f);
+        const w = await f.create();
+        const h = f.hosts[0]!;
+        const a = receiptOf(await call(w.worker_id, 'prompt', { ...bind(w, 'run-a'), message: 'a' })).execution_id!;
+        assert.equal(receiptOf(await call(w.worker_id, 'follow_up', { ...bind(w, 'queued'), message: 'next', execution_id: a })).state, 'queued');
+        // A live dialog, so the control waits at its native cancellation.
+        h.emit('event', { type: 'extension_ui_request', method: 'input', id: 'dialog' });
+        const native = h.request.bind(h);
+        let reached = false;
+        let release!: () => void;
+        const gate = new Promise<void>(r => (release = r));
+        h.request = async c => {
+          if (c.type === hold) {
+            reached = true;
+            await gate;
+          }
+          return native(c);
+        };
+        const stopping = call(w.worker_id, method, { ...bind(w, `stop-${method}`), execution_id: a });
+        for (let n = 0; n < 200 && !reached; n++) await tick();
+        assert.equal(reached, true, `the control reached ${hold}`);
+        // A settles on its own; another caller's prompt B is admitted and running.
+        h.emit('event', { type: 'agent_settled' });
+        await tick();
+        const b = receiptOf(await call(w.worker_id, 'prompt', { ...bind(w, 'run-b'), message: 'b' }));
+        assert.equal(b.state, 'delivered');
+        assert.notEqual(b.execution_id, a);
+        release();
+        const r = receiptOf(await stopping);
+        assert.deepEqual([r.state, r.effect, r.execution_id], ['delivered', 'observed', a]);
+        assert.deepEqual(r.result, { requested: true, disposition: 'settled', abort_sent: false, clear_queue_sent: hold === 'clear_queue', queued_dropped: 1, dialogs_cancelled: 1 });
+        assert.equal(count(h, 'abort'), 0, 'pi never got an abort');
+        assert.equal(count(h, 'clear_queue'), hold === 'clear_queue' ? 1 : 0, "pi's queue is cleared only while A is current");
+        assert.equal(f.supervisor.receipts.all.get('queued')?.disposition, 'abandoned_without_dispatch');
+        const row = f.supervisor.get(w.worker_id);
+        assert.deepEqual([row.execution?.execution_id, row.execution?.state, row.foreground], [b.execution_id, 'started', 'running'], 'B keeps running');
+      } finally {
+        f.cleanup();
+      }
+    });
+  }
+}
 
 for (const failure of ['journal', 'header']) {
   test(`${failure} failure in a Pi event faults only that worker and keeps inventory readable`, async () => {
