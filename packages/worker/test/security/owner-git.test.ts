@@ -958,7 +958,9 @@ test('owner Git: a pinned core.ignoreStat, core.sparseCheckout or index.sparse r
     assert.equal(gitStatus(on(f, readGitPin(f.wt))), ' M note\n', 'owner Git checks the full stat data, so it compares the content');
     // An untracked cache the child primed: an untracked file renamed to a name of the same length (the root directory's
     // size unchanged on ext4, tmpfs and btrfs alike) and the directory's mtime set back, so a pinned
-    // core.untrackedCache=true trusts the cached list. Owner Git turns the cache off on the command line.
+    // core.untrackedCache=true trusts the cached list. Owner Git never uses it: its status lists every untracked file
+    // (`--untracked-files=all --ignored`, which Git never serves from the cache; #47), and it also turns the cache off
+    // on the command line.
     f.git(f.repo, 'config', 'core.untrackedCache', 'true');
     f.git(f.wt, 'update-index', '--untracked-cache');
     writeFileSync(join(f.wt, 'decoy1'), 'x\n');
