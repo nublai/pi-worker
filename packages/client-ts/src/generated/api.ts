@@ -669,7 +669,12 @@ export interface paths {
          *     index entry marked assume-unchanged or skip-worktree (detail
          *     git_index_hides_changes), or a pinned `core.ignoreStat`,
          *     `core.sparseCheckout` or `index.sparse` (detail
-         *     git_config_trusts_stat), refuses, never reads as clean.
+         *     git_config_trusts_stat), refuses, never reads as clean; so does a
+         *     gitlink or a nested repository (detail git_gitlink_refused or
+         *     git_nested_repository_refused). `worktree.state` is Git's normalised
+         *     status, a hygiene fact, not proof that the checkout's bytes equal the
+         *     commit's (see `ArtifactFacts.worktree`): a check that must run on the
+         *     commit's bytes runs on a fresh copy of the commit.
          *     Refusals, all `no_effect`:
          *     `stale_binding` (`worker_epoch` is not the worker's current one),
          *     `artifact_inspection_unavailable` (no saved launch pin: the worker
@@ -1782,7 +1787,7 @@ export interface components {
                 changed_truncated: boolean;
                 diff_digest: components["schemas"]["ArtifactDiffDigest"];
             };
-            /** @description The checkout's `git status --porcelain` with every untracked file listed one by one (`??`) and every file a `.gitignore` in the tree ignores listed too (`!!`): no repository exclude file, `core.excludesFile` or `status.*` setting hides one. Nothing below pi-worker's runtime directories at the root (`.piw-agent`, `.piw-worker`, `.piw-slots`) is listed, tracked or not. `conflicted` when any entry is unmerged, else `dirty` when any entry exists, judged on the complete status before `entries` is bounded. */
+            /** @description Git's normalised status of the checkout against its HEAD and index (`git status --porcelain`; `head.matches_commit` says whether HEAD is the inspected commit): a hygiene fact, not proof that the checkout's bytes equal the commit's. In-tree `.gitattributes` (`ident`, `text`, `eol`) normalise content before Git compares it, and the status is a point in time. Untracked files are listed one by one (`??`), and those a `.gitignore` in the tree ignores too (`!!`): no repository exclude file, `core.excludesFile` or `status.*` setting hides one, and `core.ignoreCase`, `core.symlinks` and `core.fileMode` are forced to false, true and true. Untracked content below pi-worker's runtime directories at the root (`.piw-agent`, `.piw-worker`, `.piw-slots`) is not listed; tracked, staged and unmerged entries there are. A gitlink in the commit's, the base's or HEAD's tree or in the index, or a nested `.git` in the checkout, refuses the inspection (`artifact_inspection_unavailable`, detail git_gitlink_refused or git_nested_repository_refused): Git never looks inside a nested repository here. `conflicted` when any entry is unmerged, else `dirty` when any entry exists, judged on the complete status before `entries` is bounded. */
             worktree: {
                 /** @enum {string} */
                 state: "clean" | "dirty" | "conflicted";

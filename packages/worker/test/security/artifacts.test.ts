@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, truncateSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, truncateSync, utimesSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { join, resolve } from 'node:path';
 import { Client, ClientFailure } from '@nublai/pi-worker-client';
@@ -742,6 +742,122 @@ test('artifacts.inspect (#47): no exclude state hides an untracked file: an info
       ],
       truncated: false,
     });
+  } finally {
+    await x.cleanup();
+  }
+});
+
+/** `artifact_inspection_unavailable` naming owner Git's code, as the TS client reports it. */
+const unavailableWith = (detail: string) => ({ error: 'artifact_inspection_unavailable', effect: 'no_effect', phase: 'http', status: 409, detail });
+
+test('artifacts.inspect (#48 F1): under each runtime directory a tracked change is dirty and a conflict conflicted; the untracked file next to it is still not listed', { timeout: 60_000 }, async () => {
+  const x = await world();
+  try {
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    for (const dir of ['.piw-agent', '.piw-worker', '.piw-slots']) {
+      const data = join(a.slot, dir, 'data');
+      mkdirSync(join(a.slot, dir), { recursive: true });
+      writeFileSync(data, 'v1\n');
+      // The repository's info/exclude names the runtime directories: plain Git adds the file only when forced.
+      x.git(a.slot, 'add', '-f', `${dir}/data`);
+      x.git(a.slot, 'commit', '-qm', `track ${dir}`);
+      const req = { worker_epoch: a.worker.worker_epoch, commit: 'refs/heads/ca/work' };
+      assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'clean', entries: [], truncated: false }, `${dir}: control, clean`);
+      writeFileSync(data, 'CHANGED\n');
+      writeFileSync(join(a.slot, dir, 'extra'), 'x\n');
+      assert.match(x.git(a.slot, 'status', '--porcelain'), new RegExp(`^ ?M ${dir.replace('.', '\\.')}/data$`, 'm'), `${dir}: fixture, plain Git sees the tracked change`);
+      assert.deepEqual((await x.inspect(a.worker.worker_id, req)).worktree, { state: 'dirty', entries: [{ code: ' M', path: `${dir}/data` }], truncated: false }, `${dir}: the tracked change is reported, the untracked file is not`);
+      // A conflict on the tracked file (stages 1 to 3, as a merge leaves them).
+      writeFileSync(data, 'v1\n');
+      const blob = (text: string) => execFileSync('git', ['-C', a.slot, 'hash-object', '-w', '--stdin'], { input: text, encoding: 'utf8', env: gitEnv(x.base) }).trim();
+      const [base, ours, theirs] = [blob('v1\n'), blob('ours\n'), blob('theirs\n')];
+      execFileSync('git', ['-C', a.slot, 'update-index', '--index-info'], { input: `0 ${'0'.repeat(40)}\t${dir}/data\n100644 ${base} 1\t${dir}/data\n100644 ${ours} 2\t${dir}/data\n100644 ${theirs} 3\t${dir}/data\n`, env: gitEnv(x.base) });
+      const conflicted = await x.inspect(a.worker.worker_id, req);
+      assert.equal(conflicted.worktree.state, 'conflicted', `${dir}: ${JSON.stringify(conflicted.worktree)}`);
+      assert.deepEqual(conflicted.worktree.entries, [{ code: 'UU', path: `${dir}/data` }], `${dir}: the conflict is listed, the untracked file is not`);
+      x.git(a.slot, 'reset', '-q');
+      rmSync(join(a.slot, dir, 'extra'));
+    }
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test('artifacts.inspect (#48 F2): with core.ignoreCase=true, core.symlinks=false and core.fileMode=false pinned, a case collision, a symlink replaced by a file and a mode change are each dirty', { timeout: 60_000 }, async () => {
+  const x = await world();
+  try {
+    // The owner's pinned config, before any launch.
+    x.git(x.repo, 'config', 'core.ignoreCase', 'true');
+    x.git(x.repo, 'config', 'core.symlinks', 'false');
+    x.git(x.repo, 'config', 'core.fileMode', 'false');
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    const link = join(a.slot, 'link');
+    symlinkSync('note', link);
+    x.git(a.slot, '-c', 'core.symlinks=true', 'add', 'link');
+    x.git(a.slot, 'commit', '-qm', 'link');
+    const req = { worker_epoch: a.worker.worker_epoch, commit: 'refs/heads/ca/work' };
+    const worktree = async () => (await x.inspect(a.worker.worker_id, req)).worktree;
+    assert.deepEqual(await worktree(), { state: 'clean', entries: [], truncated: false }, 'control: clean');
+    // A case-variant untracked file on a case-sensitive file system.
+    writeFileSync(join(a.slot, 'NOTE'), 'x\n');
+    assert.equal(x.git(a.slot, 'status', '--porcelain'), '', 'fixture: plain Git with ignoreCase hides NOTE');
+    assert.deepEqual(await worktree(), { state: 'dirty', entries: [{ code: '??', path: 'NOTE' }], truncated: false }, 'case collision');
+    rmSync(join(a.slot, 'NOTE'));
+    // The symlink replaced by a regular file holding its target.
+    rmSync(link);
+    writeFileSync(link, 'note');
+    assert.equal(x.git(a.slot, 'status', '--porcelain'), '', 'fixture: plain Git without symlinks sees no change');
+    assert.deepEqual(await worktree(), { state: 'dirty', entries: [{ code: ' T', path: 'link' }], truncated: false }, 'symlink replaced by a file');
+    rmSync(link);
+    symlinkSync('note', link);
+    // A mode change.
+    chmodSync(join(a.slot, 'note'), 0o755);
+    assert.equal(x.git(a.slot, 'status', '--porcelain'), '', 'fixture: plain Git without fileMode sees no change');
+    assert.deepEqual(await worktree(), { state: 'dirty', entries: [{ code: ' M', path: 'note' }], truncated: false }, 'mode change');
+    chmodSync(join(a.slot, 'note'), 0o644);
+    assert.deepEqual(await worktree(), { state: 'clean', entries: [], truncated: false }, 'restored: clean');
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test('artifacts.inspect (#48 F4): a gitlink in the index, a gitlink in the commit\'s or HEAD\'s tree, an untracked nested repository or a .git below a tracked directory refuses (typed), never reads clean', { timeout: 60_000 }, async () => {
+  const x = await world();
+  try {
+    const p = await x.parent('pa');
+    const a = await p.child('ca');
+    const head0 = commitFeature(x, a.slot);
+    const req = (commit: string) => ({ worker_epoch: a.worker.worker_epoch, commit });
+    const refused = (commit: string) => x.refusal(x.inspect(a.worker.worker_id, req(commit)));
+    assert.deepEqual((await x.inspect(a.worker.worker_id, req(head0))).worktree, { state: 'clean', entries: [], truncated: false }, 'control: clean');
+    // A gitlink staged in the index only.
+    x.git(a.slot, 'update-index', '--add', '--cacheinfo', `160000,${x.baseId},vendor`);
+    assert.deepEqual(await refused(head0), unavailableWith('git_gitlink_refused'), 'a gitlink in the index');
+    // Committed, then dropped from the index: only the commit's (and HEAD's) tree has it.
+    x.git(a.slot, 'commit', '-qm', 'gitlink');
+    const head1 = x.git(a.slot, 'rev-parse', 'HEAD');
+    x.git(a.slot, 'rm', '-q', '--cached', 'vendor');
+    assert.deepEqual(await refused(head1), unavailableWith('git_gitlink_refused'), "a gitlink in the commit's tree");
+    assert.deepEqual(await refused(head0), unavailableWith('git_gitlink_refused'), "a gitlink in HEAD's tree");
+    x.git(a.slot, 'reset', '-q', '--hard', head0);
+    assert.deepEqual((await x.inspect(a.worker.worker_id, req(head0))).worktree, { state: 'clean', entries: [], truncated: false }, 'reset: clean');
+    // An untracked nested repository: plain Git lists only its directory.
+    x.git(a.slot, 'init', '-q', 'nested');
+    writeFileSync(join(a.slot, 'nested', 'payload'), 'p\n');
+    assert.deepEqual(await refused(head0), unavailableWith('git_nested_repository_refused'), 'an untracked nested repository');
+    rmSync(join(a.slot, 'nested'), { recursive: true });
+    // A .git directory below a tracked directory: Git never lists it.
+    mkdirSync(join(a.slot, 'd'));
+    writeFileSync(join(a.slot, 'd', 't'), 't\n');
+    x.git(a.slot, 'add', 'd/t');
+    x.git(a.slot, 'commit', '-qm', 'd');
+    const head2 = x.git(a.slot, 'rev-parse', 'HEAD');
+    mkdirSync(join(a.slot, 'd', '.git'));
+    writeFileSync(join(a.slot, 'd', '.git', 'payload'), 'p\n');
+    assert.equal(x.git(a.slot, 'status', '--porcelain', '--untracked-files=all'), '', 'fixture: plain Git lists nothing');
+    assert.deepEqual(await refused(head2), unavailableWith('git_nested_repository_refused'), 'a .git below a tracked directory');
   } finally {
     await x.cleanup();
   }

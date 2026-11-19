@@ -20,7 +20,11 @@
  *   hides tracked changes (assume-unchanged, skip-worktree, stat-trusting config), so that is never `clean`, and trusts
  *   neither an entry's recorded stat data nor the index's cache tree (it hashes every tracked file). Nor does any
  *   exclude state hide an untracked file (#47): every one is listed, those a `.gitignore` in the tree ignores as `!!`,
- *   except below pi-worker's own runtime directories (owner Git step 6).
+ *   except untracked content below pi-worker's own runtime directories (owner Git step 6; tracked, staged and unmerged
+ *   entries there are reported). A gitlink in the commit's, the base's or HEAD's tree or in the index, or a nested `.git`
+ *   in the checkout, refuses (`git_gitlink_refused`, `git_nested_repository_refused`). `clean` is Git's normalised
+ *   status against HEAD and the index, a hygiene fact: in-tree attributes (`ident`, `text`) normalise content, so it is
+ *   not proof that the checkout's bytes equal the commit's.
  * - **Off the event loop, bounded.** Owner Git is synchronous (it copies a snapshot and waits for Git), so each
  *   inspection runs it in a child process of its own (`artifacts-child.ts`, its own process group, the owner environment
  *   only, a private directory per inspection in the state's `git-snapshots`), never on the supervisor's event loop: hello, stop, cancel and
@@ -37,7 +41,7 @@ import { fileURLToPath } from 'node:url';
 import { Refusal } from '../b2/errors.js';
 import type { components } from '../generated/api.js';
 import { artifactSubject } from '../owner-git/artifact.js';
-import { gitDiff, gitMergeBase, gitRevParse, gitStatus, gitVersion, type GitCheckout, type GitFailure, type GitPin, type OwnerGit } from '../owner-git/git-safe.js';
+import { gitDiff, gitLsTree, gitMergeBase, gitRevParse, gitStatus, gitVersion, type GitCheckout, type GitFailure, type GitPin, type OwnerGit } from '../owner-git/git-safe.js';
 import type { SupervisorState } from './state.js';
 
 export type ArtifactInspect = components['schemas']['ArtifactInspect'];
@@ -196,6 +200,12 @@ export function readFacts(job: InspectionJob): ArtifactFacts {
   const baseId = base === undefined ? undefined : step(true, () => gitRevParse(at, `${base}^{commit}`));
   const treeId = step(true, () => gitRevParse(at, `${commitId}^{tree}`));
   const headId = step(true, () => gitRevParse(at, 'HEAD'));
+  // A gitlink in the commit's, the base's or HEAD's tree names a submodule commit whose content is not in that tree, and
+  // whose checkout owner Git never looks inside (step 6): refused, never reported (#48 F4).
+  for (const id of new Set([commitId, headId, ...(baseId === undefined ? [] : [baseId])]))
+    step(false, () => {
+      if (gitLsTree(at, id).some(entry => entry.mode === '160000')) throw new Refusal('git_gitlink_refused');
+    });
   // The subject as P2-6 defines it, of the resolved ids (an owner's own artifactSubject on its pin computes the same).
   const subject = step(false, () => artifactSubject(owner, root, commitId, baseId, pin));
   // The state is the complete status's, before the list is bounded: a conflict past the cut is still a conflict.

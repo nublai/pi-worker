@@ -760,8 +760,8 @@ pin** (`Live.gitPin`, the metadata its create's validation accepted; never a pin
 directory. The reply is facts, never a verdict: the subject (commit and native tree, replacement objects off), HEAD
 (its pinned branch, its commit, whether it is the inspected commit), with a base its id, the merge base (null for
 unrelated histories), whether it is an ancestor, the `--name-status` changes and the advisory diff digest, the
-worktree's porcelain status as `clean`, `dirty` or `conflicted` with its entries (`.piw-*` runtime directories appear
-unless the repository excludes them), the pin's identity (SHA-256 of its canonical JSON, its HEAD branch) and the
+worktree's porcelain status as `clean`, `dirty` or `conflicted` with its entries (since #47, untracked content below the
+`.piw-*` runtime directories is never listed and no exclude file is read; see the #47 follow-up below), the pin's identity (SHA-256 of its canonical JSON, its HEAD branch) and the
 provenance (`owner_git_launch_pin`, the Git version, the time). Lists stop at 10,000 entries or 1 MiB of paths and
 say so (`truncated`). It fails closed, because the shared object store is writable: no saved pin (an unsandboxed
 worker, a root with no Git metadata, a supervisor restarted since the launch: the pin is memory only) or owner Git
@@ -795,9 +795,20 @@ status runs with `--untracked-files=all --ignored=traditional` (each untracked f
 `status.showUntrackedFiles` says; porcelain v1 reads no other `status.*` key that changes what it lists), and
 `gitLsFiles` with `untracked` runs `ls-files --others` with no exclude source at all. A file a `.gitignore` in the
 tree ignores is listed as `!!`, so it is `dirty` too: the V1 check is about the child's tree, and a `.gitignore` is
-tree data the child writes or commits. pi-worker's runtime directories at the root (`.piw-agent`, `.piw-worker`,
-`.piw-slots`) are left out by an explicit pathspec (`:(exclude,literal)<dir>`), tracked or untracked (named limit:
-a change below them is never reported). Kernel facts: a sandboxed linked-worktree child cannot write the common dir's
+tree data the child writes or commits. Untracked content below pi-worker's runtime directories at the root
+(`.piw-agent`, `.piw-worker`, `.piw-slots`) is not listed (status drops those `??` and `!!` lines; `ls-files --others`
+excludes them by pathspec); tracked, staged and unmerged entries there are reported (PR #48 review F1: a blanket
+pathspec had hidden a tracked change and a conflict). Every owner-Git call forces `core.ignoreCase=false`,
+`core.symlinks=true` and `core.fileMode=true` (overridden, not refused: they can only add differences; F2), so a
+case-variant untracked file, a symlink replaced by a file and a mode change are reported. Git skips entries named
+`.git` and never looks inside a gitlink, so status and `ls-files --others` walk the checkout first (descriptors, no
+link followed, runtime directories skipped) and refuse any nested `.git` (`git_nested_repository_refused`); every index
+read refuses an index holding a gitlink, and `artifacts.inspect` refuses a gitlink in the commit's, the base's or
+HEAD's tree (`git_gitlink_refused`, read with the new typed `gitLsTree`; F4). `clean` is Git's normalised status
+against HEAD and the index, a hygiene fact, not proof that the checkout's bytes equal the commit's: in-tree
+`.gitattributes` (`ident`, `text`, `eol`) normalise content before Git compares it (F3, deliberately not closed in
+owner Git). A check that must run on the commit's bytes runs on a fresh verified copy of the commit (Maestro P3-10
+round B). Kernel facts: a sandboxed linked-worktree child cannot write the common dir's
 `info/exclude`, `info/attributes`, `info/grafts` or `config` (nor set any key with `git config`); it can create its
 admin dir's `config`, `config.worktree` and `info/exclude` (none is read for a linked worktree, `extensions.worktreeConfig`
 being refused at launch), its own HOME's ignore file, and any `.gitignore` in its tree. Tests:
