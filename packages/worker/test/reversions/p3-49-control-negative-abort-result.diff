@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/supervisor/input.ts b/packages/worker/src/supervisor/input.ts
+index 79af756..8ab36a2 100644
+--- a/packages/worker/src/supervisor/input.ts
++++ b/packages/worker/src/supervisor/input.ts
+@@ -549,7 +549,7 @@ export class Input {
+         const aborted = await live.host.request({ type: 'abort' });
+         this.s.persist(live, 'control.done');
+         // A negative reply proves nothing either way: outcome_unknown with no result, exactly as a lost reply.
+-        if (!aborted.success) throw new Error(`pi_abort_failed_after_dispatch: ${String(aborted.error ?? 'negative_reply').slice(0, 64)}`);
++        void aborted;
+         const disposition = target?.state === 'settled' ? (unsettled ? 'interrupted' : 'settled') : 'unknown';
+         return { state: 'delivered', stage: 'requested', effect: 'observed', result: { requested: true, disposition, external_effects_stopped: 'unproven' } };
+       },

@@ -444,8 +444,11 @@ export class Input {
     return result;
   }
 
-  /** Drops every queued input (cancel, interrupt, a binding change, an abandon); their intents end `no_effect`. */
-  dropQueued(live: Live, _reason: string): void {
+  /**
+   * Drops every queued input (cancel, interrupt, a binding change, an abandon); their intents end `no_effect`. Returns
+   * how many inputs it dropped.
+   */
+  dropQueued(live: Live, _reason: string): number {
     const active = (live.worker.queued ?? []).filter(q => ['queued', 'paused', 'recovered'].includes(q.state));
     const ids = new Set([...(live.pending?.keys() ?? []), ...active.map(q => q.command_id)]);
     for (const id of ids) {
@@ -454,6 +457,7 @@ export class Input {
     }
     live.pending?.clear();
     for (const q of active) q.state = 'dropped';
+    return ids.size;
   }
 
   /** Dispatches due queued input one at a time; every item rechecks fence, binding and readiness at dispatch. */
@@ -501,9 +505,17 @@ export class Input {
    * `no_running_execution` (as `sessions.steer`) before any record, so its queued follow-ups stay queued and pi gets
    * nothing. A request without an execution id stops whatever is current, as before (row 11 under a fence).
    *
-   * `result.disposition` compares the execution that was current right before the abort with its state after pi's
-   * reply (pi's abort waits for idle): `interrupted` when it had not settled and settled during the abort, `settled`
-   * when it had already settled before the abort was sent, `unknown` otherwise.
+   * The target is the execution current at dispatch (the named one, when the request names one); the receipt and the
+   * result both describe it, however long the dialog cancellation and pi's replies take. pi's `clear_queue` and
+   * `abort` are not scoped to an execution, so neither is sent once another execution has replaced the target (it
+   * settled and a new prompt was admitted meanwhile): the result then says the target `settled`, that no abort was
+   * sent, and what the control already did (queued inputs dropped, dialogs cancelled).
+   *
+   * Otherwise `result.disposition` compares the target's state right before the abort is sent with its state when
+   * pi's reply arrives (pi's abort waits for idle): `interrupted` when it was unsettled then and settled by the reply,
+   * `settled` when it had already settled before the abort was sent, `unknown` otherwise. That is timing, not proof of
+   * cause: a turn that ends by itself as the abort arrives also reads `interrupted`. A failed or negative abort reply
+   * is `outcome_unknown` with no result.
    */
   control(id: string, b: Control, interrupt: boolean): Promise<Receipt> {
     let live!: Live;
@@ -512,29 +524,34 @@ export class Input {
       interrupt ? 'executions.interrupt' : 'executions.cancel',
       { ...b, worker_id: id },
       async () => {
-        this.s.receipts.dispatch(b.command_id, { worker_id: id, ...(live.worker.execution ? { execution_id: live.worker.execution.execution_id } : {}) });
-        this.dropQueued(live, interrupt ? 'interrupt' : 'cancel');
+        // The target, held across every await below: the execution the receipt names (the named one, if any).
+        const target = live.worker.execution;
+        this.s.receipts.dispatch(b.command_id, { worker_id: id, ...(target ? { execution_id: target.execution_id } : {}) });
+        const dropped = this.dropQueued(live, interrupt ? 'interrupt' : 'cancel');
         // Live dialogs are cancelled at their exact resolvers (Escape semantics), never answered.
-        if (live.host && !live.exited) await this.s.interactions?.cancelAll(id, live.host);
+        const cancelled = live.host && !live.exited ? ((await this.s.interactions?.cancelAll(id, live.host)) ?? 0) : 0;
         if (!live.host || live.exited || live.worker.status !== 'ready') {
           this.s.persist(live, 'control.done');
           return { state: 'delivered', stage: 'requested', effect: 'observed', result: { requested: true, disposition: 'unknown', profile: 'no_live_host' } };
         }
+        // Another execution replaced the target while this control waited: pi's queue and abort now belong to it.
+        const replaced = () => (live.worker.execution?.execution_id ?? null) !== (target?.execution_id ?? null);
+        const notSent = (clearQueueSent: boolean): ReceiptPatch => {
+          this.s.persist(live, 'control.done');
+          const disposition = target?.state === 'settled' ? 'settled' : 'unknown';
+          return { state: 'delivered', stage: 'requested', effect: 'observed', result: { requested: true, disposition, abort_sent: false, clear_queue_sent: clearQueueSent, queued_dropped: dropped, dialogs_cancelled: cancelled } };
+        };
+        if (replaced()) return notSent(false);
         await live.host.request({ type: 'clear_queue' }); // abort alone may continue pi-owned queued input
-        // The execution the abort targets and whether it was still unsettled, captured before the abort is sent: an
-        // execution that settles during the abort was stopped by it; one settled before was not.
-        const target = live.worker.execution;
+        if (replaced()) return notSent(true);
+        // Whether the target was still unsettled, captured right before the abort is sent (no await in between).
         const unsettled = target != null && target.state !== 'settled';
         const aborted = await live.host.request({ type: 'abort' });
         this.s.persist(live, 'control.done');
-        const settledNow = target?.state === 'settled';
-        const disposition = settledNow ? (unsettled ? 'interrupted' : 'settled') : 'unknown';
-        return {
-          state: aborted.success ? 'delivered' : 'outcome_unknown',
-          stage: 'requested',
-          effect: aborted.success ? 'observed' : 'unknown',
-          result: { requested: true, disposition, external_effects_stopped: 'unproven' },
-        };
+        // A negative reply proves nothing either way: outcome_unknown with no result, exactly as a lost reply.
+        if (!aborted.success) throw new Error(`pi_abort_failed_after_dispatch: ${String(aborted.error ?? 'negative_reply').slice(0, 64)}`);
+        const disposition = target?.state === 'settled' ? (unsettled ? 'interrupted' : 'settled') : 'unknown';
+        return { state: 'delivered', stage: 'requested', effect: 'observed', result: { requested: true, disposition, external_effects_stopped: 'unproven' } };
       },
       () => {
         live = this.s.require(id);

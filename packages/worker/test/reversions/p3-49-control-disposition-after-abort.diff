@@ -1,14 +1,14 @@
 diff --git a/packages/worker/src/supervisor/input.ts b/packages/worker/src/supervisor/input.ts
-index a143ab4..6001ede 100644
+index 79af756..5a9e82b 100644
 --- a/packages/worker/src/supervisor/input.ts
 +++ b/packages/worker/src/supervisor/input.ts
-@@ -524,8 +524,8 @@ export class Input {
-         // The execution the abort targets and whether it was still unsettled, captured before the abort is sent: an
-         // execution that settles during the abort was stopped by it; one settled before was not.
-         const target = live.worker.execution;
+@@ -545,8 +545,8 @@ export class Input {
+         await live.host.request({ type: 'clear_queue' }); // abort alone may continue pi-owned queued input
+         if (replaced()) return notSent(true);
+         // Whether the target was still unsettled, captured right before the abort is sent (no await in between).
 -        const unsettled = target != null && target.state !== 'settled';
          const aborted = await live.host.request({ type: 'abort' });
 +        const unsettled = target != null && target.state !== 'settled';
          this.s.persist(live, 'control.done');
-         const settledNow = target?.state === 'settled';
-         const disposition = settledNow ? (unsettled ? 'interrupted' : 'settled') : 'unknown';
+         // A negative reply proves nothing either way: outcome_unknown with no result, exactly as a lost reply.
+         if (!aborted.success) throw new Error(`pi_abort_failed_after_dispatch: ${String(aborted.error ?? 'negative_reply').slice(0, 64)}`);

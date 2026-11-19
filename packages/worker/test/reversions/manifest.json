@@ -46,7 +46,10 @@
         "p1-fix-f3-negative-steer-reply-no-effect.diff",
         "p1-fix-f3-sdk-child-marks-any-failure-refused.diff",
         "p3-49-control-settled-target-accepted.diff",
-        "p3-49-control-disposition-after-abort.diff"
+        "p3-49-control-disposition-after-abort.diff",
+        "p3-49-control-clear-queue-replacement.diff",
+        "p3-49-control-abort-replacement.diff",
+        "p3-49-control-negative-abort-result.diff"
       ]
     },
     "fence": {

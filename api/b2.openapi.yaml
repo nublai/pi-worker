@@ -629,16 +629,27 @@ paths:
       summary: Cancel the current execution; allowed while fenced
       description: |
         Drops the worker's queued input (intents end `no_effect`), cancels live dialogs at their exact resolvers, then
-        asks pi to clear its own queue and abort. Allowed while fenced, never lifting the fence. With `execution_id`,
-        only that execution is targeted: another one is `stale_execution`, and one that already settled is refused
-        `no_running_execution` (`no_effect`) before any record, so queued input stays and pi is sent nothing. Without
-        `execution_id` it targets whatever is current. A delivered receipt's `result`: `requested: true`;
-        `disposition`, from the execution that was current right before the abort and its state after pi's reply
-        (pi's abort waits for idle): `interrupted` when it had not settled and settled during the abort (this request
-        stopped it), `settled` when it had already settled before the abort was sent, `unknown` otherwise (no
-        settlement observed, or `profile: no_live_host` when no live pi was there to ask); when pi was asked,
-        `external_effects_stopped: unproven` (stopping a running tool's external effects is never claimed). A failure after the dispatch record is `outcome_unknown` with no
-        `result`; it is never replayed.
+        asks pi to clear its own queue and abort. Allowed while fenced, never lifting the fence. The target is the
+        execution current when the request is accepted: with `execution_id`, only that execution (another one is
+        `stale_execution`; one that already settled is refused `no_running_execution`, `no_effect`, before any
+        record, so queued input stays and pi is sent nothing); without it, whatever is current. The receipt's
+        `execution_id` and its `result` both describe the target.
+
+        pi's queue and abort are not scoped to an execution, so if another execution replaces the target while the
+        request waits on dialogs or pi (the target settled and a new prompt was admitted), neither `clear_queue` nor
+        `abort` is sent after that point. The receipt is then delivered with `result` `{requested: true, disposition:
+        settled, abort_sent: false, clear_queue_sent, queued_dropped, dialogs_cancelled}`: what the request did before
+        it stopped, and that the target ended on its own.
+
+        Otherwise a delivered receipt's `result` is `requested: true`, `external_effects_stopped: unproven` (stopping a
+        running tool's external effects is never claimed) and `disposition`, which compares the target's state right
+        before the abort is sent with its state when pi's reply arrives (pi's abort waits for idle). `interrupted`: it
+        was unsettled before the abort and settled by the reply. This is timing, not proof of cause: a turn that ends
+        by itself as the abort arrives also reads `interrupted`. `settled`: it had already settled before the abort
+        was sent. `unknown`: no settlement was observed. With no live pi to ask, `result` is `{requested: true,
+        disposition: unknown, profile: no_live_host}`.
+
+        A lost reply or a negative reply to the abort is `outcome_unknown` with no `result`; it is never replayed.
       tags: [interruption]
       x-piw-mutation: true
       x-piw-body: json
@@ -671,16 +682,27 @@ paths:
       summary: Escape equivalent; allowed while fenced
       description: |
         Drops the worker's queued input (intents end `no_effect`), cancels live dialogs at their exact resolvers, then
-        asks pi to clear its own queue and abort. Allowed while fenced, never lifting the fence. With `execution_id`,
-        only that execution is targeted: another one is `stale_execution`, and one that already settled is refused
-        `no_running_execution` (`no_effect`) before any record, so queued input stays and pi is sent nothing. Without
-        `execution_id` it targets whatever is current. A delivered receipt's `result`: `requested: true`;
-        `disposition`, from the execution that was current right before the abort and its state after pi's reply
-        (pi's abort waits for idle): `interrupted` when it had not settled and settled during the abort (this request
-        stopped it), `settled` when it had already settled before the abort was sent, `unknown` otherwise (no
-        settlement observed, or `profile: no_live_host` when no live pi was there to ask); when pi was asked,
-        `external_effects_stopped: unproven` (stopping a running tool's external effects is never claimed). A failure after the dispatch record is `outcome_unknown` with no
-        `result`; it is never replayed.
+        asks pi to clear its own queue and abort. Allowed while fenced, never lifting the fence. The target is the
+        execution current when the request is accepted: with `execution_id`, only that execution (another one is
+        `stale_execution`; one that already settled is refused `no_running_execution`, `no_effect`, before any
+        record, so queued input stays and pi is sent nothing); without it, whatever is current. The receipt's
+        `execution_id` and its `result` both describe the target.
+
+        pi's queue and abort are not scoped to an execution, so if another execution replaces the target while the
+        request waits on dialogs or pi (the target settled and a new prompt was admitted), neither `clear_queue` nor
+        `abort` is sent after that point. The receipt is then delivered with `result` `{requested: true, disposition:
+        settled, abort_sent: false, clear_queue_sent, queued_dropped, dialogs_cancelled}`: what the request did before
+        it stopped, and that the target ended on its own.
+
+        Otherwise a delivered receipt's `result` is `requested: true`, `external_effects_stopped: unproven` (stopping a
+        running tool's external effects is never claimed) and `disposition`, which compares the target's state right
+        before the abort is sent with its state when pi's reply arrives (pi's abort waits for idle). `interrupted`: it
+        was unsettled before the abort and settled by the reply. This is timing, not proof of cause: a turn that ends
+        by itself as the abort arrives also reads `interrupted`. `settled`: it had already settled before the abort
+        was sent. `unknown`: no settlement was observed. With no live pi to ask, `result` is `{requested: true,
+        disposition: unknown, profile: no_live_host}`.
+
+        A lost reply or a negative reply to the abort is `outcome_unknown` with no `result`; it is never replayed.
       tags: [interruption]
       x-piw-mutation: true
       x-piw-body: json
