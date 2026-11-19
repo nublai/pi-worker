@@ -29,6 +29,7 @@ import {
   gitForEachRef,
   gitLog,
   gitLsFiles,
+  gitLsTree,
   gitMergeBase,
   gitRevParse,
   gitShow,
@@ -714,7 +715,7 @@ test('owner Git: the API is typed (no raw argv export); every inspection matches
     const pin = readGitPin(f.wt);
     const at = on(f, pin);
     // Rule 6: the exported surface. Adding a function needs the security review; a raw argv function is never added.
-    assert.deepEqual(Object.keys(ownerGitApi).sort(), ['SAFE_GIT_CONFIG', 'gitCatFile', 'gitDiff', 'gitForEachRef', 'gitLog', 'gitLsFiles', 'gitMergeBase', 'gitRevParse', 'gitShow', 'gitStatus', 'gitVersion', 'readGitPin']);
+    assert.deepEqual(Object.keys(ownerGitApi).sort(), ['SAFE_GIT_CONFIG', 'gitCatFile', 'gitDiff', 'gitForEachRef', 'gitLog', 'gitLsFiles', 'gitLsTree', 'gitMergeBase', 'gitRevParse', 'gitShow', 'gitStatus', 'gitVersion', 'readGitPin']);
     const target = join(f.wt, 'written-by-git');
     const plain = (...args: string[]) => execFileSync('git', ['-C', f.wt, '-c', 'core.fsmonitor=false', ...args], { env: f.env });
     // Control: Git honours the option values tried below (`--output` writes the file).
@@ -734,6 +735,7 @@ test('owner Git: the API is typed (no raw argv export); every inspection matches
       v => gitCatFile(at, 'contents', v),
       v => gitMergeBase(at, v, 'HEAD'),
       v => gitMergeBase(at, 'HEAD', v),
+      v => gitLsTree(at, v),
     ];
     for (const [i, call] of byRevision.entries()) for (const [j, v] of revisions.entries()) assert.throws(() => call(v), argRefused, `revision call ${i}, value ${j}`);
     const paths = [':(top)note', ':!note', ':/note', ':(attr:x)note', '--output=x', '-p', '/etc', '../x', 'a/../../x', '..', '', 'a\nb'];
@@ -763,6 +765,10 @@ test('owner Git: the API is typed (no raw argv export); every inspection matches
     assert.equal(gitCatFile(at, 'size', 'HEAD:note'), 5);
     assert.deepEqual(gitCatFile(at, 'contents', 'HEAD'), plain('cat-file', '-p', 'HEAD'));
     assert.deepEqual(gitLsFiles(at), ['.gitattributes', 'note']);
+    assert.deepEqual(
+      gitLsTree(at, 'HEAD').map(e => `${e.mode} ${e.type} ${e.object}\t${e.path}`),
+      text(plain('ls-tree', '-r', '--full-tree', 'HEAD')).trim().split('\n'),
+    );
     assert.deepEqual(gitForEachRef(at, 'refs/heads/a0-child'), [{ ref: 'refs/heads/a0-child/task', object: f.headId, type: 'commit' }]);
     assert.equal(gitMergeBase(at, f.baseId, f.headId), f.baseId);
     assert.equal(runs(f), 'none');
@@ -873,10 +879,14 @@ test("owner Git: an agent's .gitmodules ignore = none never makes owner Git run 
     assert.notDeepEqual(ran(f), [], 'fixture must be live: .gitmodules ignore = none overrides the -c setting');
     rmSync(f.marker);
     const at = on(f, pin);
-    for (const call of CALLS(f)) call(at);
-    gitDiff(at, { kind: 'index', from: f.baseId });
+    // Since #48 (F4) the reads that would report on the nested repository refuse it; the others still run.
+    gitDiff(at, { kind: 'revisions', from: f.baseId, to: f.headId });
+    assert.throws(() => gitStatus(at), typed(/^git_nested_repository_refused$/), 'status');
+    assert.throws(() => gitDiff(at, { kind: 'worktree' }, { paths: ['note'] }), typed(/^git_gitlink_refused$/), 'worktree diff');
+    assert.throws(() => gitDiff(at, { kind: 'index', from: f.baseId }), typed(/^git_gitlink_refused$/), 'cached diff');
     gitShow(at, 'HEAD');
     gitLog(at, 'HEAD', 2);
+    assert.deepEqual(gitLsTree(at, 'HEAD').find(e => e.path === 'sub')?.mode, '160000', 'ls-tree names the gitlink');
     assert.equal(runs(f), 'none', 'owner Git ran Git in the nested repository');
   } finally {
     f.cleanup();
@@ -1234,6 +1244,59 @@ test("owner Git (#47): the snapshot copies no info/ (a common-dir info/grafts ne
     const at = on(f, readGitPin(f.wt));
     assert.deepEqual(gitLog(at, 'HEAD', 3).map(e => e.commit), [f.headId, f.baseId], 'the native history');
     assert.equal(gitMergeBase(at, f.baseId, f.headId), f.baseId);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('owner Git (#48): status and untracked ls-files refuse any nested .git (an untracked repository, a .git below a tracked directory, a gitfile), every index read refuses a gitlink; the runtime directories and the root gitfile are not nested repositories', () => {
+  const f = fixture();
+  try {
+    f.git(f.wt, 'checkout', '--', 'note');
+    mkdirSync(join(f.wt, 'd'));
+    writeFileSync(join(f.wt, 'd', 't'), 't\n');
+    f.git(f.wt, 'add', 'd/t');
+    f.git(f.wt, 'commit', '-qm', 'd');
+    // Runtime directories may hold repositories (a pi git package, a child slot's gitfile): not refused.
+    for (const dir of RUNTIME_DIRS) {
+      mkdirSync(join(f.wt, dir, 'x', '.git'), { recursive: true });
+      writeFileSync(join(f.wt, dir, 'x', '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    }
+    const at = () => on(f, readGitPin(f.wt));
+    assert.equal(gitStatus(at()), '', 'control: clean');
+    assert.deepEqual(gitLsFiles(at(), { untracked: true }), []);
+    const plain = () => f.git(f.wt, 'status', '--porcelain', '--untracked-files=all', '--ignored');
+    const lists: [string, () => unknown][] = [
+      ['status', () => gitStatus(at())],
+      ['ls-files --others', () => gitLsFiles(at(), { untracked: true })],
+    ];
+    // An untracked nested repository: plain Git lists the directory only, never its files.
+    f.git(f.wt, 'init', '-q', 'nested');
+    writeFileSync(join(f.wt, 'nested', 'payload'), 'p\n');
+    assert.equal(plain(), '?? nested/', 'fixture: plain Git folds the nested repository');
+    for (const [what, read] of lists) assert.throws(read, typed(/^git_nested_repository_refused$/), `${what}, untracked repository`);
+    rmSync(join(f.wt, 'nested'), { recursive: true });
+    // A .git directory below a tracked directory, and a .git file below an untracked one: Git never lists either.
+    mkdirSync(join(f.wt, 'd', '.git'));
+    writeFileSync(join(f.wt, 'd', '.git', 'payload'), 'p\n');
+    mkdirSync(join(f.wt, 'u'));
+    writeFileSync(join(f.wt, 'u', '.git'), 'p\n');
+    assert.equal(plain(), '', 'fixture: plain Git lists neither');
+    for (const [what, read] of lists) assert.throws(read, typed(/^git_nested_repository_refused$/), `${what}, .git below a directory`);
+    rmSync(join(f.wt, 'd', '.git'), { recursive: true });
+    for (const [what, read] of lists) assert.throws(read, typed(/^git_nested_repository_refused$/), `${what}, a .git file`);
+    rmSync(join(f.wt, 'u'), { recursive: true });
+    assert.equal(gitStatus(at()), '', 'clean again');
+    // A gitlink staged in the index (no checkout of it): every index read refuses.
+    f.git(f.wt, 'update-index', '--add', '--cacheinfo', `160000,${f.baseId},vendor`);
+    for (const [what, read] of [
+      ['status', () => gitStatus(at())],
+      ['worktree diff', () => gitDiff(at(), { kind: 'worktree' })],
+      ['cached diff', () => gitDiff(at(), { kind: 'index', from: 'HEAD' })],
+      ['ls-files', () => gitLsFiles(at())],
+    ] as const)
+      assert.throws(read, typed(/^git_gitlink_refused$/), `${what}, gitlink`);
+    assert.deepEqual(leftovers(f), [], 'a refused call removes its snapshot');
   } finally {
     f.cleanup();
   }

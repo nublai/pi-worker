@@ -51,10 +51,23 @@
  *     untracked file listed one by one, whatever `status.showUntrackedFiles` says; porcelain v1 reads no other
  *     `status.*` key that changes what it lists) and `--ignored=traditional`: a file a `.gitignore` in the tree ignores
  *     (tree data the child writes or commits) is listed too, as `!!`. `ls-files --others` reads no exclude source at
- *     all. What both leave out is pi-worker's own: its runtime directories at the root (`.piw-agent`, `.piw-worker`,
- *     `.piw-slots`; sandbox.ts) are excluded by an explicit pathspec, everything below them, tracked or not.
+ *     all. Untracked content below pi-worker's runtime directories at the root (`.piw-agent`, `.piw-worker`,
+ *     `.piw-slots`; sandbox.ts) is left out: status drops its `??` and `!!` lines, `ls-files --others` excludes it by
+ *     pathspec. Tracked, staged and unmerged entries there are reported like any other. Git skips every entry named
+ *     `.git` when it lists untracked files and never looks inside a gitlink (`--ignore-submodules=all`, step 4), so both
+ *     calls first walk the checkout (descriptors, no link followed; the runtime directories skipped) and refuse any
+ *     nested `.git` (`git_nested_repository_refused`), and every index read refuses an index holding a gitlink
+ *     (`git_gitlink_refused`, step 5's reader). Git never runs inside a nested repository.
+ *  7. on every call, compares as the owner's Linux service does, whatever the pinned config says: `core.ignoreCase`
+ *     false (a case-variant untracked file is listed), `core.symlinks` true (a symlink replaced by a file is a type
+ *     change) and `core.fileMode` true (a mode change is a change). Overridden, not refused: the overrides can only add
+ *     differences.
  *
- * The API is typed: one function per supported inspection (status, diff, log, show, rev-parse, cat-file, ls-files,
+ * What a status here is: Git's normalised comparison of the checkout with its HEAD and index, a hygiene fact. It is not
+ * proof that the checkout's bytes equal the commit's: in-tree `.gitattributes` (`ident`, `text`, `eol`) normalise
+ * content before Git compares it, and a status is a point in time.
+ *
+ * The API is typed: one function per supported inspection (status, diff, log, show, rev-parse, cat-file, ls-files, ls-tree,
  * for-each-ref, merge-base). Callers pass validated values (revisions, paths, ref prefixes, counts), never options:
  * owner Git builds every argv itself and places `--end-of-options` and `--`. A value that starts with `-`, pathspec
  * magic, or a control character refuses (`git_argument_refused`) before anything is opened. Adding a function or an
@@ -93,6 +106,8 @@ export interface GitCheckout {
 
 export const SAFE_GIT_CONFIG = [
   ...['core.fsmonitor=false', 'core.hooksPath=/dev/null', 'core.attributesFile=/dev/null', 'core.excludesFile=/dev/null', 'diff.ignoreSubmodules=all', 'submodule.recurse=false'],
+  // Step 7: the owner's comparison semantics.
+  ...['core.ignoreCase=false', 'core.symlinks=true', 'core.fileMode=true'],
   ...['protocol.allow=never', 'protocol.ext.allow=never', 'protocol.file.allow=never'],
 ].flatMap(setting => ['-c', setting]);
 /** Config keys whose value names a program Git can run. */
@@ -413,11 +428,13 @@ const SKIP_WORKTREE = 0x4000;
 
 /** Entry modes a status or diff reads file by file: a regular file, an executable, a symlink and a gitlink. */
 const FILE_MODES = new Set([0o100644, 0o100755, 0o120000, 0o160000]);
+/** A gitlink (a submodule's commit): Git never looks inside it here (step 6). */
+const GITLINK = 0o160000;
 const MODE_AT = 24;
 
 /** An index as git-index(5) lays it out: where each entry starts, its flags, and the extensions after the entries. */
 interface IndexLayout {
-  readonly entries: readonly { readonly start: number; readonly hidden: boolean }[];
+  readonly entries: readonly { readonly start: number; readonly hidden: boolean; readonly gitlink: boolean }[];
   /** The offset just past the last entry. */
   readonly entriesEnd: number;
   readonly extensions: readonly { readonly signature: string; readonly start: number; readonly end: number }[];
@@ -437,7 +454,7 @@ function indexLayout(index: Buffer, oidBytes: number): IndexLayout {
   if (version < 2 || version > 4) throw unreadable();
   const count = index.readUInt32BE(8);
   const trailer = index.length - oidBytes;
-  const entries: { start: number; hidden: boolean }[] = [];
+  const entries: { start: number; hidden: boolean; gitlink: boolean }[] = [];
   let at = 12;
   for (let i = 0; i < count; i++) {
     const start = at;
@@ -455,7 +472,7 @@ function indexLayout(index: Buffer, oidBytes: number): IndexLayout {
     // A mode other than a file's: a sparse index's directory (040000, which Git skips whole, flag or not), or one Git
     // does not write.
     const mode = index.readUInt32BE(start + MODE_AT);
-    entries.push({ start, hidden: (flags & ASSUME_VALID) !== 0 || (extended & SKIP_WORKTREE) !== 0 || !FILE_MODES.has(mode) });
+    entries.push({ start, hidden: (flags & ASSUME_VALID) !== 0 || (extended & SKIP_WORKTREE) !== 0 || !FILE_MODES.has(mode), gitlink: mode === GITLINK });
     // Version 4: a varint (how much of the previous path to keep), then the rest of the path; no padding.
     if (version === 4)
       do {
@@ -491,6 +508,8 @@ const SPARSE_INDEX = 'sdir';
  */
 function refuseHiddenEntries(layout: IndexLayout): void {
   if (layout.entries.some(entry => entry.hidden) || layout.extensions.some(extension => extension.signature === SPARSE_INDEX)) throw new Refusal('git_index_hides_changes');
+  // Step 6: a gitlink's checkout is a nested repository Git never looks inside (`--ignore-submodules=all`).
+  if (layout.entries.some(entry => entry.gitlink)) throw new Refusal('git_gitlink_refused');
 }
 
 /**
@@ -558,11 +577,63 @@ function path(value: string): string {
 /** Paths after `--`, each literal (`:(literal)`: no magic, no glob). */
 const pathArgs = (paths: readonly string[] = []): string[] => ['--', ...paths.map(value => `:(literal)${path(value)}`)];
 
+/** Step 6: pi-worker's own runtime directories at the root; untracked content below them is not listed. */
+const RUNTIME_DIRS: readonly string[] = [AGENT_DIR, WORKER_DIR, SLOTS_DIR];
+/** Step 6, on `ls-files --others` (untracked only): the runtime directories excluded by pathspec, after `pathArgs`. */
+const RUNTIME_EXCLUDED = RUNTIME_DIRS.map(name => `:(exclude,literal)${name}`);
+
 /**
- * Step 6: pi-worker's own runtime directories at the root, excluded by pathspec (after `pathArgs`) from every listing of
- * untracked files: they are pi-worker's, not the child's tree.
+ * Step 6, on status: a `??` or `!!` line (untracked, never a rename) for a path at or below a runtime directory. Git
+ * quotes a path with special characters (`"…"`); a runtime directory's name has none, so its prefix is intact.
  */
-const RUNTIME_EXCLUDED = [AGENT_DIR, WORKER_DIR, SLOTS_DIR].map(name => `:(exclude,literal)${name}`);
+function runtimeUntracked(line: string): boolean {
+  const code = line.slice(0, 2);
+  if (code !== '??' && code !== '!!') return false;
+  const rest = line.slice(3);
+  const path = rest.startsWith('"') ? rest.slice(1) : rest;
+  return RUNTIME_DIRS.some(dir => path === dir || path.startsWith(`${dir}/`));
+}
+
+/** The most entries, and the deepest directory, the nested-repository walk visits before it refuses. */
+const WALK_MAX_ENTRIES = 2_000_000;
+const WALK_MAX_DEPTH = 256;
+
+/**
+ * Step 6: refuses `git_nested_repository_refused` when any entry below the checkout root is named `.git` (a nested
+ * repository, a gitfile, or bytes Git would never list), except the root's own gitfile and anything below a runtime
+ * directory. Walks through descriptors (O_NOFOLLOW at every step, so a link is never followed); reads names only.
+ */
+function refuseNestedRepositories(root: string): void {
+  let entries = 0;
+  const walk = (dir: number, depth: number): void => {
+    if (depth > WALK_MAX_DEPTH) throw new Refusal('git_worktree_too_deep');
+    for (const entry of readdirSync(fdPath(dir), { withFileTypes: true })) {
+      if (++entries > WALK_MAX_ENTRIES) throw new Refusal('git_worktree_too_large');
+      if (depth === 0 && (entry.name === '.git' || RUNTIME_DIRS.includes(entry.name))) continue;
+      if (entry.name === '.git') throw new Refusal('git_nested_repository_refused');
+      if (!entry.isDirectory()) continue;
+      let child: number;
+      try {
+        child = openUnder(dir, [entry.name], 'dir');
+      } catch (error) {
+        // Gone, or no longer a directory (a link now): nothing to walk.
+        if (isMissing(error) || ['ELOOP', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) continue;
+        throw error;
+      }
+      try {
+        walk(child, depth + 1);
+      } finally {
+        closeSync(child);
+      }
+    }
+  };
+  const fd = openPinned(root, 'dir');
+  try {
+    walk(fd, 0);
+  } finally {
+    closeSync(fd);
+  }
+}
 /**
  * Step 6, on status: every untracked file listed one by one whatever the config says, and those a `.gitignore` in the
  * tree ignores too (as `!!`).
@@ -665,7 +736,7 @@ class GitFailed extends Error implements GitFailure {
 type Reads = 'index' | 'worktree';
 
 /** Runs Git on a pinned snapshot with an argv owner Git built; throws a `GitFailure` on a nonzero exit; returns stdout. */
-function run(at: GitCheckout, argv: readonly string[], options: { readonly reads?: Reads } = {}): Buffer {
+function run(at: GitCheckout, argv: readonly string[], options: { readonly reads?: Reads; readonly lists?: boolean } = {}): Buffer {
   const { owner, root, pin } = at;
   if (!pin) throw new Refusal('git_launch_pin_required');
   const worktree = options.reads === 'worktree';
@@ -673,6 +744,8 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly reads
   const dir = privateDir(owner, root, pin);
   try {
     const { oidBytes } = snapshot(owner, root, pin, dir, worktree);
+    // Step 6, on a call that lists untracked files: no nested `.git` anywhere Git would skip it.
+    if (options.lists === true) refuseNestedRepositories(root);
     // Step 5, on the snapshot's index: the bytes Git reads next.
     const index = readsIndex ? readSnapshotIndex(dir) : null;
     if (index !== null) {
@@ -706,10 +779,16 @@ function run(at: GitCheckout, argv: readonly string[], options: { readonly reads
 /**
  * `git status --porcelain` (v1) as Git prints it; with `branch`, its `## ` line first; limited to `paths`. Every
  * untracked file is listed (`??`), and every file a `.gitignore` ignores (`!!`), except below pi-worker's runtime
- * directories (step 6).
+ * directories (step 6); tracked, staged and unmerged entries there are reported. Refuses a nested repository
+ * (`git_nested_repository_refused`) and an index holding a gitlink (`git_gitlink_refused`).
  */
 export function gitStatus(at: GitCheckout, options: { readonly branch?: boolean; readonly paths?: readonly string[] } = {}): string {
-  return run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...ALL_UNTRACKED, ...NO_SUBMODULES, ...pathArgs(options.paths), ...RUNTIME_EXCLUDED], { reads: 'worktree' }).toString('utf8');
+  const out = run(at, ['status', '--porcelain', ...(options.branch === true ? ['--branch'] : []), ...ALL_UNTRACKED, ...NO_SUBMODULES, ...pathArgs(options.paths)], { reads: 'worktree', lists: true }).toString('utf8');
+  // Step 6: untracked content below a runtime directory is not listed; its tracked, staged and unmerged entries are.
+  return out
+    .split('\n')
+    .filter(line => !runtimeUntracked(line))
+    .join('\n');
 }
 
 /** `git diff` of `of`, printed as `format` (default `patch`), limited to `paths`. */
@@ -759,12 +838,35 @@ export function gitCatFile(at: GitCheckout, mode: keyof typeof CAT_FILE, object:
 
 /**
  * `git ls-files`: the tracked files or, with `untracked`, every untracked file (no exclude file or `.gitignore` read)
- * except below pi-worker's runtime directories (step 6); limited to `paths`.
+ * except below pi-worker's runtime directories (step 6); limited to `paths`. Refuses an index holding a gitlink and,
+ * with `untracked`, a nested repository (step 6).
  */
 export function gitLsFiles(at: GitCheckout, options: { readonly untracked?: boolean; readonly paths?: readonly string[] } = {}): string[] {
   const untracked = options.untracked === true;
-  const out = run(at, ['ls-files', '-z', ...(untracked ? ['--others'] : []), ...pathArgs(options.paths), ...(untracked ? RUNTIME_EXCLUDED : [])], { reads: 'index' });
+  const out = run(at, ['ls-files', '-z', ...(untracked ? ['--others'] : []), ...pathArgs(options.paths), ...(untracked ? RUNTIME_EXCLUDED : [])], { reads: 'index', lists: untracked });
   return out.toString('utf8').split('\0').filter(Boolean);
+}
+
+/** One entry of a tree: its mode (octal text, `160000` a gitlink), type, object id and path from the tree's root. */
+export interface GitTreeEntry {
+  readonly mode: string;
+  readonly type: string;
+  readonly object: string;
+  readonly path: string;
+}
+
+/** `git ls-tree -r --full-tree` of a revision's tree: every blob, link and gitlink in it (reads objects only). */
+export function gitLsTree(at: GitCheckout, rev: string): GitTreeEntry[] {
+  const out = run(at, ['ls-tree', '-r', '-z', '--full-tree', ...revArgs(rev)]);
+  return out
+    .toString('utf8')
+    .split('\0')
+    .filter(Boolean)
+    .map(record => {
+      const tab = record.indexOf('\t');
+      const [mode = '', type = '', object = ''] = record.slice(0, tab).split(' ');
+      return { mode, type, object, path: record.slice(tab + 1) };
+    });
 }
 
 /** One ref: its full name, the object it names and that object's type. */
