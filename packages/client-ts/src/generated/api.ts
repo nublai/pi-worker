@@ -365,7 +365,20 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancel the current execution; allowed while fenced */
+        /**
+         * Cancel the current execution; allowed while fenced
+         * @description Drops the worker's queued input (intents end `no_effect`), cancels live dialogs at their exact resolvers, then
+         *     asks pi to clear its own queue and abort. Allowed while fenced, never lifting the fence. With `execution_id`,
+         *     only that execution is targeted: another one is `stale_execution`, and one that already settled is refused
+         *     `no_running_execution` (`no_effect`) before any record, so queued input stays and pi is sent nothing. Without
+         *     `execution_id` it targets whatever is current. A delivered receipt's `result`: `requested: true`;
+         *     `disposition`, from the execution that was current right before the abort and its state after pi's reply
+         *     (pi's abort waits for idle): `interrupted` when it had not settled and settled during the abort (this request
+         *     stopped it), `settled` when it had already settled before the abort was sent, `unknown` otherwise (no
+         *     settlement observed, or `profile: no_live_host` when no live pi was there to ask); when pi was asked,
+         *     `external_effects_stopped: unproven` (stopping a running tool's external effects is never claimed). A failure after the dispatch record is `outcome_unknown` with no
+         *     `result`; it is never replayed.
+         */
         post: operations["executions.cancel"];
         delete?: never;
         options?: never;
@@ -384,7 +397,20 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Escape equivalent; allowed while fenced */
+        /**
+         * Escape equivalent; allowed while fenced
+         * @description Drops the worker's queued input (intents end `no_effect`), cancels live dialogs at their exact resolvers, then
+         *     asks pi to clear its own queue and abort. Allowed while fenced, never lifting the fence. With `execution_id`,
+         *     only that execution is targeted: another one is `stale_execution`, and one that already settled is refused
+         *     `no_running_execution` (`no_effect`) before any record, so queued input stays and pi is sent nothing. Without
+         *     `execution_id` it targets whatever is current. A delivered receipt's `result`: `requested: true`;
+         *     `disposition`, from the execution that was current right before the abort and its state after pi's reply
+         *     (pi's abort waits for idle): `interrupted` when it had not settled and settled during the abort (this request
+         *     stopped it), `settled` when it had already settled before the abort was sent, `unknown` otherwise (no
+         *     settlement observed, or `profile: no_live_host` when no live pi was there to ask); when pi was asked,
+         *     `external_effects_stopped: unproven` (stopping a running tool's external effects is never claimed). A failure after the dispatch record is `outcome_unknown` with no
+         *     `result`; it is never replayed.
+         */
         post: operations["executions.interrupt"];
         delete?: never;
         options?: never;

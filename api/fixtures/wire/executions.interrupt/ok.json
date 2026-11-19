@@ -7,7 +7,8 @@
       "command_id": "cmd-1",
       "worker_epoch": "epoch-1",
       "session_id": "session-1",
-      "binding_revision": 1
+      "binding_revision": 1,
+      "execution_id": "exec-1"
     }
   },
   "response": {
@@ -24,8 +25,10 @@
       "worker_id": "worker-1",
       "result": {
         "requested": true,
-        "observed": "unknown"
-      }
+        "disposition": "interrupted",
+        "external_effects_stopped": "unproven"
+      },
+      "execution_id": "exec-1"
     }
   }
 }

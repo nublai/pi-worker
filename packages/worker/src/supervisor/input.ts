@@ -496,6 +496,14 @@ export class Input {
    * Cancel and interrupt: drop queued input, then ask pi to clear its own queue and abort. Allowed under a fence
    * and never lifting it. The reply says what was requested and what was observed; stopping external effects of
    * running tools is never claimed.
+   *
+   * A request that names an execution stops only that execution while it has not settled: a settled one is refused
+   * `no_running_execution` (as `sessions.steer`) before any record, so its queued follow-ups stay queued and pi gets
+   * nothing. A request without an execution id stops whatever is current, as before (row 11 under a fence).
+   *
+   * `result.disposition` compares the execution that was current right before the abort with its state after pi's
+   * reply (pi's abort waits for idle): `interrupted` when it had not settled and settled during the abort, `settled`
+   * when it had already settled before the abort was sent, `unknown` otherwise.
    */
   control(id: string, b: Control, interrupt: boolean): Promise<Receipt> {
     let live!: Live;
@@ -513,20 +521,30 @@ export class Input {
           return { state: 'delivered', stage: 'requested', effect: 'observed', result: { requested: true, disposition: 'unknown', profile: 'no_live_host' } };
         }
         await live.host.request({ type: 'clear_queue' }); // abort alone may continue pi-owned queued input
+        // The execution the abort targets and whether it was still unsettled, captured before the abort is sent: an
+        // execution that settles during the abort was stopped by it; one settled before was not.
+        const target = live.worker.execution;
+        const unsettled = target != null && target.state !== 'settled';
         const aborted = await live.host.request({ type: 'abort' });
         this.s.persist(live, 'control.done');
-        const settled = live.worker.execution?.state === 'settled';
+        const settledNow = target?.state === 'settled';
+        const disposition = settledNow ? (unsettled ? 'interrupted' : 'settled') : 'unknown';
         return {
           state: aborted.success ? 'delivered' : 'outcome_unknown',
           stage: 'requested',
           effect: aborted.success ? 'observed' : 'unknown',
-          result: { requested: true, disposition: settled ? 'settled' : 'unknown', external_effects_stopped: 'unproven' },
+          result: { requested: true, disposition, external_effects_stopped: 'unproven' },
         };
       },
       () => {
         live = this.s.require(id);
         this.s.binding(live, b);
-        if (b.execution_id && live.worker.execution?.execution_id !== b.execution_id) throw new Refusal('stale_execution');
+        if (b.execution_id) {
+          const execution = live.worker.execution;
+          if (!execution || execution.execution_id !== b.execution_id) throw new Refusal('stale_execution');
+          // Already settled: nothing of it is left to stop, and its queued follow-ups belong to the next turn.
+          if (execution.state === 'settled') throw new Refusal('no_running_execution');
+        }
       },
     );
   }

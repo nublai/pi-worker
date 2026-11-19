@@ -25,8 +25,10 @@
       "worker_id": "worker-1",
       "result": {
         "requested": true,
-        "observed": "observed_stopped"
-      }
+        "disposition": "interrupted",
+        "external_effects_stopped": "unproven"
+      },
+      "execution_id": "exec-1"
     }
   }
 }

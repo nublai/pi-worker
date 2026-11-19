@@ -460,7 +460,8 @@ test("channel: a parent interrupts its own child's running turn: the receipt, th
     assert.equal(receipt.state, 'delivered', JSON.stringify(receipt));
     assert.equal(receipt.effect, 'observed');
     assert.equal(receipt.worker_id, c.id);
-    assert.deepEqual(receipt.result, { requested: true, disposition: 'settled', external_effects_stopped: 'unproven' });
+    // The child's turn was running when the abort was sent and settled during it (#49).
+    assert.deepEqual(receipt.result, { requested: true, disposition: 'interrupted', external_effects_stopped: 'unproven' });
     assert.deepEqual(
       c.host.commands.filter(h => ['clear_queue', 'abort'].includes(h.type)).map(h => h.type),
       ['clear_queue', 'abort'],

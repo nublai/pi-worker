@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/supervisor/input.ts b/packages/worker/src/supervisor/input.ts
+index a143ab4..d539060 100644
+--- a/packages/worker/src/supervisor/input.ts
++++ b/packages/worker/src/supervisor/input.ts
+@@ -543,7 +543,6 @@ export class Input {
+           const execution = live.worker.execution;
+           if (!execution || execution.execution_id !== b.execution_id) throw new Refusal('stale_execution');
+           // Already settled: nothing of it is left to stop, and its queued follow-ups belong to the next turn.
+-          if (execution.state === 'settled') throw new Refusal('no_running_execution');
+         }
+       },
+     );
