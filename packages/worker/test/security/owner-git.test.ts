@@ -872,13 +872,29 @@ test("owner Git: an agent's .gitmodules ignore = none never makes owner Git run 
     writeFileSync(join(f.wt, '.gitmodules'), '[submodule "sub"]\n\tpath = sub\n\turl = ./sub\n\tignore = none\n');
     f.git(f.wt, 'add', '.gitmodules', 'sub');
     f.git(f.wt, 'commit', '-qm', 'gitlink');
+    // A second nested commit whose diff a nested diff driver prints, the gitlink bumped to it, and a pinned
+    // `diff.submodule=diff`: a show or a revisions diff of the bump runs Git in the nested repository unless submodules
+    // are ignored on the command line (status and the index reads refuse the gitlink first since #48).
+    f.git(sub, 'config', 'diff.evil.command', f.payload);
+    writeFileSync(join(sub, '.gitattributes'), '* filter=evil diff=evil\n');
+    writeFileSync(join(sub, 'f'), 'z\n');
+    f.git(sub, 'add', '.');
+    f.git(sub, 'commit', '-qm', 'sub2');
+    f.git(f.wt, 'add', 'sub');
+    f.git(f.wt, 'commit', '-qm', 'bump');
+    f.git(f.repo, 'config', 'diff.submodule', 'diff');
     writeFileSync(join(sub, 'f'), 'y\n');
+    rmSync(f.marker, { force: true });
     const pin = readGitPin(f.wt);
     // Control: even with owner Git's `-c diff.ignoreSubmodules=all`, the .gitmodules setting wins and the filter runs.
     spawnSync('git', ['-C', f.wt, ...SAFE_GIT_CONFIG, 'status', '--porcelain'], { env: f.env, stdio: 'ignore' });
     assert.notDeepEqual(ran(f), [], 'fixture must be live: .gitmodules ignore = none overrides the -c setting');
     rmSync(f.marker);
+    spawnSync('git', ['-C', f.wt, ...SAFE_GIT_CONFIG, 'show', '--no-ext-diff', '--no-textconv', 'HEAD'], { env: f.env, stdio: 'ignore' });
+    assert.notDeepEqual(ran(f), [], 'fixture must be live: a show of the bump runs the nested diff driver');
+    rmSync(f.marker);
     const at = on(f, pin);
+    gitDiff(at, { kind: 'revisions', from: 'HEAD~1', to: 'HEAD' });
     // Since #48 (F4) the reads that would report on the nested repository refuse it; the others still run.
     gitDiff(at, { kind: 'revisions', from: f.baseId, to: f.headId });
     assert.throws(() => gitStatus(at), typed(/^git_nested_repository_refused$/), 'status');
