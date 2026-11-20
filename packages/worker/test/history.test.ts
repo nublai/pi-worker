@@ -328,3 +328,35 @@ test('history (real pi): a rename, a thinking change, a model selection, a compa
     await provider.close();
   }
 });
+
+test('history (real pi): a configure whose model hook moved pi to another session reports no leaf of the old one (#51)', { timeout: 90_000 }, async () => {
+  const provider = await fakeProvider();
+  const hook = `let stash;
+export default pi => {
+  pi.registerCommand('stash', { handler: async (_args, ctx) => { stash = ctx; } });
+  pi.on('model_select', async () => {
+    const first = stash.sessionManager.getEntries().find(e => e.type === 'message' && e.message.role === 'assistant');
+    await stash.fork(first.id, { position: 'at' });
+  });
+};\n`;
+  const models = providerExtension(provider.url).replace("models: [{", "models: [{ id: 'other', name: 'Other', reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 100000, maxTokens: 1000 }, {");
+  const f = realPiSupervisor({ 'provider.ts': models, 'hook.ts': hook });
+  try {
+    const id = await f.create();
+    for (const n of [1, 2]) {
+      await f.s.prompt(id, { ...bind(f.s.get(id), `turn-${n}`), message: `turn ${n}` });
+      await until(() => f.s.get(id).foreground === 'idle' && f.s.get(id).execution?.state === 'settled', 20_000, `turn ${n}`);
+    }
+    assert.equal((await f.s.invoke(id, { ...bind(f.s.get(id), 'stash'), name: 'stash' })).state, 'delivered');
+    const before = f.s.get(id);
+    const receipt = await f.s.configure(id, { ...bind(before, 'model'), model: { provider: 'piw-test', id: 'other' } });
+    assert.equal(receipt.state, 'delivered', JSON.stringify(receipt));
+    await until(() => f.s.get(id).binding_revision === before.binding_revision + 1, 10_000, 'the native fork');
+    const file = f.s.state.require(id).sessionFile!;
+    const tail = readFileSync(file, 'utf8').trim().split('\n').map(l => JSON.parse(l) as { id: string }).at(-1)!.id;
+    assert.deepEqual([f.s.get(id).leaf_id, f.s.get(id).history.last_entry_id], [tail, tail], 'the row names the forked session’s leaf');
+  } finally {
+    await f.cleanup();
+    await provider.close();
+  }
+});

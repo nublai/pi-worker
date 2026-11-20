@@ -666,8 +666,8 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
       // SAFETY: the supervisor passes a value of the spec's Thinking enum, which is pi's ThinkingLevel.
       if (typeof c.thinking === 'string') session.setThinkingLevel(c.thinking as 'off');
       if (name) session.setSessionName(name);
-      // pi's model selection appends with no session event: its leaf goes before the reply.
-      emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+      // pi's model selection appends with no session event: its leaf goes before the reply (unless a hook replaced it).
+      if (current === session) emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
       const now = session.model;
       reply({ model: now ? { provider: now.provider, id: now.id } : null, thinking: session.thinkingLevel ?? null, name: session.sessionName ?? null });
       break;
