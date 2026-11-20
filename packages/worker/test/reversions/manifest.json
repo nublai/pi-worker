@@ -158,7 +158,8 @@
         "fix-51-no-leaf-after-idle-appends.diff",
         "fix-51-no-leaf-before-configure-reply.diff",
         "fix-51-no-leaf-before-handled-command-reply.diff",
-        "fix-51-no-leaf-before-handled-prompt-reply.diff"
+        "fix-51-no-leaf-before-handled-prompt-reply.diff",
+        "fix-51-configure-reports-replaced-session.diff"
       ]
     },
     "conformance-runner": {
