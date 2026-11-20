@@ -360,3 +360,40 @@ export default pi => {
     await provider.close();
   }
 });
+
+test('history (real pi): a configure or command that forks and appends in withSession is delivered with the row on pi’s leaf (#51)', { timeout: 90_000 }, async () => {
+  const provider = await fakeProvider();
+  const hook = `let stash;
+const forkWithMessage = async ctx => {
+  const first = ctx.sessionManager.getEntries().find(e => e.type === 'message' && e.message.role === 'assistant');
+  await ctx.fork(first.id, { position: 'at', withSession: async next => next.sendMessage({ customType: 'after-fork', content: 'after fork', display: false }, { triggerTurn: false }) });
+};
+export default pi => {
+  pi.registerCommand('stash', { handler: async (_args, ctx) => { stash = ctx; } });
+  pi.registerCommand('forkmsg', { handler: async (_args, ctx) => forkWithMessage(ctx) });
+  pi.on('model_select', async () => forkWithMessage(stash));
+};\n`;
+  const models = providerExtension(provider.url).replace("models: [{", "models: [{ id: 'other', name: 'Other', reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 100000, maxTokens: 1000 }, {");
+  const f = realPiSupervisor({ 'provider.ts': models, 'hook.ts': hook });
+  try {
+    const id = await f.create();
+    for (const n of [1, 2]) {
+      await f.s.prompt(id, { ...bind(f.s.get(id), `turn-${n}`), message: `turn ${n}` });
+      await until(() => f.s.get(id).foreground === 'idle' && f.s.get(id).execution?.state === 'settled', 20_000, `turn ${n}`);
+    }
+    assert.equal((await f.s.invoke(id, { ...bind(f.s.get(id), 'stash'), name: 'stash' })).state, 'delivered');
+    const atDelivered = async (what: string, run: () => Promise<{ state: string }>) => {
+      const receipt = await run();
+      assert.equal(receipt.state, 'delivered', JSON.stringify(receipt));
+      const entries = readFileSync(f.s.state.require(id).sessionFile!, 'utf8').trim().split('\n').map(l => JSON.parse(l) as { id: string; customType?: string });
+      assert.equal(entries.at(-1)!.customType, 'after-fork', `${what}: the withSession message is pi's last entry`);
+      const row = f.s.get(id);
+      assert.deepEqual([row.leaf_id, row.history.last_entry_id], [entries.at(-1)!.id, entries.at(-1)!.id], `${what}: at delivered the row names pi's leaf`);
+    };
+    await atDelivered('configure', () => f.s.configure(id, { ...bind(f.s.get(id), 'model'), model: { provider: 'piw-test', id: 'other' } }));
+    await atDelivered('invoke', () => f.s.invoke(id, { ...bind(f.s.get(id), 'forkmsg'), name: 'forkmsg' }));
+  } finally {
+    await f.cleanup();
+    await provider.close();
+  }
+});
