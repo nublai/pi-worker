@@ -1,16 +1,17 @@
 diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
-index e3b0449..2dda31f 100644
+index 36b7126..c2788fa 100644
 --- a/packages/worker/src/sdk-child/main.ts
 +++ b/packages/worker/src/sdk-child/main.ts
-@@ -385,10 +385,9 @@ async function bind(session: AgentSession): Promise<void> {
+@@ -385,11 +385,10 @@ async function bind(session: AgentSession): Promise<void> {
      // pi's leaf after the turn goes BEFORE its settlement: the supervisor settles the execution on `agent_settled`,
      // and a caller that reads history then must get the turn, not the leaf pi had selected before it (pi emits no
      // `entry_appended` for its message entries, so this is the first leaf report of the turn).
 -    if (event.type === 'agent_settled') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
      // SAFETY: sanitize keeps an event's own fields, so the result is still a record with its string `type`.
      emit(sanitize(event) as unknown as PiEvent);
--    if (event.type === 'entry_appended') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
-+    if (event.type === 'entry_appended' || event.type === 'agent_settled') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+     // pi appends a rename, a thinking change and a compaction without `entry_appended`; these events follow each one.
+-    if (event.type === 'entry_appended' || event.type === 'session_info_changed' || event.type === 'thinking_level_changed' || event.type === 'compaction_end') {
++    if (event.type === 'entry_appended' || event.type === 'session_info_changed' || event.type === 'thinking_level_changed' || event.type === 'compaction_end' || event.type === 'agent_settled') {
+       emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+     }
    });
-   await session.bindExtensions({
-     uiContext: ui,
