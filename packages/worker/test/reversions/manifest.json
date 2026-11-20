@@ -155,7 +155,9 @@
         "p1-fix-f1-marker-uses-sdk-leaf.diff",
         "fix-11-leaf-after-settlement.diff",
         "fix-51-no-leaf-after-idle-appends.diff",
-        "fix-51-no-leaf-before-configure-reply.diff"
+        "fix-51-no-leaf-before-configure-reply.diff",
+        "fix-51-no-leaf-before-handled-command-reply.diff",
+        "fix-51-no-leaf-before-handled-prompt-reply.diff"
       ]
     },
     "conformance-runner": {

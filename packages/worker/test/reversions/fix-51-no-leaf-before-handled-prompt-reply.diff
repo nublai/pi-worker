@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index 70d70a9..46da64c 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -594,7 +594,6 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
+             // Input pi did not start a turn for (the stamp is already appended) gets no settlement leaf report.
+             if (disposition !== 'started') {
+               running = null;
+-              emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+             }
+             const base = { disposition, ...(marked ? { interrupt_marker: true } : {}) };
+             if (!blocks.length) return reply(base);

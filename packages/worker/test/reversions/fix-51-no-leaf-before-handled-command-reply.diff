@@ -1,0 +1,12 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index 70d70a9..7abe4e7 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -547,7 +547,6 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
+       // A handled command runs no turn, so no settlement reports what it appended: its leaf goes before the reply.
+       await session.prompt(text, {
+         preflightResult: disposition => {
+-          emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+           reply({ disposition });
+         },
+       });
