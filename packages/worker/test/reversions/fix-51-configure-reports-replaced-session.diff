@@ -1,0 +1,13 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index 50c5437..9bdb918 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -671,7 +671,7 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
+       if (typeof c.thinking === 'string') session.setThinkingLevel(c.thinking as 'off');
+       if (name) session.setSessionName(name);
+       // pi's model selection appends with no session event: its leaf goes before the reply.
+-      emitLeaf();
++      emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+       const now = session.model;
+       reply({ model: now ? { provider: now.provider, id: now.id } : null, thinking: session.thinkingLevel ?? null, name: session.sessionName ?? null });
+       break;

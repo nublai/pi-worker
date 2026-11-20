@@ -1,0 +1,16 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index 36b7126..41f6a1a 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -388,10 +388,7 @@ async function bind(session: AgentSession): Promise<void> {
+     if (event.type === 'agent_settled') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+     // SAFETY: sanitize keeps an event's own fields, so the result is still a record with its string `type`.
+     emit(sanitize(event) as unknown as PiEvent);
+-    // pi appends a rename, a thinking change and a compaction without `entry_appended`; these events follow each one.
+-    if (event.type === 'entry_appended' || event.type === 'session_info_changed' || event.type === 'thinking_level_changed' || event.type === 'compaction_end') {
+-      emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+-    }
++    if (event.type === 'entry_appended') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+   });
+   await session.bindExtensions({
+     uiContext: ui,

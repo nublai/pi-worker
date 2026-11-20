@@ -337,6 +337,11 @@ function emitConfig(): void {
   emit({ type: 'host_config', model: model ? { provider: model.provider, id: model.id } : null, thinking: session.thinkingLevel ?? null, name: session.sessionName ?? null });
 }
 
+/** pi's leaf in the bound session, which a command or hook may have replaced since it started (its binding is reported). */
+function emitLeaf(): void {
+  if (current) emit({ type: 'host_leaf', leafId: current.sessionManager.getLeafId() });
+}
+
 /**
  * The interrupt rule (Shep's ADR-0006, R9), derived from the log: the newest turn on the active path ended `aborted`
  * and no user message came after it, and the new text starts a turn (not `/…` or `!…`).
@@ -388,7 +393,10 @@ async function bind(session: AgentSession): Promise<void> {
     if (event.type === 'agent_settled') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
     // SAFETY: sanitize keeps an event's own fields, so the result is still a record with its string `type`.
     emit(sanitize(event) as unknown as PiEvent);
-    if (event.type === 'entry_appended') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+    // pi appends a rename, a thinking change and a compaction without `entry_appended`; these events follow each one.
+    if (event.type === 'entry_appended' || event.type === 'session_info_changed' || event.type === 'thinking_level_changed' || event.type === 'compaction_end') {
+      emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+    }
   });
   await session.bindExtensions({
     uiContext: ui,
@@ -541,7 +549,13 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
       if (session.isStreaming) throw new RefusedBeforeInput('pi_busy');
       if (session.isCompacting) throw new RefusedBeforeInput('pi_compacting');
       const text = `/${name}${typeof c.args === 'string' && c.args !== '' ? ` ${c.args}` : ''}`;
-      await session.prompt(text, { preflightResult: disposition => reply({ disposition }) });
+      // A handled command runs no turn, so no settlement reports what it appended: its leaf goes before the reply.
+      await session.prompt(text, {
+        preflightResult: disposition => {
+          emitLeaf();
+          reply({ disposition });
+        },
+      });
       break;
     }
     case 'prompt':
@@ -582,7 +596,11 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
         await session.prompt(delivered, {
           ...(blocks.length ? { images: blocks } : {}),
           preflightResult: disposition => {
-            if (disposition !== 'started') running = null;
+            // Input pi did not start a turn for (the stamp is already appended) gets no settlement leaf report.
+            if (disposition !== 'started') {
+              running = null;
+              emitLeaf();
+            }
             const base = { disposition, ...(marked ? { interrupt_marker: true } : {}) };
             if (!blocks.length) return reply(base);
             if (disposition !== 'started') return reply({ ...base, accepted_images: 0 });
@@ -652,6 +670,8 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
       // SAFETY: the supervisor passes a value of the spec's Thinking enum, which is pi's ThinkingLevel.
       if (typeof c.thinking === 'string') session.setThinkingLevel(c.thinking as 'off');
       if (name) session.setSessionName(name);
+      // pi's model selection appends with no session event: its leaf goes before the reply.
+      emitLeaf();
       const now = session.model;
       reply({ model: now ? { provider: now.provider, id: now.id } : null, thinking: session.thinkingLevel ?? null, name: session.sessionName ?? null });
       break;

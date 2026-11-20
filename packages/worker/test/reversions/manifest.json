@@ -66,7 +66,8 @@
         "p1-7-rebind-keeps-revision.diff",
         "p1-7-no-native-move-refusal.diff",
         "p1-fix-f4-sessions-new-not-session-directed.diff",
-        "p2-1-issue6-unknown-rebind-releases-target.diff"
+        "p2-1-issue6-unknown-rebind-releases-target.diff",
+        "fix-51-handled-reply-reports-replaced-session.diff"
       ]
     },
     "resume": {
@@ -153,7 +154,13 @@
       "command": "npm test -- history",
       "diffs": [
         "p1-fix-f1-marker-uses-sdk-leaf.diff",
-        "fix-11-leaf-after-settlement.diff"
+        "fix-11-leaf-after-settlement.diff",
+        "fix-51-no-leaf-after-idle-appends.diff",
+        "fix-51-no-leaf-before-configure-reply.diff",
+        "fix-51-no-leaf-before-handled-command-reply.diff",
+        "fix-51-no-leaf-before-handled-prompt-reply.diff",
+        "fix-51-configure-reports-replaced-session.diff",
+        "fix-51-handled-reply-reports-replaced-session.diff"
       ]
     },
     "conformance-runner": {
