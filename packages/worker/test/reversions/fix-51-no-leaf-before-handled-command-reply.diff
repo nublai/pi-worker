@@ -1,12 +1,12 @@
 diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
-index ef6b8aa..b847a3a 100644
+index 50c5437..83f43d5 100644
 --- a/packages/worker/src/sdk-child/main.ts
 +++ b/packages/worker/src/sdk-child/main.ts
-@@ -548,7 +548,6 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
-       // command that replaced the session reported the new one's leaf with its binding).
+@@ -552,7 +552,6 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
+       // A handled command runs no turn, so no settlement reports what it appended: its leaf goes before the reply.
        await session.prompt(text, {
          preflightResult: disposition => {
--          if (current === session) emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+-          emitLeaf();
            reply({ disposition });
          },
        });

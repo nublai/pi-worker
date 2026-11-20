@@ -1,13 +1,13 @@
 diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
-index a418b55..7a29801 100644
+index 50c5437..08cf785 100644
 --- a/packages/worker/src/sdk-child/main.ts
 +++ b/packages/worker/src/sdk-child/main.ts
-@@ -666,8 +666,6 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
+@@ -670,8 +670,6 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
        // SAFETY: the supervisor passes a value of the spec's Thinking enum, which is pi's ThinkingLevel.
        if (typeof c.thinking === 'string') session.setThinkingLevel(c.thinking as 'off');
        if (name) session.setSessionName(name);
--      // pi's model selection appends with no session event: its leaf goes before the reply (unless a hook replaced it).
--      if (current === session) emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+-      // pi's model selection appends with no session event: its leaf goes before the reply.
+-      emitLeaf();
        const now = session.model;
        reply({ model: now ? { provider: now.provider, id: now.id } : null, thinking: session.thinkingLevel ?? null, name: session.sessionName ?? null });
        break;
