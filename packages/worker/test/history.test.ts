@@ -288,9 +288,12 @@ test('history (real pi): a fresh worker reads as empty history, not a bad cursor
   }
 });
 
-test('history (real pi): a rename, a thinking change, a model selection and a compaction with no new turn each move the row to the entry pi appended (#51)', { timeout: 90_000 }, async () => {
+test('history (real pi): a rename, a thinking change, a model selection, a compaction, a handled command or a handled prompt with no new turn each move the row to the entry pi appended (#51)', { timeout: 90_000 }, async () => {
   const provider = await fakeProvider();
-  const native = `export default pi => { pi.registerCommand('native', { handler: async args => (args === 'think' ? pi.setThinkingLevel('high') : pi.setSessionName(args)) }); };\n`;
+  const native = `export default pi => {
+  pi.registerCommand('native', { handler: async (args, ctx) => (args === 'think' ? pi.setThinkingLevel('high') : args === 'label' ? pi.setLabel(ctx.sessionManager.getLeafId(), 'marked') : pi.setSessionName(args)) });
+  pi.on('input', event => (event.text === 'noop' ? { action: 'handled' } : undefined));
+};\n`;
   const f = realPiSupervisor({ 'provider.ts': providerExtension(provider.url).replace('reasoning: false', 'reasoning: true'), 'native.ts': native });
   try {
     writeFileSync(join(f.agent, 'settings.json'), JSON.stringify({ compaction: { keepRecentTokens: 1 } }));
@@ -318,6 +321,8 @@ test('history (real pi): a rename, a thinking change, a model selection and a co
     assert.equal(f.s.get(id).thinking, 'high');
     await movedTo('model_change', () => f.s.configure(id, { ...bind(f.s.get(id), 'model'), model: { provider: 'piw-test', id: 'echo' } }));
     await movedTo('compaction', () => f.s.compact(id, bind(f.s.get(id), 'compact')));
+    await movedTo('label', () => f.s.invoke(id, { ...bind(f.s.get(id), 'native-label'), name: 'native', args: 'label' }));
+    await movedTo('custom', () => f.s.prompt(id, { ...bind(f.s.get(id), 'noop'), message: 'noop' }));
   } finally {
     await f.cleanup();
     await provider.close();

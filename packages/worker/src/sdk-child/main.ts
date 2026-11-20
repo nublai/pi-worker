@@ -544,7 +544,13 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
       if (session.isStreaming) throw new RefusedBeforeInput('pi_busy');
       if (session.isCompacting) throw new RefusedBeforeInput('pi_compacting');
       const text = `/${name}${typeof c.args === 'string' && c.args !== '' ? ` ${c.args}` : ''}`;
-      await session.prompt(text, { preflightResult: disposition => reply({ disposition }) });
+      // A handled command runs no turn, so no settlement reports what it appended: its leaf goes before the reply.
+      await session.prompt(text, {
+        preflightResult: disposition => {
+          emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+          reply({ disposition });
+        },
+      });
       break;
     }
     case 'prompt':
@@ -585,7 +591,11 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
         await session.prompt(delivered, {
           ...(blocks.length ? { images: blocks } : {}),
           preflightResult: disposition => {
-            if (disposition !== 'started') running = null;
+            // Input pi did not start a turn for (the stamp is already appended) gets no settlement leaf report.
+            if (disposition !== 'started') {
+              running = null;
+              emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+            }
             const base = { disposition, ...(marked ? { interrupt_marker: true } : {}) };
             if (!blocks.length) return reply(base);
             if (disposition !== 'started') return reply({ ...base, accepted_images: 0 });
