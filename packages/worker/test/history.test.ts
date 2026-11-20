@@ -19,6 +19,7 @@ import { ITEM_MAX_BYTES } from '../src/supervisor/supervisor.js';
 import { bind, fixture, type Fixture } from './supervisor-fixture.js';
 import { ownerGrant, privateTmp } from './helpers.js';
 import { domained } from './domains.js';
+import { fakeProvider, providerExtension, realPiSupervisor, until } from './real-pi.js';
 
 async function serve(f: Fixture): Promise<{ socket: string; grantFile: string; headers: Record<string, string>; close: () => Promise<void> }> {
   const owner = ownerGrant(f.dir);
@@ -284,5 +285,41 @@ test('history (real pi): a fresh worker reads as empty history, not a bad cursor
     await s.shutdown();
     opened.close();
     tmp.cleanup();
+  }
+});
+
+test('history (real pi): a rename, a thinking change, a model selection and a compaction with no new turn each move the row to the entry pi appended (#51)', { timeout: 90_000 }, async () => {
+  const provider = await fakeProvider();
+  const native = `export default pi => { pi.registerCommand('native', { handler: async args => (args === 'think' ? pi.setThinkingLevel('high') : pi.setSessionName(args)) }); };\n`;
+  const f = realPiSupervisor({ 'provider.ts': providerExtension(provider.url).replace('reasoning: false', 'reasoning: true'), 'native.ts': native });
+  try {
+    writeFileSync(join(f.agent, 'settings.json'), JSON.stringify({ compaction: { keepRecentTokens: 1 } }));
+    const id = await f.create();
+    for (const n of [1, 2]) {
+      await f.s.prompt(id, { ...bind(f.s.get(id), `turn-${n}`), message: `turn ${n}: ${'words '.repeat(200)}` });
+      await until(() => f.s.get(id).foreground === 'idle' && f.s.get(id).execution?.state === 'settled', 20_000, `turn ${n}`);
+    }
+    const file = f.s.state.require(id).sessionFile!;
+    const movedTo = async (type: string, change: () => Promise<{ state: string }>) => {
+      const before = f.s.get(id).leaf_id;
+      const receipt = await change();
+      assert.equal(receipt.state, 'delivered', JSON.stringify(receipt));
+      const entries = readFileSync(file, 'utf8').trim().split('\n').map(l => JSON.parse(l) as { type: string; id: string });
+      const appended = entries.slice(entries.findIndex(e => e.id === before) + 1).map(e => e.type);
+      assert.ok(appended.includes(type), `pi appended ${type}: ${appended.join(', ')}`);
+      const row = f.s.get(id);
+      assert.deepEqual([row.leaf_id, row.history], [entries.at(-1)!.id, { last_entry_id: entries.at(-1)!.id, lag: false, evidence: 'pi_session_file' }], `after ${type} the row names pi's leaf`);
+    };
+    await movedTo('session_info', () => f.s.configure(id, { ...bind(f.s.get(id), 'rename'), name: 'Renamed chat' }));
+    assert.equal(f.s.get(id).title, 'Renamed chat');
+    await movedTo('session_info', () => f.s.invoke(id, { ...bind(f.s.get(id), 'native-rename'), name: 'native', args: 'Renamed natively' }));
+    assert.equal(f.s.get(id).title, 'Renamed natively');
+    await movedTo('thinking_level_change', () => f.s.invoke(id, { ...bind(f.s.get(id), 'native-think'), name: 'native', args: 'think' }));
+    assert.equal(f.s.get(id).thinking, 'high');
+    await movedTo('model_change', () => f.s.configure(id, { ...bind(f.s.get(id), 'model'), model: { provider: 'piw-test', id: 'echo' } }));
+    await movedTo('compaction', () => f.s.compact(id, bind(f.s.get(id), 'compact')));
+  } finally {
+    await f.cleanup();
+    await provider.close();
   }
 });
