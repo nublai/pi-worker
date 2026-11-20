@@ -388,7 +388,10 @@ async function bind(session: AgentSession): Promise<void> {
     if (event.type === 'agent_settled') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
     // SAFETY: sanitize keeps an event's own fields, so the result is still a record with its string `type`.
     emit(sanitize(event) as unknown as PiEvent);
-    if (event.type === 'entry_appended') emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+    // pi appends a rename, a thinking change and a compaction without `entry_appended`; these events follow each one.
+    if (event.type === 'entry_appended' || event.type === 'session_info_changed' || event.type === 'thinking_level_changed' || event.type === 'compaction_end') {
+      emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+    }
   });
   await session.bindExtensions({
     uiContext: ui,
@@ -652,6 +655,8 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
       // SAFETY: the supervisor passes a value of the spec's Thinking enum, which is pi's ThinkingLevel.
       if (typeof c.thinking === 'string') session.setThinkingLevel(c.thinking as 'off');
       if (name) session.setSessionName(name);
+      // pi's model selection appends with no session event: its leaf goes before the reply.
+      emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
       const now = session.model;
       reply({ model: now ? { provider: now.provider, id: now.id } : null, thinking: session.thinkingLevel ?? null, name: session.sessionName ?? null });
       break;
