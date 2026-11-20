@@ -1,0 +1,22 @@
+diff --git a/packages/worker/src/sdk-child/main.ts b/packages/worker/src/sdk-child/main.ts
+index ef6b8aa..8b11b91 100644
+--- a/packages/worker/src/sdk-child/main.ts
++++ b/packages/worker/src/sdk-child/main.ts
+@@ -548,7 +548,7 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
+       // command that replaced the session reported the new one's leaf with its binding).
+       await session.prompt(text, {
+         preflightResult: disposition => {
+-          if (current === session) emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
++          emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+           reply({ disposition });
+         },
+       });
+@@ -595,7 +595,7 @@ async function command(c: Command, reply: (data: Record<string, unknown>) => voi
+             // Input pi did not start a turn for (the stamp is already appended) gets no settlement leaf report.
+             if (disposition !== 'started') {
+               running = null;
+-              if (current === session) emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
++              emit({ type: 'host_leaf', leafId: session.sessionManager.getLeafId() });
+             }
+             const base = { disposition, ...(marked ? { interrupt_marker: true } : {}) };
+             if (!blocks.length) return reply(base);

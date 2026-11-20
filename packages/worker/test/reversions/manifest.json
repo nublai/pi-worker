@@ -66,7 +66,8 @@
         "p1-7-rebind-keeps-revision.diff",
         "p1-7-no-native-move-refusal.diff",
         "p1-fix-f4-sessions-new-not-session-directed.diff",
-        "p2-1-issue6-unknown-rebind-releases-target.diff"
+        "p2-1-issue6-unknown-rebind-releases-target.diff",
+        "fix-51-handled-reply-reports-replaced-session.diff"
       ]
     },
     "resume": {
